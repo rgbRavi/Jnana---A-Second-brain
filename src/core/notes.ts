@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Note } from '../types'
+import type { Note, Link } from '../types'
 import { eventBus } from '../lib/eventBus'
 
 export async function getAllNotes(): Promise<Note[]> {
@@ -19,6 +19,24 @@ export async function saveNote(note: Note): Promise<Note> {
 export async function deleteNote(id: string): Promise<void> {
   await invoke<void>('delete_note', { id })
   eventBus.emit('note:deleted', { id })
+}
+
+export async function getLinks(noteId: string): Promise<string[]> {
+  return invoke<string[]>('get_links', { noteId })
+}
+
+export async function getAllLinks(): Promise<[string, string][]> {
+  return invoke<[string, string][]>('get_all_links')
+}
+
+export async function createLink(fromId: string, toId: string): Promise<void> {
+  await invoke<void>('create_link', { fromId, toId })
+  eventBus.emit('link:created', { fromId, toId })
+}
+
+export async function removeLink(fromId: string, toId: string): Promise<void> {
+  await invoke<void>('remove_link', { fromId, toId })
+  eventBus.emit('link:removed', { fromId, toId })
 }
 
 export function createNote(title: string = 'Untitled'): Note {

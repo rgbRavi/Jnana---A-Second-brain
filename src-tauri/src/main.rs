@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod db;
 
 use commands::notes::*;
 
@@ -12,6 +13,10 @@ fn main() {
             get_note,
             save_note,
             delete_note,
+            get_links,
+            get_all_links,
+            create_link,
+            remove_link,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
