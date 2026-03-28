@@ -1,51 +1,28 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState } from 'react'
+import { saveNote, getAllNotes, createNote } from './core/notes'
+import type { Note } from './types'
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [notes, setNotes] = useState<Note[]>([])
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+  async function handleCreate() {
+    const note = createNote('Test Note')
+    await saveNote(note)
+    const all = await getAllNotes()
+    setNotes(all)
   }
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+      <h1>Jnana</h1>
+      <button onClick={handleCreate}>Create test note</button>
+      <ul>
+        {notes.map(n => (
+          <li key={n.id}>{n.title} — {new Date(n.createdAt).toLocaleTimeString()}</li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
-export default App;
+export default App
