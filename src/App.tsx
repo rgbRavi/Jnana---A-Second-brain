@@ -1,26 +1,21 @@
-import { useState } from 'react'
-import { saveNote, getAllNotes, createNote } from './core/notes'
-import type { Note } from './types'
+import './App.css'
+import { NoteCreator } from './ui/editor/NoteCreator'
 
 function App() {
-  const [notes, setNotes] = useState<Note[]>([])
-
-  async function handleCreate() {
-    const note = createNote('Test Note')
-    await saveNote(note)
-    const all = await getAllNotes()
-    setNotes(all)
-  }
-
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>Jnana</h1>
-      <button onClick={handleCreate}>Create test note</button>
-      <ul>
-        {notes.map(n => (
-          <li key={n.id}>{n.title} — {new Date(n.createdAt).toLocaleTimeString()}</li>
-        ))}
-      </ul>
+    <div className="app-shell">
+      {/* Sidebar — your friend will build this out properly */}
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <h1>Jnana</h1>
+          <span>Second brain</span>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <div className="main-content">
+        <NoteCreator />
+      </div>
     </div>
   )
 }
