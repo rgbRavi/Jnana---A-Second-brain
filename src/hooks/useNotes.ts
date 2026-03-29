@@ -54,6 +54,30 @@ export function useNotes() {
     []
   )
 
+  const update = useCallback(
+    async (id: string, title: string, content: string): Promise<Note | undefined> => {
+      let updatedNote: Note | undefined
+
+      setNotes((prev) => {
+        const temp = prev.find((n) => n.id === id)
+        if (!temp) return prev
+        updatedNote = {
+          ...temp,
+          title: title.trim(),
+          content,
+          updatedAt: Date.now(),
+        }
+        return prev.map((n) => (n.id === id ? updatedNote! : n))
+      })
+
+      if (updatedNote) {
+        await saveNote(updatedNote)
+        return updatedNote
+      }
+    },
+    []
+  )
+
   const remove = useCallback(async (id: string) => {
     // Optimistic — remove from list immediately
     setNotes((prev) => prev.filter((n) => n.id !== id))
@@ -61,5 +85,5 @@ export function useNotes() {
     eventBus.emit('note:deleted', id)
   }, [])
 
-  return { notes, loading, create, remove }
+  return { notes, loading, create, update, remove }
 }

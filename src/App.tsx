@@ -1,9 +1,10 @@
 import './App.css'
 import { NoteCreator } from './ui/editor/NoteCreator'
+import { NoteItem } from './ui/editor/NoteItem'
 import { useNotes } from './hooks/useNotes'
 
 function App() {
-  const { notes, loading, create, remove } = useNotes()
+  const { notes, loading, create, update, remove } = useNotes()
 
   return (
     <div className="app-shell">
@@ -30,22 +31,12 @@ function App() {
             <p className="note-empty">No notes yet.</p>
           )}
           {notes.map((note) => (
-            <div key={note.id} className="note-card">
-              <div className="note-card-header">
-                <span className="note-card-title">{note.title || 'Untitled'}</span>
-                <button
-                  className="note-card-delete"
-                  onClick={() => remove(note.id)}
-                  aria-label="Delete note"
-                >×</button>
-              </div>
-              {note.content && (
-                <p className="note-card-body">{note.content}</p>
-              )}
-              <time className="note-card-time">
-                {new Date(note.updatedAt).toLocaleString()}
-              </time>
-            </div>
+            <NoteItem
+              key={note.id}
+              note={note}
+              onUpdate={update}
+              onRemove={remove}
+            />
           ))}
         </div>
       </div>
