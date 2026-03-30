@@ -1,7 +1,7 @@
 // src/hooks/useNotes.ts
 import { useState, useEffect, useCallback } from 'react'
 import { Note } from '../types/index'
-import { getAllNotes, saveNote, deleteNote } from '../core/notes'
+import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { eventBus } from '../lib/eventBus'
 
 export function useNotes() {
@@ -48,6 +48,7 @@ export function useNotes() {
 
       // Persist in background — core will emit 'note:saved'
       await saveNote(note)
+      await syncLinksForNote(note.id, content)
 
       return note
     },
@@ -72,6 +73,7 @@ export function useNotes() {
 
       if (updatedNote) {
         await saveNote(updatedNote)
+        await syncLinksForNote(id, content)
         return updatedNote
       }
     },

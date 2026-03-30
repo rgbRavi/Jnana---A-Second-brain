@@ -4,6 +4,7 @@ mod commands;
 mod db;
 
 use commands::notes::*;
+use commands::assets::*;
 
 fn main() {
     tauri::Builder::default()
@@ -17,6 +18,8 @@ fn main() {
             get_all_links,
             create_link,
             remove_link,
+            save_asset,
+            get_asset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

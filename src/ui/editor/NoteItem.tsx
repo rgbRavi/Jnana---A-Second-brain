@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { MarkdownLite } from './MarkdownLite'
+import { uploadAsset } from '../../core/notes'
 import type { Note } from '../../types'
 
 interface Props {
@@ -12,7 +14,9 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sync state if note changes from outside
   useEffect(() => {
@@ -57,6 +61,27 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
     }
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const extension = file.name.split('.').pop() || 'png'
+      const assetUrl = await uploadAsset(new Uint8Array(arrayBuffer), extension)
+      const imageMarkdown = `\n![${file.name}](${assetUrl})\n`
+      setContent((prev) => prev + imageMarkdown)
+    } catch (err) {
+      console.error('Failed to upload image:', err)
+      alert('Failed to upload image: ' + String(err))
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      textareaRef.current?.focus()
+    }
+  }
+
   if (isEditing) {
     return (
       <div className="note-card editing">
@@ -79,6 +104,21 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
         />
         <div className="composer-footer borderless-footer">
           <div className="composer-actions">
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              ref={fileInputRef}
+              onChange={handleImageUpload}
+            />
+            <button
+              className="composer-icon-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={saving || uploading}
+              title="Attach Image"
+            >
+              {uploading ? '⏳' : '📷'}
+            </button>
             <button
               className="composer-cancel"
               onClick={() => {
@@ -86,14 +126,14 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
                 setContent(note.content || '')
                 setIsEditing(false)
               }}
-              disabled={saving}
+              disabled={saving || uploading}
             >
               Cancel
             </button>
             <button
               className="composer-save"
               onClick={handleSave}
-              disabled={saving || (!content.trim() && !title.trim())}
+              disabled={saving || uploading || (!content.trim() && !title.trim())}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -128,7 +168,9 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
         </div>
       </div>
       {note.content && (
-        <p className="note-card-body">{note.content}</p>
+        <div className="note-card-body">
+          <MarkdownLite content={note.content} />
+        </div>
       )}
       <time className="note-card-time">
         {new Date(note.updatedAt).toLocaleString()}
