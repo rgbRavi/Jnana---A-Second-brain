@@ -1,15 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
+import { open } from '@tauri-apps/plugin-dialog'
 import { MarkdownLite } from './MarkdownLite'
 import { uploadAsset } from '../../core/notes'
+import { importVid } from '../../core/media'
 import type { Note } from '../../types'
 
 interface Props {
   note: Note
   onUpdate: (id: string, title: string, content: string) => Promise<Note | undefined>
   onRemove: (id: string) => void
+  onExpand?: () => void
 }
 
-export function NoteItem({ note, onUpdate, onRemove }: Props) {
+export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
@@ -82,6 +85,54 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
     }
   }
 
+  const handleVideoUpload = async () => {
+    try {
+      setUploading(true)
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: 'Video',
+            extensions: ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'],
+          },
+        ],
+      })
+
+      if (!selected || typeof selected !== 'string') return
+
+      // Import the video with the current note's ID
+      const filename = await importVid(selected, note.id)
+
+      // Inject markdown
+      const videoMarkdown = `\n![video](jnana-asset://${filename})\n`
+      setContent((prev) => prev + videoMarkdown)
+    } catch (err) {
+      console.error('Failed to upload video:', err)
+      alert('Failed to upload video: ' + String(err))
+    } finally {
+      setUploading(false)
+      textareaRef.current?.focus()
+    }
+  }
+
+  const handleYouTubeEmbed = () => {
+    const url = window.prompt('Paste a YouTube URL:')
+    if (!url) return
+
+    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
+    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
+    const videoId = shortMatch?.[1] || watchMatch?.[1]
+
+    if (!videoId) {
+      alert('Could not extract a YouTube video ID from that URL.')
+      return
+    }
+
+    const ytMarkdown = `\n![youtube](https://youtube.com/watch?v=${videoId})\n`
+    setContent((prev) => prev + ytMarkdown)
+    textareaRef.current?.focus()
+  }
+
   if (isEditing) {
     return (
       <div className="note-card editing">
@@ -120,6 +171,22 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
               {uploading ? '⏳' : '📷'}
             </button>
             <button
+              className="composer-icon-btn"
+              onClick={handleVideoUpload}
+              disabled={saving || uploading}
+              title="Attach Video"
+            >
+              {uploading ? '⏳' : '🎬'}
+            </button>
+            <button
+              className="composer-icon-btn"
+              onClick={handleYouTubeEmbed}
+              disabled={saving || uploading}
+              title="Embed YouTube"
+            >
+              ▶️
+            </button>
+            <button
               className="composer-cancel"
               onClick={() => {
                 setTitle(note.title)
@@ -145,7 +212,9 @@ export function NoteItem({ note, onUpdate, onRemove }: Props) {
   }
 
   return (
-    <div className="note-card" onClick={() => setIsEditing(true)}>
+    <div className="note-card" onClick={() => {
+      if (!isEditing && onExpand) onExpand()
+    }}>
       <div className="note-card-header">
         <span className="note-card-title">{note.title || 'Untitled'}</span>
         <div className="note-card-actions" onClick={(e) => e.stopPropagation()}>

@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
+import { open } from '@tauri-apps/plugin-dialog'
 import type { Note } from '../../types'
 import { uploadAsset } from '../../core/notes'
+import { importVid } from '../../core/media'
 
 interface Props {
   onCreate: (title: string, content: string) => Promise<Note>
@@ -49,6 +51,74 @@ export function NoteCreator({ onCreate }: Props) {
     }
   }
 
+  const handleVideoUpload = async () => {
+    try {
+      setUploading(true)
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: 'Video',
+            extensions: ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'],
+          },
+        ],
+      })
+
+      if (!selected || typeof selected !== 'string') return
+
+      // For new notes, we need to save first to get an ID
+      let noteId: string
+      if (title.trim() || content.trim()) {
+        // Note has content, but might not be saved yet - create temp note to get ID
+        setSaving(true)
+        const createdNote = await onCreate(title || 'Untitled', content)
+        setSaving(false)
+        noteId = createdNote.id
+        // Clear the form after auto-save
+        setTitle('')
+        setContent('')
+      } else {
+        // Empty note - create untitled placeholder
+        setSaving(true)
+        const createdNote = await onCreate('Untitled', '')
+        setSaving(false)
+        noteId = createdNote.id
+      }
+
+      // Now import the video with the note ID
+      const filename = await importVid(selected, noteId)
+
+      // Inject markdown
+      const videoMarkdown = `![video](jnana-asset://${filename})`
+      setContent((prev) => prev + (prev ? '\n' : '') + videoMarkdown + '\n')
+    } catch (err) {
+      console.error('Failed to upload video:', err)
+      alert('Failed to upload video: ' + String(err))
+    } finally {
+      setUploading(false)
+      textareaRef.current?.focus()
+    }
+  }
+
+  const handleYouTubeEmbed = () => {
+    const url = window.prompt('Paste a YouTube URL:')
+    if (!url) return
+
+    // Extract video ID
+    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
+    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
+    const videoId = shortMatch?.[1] || watchMatch?.[1]
+
+    if (!videoId) {
+      alert('Could not extract a YouTube video ID from that URL.')
+      return
+    }
+
+    const ytMarkdown = `\n![youtube](https://youtube.com/watch?v=${videoId})\n`
+    setContent((prev) => prev + ytMarkdown)
+    textareaRef.current?.focus()
+  }
+
   return (
     <div className="composer">
       <input
@@ -85,6 +155,22 @@ export function NoteCreator({ onCreate }: Props) {
             title="Attach Image"
           >
             {uploading ? '⏳' : '📷'}
+          </button>
+          <button
+            className="composer-icon-btn"
+            onClick={handleVideoUpload}
+            disabled={saving || uploading}
+            title="Attach Video"
+          >
+            {uploading ? '⏳' : '🎬'}
+          </button>
+          <button
+            className="composer-icon-btn"
+            onClick={handleYouTubeEmbed}
+            disabled={saving || uploading}
+            title="Embed YouTube"
+          >
+            ▶️
           </button>
           <button
             className="composer-save"

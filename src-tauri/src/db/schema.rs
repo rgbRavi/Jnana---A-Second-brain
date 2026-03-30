@@ -1,7 +1,35 @@
 use rusqlite::{Connection, Result};
 
-pub fn init(conn: &Connection) -> Result<()> {
-    conn.execute_batch("
+
+/// Run all pending migrations in order.
+/// This is safe to call on every app launch — it only applies new migrations.
+pub fn run_migrations(conn: &Connection) -> Result<()> {
+    // Ensure the version tracking table exists (this never changes).
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER NOT NULL
+        );"
+    )?;
+
+    let version: i32 = conn
+        .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    if version < 1 {
+        migrate_v1(conn)?;
+    }
+
+    // Future migrations go here:
+    // if version < 2 { migrate_v2(conn)?; }
+    // if version < 3 { migrate_v3(conn)?; }
+
+    Ok(())
+}
+
+/// V1: Initial schema — notes, links, media_refs, annotations.
+fn migrate_v1(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
         PRAGMA journal_mode=WAL;
 
         CREATE TABLE IF NOT EXISTS notes (
@@ -41,5 +69,8 @@ pub fn init(conn: &Connection) -> Result<()> {
             FOREIGN KEY (note_id)  REFERENCES notes(id)  ON DELETE CASCADE,
             FOREIGN KEY (media_id) REFERENCES media_refs(id) ON DELETE CASCADE
         );
-    ")
+
+        INSERT INTO schema_version (version) VALUES (1);
+        ",
+    )
 }

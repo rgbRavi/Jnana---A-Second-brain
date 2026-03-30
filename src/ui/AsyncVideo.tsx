@@ -1,20 +1,25 @@
-import { useRef, useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Props {
   filename: string
-  alt?: string
   className?: string
+  controls?: boolean
+  preload?: 'none' | 'metadata' | 'auto'
   lazy?: boolean
 }
 
+// Build URL for our custom Rust protocol handler.
+// On Windows WebView2, custom schemes are served via http://<scheme>.localhost/
 function assetUrl(filename: string): string {
   return `http://jnana-asset.localhost/${filename}`
 }
 
-export function AsyncImage({ filename, alt, className, lazy = true }: Props) {
+export function AsyncVideo({ filename, className, controls = true, preload = 'metadata', lazy = true }: Props) {
   const [visible, setVisible] = useState(!lazy)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Lazy load: only render the <video> once the container scrolls into view
   useEffect(() => {
     if (!lazy) {
       setVisible(true)
@@ -28,7 +33,7 @@ export function AsyncImage({ filename, alt, className, lazy = true }: Props) {
           observer.disconnect()
         }
       },
-      { rootMargin: '50px' }
+      { rootMargin: '100px' }
     )
 
     if (containerRef.current) {
@@ -52,17 +57,27 @@ export function AsyncImage({ filename, alt, className, lazy = true }: Props) {
           justifyContent: 'center',
         }}
       >
-        <span className="image-loading">Loading image...</span>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-2)' }}>Loading video...</span>
       </div>
     )
   }
 
   return (
-    <div ref={containerRef}>
-      <img
+    <div ref={containerRef} style={{ width: '100%' }}>
+      <video
+        ref={videoRef}
         src={assetUrl(filename)}
-        alt={alt || 'Note attachment'}
+        controls={controls}
+        preload={preload}
         className={className}
+        style={{
+          width: '100%',
+          maxHeight: '600px',
+          objectFit: 'contain',
+          backgroundColor: 'var(--surface-2)',
+          borderRadius: '10px',
+          display: 'block',
+        }}
       />
     </div>
   )

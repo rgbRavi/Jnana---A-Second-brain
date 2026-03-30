@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { Note } from '../types'
 import { eventBus } from '../lib/eventBus'
 
@@ -47,6 +47,11 @@ export async function uploadAsset(bytes: Uint8Array, extension: string): Promise
 export async function getAssetBlob(filename: string): Promise<Blob> {
   const bytes = await invoke<number[]>('get_asset', { filename })
   return new Blob([new Uint8Array(bytes)])
+}
+
+export async function getAssetUrl(filename: string): Promise<string> {
+  const absPath = await invoke<string>('get_asset_path', { filename })
+  return convertFileSrc(absPath)
 }
 
 export function createNote(title: string = 'Untitled'): Note {

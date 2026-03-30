@@ -2,12 +2,15 @@ import './App.css'
 import { useState } from 'react'
 import { NoteCreator } from './ui/editor/NoteCreator'
 import { NoteItem } from './ui/editor/NoteItem'
+import { NoteModal } from './ui/NoteModal'
 import { useNotes } from './hooks/useNotes'
 import { GraphView } from './ui/graph/GraphView'
 
 function App() {
   const { notes, loading, create, update, remove } = useNotes()
   const [currentView, setCurrentView] = useState<'notes' | 'graph'>('notes')
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
+  const expandedNote = notes.find((n) => n.id === expandedNoteId)
 
   return (
     <div className="app-shell">
@@ -55,6 +58,7 @@ function App() {
                   note={note}
                   onUpdate={update}
                   onRemove={remove}
+                  onExpand={() => setExpandedNoteId(note.id)}
                 />
               ))}
             </div>
@@ -63,6 +67,15 @@ function App() {
           <GraphView />
         )}
       </div>
+
+      {expandedNote && (
+        <NoteModal 
+          note={expandedNote}
+          isOpen={!!expandedNoteId}
+          onClose={() => setExpandedNoteId(null)}
+          onUpdate={update}
+        />
+      )}
     </div>
   )
 }
