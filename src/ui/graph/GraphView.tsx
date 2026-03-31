@@ -73,10 +73,13 @@ export function GraphView({ onUpdate, onRemove }: Props) {
 
   const handleRemoveNote = useCallback(
     async (id: string) => {
+      const node = graphData.nodes.find((n) => n.id === id)
+      const title = node?.title || 'this note'
+      if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return
       onRemove(id)
       if (focusNodeId === id) setFocusNodeId(null)
     },
-    [onRemove, focusNodeId]
+    [onRemove, focusNodeId, graphData.nodes]
   )
 
   const focusedNode = focusNodeId
@@ -170,6 +173,39 @@ export function GraphView({ onUpdate, onRemove }: Props) {
             border: '1px solid var(--border)',
           }}
         >
+          {/* Panel header — back button lives here, separate from NoteItem */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 14px 0',
+          }}>
+            <button
+              onClick={() => setFocusNodeId(null)}
+              title="Back to full graph"
+              aria-label="Back to full graph"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--text-2)',
+                fontSize: '0.8rem',
+                padding: '4px 6px',
+                borderRadius: '6px',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M8.5 2.5L3.5 7l5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Back
+            </button>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-2)', opacity: 0.6 }}>
+              Click graph to dismiss
+            </span>
+          </div>
           <NoteItem
             note={focusedNoteForPanel}
             onUpdate={handleUpdateNote}

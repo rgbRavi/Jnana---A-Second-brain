@@ -3,6 +3,7 @@
 mod commands;
 mod db;
 
+use commands::annotations::*;
 use commands::assets::*;
 use commands::media::*;
 use commands::notes::*;
@@ -134,6 +135,11 @@ fn main() {
             import_vid,
             register_media_ref,
             get_media_refs,
+            save_annotation,
+            get_annotations_for_note,
+            get_annotations_for_media,
+            update_annotation,
+            delete_annotation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

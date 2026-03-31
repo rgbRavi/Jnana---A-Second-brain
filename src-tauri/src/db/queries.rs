@@ -131,3 +131,100 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
     let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
     rows.collect()
 }
+
+// ─── Annotations ────────────────────────────────────────
+
+pub struct AnnotationRow {
+    pub id: String,
+    pub note_id: String,
+    pub media_id: String,
+    pub kind: String,
+    pub position: String,
+    pub content: String,
+    pub created_at: i64,
+}
+
+pub fn insert_annotation(
+    conn: &Connection,
+    row: &AnnotationRow,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO annotations (id, note_id, media_id, kind, position, content, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            row.id,
+            row.note_id,
+            row.media_id,
+            row.kind,
+            row.position,
+            row.content,
+            row.created_at,
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn fetch_annotations_for_note(
+    conn: &Connection,
+    note_id: &str,
+) -> Result<Vec<AnnotationRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, note_id, media_id, kind, position, content, created_at
+         FROM annotations
+         WHERE note_id = ?1
+         ORDER BY created_at ASC",
+    )?;
+    let rows = stmt.query_map(params![note_id], |row| {
+        Ok(AnnotationRow {
+            id:         row.get(0)?,
+            note_id:    row.get(1)?,
+            media_id:   row.get(2)?,
+            kind:       row.get(3)?,
+            position:   row.get(4)?,
+            content:    row.get(5)?,
+            created_at: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn fetch_annotations_for_media(
+    conn: &Connection,
+    media_id: &str,
+) -> Result<Vec<AnnotationRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, note_id, media_id, kind, position, content, created_at
+         FROM annotations
+         WHERE media_id = ?1
+         ORDER BY created_at ASC",
+    )?;
+    let rows = stmt.query_map(params![media_id], |row| {
+        Ok(AnnotationRow {
+            id:         row.get(0)?,
+            note_id:    row.get(1)?,
+            media_id:   row.get(2)?,
+            kind:       row.get(3)?,
+            position:   row.get(4)?,
+            content:    row.get(5)?,
+            created_at: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn update_annotation_content(
+    conn: &Connection,
+    id: &str,
+    content: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE annotations SET content = ?1 WHERE id = ?2",
+        params![content, id],
+    )?;
+    Ok(())
+}
+
+pub fn remove_annotation(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
+    Ok(())
+}

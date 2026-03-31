@@ -230,9 +230,11 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
             className="note-card-delete"
             onClick={() => onRemove(note.id)}
             aria-label="Delete note"
-            title="Delete"
+            title="Delete note"
           >
-            &times;
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M1 3.5h12M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M5.5 6.5v4M8.5 6.5v4M2.5 3.5l.75 7.25a.5.5 0 0 0 .5.45h6.5a.5.5 0 0 0 .5-.45L11.5 3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         </div>
       </div>

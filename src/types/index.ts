@@ -49,6 +49,19 @@ export interface AudioMarker {
   noteText: string
 }
 
+
+export interface Annotation {
+  id: string
+  noteId: string
+  mediaId: string
+  /** "video_timestamp" | "pdf_highlight" | "audio_marker" */
+  kind: string
+  /** JSON string — parsed by the UI based on kind */
+  position: string
+  content: string
+  createdAt: number
+}
+
 export interface Plugin {
   id: string
   name: string
@@ -66,4 +79,7 @@ export type AppEvent =
   | { type: 'video:timestamp';   payload: TimestampEntry & { noteId: string } }
   | { type: 'pdf:highlight';     payload: PdfAnnotation & { noteId: string } }
   | { type: 'search:query';      payload: { query: string } }
-  | { type: 'plugin:registered'; payload: { id: string } }
+  | { type: 'plugin:registered';    payload: { id: string } }
+  | { type: 'annotation:created';   payload: Annotation }
+  | { type: 'annotation:updated';   payload: { id: string; content: string } }
+  | { type: 'annotation:deleted';   payload: { id: string } }
