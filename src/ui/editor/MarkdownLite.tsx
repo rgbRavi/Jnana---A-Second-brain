@@ -51,9 +51,11 @@ export function MarkdownLite({ content, lazy = true }: Props) {
   // Regex to match markdown images: ![alt text](url)
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
   // Regex to match timestamp with video index: [V1::01:02:03]
-  const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}:\d{2})\]/g
+  // [V1::MM:SS] or [V1::HH:MM:SS] — V-index is 1-based (V1 = first video)
+  const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}(?::\d{2})?)\]/g
   // Regex to match simple timestamp: [01:02:03] or [01:02]
-  const simpleTimestampRegex = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
+  // Simple timestamp: [MM:SS] or [HH:MM:SS] — all segments must be 2 digits
+  const simpleTimestampRegex = /\[(\d{2}:\d{2}(?::\d{2})?)\]/g
 
   // Track video count during rendering
   let videoCount = 0
@@ -178,7 +180,7 @@ export function MarkdownLite({ content, lazy = true }: Props) {
       time: string
     }> = []
 
-    // Find indexed timestamps [V1::01:02:03]
+    // Find indexed timestamps [V1::MM:SS] or [V1::HH:MM:SS]
     timestampWithIndexRegex.lastIndex = 0
     while ((match = timestampWithIndexRegex.exec(text)) !== null) {
       allMatches.push({
@@ -190,9 +192,16 @@ export function MarkdownLite({ content, lazy = true }: Props) {
       })
     }
 
-    // Find simple timestamps [01:02:03] or [01:02]
+    // Build a set of ranges already claimed by indexed timestamps so the
+    // simple regex can't partially match inside a [V1::...] token.
+    const indexedRanges = allMatches.map((m) => [m.index, m.endIndex] as [number, number])
+    const inIndexed = (idx: number) => indexedRanges.some(([s, e]) => idx >= s && idx < e)
+
+    // Find simple timestamps [MM:SS] or [HH:MM:SS] — skip any that fall
+    // inside an already-matched indexed token.
     simpleTimestampRegex.lastIndex = 0
     while ((match = simpleTimestampRegex.exec(text)) !== null) {
+      if (inIndexed(match.index)) continue
       allMatches.push({
         index: match.index,
         endIndex: simpleTimestampRegex.lastIndex,
@@ -214,7 +223,10 @@ export function MarkdownLite({ content, lazy = true }: Props) {
       }
 
       const seconds = timeStringToSeconds(ts.time)
-      const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined ? ts.videoIndex : 0
+      // V-index in syntax is 1-based (V1, V2…); playerRefs map is 0-based
+      const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined
+        ? ts.videoIndex - 1
+        : 0
 
       elements.push(
         <button

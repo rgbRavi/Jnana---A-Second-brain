@@ -66,19 +66,45 @@ export function createNote(title: string = 'Untitled'): Note {
 }
 
 export async function syncLinksForNote(noteId: string, content: string): Promise<void> {
-  const linkMatches = content.match(/\[\[(.*?)\]\]/g) || []
-  const linkedTitles = linkMatches.map((m) => m.slice(2, -2).trim().toLowerCase())
+  // Parse every [[wikilink]] in the current content
+  const linkMatches = content.match(/\[\[(.*?)\]\]/g) ?? []
+  const linkedTitles = new Set(
+    linkMatches.map((m) => m.slice(2, -2).trim().toLowerCase())
+  )
 
-  if (linkedTitles.length === 0) return
+  const [allNotes, allLinks] = await Promise.all([getAllNotes(), getAllLinks()])
 
-  const allNotes = await getAllNotes()
-  
-  // Create links to matched notes
+  // Resolve wikilink titles → note IDs (skip self-links)
+  const targetIds = new Set<string>()
   for (const title of linkedTitles) {
-    const targetNode = allNotes.find((n) => n.title.trim().toLowerCase() === title)
-    if (targetNode && targetNode.id !== noteId) {
-      // Backend automatically handles unique/primary key constraints if you attempt to add an existing link
-      await createLink(noteId, targetNode.id).catch(() => {})
+    const target = allNotes.find((n) => n.title.trim().toLowerCase() === title)
+    if (target && target.id !== noteId) {
+      targetIds.add(target.id)
+    }
+  }
+
+  // Find only OUTBOUND links from noteId (where noteId is from_id).
+  // getAllLinks() returns [from_id, to_id] pairs — we filter to only
+  // rows where this note is the source. This avoids the bidirectional
+  // getLinks() which returns both directions and would cause us to
+  // incorrectly remove links created by other notes pointing to noteId.
+  const outboundIds = new Set(
+    allLinks
+      .filter(([from]) => from === noteId)
+      .map(([, to]) => to)
+  )
+
+  // Add new links (in content but not yet in DB)
+  for (const id of targetIds) {
+    if (!outboundIds.has(id)) {
+      await createLink(noteId, id).catch(() => {})
+    }
+  }
+
+  // Remove stale outbound links (stored in DB but no longer in content)
+  for (const id of outboundIds) {
+    if (!targetIds.has(id)) {
+      await removeLink(noteId, id).catch(() => {})
     }
   }
 }

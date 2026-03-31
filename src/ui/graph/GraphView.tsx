@@ -2,22 +2,27 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
-import { useNotes } from '../../hooks/useNotes'
 import { NoteItem } from '../editor/NoteItem'
+import type { Note } from '../../types'
 
-export function GraphView() {
-  const { graphData, loading, refresh } = useGraph()
-  const { update, remove } = useNotes()
+interface Props {
+  // Received from App.tsx which owns the single useNotes instance.
+  // GraphView never calls useNotes() directly — that would create a second
+  // desynchronised state array alongside App's.
+  onUpdate: (id: string, title: string, content: string) => Promise<Note | undefined>
+  onRemove: (id: string) => void
+}
+
+export function GraphView({ onUpdate, onRemove }: Props) {
+  const { graphData, loading } = useGraph()
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
 
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
 
-  // Memoize forceData so react-force-graph-2d only sees a new object
-  // when nodes or edges actually change — not on every render.
-  // Without this, the simulation restarts on every state update (hover,
-  // focus changes, etc.) which causes the constant twitching.
+  // Memoize so the force simulation only restarts when data actually changes,
+  // not on every hover/focus state update.
   const forceData = useMemo(() => {
     const visibleNodes = focusNodeId
       ? (() => {
@@ -57,31 +62,27 @@ export function GraphView() {
 
   const handleUpdateNote = useCallback(
     async (id: string, title: string, content: string) => {
-      const updated = await update(id, title, content)
-      // syncLinksForNote runs inside useNotes.update and emits link:created events,
-      // which useGraph listens to. For bulk link changes we do a hard refresh.
-      await refresh()
-      return updated
+      // Delegate entirely to the prop — no refresh() call here.
+      // useGraph stays in sync via its eventBus listeners:
+      //   note:saved  → upserts the node
+      //   link:created / link:removed → updates edges
+      return onUpdate(id, title, content)
     },
-    [update, refresh]
+    [onUpdate]
   )
 
   const handleRemoveNote = useCallback(
     async (id: string) => {
-      await remove(id)
+      onRemove(id)
       if (focusNodeId === id) setFocusNodeId(null)
     },
-    [remove, focusNodeId]
+    [onRemove, focusNodeId]
   )
 
   const focusedNode = focusNodeId
     ? graphData.nodes.find((n) => n.id === focusNodeId)
     : null
 
-  // We need a full Note shape to pass to NoteItem.
-  // GraphNode has everything NoteItem needs except tags and createdAt.
-  // Build a minimal Note from the GraphNode — tags and createdAt are
-  // not displayed by NoteItem in this context.
   const focusedNoteForPanel = focusedNode
     ? {
         id: focusedNode.id,
@@ -94,9 +95,7 @@ export function GraphView() {
     : null
 
   if (loading) {
-    return (
-      <div className="note-empty">Loading graph…</div>
-    )
+    return <div className="note-empty">Loading graph…</div>
   }
 
   return (
@@ -113,12 +112,9 @@ export function GraphView() {
       <ForceGraph2D
         ref={fgRef}
         graphData={forceData}
-        // After the simulation naturally winds down, freeze all node positions.
-        // This stops the constant slow drift that looks like twitching.
         onEngineStop={() => {
           if (fgRef.current) fgRef.current.pauseAnimation()
         }}
-        // Unfreeze briefly when new data arrives so nodes can re-settle.
         onEngineStart={() => {}}
         nodeLabel={(n: any) => {
           const preview =
@@ -128,7 +124,6 @@ export function GraphView() {
         }}
         onNodeHover={(node: any) => setHoverNodeId(node ? node.id : null)}
         onNodeDragEnd={() => {
-          // Re-freeze after the user finishes dragging a node
           if (fgRef.current) fgRef.current.pauseAnimation()
         }}
         onNodeClick={handleNodeClick}
@@ -154,9 +149,6 @@ export function GraphView() {
           ctx.fillStyle = node.id === focusNodeId ? '#f0eff5' : '#9896a4'
           ctx.fillText(label, node.x, node.y + 8)
         }}
-        // cooldownTicks controls how many simulation ticks run before the engine
-        // considers itself "stopped". Lower = settles faster. 100 is enough for
-        // graphs of a few hundred nodes.
         cooldownTicks={100}
         linkColor={() => 'rgba(124, 106, 247, 0.4)'}
         linkWidth={1.5}

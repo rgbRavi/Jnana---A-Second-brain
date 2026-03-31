@@ -64,7 +64,7 @@ function App() {
             </div>
           </>
         ) : (
-          <GraphView />
+          <GraphView onUpdate={update} onRemove={remove} />
         )}
       </div>
 
