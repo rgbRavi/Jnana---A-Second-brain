@@ -1,7 +1,8 @@
 import React, { useRef } from 'react'
 import { AsyncImage } from '../AsyncImage'
-import { AsyncVideo } from '../AsyncVideo'
+import { VideoPlayer } from '../media/VideoPlayer'
 import { AsyncYouTube } from '../AsyncYouTube'
+type PlyrInstance = InstanceType<typeof import('plyr').default>
 
 interface Props {
   content: string
@@ -44,6 +45,8 @@ function timeStringToSeconds(timeStr: string): number {
 
 export function MarkdownLite({ content, lazy = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // Map from video index → Plyr instance, populated via onReady callbacks
+  const playerRefs = useRef<Map<number, PlyrInstance>>(new Map())
 
   // Regex to match markdown images: ![alt text](url)
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
@@ -123,13 +126,14 @@ export function MarkdownLite({ content, lazy = true }: Props) {
         videoCount++
 
         elements.push(
-          <div key={`video-${imgMatch.index}`} className="note-video-wrapper" data-video-index={currentVideoIndex}>
-            <AsyncVideo
+          <div key={`video-${imgMatch.index}`} className="note-video-wrapper">
+            <VideoPlayer
               filename={filename}
               className="note-video"
-              controls={true}
-              preload="metadata"
               lazy={lazy}
+              onReady={(player) => {
+                playerRefs.current.set(currentVideoIndex, player)
+              }}
             />
           </div>
         )
@@ -241,20 +245,10 @@ export function MarkdownLite({ content, lazy = true }: Props) {
   }
 
   const handleTimestampClick = (videoIndex: number, seconds: number) => {
-    if (!containerRef.current) return
-    
-    const videoWrapper = containerRef.current.querySelector(
-      `[data-video-index="${videoIndex}"]`
-    ) as HTMLElement | null
-    
-    if (videoWrapper) {
-      const video = videoWrapper.querySelector('video') as HTMLVideoElement | null
-      if (video) {
-        video.currentTime = seconds
-        video.play()
-        // Scroll the video into view
-        video.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      }
+    const player = playerRefs.current.get(videoIndex)
+    if (player) {
+      player.currentTime = seconds
+      player.play()
     }
   }
 

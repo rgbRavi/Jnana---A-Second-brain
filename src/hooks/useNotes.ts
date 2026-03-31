@@ -16,15 +16,13 @@ export function useNotes() {
     })
   }, [])
 
-  // Stay in sync when any note is saved (optimistic update already applied,
-  // but this handles saves from other parts of the app too)
+  // Stay in sync when any note is saved — optimistic update already applied
+  // locally, but this handles saves from other parts of the app too.
   useEffect(() => {
     const handler = (saved: Note) => {
       setNotes((prev) => {
         const exists = prev.find((n) => n.id === saved.id)
-        if (exists) {
-          return prev.map((n) => (n.id === saved.id ? saved : n))
-        }
+        if (exists) return prev.map((n) => (n.id === saved.id ? saved : n))
         return [saved, ...prev]
       })
     }
@@ -32,38 +30,47 @@ export function useNotes() {
     return () => eventBus.off('note:saved', handler)
   }, [])
 
-  const create = useCallback(
-    async (title: string, content: string): Promise<Note> => {
-      const note: Note = {
-        id: crypto.randomUUID(),
-        title: title.trim() || 'Untitled',
-        content,
-        tags: [],
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      }
+  // Drive [[wikilink]] syncing from the note:saved event.
+  // This is the single place syncLinksForNote is triggered —
+  // GraphView and NoteCreator no longer call it directly.
+  useEffect(() => {
+    const handler = (saved: Note) => {
+      syncLinksForNote(saved.id, saved.content).catch((err) => {
+        console.error('syncLinksForNote failed:', err)
+      })
+    }
+    eventBus.on('note:saved', handler)
+    return () => eventBus.off('note:saved', handler)
+  }, [])
 
-      // Optimistic — add to list immediately, before Rust confirms
-      setNotes((prev) => [note, ...prev])
+  const create = useCallback(async (title: string, content: string, id?: string): Promise<Note> => {
+    const note: Note = {
+      id: id ?? crypto.randomUUID(),
+      title: title.trim() || 'Untitled',
+      content,
+      tags: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
 
-      // Persist in background — core will emit 'note:saved'
-      await saveNote(note)
-      await syncLinksForNote(note.id, content)
+    // Optimistic — show immediately before Rust confirms
+    setNotes((prev) => [note, ...prev])
 
-      return note
-    },
-    []
-  )
+    // saveNote emits 'note:saved', which triggers syncLinksForNote above
+    await saveNote(note)
+
+    return note
+  }, [])
 
   const update = useCallback(
     async (id: string, title: string, content: string): Promise<Note | undefined> => {
       let updatedNote: Note | undefined
 
       setNotes((prev) => {
-        const temp = prev.find((n) => n.id === id)
-        if (!temp) return prev
+        const existing = prev.find((n) => n.id === id)
+        if (!existing) return prev
         updatedNote = {
-          ...temp,
+          ...existing,
           title: title.trim(),
           content,
           updatedAt: Date.now(),
@@ -72,8 +79,8 @@ export function useNotes() {
       })
 
       if (updatedNote) {
+        // saveNote emits 'note:saved', which triggers syncLinksForNote above
         await saveNote(updatedNote)
-        await syncLinksForNote(id, content)
         return updatedNote
       }
     },
@@ -81,10 +88,11 @@ export function useNotes() {
   )
 
   const remove = useCallback(async (id: string) => {
-    // Optimistic — remove from list immediately
+    // Optimistic — remove immediately
     setNotes((prev) => prev.filter((n) => n.id !== id))
     await deleteNote(id)
-    eventBus.emit('note:deleted', id)
+    // deleteNote already emits 'note:deleted' in core/notes.ts —
+    // we don't emit again here to avoid double-fire.
   }, [])
 
   return { notes, loading, create, update, remove }

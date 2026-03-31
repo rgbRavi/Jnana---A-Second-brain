@@ -13,12 +13,15 @@
     "windows": [
       {
         "title": "Jnana",
-        "width": 800,
-        "height": 600
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' jnana-asset: http://jnana-asset.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' jnana-asset: http://jnana-asset.localhost blob:; img-src 'self' data: jnana-asset: http://jnana-asset.localhost; frame-src https://www.youtube-nocookie.com https://www.youtube.com; fullscreen *"
     }
   },
   "bundle": {

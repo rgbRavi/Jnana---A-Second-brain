@@ -43,6 +43,7 @@ fn main() {
             if filename.is_empty() {
                 return tauri::http::Response::builder()
                     .status(400)
+                    .header("Access-Control-Allow-Origin", "*")
                     .body(b"Missing filename".to_vec())
                     .unwrap();
             }
@@ -52,6 +53,7 @@ fn main() {
             if !filepath.exists() {
                 return tauri::http::Response::builder()
                     .status(404)
+                    .header("Access-Control-Allow-Origin", "*")
                     .body(b"Not found".to_vec())
                     .unwrap();
             }
@@ -80,7 +82,7 @@ fn main() {
                     let end: u64 = if parts.len() > 1 && !parts[1].is_empty() {
                         parts[1].parse().unwrap_or(file_size - 1)
                     } else {
-                        std::cmp::min(start + 2 * 1024 * 1024, file_size) - 1
+                        std::cmp::min(start + 8 * 1024 * 1024, file_size) - 1
                     };
                     let end = std::cmp::min(end, file_size - 1);
                     let length = (end - start + 1) as usize;
@@ -92,6 +94,7 @@ fn main() {
 
                         return tauri::http::Response::builder()
                             .status(206)
+                            .header("Access-Control-Allow-Origin", "*")
                             .header("Content-Type", content_type)
                             .header(
                                 "Content-Range",
@@ -109,6 +112,7 @@ fn main() {
             let bytes = std::fs::read(&filepath).unwrap_or_default();
             tauri::http::Response::builder()
                 .status(200)
+                .header("Access-Control-Allow-Origin", "*")
                 .header("Content-Type", content_type)
                 .header("Content-Length", file_size.to_string())
                 .header("Accept-Ranges", "bytes")
@@ -128,6 +132,7 @@ fn main() {
             get_asset,
             get_asset_path,
             import_vid,
+            register_media_ref,
             get_media_refs,
         ])
         .run(tauri::generate_context!())
