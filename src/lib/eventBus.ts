@@ -32,3 +32,49 @@ export class EventBus {
 }
 
 export const eventBus = new EventBus()
+
+// Core app events plugins are never allowed to emit
+const PLUGIN_BLOCKED_EVENTS = new Set([
+  'note:saved', 'note:opened', 'note:deleted',
+  'link:created', 'link:removed',
+  'annotation:created', 'annotation:updated', 'annotation:deleted',
+])
+
+/**
+ * Sandboxed event bus handed to each plugin.
+ * - Cannot emit core app events
+ * - Handlers are wrapped in try/catch so plugin errors don't propagate
+ * - Tracks all subscriptions; call dispose() to auto-clean everything up
+ */
+export class PluginBus {
+  private subscriptions: Array<{ event: string; safeHandler: Handler }> = []
+
+  constructor(private bus: EventBus) {}
+
+  on<T>(event: string, handler: (payload: T) => void): void {
+    const safeHandler: Handler = (payload) => {
+      try {
+        handler(payload as T)
+      } catch (err) {
+        console.error(`[PluginBus] Uncaught error in handler for "${event}":`, err)
+      }
+    }
+    this.subscriptions.push({ event, safeHandler })
+    this.bus.on(event, safeHandler)
+  }
+
+  emit<T>(event: string, payload: T): void {
+    if (PLUGIN_BLOCKED_EVENTS.has(event)) {
+      console.warn(`[PluginBus] Blocked attempt to emit core event "${event}"`)
+      return
+    }
+    this.bus.emit(event, payload)
+  }
+
+  dispose(): void {
+    for (const { event, safeHandler } of this.subscriptions) {
+      this.bus.off(event, safeHandler)
+    }
+    this.subscriptions = []
+  }
+}

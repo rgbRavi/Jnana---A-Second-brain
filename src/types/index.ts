@@ -66,8 +66,14 @@ export interface Plugin {
   id: string
   name: string
   version: string
-  init: (bus: import('../lib/eventBus').EventBus) => void
-  destroy: () => void
+  /** Set to true and provide workerUrl to run the plugin in an isolated Web Worker thread */
+  worker?: boolean
+  /** Required when worker: true. Use: new URL('./myPlugin.worker.ts', import.meta.url) */
+  workerUrl?: URL
+  /** Called with a sandboxed PluginBus for inline (non-worker) plugins */
+  init?: (bus: import('../lib/eventBus').PluginBus) => void
+  /** Called before the plugin is unregistered (inline plugins only) */
+  destroy?: () => void
 }
 
 export type AppEvent =
