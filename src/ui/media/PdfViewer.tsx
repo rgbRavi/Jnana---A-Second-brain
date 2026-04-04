@@ -55,7 +55,6 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
   const pageAnnotations = useMemo(() => {
     return annotations.filter(a => {
       if (a.kind !== 'pdf_highlight') return false
-      // For MVP, we use filename as mediaId since the true media UUID isn't exposed yet
       if (a.mediaId !== filename) return false
       try {
         const pos = JSON.parse(a.position)

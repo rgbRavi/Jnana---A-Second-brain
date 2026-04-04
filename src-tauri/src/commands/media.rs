@@ -105,8 +105,10 @@ pub fn register_media_ref(
     filename: String,
 ) -> Result<(), String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    let media_id = uuid::Uuid::new_v4().to_string();
-    crate::db::queries::insert_media_ref(&conn, &media_id, &note_id, &media_type, &filename, "{}")
+    // Use the filename as the media_refs.id — import_media already generates a UUID-based
+    // filename, so it's unique. This lets PdfViewer (and other viewers) pass the filename
+    // directly as mediaId when creating annotations, satisfying the FK constraint.
+    crate::db::queries::insert_media_ref(&conn, &filename, &note_id, &media_type, &filename, "{}")
         .map_err(|e| format!("Failed to insert media_ref: {}", e))
 }
 
