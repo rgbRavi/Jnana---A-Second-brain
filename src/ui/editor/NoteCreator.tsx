@@ -3,7 +3,9 @@ import { useState, useRef } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { Note } from '../../types'
 import { uploadAsset } from '../../core/notes'
-import { importVid, registerMediaRef } from '../../core/media'
+import { importMedia, registerMediaRef } from '../../core/media'
+
+import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 
 interface Props {
   onCreate: (title: string, content: string, id?: string) => Promise<Note>
@@ -16,23 +18,34 @@ export function NoteCreator({ onCreate }: Props) {
   const [uploading, setUploading] = useState(false)
 
   const pendingNoteId = useRef(crypto.randomUUID())
-  const pendingVideos = useRef<string[]>([])
+  const pendingMedia = useRef<{ filename: string; type: 'video' | 'pdf' }[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { handleDocumentUpload } = useDocumentUpload({
+    noteId: pendingNoteId.current,
+    onUploadStart: () => setUploading(true),
+    onUploadFinish: () => {
+      setUploading(false)
+      textareaRef.current?.focus()
+    },
+    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onRegisterPendingMedia: (filename, type) => pendingMedia.current.push({ filename, type }),
+  })
 
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
     setSaving(true)
     const saved = await onCreate(title, content, pendingNoteId.current)
-    for (const filename of pendingVideos.current) {
-      await registerMediaRef(saved.id, 'video', filename).catch((err) => {
+    for (const { filename, type } of pendingMedia.current) {
+      await registerMediaRef(saved.id, type, filename).catch((err) => {
         console.error('registerMediaRef failed:', err)
       })
     }
     setTitle('')
     setContent('')
     pendingNoteId.current = crypto.randomUUID()
-    pendingVideos.current = []
+    pendingMedia.current = []
     setSaving(false)
     textareaRef.current?.focus()
   }
@@ -67,8 +80,8 @@ export function NoteCreator({ onCreate }: Props) {
         filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'] }],
       })
       if (!selected || typeof selected !== 'string') return
-      const filename = await importVid(selected, pendingNoteId.current)
-      pendingVideos.current.push(filename)
+      const filename = await importMedia(selected, pendingNoteId.current)
+      pendingMedia.current.push({ filename, type: 'video' })
       setContent((prev) => prev + (prev ? '\n' : '') + `![video](jnana-asset://${filename})` + '\n')
     } catch (err) {
       alert('Failed to upload video: ' + String(err))
@@ -104,6 +117,9 @@ export function NoteCreator({ onCreate }: Props) {
           </button>
           <button className="composer-icon-btn" onClick={handleVideoUpload} disabled={saving || uploading} title="Attach Video">
             {uploading ? '⏳' : '🎬'}
+          </button>
+          <button className="composer-icon-btn" onClick={handleDocumentUpload} disabled={saving || uploading} title="Attach Document">
+            {uploading ? '⏳' : '📄'}
           </button>
           <button className="composer-icon-btn" onClick={handleYouTubeEmbed} disabled={saving || uploading} title="Embed YouTube">
             ▶️

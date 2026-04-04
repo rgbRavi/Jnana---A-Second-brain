@@ -24,6 +24,7 @@ fn mime_from_ext(ext: &str) -> &'static str {
         "gif" => "image/gif",
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
         _ => "application/octet-stream",
     }
 }
@@ -132,7 +133,9 @@ fn main() {
             save_asset,
             get_asset,
             get_asset_path,
-            import_vid,
+            import_media,
+            convert_to_pdf,
+            extract_text,
             register_media_ref,
             get_media_refs,
             save_annotation,

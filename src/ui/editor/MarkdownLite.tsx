@@ -1,12 +1,16 @@
 import React, { useRef } from 'react'
 import { AsyncImage } from '../AsyncImage'
 import { VideoPlayer } from '../media/VideoPlayer'
+import { PdfViewer } from '../media/PdfViewer'
 import { AsyncYouTube } from '../AsyncYouTube'
+import { invoke } from '@tauri-apps/api/core'
 type PlyrInstance = InstanceType<typeof import('plyr').default>
 
 interface Props {
   content: string
   lazy?: boolean
+  /** Required for PDF annotation support. If omitted, PDF highlights are disabled. */
+  noteId?: string
 }
 
 // Helper function to extract YouTube video ID from various URL formats
@@ -43,22 +47,29 @@ function timeStringToSeconds(timeStr: string): number {
   return 0
 }
 
-export function MarkdownLite({ content, lazy = true }: Props) {
+export function MarkdownLite({ content, lazy = true, noteId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Map from video index → Plyr instance, populated via onReady callbacks
   const playerRefs = useRef<Map<number, PlyrInstance>>(new Map())
+  // Map from pdf index → page setter function, for [D1::Page N] jumps
+  const pdfPageSetters = useRef<Map<number, (page: number) => void>>(new Map())
 
   // Regex to match markdown images: ![alt text](url)
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
+  // Regex to match markdown links: [text](url) — used for external docs
+  const linkRegex = /\[([^\]]*)\]\((external:\/\/.+?)\)/g
   // Regex to match timestamp with video index: [V1::01:02:03]
   // [V1::MM:SS] or [V1::HH:MM:SS] — V-index is 1-based (V1 = first video)
   const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}(?::\d{2})?)\]/g
   // Regex to match simple timestamp: [01:02:03] or [01:02]
   // Simple timestamp: [MM:SS] or [HH:MM:SS] — all segments must be 2 digits
   const simpleTimestampRegex = /\[(\d{2}:\d{2}(?::\d{2})?)\]/g
+  // Regex to match document page markers: [D1::Page 4]
+  const docPageRegex = /\[D(\d+)::Page\s*(\d+)\]/g
 
-  // Track video count during rendering
+  // Track video / pdf count during rendering
   let videoCount = 0
+  let pdfCount = 0
 
   // For rendering, we need to split content by both images and timestamps
   const renderContent = () => {
@@ -77,15 +88,18 @@ export function MarkdownLite({ content, lazy = true }: Props) {
       altText: string
       url: string
       isVideo: boolean
+      isPdf: boolean
       isYouTube: boolean
+      isExternalLink: boolean
       youtubeId?: string
     }> = []
 
-    // Find all image matches (regular images, videos, and YouTube)
+    // Find all image matches (regular images, videos, PDFs, and YouTube)
     while ((match = imageRegex.exec(content)) !== null) {
       const altText = match[1]
       const url = match[2]
       const isVideo = altText === 'video'
+      const isPdf = altText === 'pdf'
       const isYouTube = altText === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')
       const youtubeId = isYouTube ? extractYouTubeId(url) ?? undefined : undefined
 
@@ -95,10 +109,35 @@ export function MarkdownLite({ content, lazy = true }: Props) {
         altText,
         url,
         isVideo,
+        isPdf,
         isYouTube: isYouTube && youtubeId !== null,
+        isExternalLink: false,
         youtubeId,
       })
     }
+
+    // Find external document links [External: file.docx](external://...)
+    linkRegex.lastIndex = 0
+    while ((match = linkRegex.exec(content)) !== null) {
+      // Only add if not already claimed by an image match
+      const idx = match.index
+      const already = imageMatches.some(m => idx >= m.index && idx < m.endIndex)
+      if (!already) {
+        imageMatches.push({
+          index: match.index,
+          endIndex: linkRegex.lastIndex,
+          altText: match[1],
+          url: match[2],
+          isVideo: false,
+          isPdf: false,
+          isYouTube: false,
+          isExternalLink: true,
+        })
+      }
+    }
+
+    // Sort all matches by position so they render in order
+    imageMatches.sort((a, b) => a.index - b.index)
 
     // Process images and videos first
     for (const imgMatch of imageMatches) {
@@ -109,9 +148,31 @@ export function MarkdownLite({ content, lazy = true }: Props) {
         elements.push(renderTextWithTimestamps(textBefore, lastIndex))
       }
 
-      const { altText, url, isVideo, isYouTube, youtubeId } = imgMatch
+      const { altText, url, isVideo, isPdf, isYouTube, isExternalLink, youtubeId } = imgMatch
 
-      if (isYouTube && youtubeId) {
+      if (isExternalLink) {
+        // Render external document link as an "Open" button via Tauri opener
+        const filePath = decodeURIComponent(url.replace('external://', ''))
+        const displayName = altText || filePath.split(/[\\/]/).pop() || 'Document'
+        elements.push(
+          <div key={`ext-${imgMatch.index}`} className="note-external-doc">
+            <span className="note-external-doc-icon">📎</span>
+            <span className="note-external-doc-name">{displayName}</span>
+            <button
+              className="note-external-doc-btn"
+              onClick={async () => {
+                try {
+                  await invoke('plugin:opener|open_path', { path: filePath })
+                } catch (err) {
+                  alert('Failed to open file: ' + String(err))
+                }
+              }}
+            >
+              Open in App
+            </button>
+          </div>
+        )
+      } else if (isYouTube && youtubeId) {
         elements.push(
           <div key={`youtube-${imgMatch.index}`} className="note-youtube-wrapper">
             <AsyncYouTube
@@ -121,6 +182,20 @@ export function MarkdownLite({ content, lazy = true }: Props) {
               lazy={lazy}
             />
           </div>
+        )
+      } else if (isPdf) {
+        const filename = url.startsWith('jnana-asset://') ? url.replace('jnana-asset://', '') : url
+        const currentPdfIndex = pdfCount
+        pdfCount++
+
+        elements.push(
+          <PdfViewerWithRef
+            key={`pdf-${imgMatch.index}`}
+            filename={filename}
+            noteId={noteId || ''}
+            pdfIndex={currentPdfIndex}
+            registerPageSetter={(setter: (page: number) => void) => pdfPageSetters.current.set(currentPdfIndex, setter)}
+          />
         )
       } else if (isVideo) {
         const filename = url.startsWith('jnana-asset://') ? url.replace('jnana-asset://', '') : url
@@ -175,8 +250,10 @@ export function MarkdownLite({ content, lazy = true }: Props) {
     const allMatches: Array<{
       index: number
       endIndex: number
-      type: 'indexed' | 'simple'
+      type: 'indexed' | 'simple' | 'docPage'
       videoIndex?: number
+      docIndex?: number
+      pageNum?: number
       time: string
     }> = []
 
@@ -192,16 +269,29 @@ export function MarkdownLite({ content, lazy = true }: Props) {
       })
     }
 
-    // Build a set of ranges already claimed by indexed timestamps so the
-    // simple regex can't partially match inside a [V1::...] token.
-    const indexedRanges = allMatches.map((m) => [m.index, m.endIndex] as [number, number])
-    const inIndexed = (idx: number) => indexedRanges.some(([s, e]) => idx >= s && idx < e)
+    // Find document page markers [D1::Page 4]
+    docPageRegex.lastIndex = 0
+    while ((match = docPageRegex.exec(text)) !== null) {
+      allMatches.push({
+        index: match.index,
+        endIndex: docPageRegex.lastIndex,
+        type: 'docPage',
+        docIndex: parseInt(match[1], 10),
+        pageNum: parseInt(match[2], 10),
+        time: '', // not used for docs
+      })
+    }
+
+    // Build a set of ranges already claimed by indexed timestamps / docPage so the
+    // simple regex can't partially match inside a [V1::...] or [D1::Page N] token.
+    const claimedRanges = allMatches.map((m) => [m.index, m.endIndex] as [number, number])
+    const inClaimed = (idx: number) => claimedRanges.some(([s, e]) => idx >= s && idx < e)
 
     // Find simple timestamps [MM:SS] or [HH:MM:SS] — skip any that fall
     // inside an already-matched indexed token.
     simpleTimestampRegex.lastIndex = 0
     while ((match = simpleTimestampRegex.exec(text)) !== null) {
-      if (inIndexed(match.index)) continue
+      if (inClaimed(match.index)) continue
       allMatches.push({
         index: match.index,
         endIndex: simpleTimestampRegex.lastIndex,
@@ -213,7 +303,7 @@ export function MarkdownLite({ content, lazy = true }: Props) {
     // Sort matches by index
     allMatches.sort((a, b) => a.index - b.index)
 
-    // Render text segments and timestamp buttons
+    // Render text segments and timestamp / page-jump buttons
     for (const ts of allMatches) {
       const textBefore = text.substring(lastIndex, ts.index)
       if (textBefore) {
@@ -222,22 +312,41 @@ export function MarkdownLite({ content, lazy = true }: Props) {
         )
       }
 
-      const seconds = timeStringToSeconds(ts.time)
-      // V-index in syntax is 1-based (V1, V2…); playerRefs map is 0-based
-      const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined
-        ? ts.videoIndex - 1
-        : 0
+      if (ts.type === 'docPage' && ts.docIndex !== undefined && ts.pageNum !== undefined) {
+        // Document page jump button
+        const docIdx = ts.docIndex - 1 // D-index is 1-based; pdfPageSetters is 0-based
+        const pageNum = ts.pageNum
+        elements.push(
+          <button
+            key={`docpage-${offset + ts.index}`}
+            className="timestamp-btn doc-page-btn"
+            onClick={() => {
+              const setter = pdfPageSetters.current.get(docIdx)
+              if (setter) setter(pageNum)
+            }}
+            title={`Jump to Page ${pageNum}`}
+          >
+            📄 Page {pageNum}
+          </button>
+        )
+      } else {
+        const seconds = timeStringToSeconds(ts.time)
+        // V-index in syntax is 1-based (V1, V2…); playerRefs map is 0-based
+        const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined
+          ? ts.videoIndex - 1
+          : 0
 
-      elements.push(
-        <button
-          key={`timestamp-${offset + ts.index}`}
-          className="timestamp-btn"
-          onClick={() => handleTimestampClick(videoIndex, seconds)}
-          title={`Seek to ${ts.time}`}
-        >
-          {ts.time}
-        </button>
-      )
+        elements.push(
+          <button
+            key={`timestamp-${offset + ts.index}`}
+            className="timestamp-btn"
+            onClick={() => handleTimestampClick(videoIndex, seconds)}
+            title={`Seek to ${ts.time}`}
+          >
+            {ts.time}
+          </button>
+        )
+      }
 
       lastIndex = ts.endIndex
     }
@@ -265,4 +374,24 @@ export function MarkdownLite({ content, lazy = true }: Props) {
   }
 
   return <div ref={containerRef}>{renderContent()}</div>
+}
+
+// --- Helper wrapper that exposes PdfViewer's page setter to MarkdownLite ---
+interface PdfViewerWithRefProps {
+  filename: string
+  noteId: string
+  pdfIndex: number
+  registerPageSetter: (setter: (page: number) => void) => void
+}
+
+function PdfViewerWithRef({ filename, noteId, registerPageSetter }: PdfViewerWithRefProps) {
+  return (
+    <div className="note-pdf-wrapper">
+      <PdfViewer
+        filename={filename}
+        noteId={noteId}
+        onRegisterPageSetter={registerPageSetter}
+      />
+    </div>
+  )
 }

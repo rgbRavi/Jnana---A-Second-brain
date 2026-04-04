@@ -1,11 +1,25 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /**
- * Copy a video file into the assets directory.
+ * Copy a media file into the assets directory.
  * Does NOT write to the DB — call registerMediaRef after the note is saved.
  */
-export async function importVid(filePath: string, noteId: string): Promise<string> {
-  return invoke<string>('import_vid', { filePath, noteId })
+export async function importMedia(filePath: string, noteId: string): Promise<string> {
+  return invoke<string>('import_media', { filePath, noteId })
+}
+
+/**
+ * Convert a document to PDF via LibreOffice/Pandoc, returning the path to the converted temp PDF.
+ */
+export async function convertToPdf(filePath: string): Promise<string> {
+  return invoke<string>('convert_to_pdf', { filePath })
+}
+
+/**
+ * Extract plain text from a document via Pandoc.
+ */
+export async function extractText(filePath: string): Promise<string> {
+  return invoke<string>('extract_text', { filePath })
 }
 
 /**

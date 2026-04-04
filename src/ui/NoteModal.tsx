@@ -2,8 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { MarkdownLite } from './editor/MarkdownLite'
 import { uploadAsset } from '../core/notes'
-import { importVid } from '../core/media'
+import { importMedia } from '../core/media'
 import type { Note } from '../types'
+
+import { useDocumentUpload } from '../hooks/useDocumentUpload'
+import { registerMediaRef } from '../core/media'
 
 interface Props {
   note: Note
@@ -20,6 +23,20 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { handleDocumentUpload } = useDocumentUpload({
+    noteId: note.id,
+    onUploadStart: () => setUploading(true),
+    onUploadFinish: () => {
+      setUploading(false)
+      textareaRef.current?.focus()
+    },
+    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onRegisterPendingMedia: (filename, type) => {
+      // In NoteModal, note already exists, map it immediately
+      registerMediaRef(note.id, type, filename).catch(console.error)
+    },
+  })
 
   useEffect(() => {
     setTitle(note.title)
@@ -95,7 +112,10 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
 
       if (!selected || typeof selected !== 'string') return
 
-      const filename = await importVid(selected, note.id)
+      const filename = await importMedia(selected, note.id)
+      
+      // Register media immediately since note already exists
+      registerMediaRef(note.id, 'video', filename).catch(console.error)
 
       const videoMarkdown = `\n![video](jnana-asset://${filename})\n`
       setContent((prev) => prev + videoMarkdown)
@@ -184,6 +204,14 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
                 </button>
                 <button
                   className="composer-icon-btn"
+                  onClick={handleDocumentUpload}
+                  disabled={saving || uploading}
+                  title="Attach Document"
+                >
+                  {uploading ? '⏳' : '📄'}
+                </button>
+                <button
+                  className="composer-icon-btn"
                   onClick={handleYouTubeEmbed}
                   disabled={saving || uploading}
                   title="Embed YouTube"
@@ -230,7 +258,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
             </div>
             
             <div className="note-modal-body">
-              <MarkdownLite content={content} lazy={false} />
+              <MarkdownLite content={content} lazy={false} noteId={note.id} />
             </div>
             
             <time className="note-modal-time">

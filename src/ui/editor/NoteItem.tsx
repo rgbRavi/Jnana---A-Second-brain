@@ -2,8 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { MarkdownLite } from './MarkdownLite'
 import { uploadAsset } from '../../core/notes'
-import { importVid } from '../../core/media'
+import { importMedia } from '../../core/media'
 import type { Note } from '../../types'
+
+import { useDocumentUpload } from '../../hooks/useDocumentUpload'
+import { registerMediaRef } from '../../core/media'
 
 interface Props {
   note: Note
@@ -20,6 +23,19 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { handleDocumentUpload } = useDocumentUpload({
+    noteId: note.id,
+    onUploadStart: () => setUploading(true),
+    onUploadFinish: () => {
+      setUploading(false)
+      textareaRef.current?.focus()
+    },
+    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onRegisterPendingMedia: (filename, type) => {
+      registerMediaRef(note.id, type, filename).catch(console.error)
+    },
+  })
 
   // Sync state if note changes from outside
   useEffect(() => {
@@ -101,7 +117,10 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
       if (!selected || typeof selected !== 'string') return
 
       // Import the video with the current note's ID
-      const filename = await importVid(selected, note.id)
+      const filename = await importMedia(selected, note.id)
+      
+      // Register media immediately since note already exists
+      registerMediaRef(note.id, 'video', filename).catch(console.error)
 
       // Inject markdown
       const videoMarkdown = `\n![video](jnana-asset://${filename})\n`
@@ -180,6 +199,14 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
             </button>
             <button
               className="composer-icon-btn"
+              onClick={handleDocumentUpload}
+              disabled={saving || uploading}
+              title="Attach Document"
+            >
+              {uploading ? '⏳' : '📄'}
+            </button>
+            <button
+              className="composer-icon-btn"
               onClick={handleYouTubeEmbed}
               disabled={saving || uploading}
               title="Embed YouTube"
@@ -240,7 +267,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
       </div>
       {note.content && (
         <div className="note-card-body">
-          <MarkdownLite content={note.content} />
+          <MarkdownLite content={note.content} noteId={note.id} />
         </div>
       )}
       <time className="note-card-time">

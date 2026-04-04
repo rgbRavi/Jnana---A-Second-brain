@@ -118,7 +118,6 @@ export function GraphView({ onUpdate, onRemove }: Props) {
         onEngineStop={() => {
           if (fgRef.current) fgRef.current.pauseAnimation()
         }}
-        onEngineStart={() => {}}
         nodeLabel={(n: any) => {
           const preview =
             n.content.substring(0, 100).replace(/\n/g, ' ') +
