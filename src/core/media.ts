@@ -28,10 +28,18 @@ export async function extractText(filePath: string): Promise<string> {
  */
 export async function registerMediaRef(
   noteId: string,
-  mediaType: 'video' | 'audio' | 'pdf',
+  mediaType: string,
   filename: string,
 ): Promise<void> {
   return invoke<void>('register_media_ref', { noteId, mediaType, filename })
+}
+
+/**
+ * Resolve an asset filename (UUID.ext) to its absolute OS path inside the assets dir.
+ * Use this when you need to open the file in an external app via the Tauri opener plugin.
+ */
+export async function getAssetPath(filename: string): Promise<string> {
+  return invoke<string>('get_asset_path', { filename })
 }
 
 /**

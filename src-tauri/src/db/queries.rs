@@ -120,7 +120,7 @@ pub fn insert_media_ref(
     meta: &str,
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO media_refs (id, note_id, media_type, path, meta) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![id, note_id, media_type, path, meta],
     )?;
     Ok(())

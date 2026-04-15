@@ -1,7 +1,7 @@
 // src/hooks/useDocumentUpload.ts
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { importMedia, convertToPdf, extractText } from '../core/media'
+import { importMedia, convertToPdf, extractText, registerMediaRef, getAssetPath } from '../core/media'
 
 interface UseDocumentUploadProps {
   noteId: string
@@ -67,9 +67,18 @@ export function useDocumentUpload({
             alert(`Text extraction failed: ${err}\n\nPlease ensure Pandoc is installed.`)
           }
         } else if (choice === '3') {
-          // External Link
-          const filename = selected.split(/[\\/]/).pop() || 'document'
-          onInsertMarkdown(`\n[External: ${filename}](external://${encodeURIComponent(selected)})\n`)
+          // Copy file into Jnana's assets dir so it is always available,
+          // then open it from there via the Tauri opener plugin.
+          try {
+            const originalName = selected.split(/[\\/]/).pop() || 'document'
+            const filename = await importMedia(selected, noteId)
+            // Register so the file is cleaned up when the note is deleted
+            registerMediaRef(noteId, 'document', filename).catch(console.error)
+            const assetPath = await getAssetPath(filename)
+            onInsertMarkdown(`\n[External: ${originalName}](external://${encodeURIComponent(assetPath)})\n`)
+          } catch (err) {
+            alert(`Failed to copy document: ${err}`)
+          }
         }
       }
     } catch (err) {

@@ -53,6 +53,22 @@ pub fn save_annotation(
     annotation: Annotation,
 ) -> Result<Annotation, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+
+    // Ensure the media_refs row exists so the FK constraint is satisfied.
+    // This handles: notes that predate the media_refs feature, files that
+    // were re-uploaded (causing register_media_ref to fail silently), and
+    // annotations created before the note was first saved.
+    let media_type = match annotation.kind.as_str() {
+        "video_timestamp" => "video",
+        "audio_marker"    => "audio",
+        _                 => "pdf",
+    };
+    conn.execute(
+        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta)
+         VALUES (?1, ?2, ?3, ?1, '{}')",
+        rusqlite::params![annotation.media_id, annotation.note_id, media_type],
+    ).map_err(|e| format!("Failed to ensure media_ref: {}", e))?;
+
     queries::insert_annotation(&conn, &annotation.to_row())
         .map_err(|e| format!("Failed to save annotation: {}", e))?;
     Ok(annotation)

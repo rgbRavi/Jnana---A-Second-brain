@@ -43,31 +43,45 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     }
 
     let out_dir = std::env::temp_dir();
+    let out_file = out_dir.join(source_path.with_extension("pdf").file_name().unwrap());
     let mut success = false;
-    
-    // 1. Try LibreOffice primary pathway
-    let mut cmd = Command::new("soffice"); // "soffice" is the standard LibreOffice cli executable
-    cmd.args([
-        "--headless",
-        "--convert-to",
-        "pdf",
-        &file_path,
-        "--outdir",
-        out_dir.to_str().unwrap(),
-    ]);
 
-    if let Ok(status) = cmd.status() {
-        if status.success() {
-            success = true;
+    // 1. Try LibreOffice — check PATH first, then common Windows install locations.
+    //    soffice is not always on PATH even when LibreOffice is installed.
+    let soffice_candidates: &[&str] = &[
+        "soffice",
+        r"C:\Program Files\LibreOffice\program\soffice.exe",
+        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+    ];
+
+    for candidate in soffice_candidates {
+        let mut cmd = Command::new(candidate);
+        cmd.args([
+            "--headless",
+            "--convert-to",
+            "pdf",
+            &file_path,
+            "--outdir",
+            out_dir.to_str().unwrap(),
+        ]);
+        if let Ok(status) = cmd.status() {
+            if status.success() {
+                success = true;
+                break;
+            }
         }
     }
 
-    let out_file = out_dir.join(source_path.with_extension("pdf").file_name().unwrap());
-
-    // 2. Try Pandoc fallback
+    // 2. Pandoc fallback — explicitly request the libreoffice PDF engine so
+    //    Pandoc never falls through to pdflatex/MikTeX which prompts for package installs.
     if !success || !out_file.exists() {
         let mut pdf_cmd = Command::new("pandoc");
-        pdf_cmd.args([&file_path, "-o", out_file.to_str().unwrap()]);
+        pdf_cmd.args([
+            &file_path,
+            "-o",
+            out_file.to_str().unwrap(),
+            "--pdf-engine=libreoffice",
+        ]);
         if let Ok(status) = pdf_cmd.status() {
             if status.success() {
                 success = true;
