@@ -1,16 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
 
+export interface YouTubePlayerHandle {
+  seekTo: (seconds: number) => void
+}
+
 interface Props {
   videoId: string
   title?: string
   className?: string
   lazy?: boolean
+  /** Called once the iframe is ready to accept postMessage commands */
+  onReady?: (handle: YouTubePlayerHandle) => void
 }
 
-export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy = true }: Props) {
+export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy = true, onReady }: Props) {
   const [visible, setVisible] = useState(!lazy)
   const [online, setOnline] = useState(navigator.onLine)
   const containerRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Lazy load: only render the iframe when scrolled into view
   useEffect(() => {
@@ -85,19 +92,33 @@ export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy
     )
   }
 
-  // YouTube embed URL with privacy-enhanced mode (no tracking cookies)
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`
+  // enablejsapi=1 is required for postMessage seek commands to work
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`
+
+  const handleIframeLoad = () => {
+    if (!onReady || !iframeRef.current) return
+    onReady({
+      seekTo: (seconds: number) => {
+        const win = iframeRef.current?.contentWindow
+        if (!win) return
+        win.postMessage(JSON.stringify({ event: 'command', func: 'seekTo',   args: [seconds, true] }), '*')
+        win.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),              '*')
+      },
+    })
+  }
 
   return (
     <div ref={containerRef} className={className}>
       <div className="youtube-container">
         <iframe
+          ref={iframeRef}
           src={embedUrl}
           title={title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
           loading="lazy"
           style={{ border: 'none' }}
+          onLoad={handleIframeLoad}
         />
       </div>
     </div>

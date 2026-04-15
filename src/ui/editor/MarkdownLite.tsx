@@ -2,7 +2,7 @@ import React, { useRef } from 'react'
 import { AsyncImage } from '../AsyncImage'
 import { VideoPlayer } from '../media/VideoPlayer'
 import { PdfViewer } from '../media/PdfViewer'
-import { AsyncYouTube } from '../AsyncYouTube'
+import { AsyncYouTube, type YouTubePlayerHandle } from '../AsyncYouTube'
 import { invoke } from '@tauri-apps/api/core'
 type PlyrInstance = InstanceType<typeof import('plyr').default>
 
@@ -49,8 +49,10 @@ function timeStringToSeconds(timeStr: string): number {
 
 export function MarkdownLite({ content, lazy = true, noteId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  // Map from video index → Plyr instance, populated via onReady callbacks
+  // Map from video index → Plyr instance (local videos)
   const playerRefs = useRef<Map<number, PlyrInstance>>(new Map())
+  // Map from video index → YouTube seek handle (YouTube embeds)
+  const youtubeRefs = useRef<Map<number, YouTubePlayerHandle>>(new Map())
   // Map from pdf index → page setter function, for [D1::Page N] jumps
   const pdfPageSetters = useRef<Map<number, (page: number) => void>>(new Map())
 
@@ -173,6 +175,8 @@ export function MarkdownLite({ content, lazy = true, noteId }: Props) {
           </div>
         )
       } else if (isYouTube && youtubeId) {
+        const currentVideoIndex = videoCount
+        videoCount++
         elements.push(
           <div key={`youtube-${imgMatch.index}`} className="note-youtube-wrapper">
             <AsyncYouTube
@@ -180,6 +184,9 @@ export function MarkdownLite({ content, lazy = true, noteId }: Props) {
               title={altText || 'YouTube Video'}
               className="note-youtube"
               lazy={lazy}
+              onReady={(handle) => {
+                youtubeRefs.current.set(currentVideoIndex, handle)
+              }}
             />
           </div>
         )
@@ -366,10 +373,15 @@ export function MarkdownLite({ content, lazy = true, noteId }: Props) {
   }
 
   const handleTimestampClick = (videoIndex: number, seconds: number) => {
-    const player = playerRefs.current.get(videoIndex)
-    if (player) {
-      player.currentTime = seconds
-      player.play()
+    const localPlayer = playerRefs.current.get(videoIndex)
+    if (localPlayer) {
+      localPlayer.currentTime = seconds
+      localPlayer.play()
+      return
+    }
+    const youtubePlayer = youtubeRefs.current.get(videoIndex)
+    if (youtubePlayer) {
+      youtubePlayer.seekTo(seconds)
     }
   }
 
