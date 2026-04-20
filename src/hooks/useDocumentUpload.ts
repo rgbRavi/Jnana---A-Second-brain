@@ -35,7 +35,11 @@ export function useDocumentUpload({
 
       if (ext === 'pdf') {
         const filename = await importMedia(selected, noteId)
-        if (onRegisterPendingMedia) onRegisterPendingMedia(filename, 'pdf')
+        if (onRegisterPendingMedia) {
+          onRegisterPendingMedia(filename, 'pdf')
+        } else {
+          registerMediaRef(noteId, 'pdf', filename).catch(console.error)
+        }
         onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
       } else if (['doc', 'docx', 'odt'].includes(ext)) {
         // Prompt user for handling option
@@ -53,7 +57,11 @@ export function useDocumentUpload({
           try {
             const tempPdfPath = await convertToPdf(selected)
             const filename = await importMedia(tempPdfPath, noteId)
-            if (onRegisterPendingMedia) onRegisterPendingMedia(filename, 'pdf')
+            if (onRegisterPendingMedia) {
+              onRegisterPendingMedia(filename, 'pdf')
+            } else {
+              registerMediaRef(noteId, 'pdf', filename).catch(console.error)
+            }
             onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
           } catch (err) {
             alert(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)

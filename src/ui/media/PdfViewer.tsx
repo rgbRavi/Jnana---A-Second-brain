@@ -1,8 +1,7 @@
 // src/ui/media/PdfViewer.tsx
-import React, { useEffect, useRef, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
-import { useAnnotations } from '../../hooks/useAnnotations'
-import { makePdfAnnotation } from '../../core/annotations'
+import { usePdfAnnotations } from '../../hooks/usePdfAnnotations'
 
 // Use Vite's asset import to bundle the worker correctly for offline use
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -37,8 +36,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null)
   const [currentRect, setCurrentRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
-  // Use the global note annotations hook
-  const { annotations, create, update } = useAnnotations(noteId)
+  const { pageAnnotations, createHighlight, updateAnnotation } = usePdfAnnotations(noteId, filename, pageNumber)
 
   // Register the page setter for external control (e.g., [D1::Page 4] jumps)
   useEffect(() => {
@@ -51,20 +49,6 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
     }
   }, [onRegisterPageSetter, numPages])
   
-  // Filter annotations for this specific 'pdf_highlight' on this page
-  const pageAnnotations = useMemo(() => {
-    return annotations.filter(a => {
-      if (a.kind !== 'pdf_highlight') return false
-      if (a.mediaId !== filename) return false
-      try {
-        const pos = JSON.parse(a.position)
-        return pos.page === pageNumber
-      } catch (e) {
-        return false
-      }
-    })
-  }, [annotations, filename, pageNumber])
-
   // 1. Load the PDF Document
   useEffect(() => {
     let active = true
@@ -180,9 +164,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
     ] as [number, number, number, number]
 
     try {
-      // Create and save the annotation through the existing backend pipeline
-      const newAnnotation = makePdfAnnotation(noteId, filename, pageNumber, rectBox, '')
-      await create(newAnnotation)
+      await createHighlight(rectBox)
     } catch (err) {
       console.error('Failed to create annotation:', err)
       alert('Failed to save highlight.')
@@ -225,7 +207,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
               e.stopPropagation()
               const newContent = window.prompt('Edit highlight note:', a.content || '')
               if (newContent !== null && newContent !== a.content) {
-                update(a.id, newContent)
+                updateAnnotation(a.id, newContent)
               }
             }}
           />

@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { open } from '@tauri-apps/plugin-dialog'
 import { MarkdownLite } from './editor/MarkdownLite'
-import { uploadAsset } from '../core/notes'
-import { importMedia } from '../core/media'
 import type { Note } from '../types'
 
 import { useDocumentUpload } from '../hooks/useDocumentUpload'
-import { registerMediaRef } from '../core/media'
+import { useNoteAttachments } from '../hooks/useNoteAttachments'
 
 interface Props {
   note: Note
@@ -32,10 +29,14 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
       textareaRef.current?.focus()
     },
     onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
-    onRegisterPendingMedia: (filename, type) => {
-      // In NoteModal, note already exists, map it immediately
-      registerMediaRef(note.id, type, filename).catch(console.error)
-    },
+  })
+
+  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
+    noteId: note.id,
+    onUploadStart: () => setUploading(true),
+    onUploadFinish: () => setUploading(false),
+    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onFocus: () => textareaRef.current?.focus(),
   })
 
   useEffect(() => {
@@ -73,58 +74,6 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
       setTitle(note.title)
       setContent(note.content || '')
       setIsEditing(false)
-    }
-  }
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploading(true)
-    try {
-      const arrayBuffer = await file.arrayBuffer()
-      const extension = file.name.split('.').pop() || 'png'
-      const assetUrl = await uploadAsset(new Uint8Array(arrayBuffer), extension)
-      const imageMarkdown = `\n![${file.name}](${assetUrl})\n`
-      setContent((prev) => prev + imageMarkdown)
-    } catch (err) {
-      console.error('Failed to upload image:', err)
-      alert('Failed to upload image: ' + String(err))
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      textareaRef.current?.focus()
-    }
-  }
-
-  const handleVideoUpload = async () => {
-    try {
-      setUploading(true)
-      const selected = await open({
-        multiple: false,
-        filters: [
-          {
-            name: 'Video',
-            extensions: ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'],
-          },
-        ],
-      })
-
-      if (!selected || typeof selected !== 'string') return
-
-      const filename = await importMedia(selected, note.id)
-      
-      // Register media immediately since note already exists
-      registerMediaRef(note.id, 'video', filename).catch(console.error)
-
-      const videoMarkdown = `\n![video](jnana-asset://${filename})\n`
-      setContent((prev) => prev + videoMarkdown)
-    } catch (err) {
-      console.error('Failed to upload video:', err)
-      alert('Failed to upload video: ' + String(err))
-    } finally {
-      setUploading(false)
-      textareaRef.current?.focus()
     }
   }
 
@@ -184,7 +133,11 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
                   accept="image/*"
                   style={{ display: 'none' }}
                   ref={fileInputRef}
-                  onChange={handleImageUpload}
+                  onChange={(e) =>
+                    void handleImageUpload(e.target.files?.[0], () => {
+                      if (fileInputRef.current) fileInputRef.current.value = ''
+                    })
+                  }
                 />
                 <button
                   className="composer-icon-btn"
@@ -196,7 +149,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
                 </button>
                 <button
                   className="composer-icon-btn"
-                  onClick={handleVideoUpload}
+                  onClick={() => void handleVideoUpload()}
                   disabled={saving || uploading}
                   title="Attach Video"
                 >
