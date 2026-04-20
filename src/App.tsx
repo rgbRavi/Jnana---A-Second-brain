@@ -1,16 +1,17 @@
 import './App.css'
 import { useState } from 'react'
+import { useNotes } from './hooks/useNotes'
+import { SearchDocs } from './ui/SearchDocs'
+import { GraphView } from './ui/graph/GraphView'
 import { NoteCreator } from './ui/editor/NoteCreator'
 import { NoteItem } from './ui/editor/NoteItem'
 import { NoteModal } from './ui/NoteModal'
-import { useNotes } from './hooks/useNotes'
-import { GraphView } from './ui/graph/GraphView'
 
 function App() {
   const { notes, loading, create, update, remove } = useNotes()
-  const [currentView, setCurrentView] = useState<'notes' | 'graph'>('notes')
+  const [currentView, setCurrentView] = useState<'notes' | 'search' | 'graph'>('notes')
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
-  const expandedNote = notes.find((n) => n.id === expandedNoteId)
+  const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
   return (
     <div className="app-shell">
@@ -20,17 +21,23 @@ function App() {
           <span>Second brain</span>
         </div>
         <nav className="sidebar-nav">
-          <button 
+          <button
             className={`sidebar-nav-item ${currentView === 'notes' ? 'active' : ''}`}
             onClick={() => setCurrentView('notes')}
           >
-            📋 Notes
+            Notes
           </button>
-          <button 
+          <button
+            className={`sidebar-nav-item ${currentView === 'search' ? 'active' : ''}`}
+            onClick={() => setCurrentView('search')}
+          >
+            Search
+          </button>
+          <button
             className={`sidebar-nav-item ${currentView === 'graph' ? 'active' : ''}`}
             onClick={() => setCurrentView('graph')}
           >
-            🕸️ Graph View
+            Graph View
           </button>
         </nav>
       </aside>
@@ -48,7 +55,7 @@ function App() {
                   {notes.length} note{notes.length !== 1 ? 's' : ''}
                 </p>
               )}
-              {loading && <p className="note-empty">Loading…</p>}
+              {loading && <p className="note-empty">Loading...</p>}
               {!loading && notes.length === 0 && (
                 <p className="note-empty">No notes yet.</p>
               )}
@@ -63,13 +70,21 @@ function App() {
               ))}
             </div>
           </>
+        ) : currentView === 'search' ? (
+          <div className="notes-wrapper">
+            <p className="section-label">Search</p>
+            <SearchDocs
+              notes={notes}
+              onOpenNote={(noteId) => setExpandedNoteId(noteId)}
+            />
+          </div>
         ) : (
           <GraphView onUpdate={update} onRemove={remove} />
         )}
       </div>
 
       {expandedNote && (
-        <NoteModal 
+        <NoteModal
           note={expandedNote}
           isOpen={!!expandedNoteId}
           onClose={() => setExpandedNoteId(null)}

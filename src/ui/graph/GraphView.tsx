@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useMemo } from 'react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { NoteItem } from '../editor/NoteItem'
+import { SearchDocs } from '../SearchDocs'
 import type { Note } from '../../types'
 
 interface Props {
@@ -111,6 +112,28 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           No notes to graph. Create some notes and link them using [[Title]]!
         </div>
       )}
+
+      {/* Local Graph Search Overlay */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          width: '320px',
+          zIndex: 20,
+        }}
+      >
+        <SearchDocs
+          notes={graphData.nodes as unknown as Note[]}
+          onOpenNote={(id) => {
+            const node = graphData.nodes.find((n) => n.id === id)
+            if (node) {
+              handleNodeClick(node)
+            }
+          }}
+          placeholder="Search Graph..."
+        />
+      </div>
 
       <ForceGraph2D
         ref={fgRef}
