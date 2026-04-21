@@ -47,4 +47,10 @@ export async function getAssetPath(filename: string): Promise<string> {
  */
 export async function getMediaRefs(noteId: string): Promise<string[]> {
   return invoke<string[]>('get_media_refs', { noteId })
+
+}
+
+export async function getMediaTypes(noteId: string): Promise<string[]> {
+  return invoke<string[]>('get_media_types', { noteId })
+  
 }

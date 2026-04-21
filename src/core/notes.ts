@@ -40,9 +40,9 @@ export async function removeLink(fromId: string, toId: string): Promise<void> {
 }
 
 export async function uploadAsset(bytes: Uint8Array, extension: string): Promise<string> {
-  const filename = await invoke<string>('save_asset', { bytes: Array.from(bytes), extension })
-  return `jnana-asset://${filename}`
+  return invoke<string>('save_asset', { bytes: Array.from(bytes), extension })
 }
+
 
 export async function getAssetBlob(filename: string): Promise<Blob> {
   const bytes = await invoke<number[]>('get_asset', { filename })

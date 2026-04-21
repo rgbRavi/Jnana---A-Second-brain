@@ -4,10 +4,12 @@ import type { Note } from '../../types'
 
 import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
+import { TagEditor } from '../TagEditor'
+import { isAutoTag } from '../../core/tags'
 
 interface Props {
   note: Note
-  onUpdate: (id: string, title: string, content: string) => Promise<Note | undefined>
+  onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onRemove: (id: string) => void
   onExpand?: () => void
 }
@@ -16,6 +18,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
+  const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -43,7 +46,8 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   useEffect(() => {
     setTitle(note.title || '')
     setContent(note.content || '')
-  }, [note.title, note.content])
+    setTags(note.tags)
+  }, [note.title, note.content, note.tags])
 
   // Auto-resize textarea logic
   useEffect(() => {
@@ -63,12 +67,14 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     if (!newContent && !newTitle) {
       setTitle(note.title)
       setContent(note.content || '')
+      setTags(note.tags)
       setIsEditing(false)
       return
     }
 
     setSaving(true)
-    await onUpdate(note.id, newTitle, newContent)
+    const userTags = tags.filter(t => !isAutoTag(t))
+    await onUpdate(note.id, newTitle, newContent, userTags)
     setSaving(false)
     setIsEditing(false)
   }
@@ -78,6 +84,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     if (e.key === 'Escape') {
       setTitle(note.title)
       setContent(note.content || '')
+      setTags(note.tags)
       setIsEditing(false)
     }
   }
@@ -111,6 +118,10 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={handleKeyDown}
           autoFocus
+        />
+        <TagEditor 
+          tags={tags} 
+          onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])} 
         />
         <textarea
           ref={textareaRef}
@@ -170,6 +181,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
               onClick={() => {
                 setTitle(note.title)
                 setContent(note.content || '')
+                setTags(note.tags)
                 setIsEditing(false)
               }}
               disabled={saving || uploading}

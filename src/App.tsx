@@ -8,7 +8,7 @@ import { NoteItem } from './ui/editor/NoteItem'
 import { NoteModal } from './ui/NoteModal'
 
 function App() {
-  const { notes, loading, create, update, remove } = useNotes()
+  const { notes, loading, create, update, remove, updateTags } = useNotes()
   const [currentView, setCurrentView] = useState<'notes' | 'search' | 'graph'>('notes')
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
@@ -46,7 +46,7 @@ function App() {
         {currentView === 'notes' ? (
           <>
             <div className="composer-wrapper">
-              <NoteCreator onCreate={create} />
+              <NoteCreator onCreate={create} onUpdate={update} />
             </div>
 
             <div className="notes-wrapper">
@@ -89,6 +89,7 @@ function App() {
           isOpen={!!expandedNoteId}
           onClose={() => setExpandedNoteId(null)}
           onUpdate={update}
+          onUpdateTags={updateTags}
         />
       )}
     </div>

@@ -4,14 +4,17 @@ import type { Note } from '../../types'
 import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
+import { TagEditor } from '../TagEditor'
 
 interface Props {
-  onCreate: (title: string, content: string, id?: string) => Promise<Note>
+  onCreate: (title: string, content: string, id?: string, tags?: string[]) => Promise<Note>
+  onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
 }
 
-export function NoteCreator({ onCreate }: Props) {
+export function NoteCreator({ onCreate, onUpdate }: Props) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [tags, setTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -43,10 +46,14 @@ export function NoteCreator({ onCreate }: Props) {
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
     setSaving(true)
-    const saved = await onCreate(title, content, pendingNoteId.current)
+    const saved = await onCreate(title, content, pendingNoteId.current, tags)
     await flushPendingMedia(saved.id)
+    // Run an update to trigger inferTags now that media handles are registered
+    await onUpdate(saved.id, saved.title, saved.content, tags)
+    
     setTitle('')
     setContent('')
+    setTags([])
     pendingNoteId.current = crypto.randomUUID()
     resetPendingMedia()
     setSaving(false)
@@ -72,9 +79,10 @@ export function NoteCreator({ onCreate }: Props) {
     <div className="composer">
       <input className="composer-title" type="text" placeholder="Title (optional)"
         value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={handleKeyDown} />
-      <textarea ref={textareaRef} className="composer-body" placeholder="What do you want to remember?"
+      <TagEditor tags={tags} onChange={setTags} />
+      <textarea ref={textareaRef} className="composer-body borderless" placeholder="What do you want to remember?"
         value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={handleKeyDown} autoFocus />
-      <div className="composer-footer">
+      <div className="composer-footer borderless-footer">
         <span className="composer-hint">⌘ enter to save</span>
         <div className="composer-actions-right">
           <input

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
+import { inferTags, isAutoTag } from '../core/tags'
 import { eventBus } from '../lib/eventBus'
 
 export function useNotes() {
@@ -43,12 +44,12 @@ export function useNotes() {
     return () => eventBus.off('note:saved', handler)
   }, [])
 
-  const create = useCallback(async (title: string, content: string, id?: string): Promise<Note> => {
+  const create = useCallback(async (title: string, content: string, id?: string, userTags: string[] = []): Promise<Note> => {
     const note: Note = {
       id: id ?? crypto.randomUUID(),
       title: title.trim() || 'Untitled',
       content,
-      tags: [],
+      tags: userTags,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
@@ -56,30 +57,37 @@ export function useNotes() {
     // Optimistic — show immediately before Rust confirms
     setNotes((prev) => [note, ...prev])
 
-    // saveNote emits 'note:saved', which triggers syncLinksForNote above
-    await saveNote(note)
+    // Infer auto-tags (new note has no media auto-tags yet, we'll re-infer in another place)
+    const autoTags = await inferTags(note)
+    const noteWithTags = { ...note, tags: [...autoTags, ...userTags] }
+    await saveNote(noteWithTags)
 
-    return note
+    return noteWithTags
   }, [])
 
   const update = useCallback(
-    async (id: string, title: string, content: string): Promise<Note | undefined> => {
+    async (id: string, title: string, content: string, userTags?: string[]): Promise<Note | undefined> => {
       let updatedNote: Note | undefined
 
       setNotes((prev) => {
         const existing = prev.find((n) => n.id === id)
         if (!existing) return prev
+        const newTags = userTags ? [...existing.tags.filter(isAutoTag), ...userTags] : existing.tags
         updatedNote = {
           ...existing,
           title: title.trim(),
           content,
+          tags: newTags,
           updatedAt: Date.now(),
         }
         return prev.map((n) => (n.id === id ? updatedNote! : n))
       })
 
       if (updatedNote) {
-        // saveNote emits 'note:saved', which triggers syncLinksForNote above
+        // Re-infer auto-tags but preserve existing user tags
+        const userTags = updatedNote.tags.filter((t) => !isAutoTag(t))
+        const autoTags = await inferTags(updatedNote)
+        updatedNote = { ...updatedNote, tags: [...autoTags, ...userTags] }
         await saveNote(updatedNote)
         return updatedNote
       }
@@ -95,5 +103,18 @@ export function useNotes() {
     // we don't emit again here to avoid double-fire.
   }, [])
 
-  return { notes, loading, create, update, remove }
+  /** Update just the user-tag portion without re-running inferTags */
+  const updateTags = useCallback(async (id: string, userTags: string[]) => {
+    let saved: Note | undefined
+    setNotes((prev) => {
+      const existing = prev.find((n) => n.id === id)
+      if (!existing) return prev
+      const autoTags = existing.tags.filter(isAutoTag)
+      saved = { ...existing, tags: [...autoTags, ...userTags], updatedAt: Date.now() }
+      return prev.map((n) => (n.id === id ? saved! : n))
+    })
+    if (saved) await saveNote(saved)
+  }, [])
+
+  return { notes, loading, create, update, updateTags, remove }
 }

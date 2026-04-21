@@ -8,7 +8,7 @@ interface UseNoteAttachmentsProps {
   onUploadFinish: () => void
   onInsertMarkdown: (markdown: string) => void
   onFocus?: () => void
-  onRegisterPendingMedia?: (filename: string, type: 'video' | 'pdf') => void
+  onRegisterPendingMedia?: (filename: string, type: 'video' | 'pdf' | 'image') => void
 }
 
 export function useNoteAttachments({
@@ -29,8 +29,16 @@ export function useNoteAttachments({
     try {
       const arrayBuffer = await file.arrayBuffer()
       const extension = file.name.split('.').pop() || 'png'
-      const assetUrl = await uploadAsset(new Uint8Array(arrayBuffer), extension)
-      onInsertMarkdown(`\n![${file.name}](${assetUrl})\n`)
+      const filename = await uploadAsset(new Uint8Array(arrayBuffer), extension)
+
+      if (onRegisterPendingMedia) {
+        onRegisterPendingMedia(filename, 'image')
+      } else {
+        registerMediaRef(noteId, 'image', filename).catch(console.error)
+      }
+
+      onInsertMarkdown(`\n![${file.name}](jnana-asset://${filename})\n`)
+
     } catch (err) {
       console.error('Failed to upload image:', err)
       alert('Failed to upload image: ' + String(err))

@@ -132,6 +132,12 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
     rows.collect()
 }
 
+pub fn fetch_media_types(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT media_type FROM media_refs WHERE note_id = ?1")?;
+    let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+    rows.collect()
+}
+
 // ─── Annotations ────────────────────────────────────────
 
 pub struct AnnotationRow {

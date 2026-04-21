@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './editor/MarkdownLite'
 import type { Note } from '../types'
+import { TagEditor } from './TagEditor'
+import { isAutoTag } from '../core/tags'
 
 import { useDocumentUpload } from '../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../hooks/useNoteAttachments'
@@ -9,13 +11,15 @@ interface Props {
   note: Note
   isOpen: boolean
   onClose: () => void
-  onUpdate?: (id: string, title: string, content: string) => Promise<Note | undefined>
+  onUpdate?: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
+  onUpdateTags?: (id: string, userTags: string[]) => Promise<void>
 }
 
-export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
+export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
+  const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -42,6 +46,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
   useEffect(() => {
     setTitle(note.title)
     setContent(note.content || '')
+    setTags(note.tags)
     setIsEditing(false)
   }, [note])
 
@@ -58,7 +63,8 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
 
     setSaving(true)
     try {
-      await onUpdate(note.id, title.trim(), content.trim())
+      const userTags = tags.filter(t => !isAutoTag(t))
+      await onUpdate(note.id, title.trim(), content.trim(), userTags)
       setIsEditing(false)
     } catch (err) {
       console.error('Failed to save note:', err)
@@ -73,6 +79,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
     if (e.key === 'Escape') {
       setTitle(note.title)
       setContent(note.content || '')
+      setTags(note.tags)
       setIsEditing(false)
     }
   }
@@ -117,6 +124,10 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Title (optional)"
               onKeyDown={handleKeyDown}
+            />
+            <TagEditor 
+              tags={tags} 
+              onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])} 
             />
             <textarea
               ref={textareaRef}
@@ -178,6 +189,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
                   onClick={() => {
                     setTitle(note.title)
                     setContent(note.content || '')
+                    setTags(note.tags)
                     setIsEditing(false)
                   }}
                   disabled={saving || uploading}
@@ -209,11 +221,16 @@ export function NoteModal({ note, isOpen, onClose, onUpdate }: Props) {
                 </button>
               )}
             </div>
-            
+
+            <TagEditor
+              tags={note.tags}
+              onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
+            />
+
             <div className="note-modal-body">
               <MarkdownLite content={content} lazy={false} noteId={note.id} />
             </div>
-            
+
             <time className="note-modal-time">
               {new Date(note.updatedAt).toLocaleString()}
             </time>

@@ -138,6 +138,7 @@ fn main() {
             extract_text,
             register_media_ref,
             get_media_refs,
+            get_media_types,
             save_annotation,
             get_annotations_for_note,
             get_annotations_for_media,
