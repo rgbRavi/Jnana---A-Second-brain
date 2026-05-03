@@ -1,5 +1,6 @@
 import { useState, useRef, KeyboardEvent } from 'react'
 import { isAutoTag } from '../core/tags'
+import TagStyles from './TagEditor.module.css'
 
 interface Props {
   /** All tags on the note (auto + user) */
@@ -39,23 +40,23 @@ export function TagEditor({ tags, onChange, disabled }: Props) {
 
   return (
     <div
-      className="tag-editor"
+      className={TagStyles.tagEditor}
       onClick={() => inputRef.current?.focus()}
     >
       {/* Auto-generated tags — read only */}
       {autoTags.map((tag) => (
-        <span key={tag} className="tag-chip tag-chip--auto" title="Auto-generated tag">
+        <span key={tag} className={`${TagStyles.tagChip} ${TagStyles.tagChipAuto}`} title="Auto-generated tag">
           {tag}
         </span>
       ))}
 
       {/* User tags — removable */}
       {userTags.map((tag) => (
-        <span key={tag} className="tag-chip tag-chip--user">
+        <span key={tag} className={`${TagStyles.tagChip} ${TagStyles.tagChipUser}`} >
           {tag}
           {!disabled && (
             <button
-              className="tag-chip-remove"
+              className={`${TagStyles.tagChipRemove}`}
               onClick={(e) => { e.stopPropagation(); removeTag(tag) }}
               aria-label={`Remove tag ${tag}`}
             >
@@ -69,7 +70,7 @@ export function TagEditor({ tags, onChange, disabled }: Props) {
       {!disabled && (
         <input
           ref={inputRef}
-          className="tag-input"
+          className={`${TagStyles.tagInput}`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

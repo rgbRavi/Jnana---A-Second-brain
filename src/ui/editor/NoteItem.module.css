@@ -1,0 +1,190 @@
+.noteCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.noteCard:hover { border-color: var(--border-hover); background: var(--surface-2); }
+
+.noteCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.noteCardActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.noteCardAction {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 0.95rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.1s;
+  flex-shrink: 0;
+}
+
+.noteCardAction:hover {
+  color: var(--text-1);
+}
+
+.noteCardTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.noteCardDelete {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.1s;
+  flex-shrink: 0;
+}
+
+.noteCardDelete:hover { color: var(--danger); }
+
+.noteCardBody {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.55;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* When a note contains media (video/image/pdf/doc), disable the text line-clamp */
+.noteCardBody:has(.note-video-wrapper),
+.noteCardBody:has(.noteImage-wrapper),
+.noteCardBody:has(.note-youtube-wrapper),
+.noteCardBody:has(.note-pdf-wrapper),
+.noteCardBody:has(.note-external-doc) {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+.noteCardTime {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  margin-top: 0.15rem;
+}
+
+/* ── Inline edit mode ───────────────────────────── */
+
+.noteCardEditing {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.composerTitleBorderless {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--text-1);
+  outline: none;
+}
+
+.composerTitleBorderless::placeholder { color: var(--text-3); }
+
+.composerBodyBorderless {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  color: var(--text-1);
+  line-height: 1.7;
+  resize: none;
+  outline: none;
+  min-height: 80px;
+}
+
+.composerBodyBorderless::placeholder { color: var(--text-3); }
+
+.composerFooterBorderlessFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.composerActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.composerHint {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.composerCancel {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.composerCancel:hover { background: var(--surface-2); color: var(--text-1); }
+
+.composerSave {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.composerSave:hover:not(:disabled) { opacity: 0.88; }
+.composerSave:active:not(:disabled) { transform: scale(0.97); }
+.composerSave:disabled { opacity: 0.3; cursor: not-allowed; }

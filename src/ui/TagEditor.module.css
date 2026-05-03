@@ -1,0 +1,80 @@
+/* ── Tag Editor ─────────────────────────────────── */
+.tagEditor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: text;
+  min-height: 38px;
+  transition: border-color 0.15s;
+}
+
+.tagEditor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.08);
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Auto-generated — muted, read-only feel */
+.tagChipAuto {
+  background: rgba(124, 106, 247, 0.08);
+  border: 1px solid rgba(124, 106, 247, 0.25);
+  color: var(--text-2);
+}
+
+/* User-created — solid accent pill */
+.tagChipUser {
+  background: rgba(124, 106, 247, 0.18);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.tagChipRemove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  transition: opacity 0.1s;
+}
+
+.tagChipRemove:hover {
+  opacity: 1;
+}
+
+.tagInput {
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-1);
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  padding: 0;
+}
+
+.tagInput::placeholder {
+  color: var(--text-3);
+}

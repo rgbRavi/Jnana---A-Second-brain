@@ -1,0 +1,105 @@
+/* Composer */
+.composer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.composer:focus-within { border-color: var(--accent); }
+
+.composerTitle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--text-1);
+  outline: none;
+}
+
+.composerTitle::placeholder { color: var(--text-3); }
+
+.composerBody {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  color: var(--text-1);
+  line-height: 1.7;
+  resize: none;
+  outline: none;
+  min-height: 100px;
+}
+
+.composerBody::placeholder { color: var(--text-3); }
+
+.composerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.composerHint {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.composerSave {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 1.1rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.composerSave:hover:not(:disabled) { opacity: 0.88; }
+.composerSave:active:not(:disabled) { transform: scale(0.97); }
+.composerSave:disabled { opacity: 0.3; cursor: not-allowed; }
+
+
+/* Image Attachment Styles */
+.composerActionsRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.composerIconBtn {
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.composerIconBtn:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--border-hover);
+}
+
+.composerIconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

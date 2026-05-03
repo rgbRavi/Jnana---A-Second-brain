@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #0d0d0f;
+  --surface:      #141417;
+  --surface-2:    #1c1c21;
+  --border:       #2a2a32;
+  --border-hover: #3d3d4a;
+  --accent:       #7c6af7;
+  --text-1:       #f0eff5;
+  --text-2:       #9896a4;
+  --text-3:       #55535f;
+  --danger:       #e05252;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --radius-sm:    6px;
+  --radius-md:    10px;
+  --radius-lg:    14px;
+}
+
+html { height: 100%; }
+body { height: 100%; background: var(--bg); color: var(--text-1); font-family: var(--font-body); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+#root { height: 100%; }
+
+/* Scrollbar width */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* Track (background) */
+::-webkit-scrollbar-track {
+  background: #1a1a1a; /* match your dark UI */
+  border-radius: 10px;
+}
+
+/* Thumb (the draggable part) */
+::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 10px;
+  border: 2px solid #1a1a1a;
+}
+
+/* Hover effect */
+::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}

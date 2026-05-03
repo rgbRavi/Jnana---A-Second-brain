@@ -3,9 +3,10 @@ import { MarkdownLite } from './editor/MarkdownLite'
 import type { Note } from '../types'
 import { TagEditor } from './TagEditor'
 import { isAutoTag } from '../core/tags'
-
 import { useDocumentUpload } from '../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../hooks/useNoteAttachments'
+import { ComposerToolbar } from './editor/ComposerToolbar'
+import NoteModalStyles from './NoteModal.module.css'
 
 interface Props {
   note: Note
@@ -23,23 +24,19 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { handleDocumentUpload } = useDocumentUpload({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
-    onUploadFinish: () => {
-      setUploading(false)
-      textareaRef.current?.focus()
-    },
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
   })
 
   const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
     onFocus: () => textareaRef.current?.focus(),
   })
 
@@ -58,13 +55,10 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   }, [isEditing, content])
 
   const handleSave = async () => {
-    if (!onUpdate) return
-    if (saving) return
-
+    if (!onUpdate || saving) return
     setSaving(true)
     try {
-      const userTags = tags.filter(t => !isAutoTag(t))
-      await onUpdate(note.id, title.trim(), content.trim(), userTags)
+      await onUpdate(note.id, title.trim(), content.trim(), tags.filter(t => !isAutoTag(t)))
       setIsEditing(false)
     } catch (err) {
       console.error('Failed to save note:', err)
@@ -84,108 +78,50 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     }
   }
 
-  const handleYouTubeEmbed = () => {
-    const url = window.prompt('Paste a YouTube URL:')
-    if (!url) return
-
-    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
-    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
-    const videoId = shortMatch?.[1] || watchMatch?.[1]
-
-    if (!videoId) {
-      alert('Could not extract a YouTube video ID from that URL.')
-      return
-    }
-
-    const ytMarkdown = `\n![youtube](https://youtube.com/watch?v=${videoId})\n`
-    setContent((prev) => prev + ytMarkdown)
-    textareaRef.current?.focus()
-  }
-
   if (!isOpen) return null
 
   return (
-    <div className="note-modal-overlay" onClick={onClose}>
-      <div className="note-modal-container" onClick={(e) => e.stopPropagation()}>
-        <button 
-          className="note-modal-close"
-          onClick={onClose}
-          aria-label="Close"
-        >
+    <div className={NoteModalStyles.noteModalOverlay} onClick={onClose}>
+      <div className={NoteModalStyles.noteModalContainer} onClick={(e) => e.stopPropagation()}>
+        <button className={NoteModalStyles.noteModalClose} onClick={onClose} aria-label="Close">
           ✕
         </button>
-        
+
         {isEditing ? (
-          <div className="note-modal-edit-mode">
+          <div className={NoteModalStyles.noteModalEditMode}>
             <input
               type="text"
-              className="note-modal-title-input"
+              className={NoteModalStyles.noteModalTitleInput}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Title (optional)"
               onKeyDown={handleKeyDown}
             />
-            <TagEditor 
-              tags={tags} 
-              onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])} 
+            <TagEditor
+              tags={tags}
+              onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
             />
             <textarea
               ref={textareaRef}
-              className="note-modal-textarea"
+              className={NoteModalStyles.noteModalTextarea}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Note content..."
               onKeyDown={handleKeyDown}
             />
-            <div className="note-modal-actions" style={{ justifyContent: 'space-between' }}>
-              <div className="composer-actions">
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  ref={fileInputRef}
-                  onChange={(e) =>
-                    void handleImageUpload(e.target.files?.[0], () => {
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    })
-                  }
+            <div className={NoteModalStyles.noteModalActions}>
+              <div className={NoteModalStyles.noteModalToolbar}>
+                <ComposerToolbar
+                  onInsertMarkdown={(md) => setContent((prev) => prev + md)}
+                  onImageUpload={handleImageUpload}
+                  onVideoUpload={() => void handleVideoUpload()}
+                  onDocumentUpload={handleDocumentUpload}
+                  disabled={saving || uploading}
                 />
-                <button
-                  className="composer-icon-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={saving || uploading}
-                  title="Attach Image"
-                >
-                  {uploading ? '⏳' : '📷'}
-                </button>
-                <button
-                  className="composer-icon-btn"
-                  onClick={() => void handleVideoUpload()}
-                  disabled={saving || uploading}
-                  title="Attach Video"
-                >
-                  {uploading ? '⏳' : '🎬'}
-                </button>
-                <button
-                  className="composer-icon-btn"
-                  onClick={handleDocumentUpload}
-                  disabled={saving || uploading}
-                  title="Attach Document"
-                >
-                  {uploading ? '⏳' : '📄'}
-                </button>
-                <button
-                  className="composer-icon-btn"
-                  onClick={handleYouTubeEmbed}
-                  disabled={saving || uploading}
-                  title="Embed YouTube"
-                >
-                  ▶️
-                </button>
               </div>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                <button 
-                  className="note-modal-btn note-modal-btn-cancel"
+              <div className={NoteModalStyles.noteModalSaveRow}>
+                <button
+                  className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnCancel}`}
                   onClick={() => {
                     setTitle(note.title)
                     setContent(note.content || '')
@@ -197,7 +133,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                   Cancel
                 </button>
                 <button
-                  className="note-modal-btn note-modal-btn-save"
+                  className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnSave}`}
                   onClick={handleSave}
                   disabled={saving || uploading}
                 >
@@ -207,12 +143,12 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             </div>
           </div>
         ) : (
-          <div className="note-modal-view-mode">
-            <div className="note-modal-header">
-              <h2 className="note-modal-title">{title || 'Untitled'}</h2>
+          <div className={NoteModalStyles.noteModalViewMode}>
+            <div className={NoteModalStyles.noteModalHeader}>
+              <h2 className={NoteModalStyles.noteModalTitle}>{title || 'Untitled'}</h2>
               {onUpdate && (
                 <button
-                  className="note-modal-edit-btn"
+                  className={NoteModalStyles.noteModalEditBtn}
                   onClick={() => setIsEditing(true)}
                   aria-label="Edit note"
                   title="Edit"
@@ -221,17 +157,14 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 </button>
               )}
             </div>
-
             <TagEditor
               tags={note.tags}
               onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             />
-
-            <div className="note-modal-body">
+            <div className={NoteModalStyles.noteModalBody}>
               <MarkdownLite content={content} lazy={false} noteId={note.id} />
             </div>
-
-            <time className="note-modal-time">
+            <time className={NoteModalStyles.noteModalTime}>
               {new Date(note.updatedAt).toLocaleString()}
             </time>
           </div>

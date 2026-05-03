@@ -1,10 +1,11 @@
-// src/ui/editor/NoteCreator.tsx
 import { useState, useRef } from 'react'
 import type { Note } from '../../types'
 import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { TagEditor } from '../TagEditor'
+import { ComposerToolbar } from './ComposerToolbar'
+import Styles from './NoteCreator.module.css'
 
 interface Props {
   onCreate: (title: string, content: string, id?: string, tags?: string[]) => Promise<Note>
@@ -20,17 +21,13 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
 
   const pendingNoteId = useRef(crypto.randomUUID())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
 
   const { handleDocumentUpload } = useDocumentUpload({
     noteId: pendingNoteId.current,
     onUploadStart: () => setUploading(true),
-    onUploadFinish: () => {
-      setUploading(false)
-      textareaRef.current?.focus()
-    },
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
     onRegisterPendingMedia: addPendingMedia,
   })
 
@@ -38,7 +35,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     noteId: pendingNoteId.current,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
     onFocus: () => textareaRef.current?.focus(),
     onRegisterPendingMedia: addPendingMedia,
   })
@@ -48,9 +45,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     setSaving(true)
     const saved = await onCreate(title, content, pendingNoteId.current, tags)
     await flushPendingMedia(saved.id)
-    // Run an update to trigger inferTags now that media handles are registered
     await onUpdate(saved.id, saved.title, saved.content, tags)
-    
     setTitle('')
     setContent('')
     setTags([])
@@ -64,51 +59,41 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSave()
   }
 
-  const handleYouTubeEmbed = () => {
-    const url = window.prompt('Paste a YouTube URL:')
-    if (!url) return
-    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
-    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
-    const videoId = shortMatch?.[1] || watchMatch?.[1]
-    if (!videoId) { alert('Could not extract a YouTube video ID from that URL.'); return }
-    setContent((prev) => prev + `\n![youtube](https://youtube.com/watch?v=${videoId})\n`)
-    textareaRef.current?.focus()
-  }
-
   return (
-    <div className="composer">
-      <input className="composer-title" type="text" placeholder="Title (optional)"
-        value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={handleKeyDown} />
+    <div className={Styles.composer}>
+      <input
+        className={Styles.composerTitle}
+        type="text"
+        placeholder="Title (optional)"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={handleKeyDown}
+      />
       <TagEditor tags={tags} onChange={setTags} />
-      <textarea ref={textareaRef} className="composer-body borderless" placeholder="What do you want to remember?"
-        value={content} onChange={(e) => setContent(e.target.value)} onKeyDown={handleKeyDown} autoFocus />
-      <div className="composer-footer borderless-footer">
-        <span className="composer-hint">⌘ enter to save</span>
-        <div className="composer-actions-right">
-          <input
-            type="file"
-            accept="image/*"
-            style={{ display: 'none' }}
-            ref={fileInputRef}
-            onChange={(e) =>
-              void handleImageUpload(e.target.files?.[0], () => {
-                if (fileInputRef.current) fileInputRef.current.value = ''
-              })
-            }
+      <textarea
+        ref={textareaRef}
+        className={Styles.composerBody}
+        placeholder="What do you want to remember?"
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        onKeyDown={handleKeyDown}
+        autoFocus
+      />
+      <div className={Styles.composerFooter}>
+        <span className={Styles.composerHint}>⌘ enter to save</span>
+        <div className={Styles.composerActionsRight}>
+          <ComposerToolbar
+            onInsertMarkdown={(md) => setContent((prev) => prev + md)}
+            onImageUpload={handleImageUpload}
+            onVideoUpload={() => void handleVideoUpload()}
+            onDocumentUpload={handleDocumentUpload}
+            disabled={saving || uploading}
           />
-          <button className="composer-icon-btn" onClick={() => fileInputRef.current?.click()} disabled={saving || uploading} title="Attach Image">
-            {uploading ? '⏳' : '📷'}
-          </button>
-          <button className="composer-icon-btn" onClick={() => void handleVideoUpload()} disabled={saving || uploading} title="Attach Video">
-            {uploading ? '⏳' : '🎬'}
-          </button>
-          <button className="composer-icon-btn" onClick={handleDocumentUpload} disabled={saving || uploading} title="Attach Document">
-            {uploading ? '⏳' : '📄'}
-          </button>
-          <button className="composer-icon-btn" onClick={handleYouTubeEmbed} disabled={saving || uploading} title="Embed YouTube">
-            ▶️
-          </button>
-          <button className="composer-save" onClick={handleSave} disabled={saving || (!content.trim() && !title.trim())}>
+          <button
+            className={Styles.composerSave}
+            onClick={handleSave}
+            disabled={saving || (!content.trim() && !title.trim())}
+          >
             {saving ? 'Saving…' : "That's my note →"}
           </button>
         </div>

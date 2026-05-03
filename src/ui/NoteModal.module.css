@@ -1,0 +1,284 @@
+/* Note Modal / Letterbox Styles */
+.noteModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+.noteModalContainer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.noteModalClose {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  z-index: 1001;
+}
+
+.noteModalClose:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.noteModalContent {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  padding: 2rem;
+  padding-right: 3rem;
+}
+
+.noteModalTitle {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 1.5rem;
+  margin-top: 0;
+}
+
+.noteModalBody {
+  flex: 1;
+  overflow-y: auto;
+  color: var(--text-2);
+  line-height: 1.6;
+  font-size: 0.95rem;
+  padding-right: 0.5rem;
+}
+
+/* Allow fullscreen videos to escape modal */
+.noteModalBody video {
+  max-width: 100%;
+}
+
+.noteModalBody video:fullscreen {
+  max-width: 100vw;
+  max-height: 100vh;
+}
+
+/* Custom scrollbar for modal body */
+.noteModalBody::-webkit-scrollbar {
+  width: 8px;
+}
+
+.noteModalBody::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.noteModalBody::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.noteModalBody::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+.noteModalTime {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Modal Edit Mode Styles */
+.noteModalViewMode {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  padding: 2rem;
+  padding-right: 3rem;
+}
+
+.noteModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.noteModalEditBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 1.2rem;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.noteModalEditBtn:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+  border-color: var(--border-hover);
+}
+
+.noteModalEditMode {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+  padding: 2rem;
+  gap: 1rem;
+}
+
+.noteModalTitleInput {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-1);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  font-family: var(--font-body);
+  width: 100%;
+}
+
+.noteModalTitleInput:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+}
+
+.noteModalTextarea {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: none;
+  overflow-y: auto;
+}
+
+.noteModalTextarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+}
+
+.noteModalActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.noteModalToolbar {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.noteModalSaveRow {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.noteModalBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+
+.noteModalBtn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border-hover);
+}
+
+.noteModalBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.noteModalBtnCancel {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.noteModalBtnCancel:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-1);
+}
+
+.noteModalBtnSave {
+  background: rgba(124, 106, 247, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.noteModalBtnSave:hover:not(:disabled) {
+  background: rgba(124, 106, 247, 0.25);
+}
+

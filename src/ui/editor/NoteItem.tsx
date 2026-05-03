@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './MarkdownLite'
 import type { Note } from '../../types'
-
 import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
 import { TagEditor } from '../TagEditor'
 import { isAutoTag } from '../../core/tags'
+import { ComposerToolbar } from './ComposerToolbar'
+import Styles from './NoteItem.module.css'
 
 interface Props {
   note: Note
@@ -22,38 +23,31 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { handleDocumentUpload } = useDocumentUpload({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
-    onUploadFinish: () => {
-      setUploading(false)
-      textareaRef.current?.focus()
-    },
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
   })
 
   const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (markdown) => setContent((prev) => prev + markdown),
+    onInsertMarkdown: (md) => setContent((prev) => prev + md),
     onFocus: () => textareaRef.current?.focus(),
   })
 
-  // Sync state if note changes from outside
   useEffect(() => {
     setTitle(note.title || '')
     setContent(note.content || '')
     setTags(note.tags)
   }, [note.title, note.content, note.tags])
 
-  // Auto-resize textarea logic
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.style.height = 'inherit'
-      // Get the computed height based on scrollHeight
       textareaRef.current.style.height = `${Math.max(textareaRef.current.scrollHeight, 100)}px`
     }
   }, [isEditing, content])
@@ -62,8 +56,6 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     if (saving) return
     const newTitle = title.trim()
     const newContent = content.trim()
-
-    // If both empty, maybe just delete or revert? we'll revert to prevent accidental delete.
     if (!newContent && !newTitle) {
       setTitle(note.title)
       setContent(note.content || '')
@@ -71,10 +63,8 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
       setIsEditing(false)
       return
     }
-
     setSaving(true)
-    const userTags = tags.filter(t => !isAutoTag(t))
-    await onUpdate(note.id, newTitle, newContent, userTags)
+    await onUpdate(note.id, newTitle, newContent, tags.filter(t => !isAutoTag(t)))
     setSaving(false)
     setIsEditing(false)
   }
@@ -89,29 +79,11 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     }
   }
 
-  const handleYouTubeEmbed = () => {
-    const url = window.prompt('Paste a YouTube URL:')
-    if (!url) return
-
-    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
-    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
-    const videoId = shortMatch?.[1] || watchMatch?.[1]
-
-    if (!videoId) {
-      alert('Could not extract a YouTube video ID from that URL.')
-      return
-    }
-
-    const ytMarkdown = `\n![youtube](https://youtube.com/watch?v=${videoId})\n`
-    setContent((prev) => prev + ytMarkdown)
-    textareaRef.current?.focus()
-  }
-
   if (isEditing) {
     return (
-      <div className="note-card editing">
+      <div className={Styles.noteCardEditing}>
         <input
-          className="composer-title borderless"
+          className={Styles.composerTitleBorderless}
           type="text"
           placeholder="Title (optional)"
           value={title}
@@ -119,65 +91,29 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
           onKeyDown={handleKeyDown}
           autoFocus
         />
-        <TagEditor 
-          tags={tags} 
-          onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])} 
+        <TagEditor
+          tags={tags}
+          onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
         />
         <textarea
           ref={textareaRef}
-          className="composer-body borderless"
+          className={Styles.composerBodyBorderless}
           placeholder="What do you want to remember?"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <div className="composer-footer borderless-footer">
-          <div className="composer-actions">
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              ref={fileInputRef}
-              onChange={(e) =>
-                void handleImageUpload(e.target.files?.[0], () => {
-                  if (fileInputRef.current) fileInputRef.current.value = ''
-                })
-              }
+        <div className={Styles.composerFooterBorderlessFooter}>
+          <div className={Styles.composerActions}>
+            <ComposerToolbar
+              onInsertMarkdown={(md) => setContent((prev) => prev + md)}
+              onImageUpload={handleImageUpload}
+              onVideoUpload={() => void handleVideoUpload()}
+              onDocumentUpload={handleDocumentUpload}
+              disabled={saving || uploading}
             />
             <button
-              className="composer-icon-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={saving || uploading}
-              title="Attach Image"
-            >
-              {uploading ? '⏳' : '📷'}
-            </button>
-            <button
-              className="composer-icon-btn"
-              onClick={() => void handleVideoUpload()}
-              disabled={saving || uploading}
-              title="Attach Video"
-            >
-              {uploading ? '⏳' : '🎬'}
-            </button>
-            <button
-              className="composer-icon-btn"
-              onClick={handleDocumentUpload}
-              disabled={saving || uploading}
-              title="Attach Document"
-            >
-              {uploading ? '⏳' : '📄'}
-            </button>
-            <button
-              className="composer-icon-btn"
-              onClick={handleYouTubeEmbed}
-              disabled={saving || uploading}
-              title="Embed YouTube"
-            >
-              ▶️
-            </button>
-            <button
-              className="composer-cancel"
+              className={Styles.composerCancel}
               onClick={() => {
                 setTitle(note.title)
                 setContent(note.content || '')
@@ -189,28 +125,26 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
               Cancel
             </button>
             <button
-              className="composer-save"
+              className={Styles.composerSave}
               onClick={handleSave}
               disabled={saving || uploading || (!content.trim() && !title.trim())}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
-          <span className="composer-hint">⌘ enter to save</span>
+          <span className={Styles.composerHint}>⌘ enter to save</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="note-card" onClick={() => {
-      if (!isEditing && onExpand) onExpand()
-    }}>
-      <div className="note-card-header">
-        <span className="note-card-title">{note.title || 'Untitled'}</span>
-        <div className="note-card-actions" onClick={(e) => e.stopPropagation()}>
+    <div className={Styles.noteCard} onClick={() => { if (!isEditing && onExpand) onExpand() }}>
+      <div className={Styles.noteCardHeader}>
+        <span className={Styles.noteCardTitle}>{note.title || 'Untitled'}</span>
+        <div className={Styles.noteCardActions} onClick={(e) => e.stopPropagation()}>
           <button
-            className="note-card-action"
+            className={Styles.noteCardAction}
             onClick={() => setIsEditing(true)}
             aria-label="Edit note"
             title="Edit"
@@ -218,7 +152,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
             &#9998;
           </button>
           <button
-            className="note-card-delete"
+            className={Styles.noteCardDelete}
             onClick={() => onRemove(note.id)}
             aria-label="Delete note"
             title="Delete note"
@@ -230,11 +164,11 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
         </div>
       </div>
       {note.content && (
-        <div className="note-card-body">
+        <div className={Styles.noteCardBody}>
           <MarkdownLite content={note.content} noteId={note.id} />
         </div>
       )}
-      <time className="note-card-time">
+      <time className={Styles.noteCardTime}>
         {new Date(note.updatedAt).toLocaleString()}
       </time>
     </div>

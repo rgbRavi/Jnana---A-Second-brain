@@ -1,0 +1,66 @@
+/* Sidebar */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 0;
+  overflow-y: auto;
+}
+
+.sidebarLogo {
+  padding: 0 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.sidebarLogo h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+
+.sidebarLogo span {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.75rem;
+  gap: 0.25rem;
+}
+
+.sidebarNavItem {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sidebarNavItem:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.sidebarNavItem.active {
+  background: rgba(124, 106, 247, 0.15);
+  color: var(--accent);
+  font-weight: 500;
+}

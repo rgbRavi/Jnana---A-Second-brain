@@ -1,0 +1,125 @@
+/* Image Attachment */
+.noteImageWrapper {
+  display: block;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.noteImage {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+
+/* PDF Embed */
+.notePdfWrapper {
+  display: block;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+/* External Document Link */
+.noteExternalDoc {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin: 0.75rem 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s;
+}
+
+.noteExternalDoc:hover {
+  border-color: var(--border-hover);
+}
+
+.noteExternalDocIcon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.noteExternalDocName {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--text-1);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noteExternalDocBtn {
+  background: rgba(124, 106, 247, 0.12);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.noteExternalDocBtn:hover {
+  background: rgba(124, 106, 247, 0.25);
+}
+
+
+/* Video Attachment Styles */
+.noteVideoWrapper {
+  display: block;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.noteVideo {
+  width: 100%;
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+/* Timestamp Button Styles */
+.timestampBtn {
+  display: inline-block;
+  background: rgba(124, 106, 247, 0.15);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin: 0 0.25rem;
+}
+
+.timestampBtn:hover {
+  background: rgba(124, 106, 247, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 106, 247, 0.2);
+}
+
+.timestampBtn:active {
+  transform: translateY(0);
+}
+
+/* YouTube Embed Styles */
+.noteYoutubeWrapper {
+  display: block;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.noteYoutube {
+  width: 100%;
+}
+

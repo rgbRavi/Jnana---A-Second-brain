@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import Styles from './AsyncYouTube.module.css'
 
 export interface YouTubePlayerHandle {
   seekTo: (seconds: number) => void
@@ -60,19 +61,10 @@ export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy
   // Placeholder while lazy-loading
   if (!visible) {
     return (
-      <div
-        ref={containerRef}
-        className={className}
-        style={{
-          background: 'var(--surface-2)',
-          borderRadius: '10px',
-          minHeight: '225px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-2)' }}>Loading YouTube video...</span>
+      <div ref={containerRef} className={`${className ?? ''} ${Styles.youtubePlaceholder}`}>
+        <div className={Styles.youtubePlaceholderContent}>
+          <span style={{ fontSize: '0.85rem' }}>Loading YouTube video...</span>
+        </div>
       </div>
     )
   }
@@ -80,8 +72,8 @@ export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy
   // Offline state
   if (!online) {
     return (
-      <div ref={containerRef} className="youtube-unavailable">
-        <div className="youtube-unavailable-content">
+      <div ref={containerRef} className={Styles.youtubeUnavailable}>
+        <div className={Styles.youtubeUnavailableContent}>
           <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📡</div>
           <div>You're offline</div>
           <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', opacity: 0.7 }}>
@@ -109,7 +101,7 @@ export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy
 
   return (
     <div ref={containerRef} className={className}>
-      <div className="youtube-container">
+      <div className={Styles.youtubeContainer}>
         <iframe
           ref={iframeRef}
           src={embedUrl}

@@ -1,249 +1,157 @@
 import React, { useRef } from 'react'
+import { openPath } from '@tauri-apps/plugin-opener'
 import { AsyncImage } from '../AsyncImage'
-import { VideoPlayer } from '../media/VideoPlayer'
+import { AsyncVideo } from '../AsyncVideo'
+import { AsyncYouTube } from '../AsyncYouTube'
 import { PdfViewer } from '../media/PdfViewer'
-import { AsyncYouTube, type YouTubePlayerHandle } from '../AsyncYouTube'
-import { invoke } from '@tauri-apps/api/core'
-type PlyrInstance = InstanceType<typeof import('plyr').default>
+import MdStyles from './MarkdownLite.module.css'
 
 interface Props {
   content: string
-  lazy?: boolean
-  /** Required for PDF annotation support. If omitted, PDF highlights are disabled. */
   noteId?: string
+  lazy?: boolean
 }
 
-// Helper function to extract YouTube video ID from various URL formats
-function extractYouTubeId(url: string): string | null {
-  try {
-    // Handle youtu.be/ID format
-    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
-    if (shortMatch) return shortMatch[1]
+// ── Private embed components ──────────────────────────────────────────────────
 
-    // Handle youtube.com/watch?v=ID format
-    const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
-    if (watchMatch) return watchMatch[1]
+function VideoEmbed({ url, videoIndex, lazy }: { url: string; videoIndex: number; lazy: boolean }) {
+  const filename = url.replace('jnana-asset://', '')
+  return (
+    <div className={MdStyles.noteVideoWrapper} data-video-index={videoIndex}>
+      <AsyncVideo filename={filename} className={MdStyles.noteVideo} controls preload="metadata" lazy={lazy} />
+    </div>
+  )
+}
 
-    // Handle direct video ID (already extracted)
-    if (/^[a-zA-Z0-9_-]+$/.test(url) && url.length === 11) {
-      return url
-    }
-  } catch (e) {
-    console.error('Error extracting YouTube ID:', e)
+function YouTubeEmbed({ url, lazy }: { url: string; lazy: boolean }) {
+  const videoId =
+    url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1] ||
+    url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1]
+  if (!videoId) return null
+  return (
+    <div className={MdStyles.noteYoutubeWrapper}>
+      <AsyncYouTube videoId={videoId} className={MdStyles.noteYoutube} lazy={lazy} />
+    </div>
+  )
+}
+
+function PdfEmbed({ url, noteId }: { url: string; noteId: string }) {
+  const filename = url.replace('jnana-asset://', '')
+  return (
+    <div className={MdStyles.notePdfWrapper}>
+      <PdfViewer filename={filename} noteId={noteId} />
+    </div>
+  )
+}
+
+function ImageEmbed({ url, altText, lazy }: { url: string; altText: string; lazy: boolean }) {
+  if (url.startsWith('jnana-asset://')) {
+    const filename = url.replace('jnana-asset://', '')
+    return (
+      <span className={MdStyles.noteImageWrapper}>
+        <AsyncImage filename={filename} alt={altText} className={MdStyles.noteImage} lazy={lazy} />
+      </span>
+    )
   }
-  return null
+  return (
+    <span className={MdStyles.noteImageWrapper}>
+      <img src={url} alt={altText} className={MdStyles.noteImage} />
+    </span>
+  )
 }
 
-// Helper function to convert HH:MM:SS or MM:SS string to seconds
+function ExternalDocLink({ name, path }: { name: string; path: string }) {
+  const displayName = name.replace(/^External:\s*/i, '')
+  return (
+    <div className={MdStyles.noteExternalDoc}>
+      <span className={MdStyles.noteExternalDocIcon}>📄</span>
+      <span className={MdStyles.noteExternalDocName}>{displayName}</span>
+      <button
+        className={MdStyles.noteExternalDocBtn}
+        onClick={() => openPath(path).catch(console.error)}
+      >
+        Open
+      </button>
+    </div>
+  )
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function timeStringToSeconds(timeStr: string): number {
   const parts = timeStr.split(':').map(Number)
-  if (parts.length === 2) {
-    // MM:SS format
-    return parts[0] * 60 + parts[1]
-  } else if (parts.length === 3) {
-    // HH:MM:SS format
-    return parts[0] * 3600 + parts[1] * 60 + parts[2]
-  }
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
   return 0
 }
 
-export function MarkdownLite({ content, lazy = true, noteId }: Props) {
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  // Map from video index → Plyr instance (local videos)
-  const playerRefs = useRef<Map<number, PlyrInstance>>(new Map())
-  // Map from video index → YouTube seek handle (YouTube embeds)
-  const youtubeRefs = useRef<Map<number, YouTubePlayerHandle>>(new Map())
-  // Map from pdf index → page setter function, for [D1::Page N] jumps
-  const pdfPageSetters = useRef<Map<number, (page: number) => void>>(new Map())
 
-  // Regex to match markdown images: ![alt text](url)
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
-  // Regex to match markdown links: [text](url) — used for external docs
-  const linkRegex = /\[([^\]]*)\]\((external:\/\/.+?)\)/g
-  // Regex to match timestamp with video index: [V1::01:02:03]
-  // [V1::MM:SS] or [V1::HH:MM:SS] — V-index is 1-based (V1 = first video)
-  const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}(?::\d{2})?)\]/g
-  // Regex to match simple timestamp: [01:02:03] or [01:02]
-  // Simple timestamp: [MM:SS] or [HH:MM:SS] — all segments must be 2 digits
-  const simpleTimestampRegex = /\[(\d{2}:\d{2}(?::\d{2})?)\]/g
-  // Regex to match document page markers: [D1::Page 4]
-  const docPageRegex = /\[D(\d+)::Page\s*(\d+)\]/g
+  const externalLinkRegex = /\[([^\]]+)\]\((external:\/\/[^)]+)\)/g
+  const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}:\d{2})\]/g
+  const simpleTimestampRegex = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
 
-  // Track video / pdf count during rendering
   let videoCount = 0
-  let pdfCount = 0
 
-  // For rendering, we need to split content by both images and timestamps
   const renderContent = () => {
     const elements: React.ReactNode[] = []
     let lastIndex = 0
-
-    // First pass: handle all markdown images and videos
     let match: RegExpExecArray | null
 
-    // Reset regex lastIndex
+    type EmbedMatch =
+      | { kind: 'image'; index: number; endIndex: number; altText: string; url: string }
+      | { kind: 'external'; index: number; endIndex: number; name: string; path: string }
+
+    const allMatches: EmbedMatch[] = []
+
     imageRegex.lastIndex = 0
-
-    const imageMatches: Array<{
-      index: number
-      endIndex: number
-      altText: string
-      url: string
-      isVideo: boolean
-      isPdf: boolean
-      isYouTube: boolean
-      isExternalLink: boolean
-      youtubeId?: string
-    }> = []
-
-    // Find all image matches (regular images, videos, PDFs, and YouTube)
     while ((match = imageRegex.exec(content)) !== null) {
-      const altText = match[1]
-      const url = match[2]
-      const isVideo = altText === 'video'
-      const isPdf = altText === 'pdf'
-      const isYouTube = altText === 'youtube' || url.includes('youtube.com') || url.includes('youtu.be')
-      const youtubeId = isYouTube ? extractYouTubeId(url) ?? undefined : undefined
+      allMatches.push({ kind: 'image', index: match.index, endIndex: imageRegex.lastIndex, altText: match[1], url: match[2] })
+    }
 
-      imageMatches.push({
+    externalLinkRegex.lastIndex = 0
+    while ((match = externalLinkRegex.exec(content)) !== null) {
+      allMatches.push({
+        kind: 'external',
         index: match.index,
-        endIndex: imageRegex.lastIndex,
-        altText,
-        url,
-        isVideo,
-        isPdf,
-        isYouTube: isYouTube && youtubeId !== null,
-        isExternalLink: false,
-        youtubeId,
+        endIndex: externalLinkRegex.lastIndex,
+        name: match[1],
+        path: decodeURIComponent(match[2].replace('external://', '')),
       })
     }
 
-    // Find external document links [External: file.docx](external://...)
-    linkRegex.lastIndex = 0
-    while ((match = linkRegex.exec(content)) !== null) {
-      // Only add if not already claimed by an image match
-      const idx = match.index
-      const already = imageMatches.some(m => idx >= m.index && idx < m.endIndex)
-      if (!already) {
-        imageMatches.push({
-          index: match.index,
-          endIndex: linkRegex.lastIndex,
-          altText: match[1],
-          url: match[2],
-          isVideo: false,
-          isPdf: false,
-          isYouTube: false,
-          isExternalLink: true,
-        })
-      }
-    }
+    allMatches.sort((a, b) => a.index - b.index)
 
-    // Sort all matches by position so they render in order
-    imageMatches.sort((a, b) => a.index - b.index)
+    for (const m of allMatches) {
+      const textBefore = content.substring(lastIndex, m.index)
+      if (textBefore) elements.push(renderTextWithTimestamps(textBefore, lastIndex))
 
-    // Process images and videos first
-    for (const imgMatch of imageMatches) {
-      const textBefore = content.substring(lastIndex, imgMatch.index)
-
-      // Process timestamps in text before image
-      if (textBefore) {
-        elements.push(renderTextWithTimestamps(textBefore, lastIndex))
-      }
-
-      const { altText, url, isVideo, isPdf, isYouTube, isExternalLink, youtubeId } = imgMatch
-
-      if (isExternalLink) {
-        // Render external document link as an "Open" button via Tauri opener
-        const filePath = decodeURIComponent(url.replace('external://', ''))
-        const displayName = altText || filePath.split(/[\\/]/).pop() || 'Document'
-        elements.push(
-          <div key={`ext-${imgMatch.index}`} className="note-external-doc">
-            <span className="note-external-doc-icon">📎</span>
-            <span className="note-external-doc-name">{displayName}</span>
-            <button
-              className="note-external-doc-btn"
-              onClick={async () => {
-                try {
-                  await invoke('plugin:opener|open_path', { path: filePath })
-                } catch (err) {
-                  alert('Failed to open file: ' + String(err))
-                }
-              }}
-            >
-              Open in App
-            </button>
-          </div>
-        )
-      } else if (isYouTube && youtubeId) {
-        const currentVideoIndex = videoCount
-        videoCount++
-        elements.push(
-          <div key={`youtube-${imgMatch.index}`} className="note-youtube-wrapper">
-            <AsyncYouTube
-              videoId={youtubeId}
-              title={altText || 'YouTube Video'}
-              className="note-youtube"
-              lazy={lazy}
-              onReady={(handle) => {
-                youtubeRefs.current.set(currentVideoIndex, handle)
-              }}
-            />
-          </div>
-        )
-      } else if (isPdf) {
-        const filename = url.startsWith('jnana-asset://') ? url.replace('jnana-asset://', '') : url
-        const currentPdfIndex = pdfCount
-        pdfCount++
-
-        elements.push(
-          <PdfViewerWithRef
-            key={`pdf-${imgMatch.index}`}
-            filename={filename}
-            noteId={noteId || ''}
-            pdfIndex={currentPdfIndex}
-            registerPageSetter={(setter: (page: number) => void) => pdfPageSetters.current.set(currentPdfIndex, setter)}
-          />
-        )
-      } else if (isVideo) {
-        const filename = url.startsWith('jnana-asset://') ? url.replace('jnana-asset://', '') : url
-        const currentVideoIndex = videoCount
-        videoCount++
-
-        elements.push(
-          <div key={`video-${imgMatch.index}`} className="note-video-wrapper">
-            <VideoPlayer
-              filename={filename}
-              className="note-video"
-              lazy={lazy}
-              onReady={(player) => {
-                playerRefs.current.set(currentVideoIndex, player)
-              }}
-            />
-          </div>
-        )
-      } else if (url.startsWith('jnana-asset://')) {
-        const filename = url.replace('jnana-asset://', '')
-        elements.push(
-          <span key={`img-${imgMatch.index}`} className="note-image-wrapper">
-            <AsyncImage filename={filename} alt={altText} className="note-image" lazy={lazy} />
-          </span>
-        )
+      if (m.kind === 'external') {
+        elements.push(<ExternalDocLink key={`ext-${m.index}`} name={m.name} path={m.path} />)
       } else {
-        elements.push(
-          <span key={`img-${imgMatch.index}`} className="note-image-wrapper">
-            <img src={url} alt={altText} className="note-image" />
-          </span>
-        )
+        const { altText, url } = m
+        const key = `embed-${m.index}`
+
+        if (altText === 'video') {
+          elements.push(<VideoEmbed key={key} url={url} videoIndex={videoCount++} lazy={lazy} />)
+        } else if (altText === 'youtube') {
+          elements.push(<YouTubeEmbed key={key} url={url} lazy={lazy} />)
+        } else if (altText === 'pdf') {
+          elements.push(<PdfEmbed key={key} url={url} noteId={noteId} />)
+        } else {
+          elements.push(<ImageEmbed key={key} url={url} altText={altText} lazy={lazy} />)
+        }
       }
 
-      lastIndex = imgMatch.endIndex
+      lastIndex = m.endIndex
     }
 
-    // Process remaining text with timestamps
     const textAfter = content.substring(lastIndex)
-    if (textAfter) {
-      elements.push(renderTextWithTimestamps(textAfter, lastIndex))
-    }
+    if (textAfter) elements.push(renderTextWithTimestamps(textAfter, lastIndex))
 
     return elements
   }
@@ -253,157 +161,56 @@ export function MarkdownLite({ content, lazy = true, noteId }: Props) {
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    // Collect all timestamp matches
-    const allMatches: Array<{
-      index: number
-      endIndex: number
-      type: 'indexed' | 'simple' | 'docPage'
-      videoIndex?: number
-      docIndex?: number
-      pageNum?: number
-      time: string
-    }> = []
+    const allMatches: Array<{ index: number; endIndex: number; type: 'indexed' | 'simple'; videoIndex?: number; time: string }> = []
 
-    // Find indexed timestamps [V1::MM:SS] or [V1::HH:MM:SS]
     timestampWithIndexRegex.lastIndex = 0
     while ((match = timestampWithIndexRegex.exec(text)) !== null) {
-      allMatches.push({
-        index: match.index,
-        endIndex: timestampWithIndexRegex.lastIndex,
-        type: 'indexed',
-        videoIndex: parseInt(match[1], 10),
-        time: match[2],
-      })
+      allMatches.push({ index: match.index, endIndex: timestampWithIndexRegex.lastIndex, type: 'indexed', videoIndex: parseInt(match[1], 10), time: match[2] })
     }
 
-    // Find document page markers [D1::Page 4]
-    docPageRegex.lastIndex = 0
-    while ((match = docPageRegex.exec(text)) !== null) {
-      allMatches.push({
-        index: match.index,
-        endIndex: docPageRegex.lastIndex,
-        type: 'docPage',
-        docIndex: parseInt(match[1], 10),
-        pageNum: parseInt(match[2], 10),
-        time: '', // not used for docs
-      })
-    }
-
-    // Build a set of ranges already claimed by indexed timestamps / docPage so the
-    // simple regex can't partially match inside a [V1::...] or [D1::Page N] token.
-    const claimedRanges = allMatches.map((m) => [m.index, m.endIndex] as [number, number])
-    const inClaimed = (idx: number) => claimedRanges.some(([s, e]) => idx >= s && idx < e)
-
-    // Find simple timestamps [MM:SS] or [HH:MM:SS] — skip any that fall
-    // inside an already-matched indexed token.
     simpleTimestampRegex.lastIndex = 0
     while ((match = simpleTimestampRegex.exec(text)) !== null) {
-      if (inClaimed(match.index)) continue
-      allMatches.push({
-        index: match.index,
-        endIndex: simpleTimestampRegex.lastIndex,
-        type: 'simple',
-        time: match[1],
-      })
+      allMatches.push({ index: match.index, endIndex: simpleTimestampRegex.lastIndex, type: 'simple', time: match[1] })
     }
 
-    // Sort matches by index
     allMatches.sort((a, b) => a.index - b.index)
 
-    // Render text segments and timestamp / page-jump buttons
     for (const ts of allMatches) {
       const textBefore = text.substring(lastIndex, ts.index)
-      if (textBefore) {
-        elements.push(
-          <span key={`text-${offset + lastIndex}`}>{textBefore}</span>
-        )
-      }
+      if (textBefore) elements.push(<span key={`text-${offset + lastIndex}`}>{textBefore}</span>)
 
-      if (ts.type === 'docPage' && ts.docIndex !== undefined && ts.pageNum !== undefined) {
-        // Document page jump button
-        const docIdx = ts.docIndex - 1 // D-index is 1-based; pdfPageSetters is 0-based
-        const pageNum = ts.pageNum
-        elements.push(
-          <button
-            key={`docpage-${offset + ts.index}`}
-            className="timestamp-btn doc-page-btn"
-            onClick={() => {
-              const setter = pdfPageSetters.current.get(docIdx)
-              if (setter) setter(pageNum)
-            }}
-            title={`Jump to Page ${pageNum}`}
-          >
-            📄 Page {pageNum}
-          </button>
-        )
-      } else {
-        const seconds = timeStringToSeconds(ts.time)
-        // V-index in syntax is 1-based (V1, V2…); playerRefs map is 0-based
-        const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined
-          ? ts.videoIndex - 1
-          : 0
+      const seconds = timeStringToSeconds(ts.time)
+      const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined ? ts.videoIndex : 0
 
-        elements.push(
-          <button
-            key={`timestamp-${offset + ts.index}`}
-            className="timestamp-btn"
-            onClick={() => handleTimestampClick(videoIndex, seconds)}
-            title={`Seek to ${ts.time}`}
-          >
-            {ts.time}
-          </button>
-        )
-      }
-
+      elements.push(
+        <button
+          key={`ts-${offset + ts.index}`}
+          className={MdStyles.timestampBtn}
+          onClick={() => handleTimestampClick(videoIndex, seconds)}
+          title={`Seek to ${ts.time}`}
+        >
+          {ts.time}
+        </button>
+      )
       lastIndex = ts.endIndex
     }
 
-    const textAfterTimestamps = text.substring(lastIndex)
-    if (textAfterTimestamps) {
-      elements.push(
-        <span key={`text-final-${offset + lastIndex}`}>
-          {textAfterTimestamps}
-        </span>
-      )
-    }
+    const remaining = text.substring(lastIndex)
+    if (remaining) elements.push(<span key={`text-final-${offset + lastIndex}`}>{remaining}</span>)
 
-    return elements.length > 0 ? (
-      <span key={`text-group-${offset}`}>{elements}</span>
-    ) : null
+    return elements.length > 0 ? <span key={`text-group-${offset}`}>{elements}</span> : null
   }
 
   const handleTimestampClick = (videoIndex: number, seconds: number) => {
-    const localPlayer = playerRefs.current.get(videoIndex)
-    if (localPlayer) {
-      localPlayer.currentTime = seconds
-      localPlayer.play()
-      return
-    }
-    const youtubePlayer = youtubeRefs.current.get(videoIndex)
-    if (youtubePlayer) {
-      youtubePlayer.seekTo(seconds)
-    }
+    if (!containerRef.current) return
+    const wrapper = containerRef.current.querySelector(`[data-video-index="${videoIndex}"]`) as HTMLElement | null
+    if (!wrapper) return
+    const video = wrapper.querySelector('video') as HTMLVideoElement | null
+    if (!video) return
+    video.currentTime = seconds
+    video.play()
+    video.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
   return <div ref={containerRef}>{renderContent()}</div>
-}
-
-// --- Helper wrapper that exposes PdfViewer's page setter to MarkdownLite ---
-interface PdfViewerWithRefProps {
-  filename: string
-  noteId: string
-  pdfIndex: number
-  registerPageSetter: (setter: (page: number) => void) => void
-}
-
-function PdfViewerWithRef({ filename, noteId, registerPageSetter }: PdfViewerWithRefProps) {
-  return (
-    <div className="note-pdf-wrapper">
-      <PdfViewer
-        filename={filename}
-        noteId={noteId}
-        onRegisterPageSetter={registerPageSetter}
-      />
-    </div>
-  )
 }

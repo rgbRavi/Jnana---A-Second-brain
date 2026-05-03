@@ -16,6 +16,7 @@ export default defineConfig(async () => ({
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
+    base: "/jnana/",
     strictPort: true,
     host: host || false,
     hmr: host
