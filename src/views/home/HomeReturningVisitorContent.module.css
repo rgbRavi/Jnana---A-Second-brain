@@ -1,0 +1,160 @@
+.contentContainer {
+  padding: 1rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.contentContainer h1 {
+  text-align: center;
+  font-size: 2em;
+  margin-bottom: 0.25em;
+  color: var(--text-1);
+}
+
+.contentContainer h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: var(--font-mono);
+}
+
+.recentCards {
+  display: flex;                 /* switch from grid → flex */
+  gap: 0.75rem;
+  overflow-x: auto;              /* enable horizontal scroll */
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding-bottom: 0.5rem;
+  scroll-snap-type: x mandatory;
+}
+
+.recentCard {
+  min-width: 200px;
+  max-width: 260px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.recentCard:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.1);
+}
+
+.recentCardTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentCardPreview {
+  font-size: 0.78rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  flex: 1;
+  margin: 0;
+}
+
+.recentCardTime {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  margin-top: 0.25rem;
+}
+
+.scrollButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.scrollButtons button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: 0.85rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.scrollButtons button:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.emptyHint {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  padding: 0.5rem 0;
+}
+
+/* ── Favourites widget ──────────────────────────────────────────────────────── */
+
+.favouritesHeader {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.favouriteSearch {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: var(--text-1);
+  outline: none;
+  width: 200px;
+  transition: border-color 0.15s;
+}
+.favouriteSearch:focus { border-color: var(--accent); }
+.favouriteSearch::placeholder { color: var(--text-3); }
+
+.favouriteCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Override horizontal-scroll sizing from recentCard when inside the grid */
+.favouriteCards .recentCard {
+  min-width: 0;
+  max-width: none;
+}
+
+.showMoreBtn {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.9rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.showMoreBtn:hover { border-color: var(--accent); color: var(--text-1); }

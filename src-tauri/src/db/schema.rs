@@ -19,9 +19,9 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v1(conn)?;
     }
 
-    // Future migrations go here:
-    // if version < 2 { migrate_v2(conn)?; }
-    // if version < 3 { migrate_v3(conn)?; }
+    if version < 2 {
+        migrate_v2(conn)?;
+    }
 
     Ok(())
 }
@@ -70,7 +70,26 @@ fn migrate_v1(conn: &Connection) -> Result<()> {
             FOREIGN KEY (media_id) REFERENCES media_refs(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS favourites (
+            note_id     TEXT PRIMARY KEY,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
         INSERT INTO schema_version (version) VALUES (1);
+        ",
+    )
+}
+
+/// V2: Add favourites table (was missing from v1 for existing databases).
+fn migrate_v2(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS favourites (
+            note_id TEXT PRIMARY KEY,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (2);
         ",
     )
 }

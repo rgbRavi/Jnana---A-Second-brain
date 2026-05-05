@@ -144,6 +144,9 @@ fn main() {
             get_annotations_for_media,
             update_annotation,
             delete_annotation,
+            add_favourite,
+            get_favourite_note_ids,
+            remove_favourite,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

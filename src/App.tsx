@@ -1,9 +1,9 @@
 import {HashRouter, Routes, Route} from "react-router-dom";
 import AppLayout from "./AppLayout";
-import Home from './views/home/Home'
+import Notes from './views/notes/Notes'
 import Graph from "./views/graph/Graph";
 import Search from "./views/search/Search";
-import AppStyle from "./App.module.css"
+import Home from "./views/home/Home"
 
 function App() {
     return (
@@ -13,6 +13,7 @@ function App() {
                     <Routes>
                         <Route element= {<AppLayout />}>
                                 <Route path = "/" element = {<Home />} />
+                                <Route path = "/notes" element = {<Notes />} />
                                 <Route path = "/graph" element = {<Graph />}/>
                                 <Route path = "/search" element = {<Search />}/>
                         </Route>

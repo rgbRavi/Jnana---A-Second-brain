@@ -1,0 +1,14 @@
+.favouriteBtn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #ffcc00; /* Gold color for the star */
+    transition: transform 0.2s ease-in-out;
+}
+
+.favouriteBtn:hover {
+    transform: scale(1.2);
+    background: rgba(255, 204, 0, 0.1); /* Light gold background on hover */
+    border-radius: 50%;
+}

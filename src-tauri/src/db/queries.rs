@@ -234,3 +234,22 @@ pub fn remove_annotation(conn: &Connection, id: &str) -> Result<()> {
     conn.execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
     Ok(())
 }
+
+pub fn add_favourite(conn: &Connection, note_id: &str) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO favourites (note_id) VALUES (?1)",
+        params![note_id],
+    )?;
+    Ok(())
+}
+
+pub fn fetch_favourite_note_ids(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT note_id FROM favourites")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn remove_favourite(conn: &Connection, note_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM favourites WHERE note_id = ?1", params![note_id])?;
+    Ok(())
+}

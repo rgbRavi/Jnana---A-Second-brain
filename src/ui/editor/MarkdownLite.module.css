@@ -1,3 +1,9 @@
+/* Root container — preserve newlines from plain-text content */
+.root {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Image Attachment */
 .noteImageWrapper {
   display: block;

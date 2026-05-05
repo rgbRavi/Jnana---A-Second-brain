@@ -138,3 +138,24 @@ pub fn remove_link(state: State<'_, DbState>, from_id: String, to_id: String) ->
     queries::remove_link(&conn, &from_id, &to_id)
         .map_err(|e| format!("Failed to remove link: {}", e))
 }
+
+#[command]
+pub fn add_favourite(state: State<'_, DbState>, note_id: String) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::add_favourite(&conn, &note_id)
+        .map_err(|e| format!("Failed to add favourite: {}", e))
+}
+
+#[command]
+pub fn get_favourite_note_ids(state: State<'_, DbState>) -> Result<Vec<String>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::fetch_favourite_note_ids(&conn)
+        .map_err(|e| format!("Failed to fetch favourites: {}", e))
+}
+
+#[command]
+pub fn remove_favourite(state: State<'_, DbState>, note_id: String) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::remove_favourite(&conn, &note_id)
+        .map_err(|e| format!("Failed to remove favourite: {}", e))  
+}

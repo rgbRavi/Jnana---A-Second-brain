@@ -15,6 +15,14 @@ export function Sidebar(){
               }
               to="/"
             >
+              Home
+            </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                `${SidebarStyles.sidebarNavItem}${isActive ? ' ' + SidebarStyles.active : ''}`
+              }
+              to="/Notes"
+            >
               Notes
             </NavLink>
             <NavLink

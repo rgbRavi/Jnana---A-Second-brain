@@ -108,3 +108,16 @@ export async function syncLinksForNote(noteId: string, content: string): Promise
     }
   }
 }
+
+export async function getFavouriteNoteIds(): Promise<string[]> {
+  return invoke<string[]>('get_favourite_note_ids')
+}
+
+export async function addFavourite(noteId: string): Promise<void> {
+  return invoke<void>('add_favourite', { noteId })
+}
+
+export async function removeFavourite(noteId: string): Promise<void> {
+  return invoke<void>('remove_favourite', { noteId })
+}
+
