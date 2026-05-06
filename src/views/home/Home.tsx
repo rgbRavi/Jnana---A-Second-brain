@@ -21,8 +21,8 @@ function Home(){
 
     return(
         <div className={HomeStyle.homeContainer}>
-            {/* {hasVisited ? <HomeReturningVisitorContent /> : <HomeNewVisitorContent />} */}
-            <HomeReturningVisitorContent/>
+            {hasVisited ? <HomeReturningVisitorContent /> : <HomeNewVisitorContent />}
+            {/* <HomeReturningVisitorContent/> */}
         </div>
     )
 }

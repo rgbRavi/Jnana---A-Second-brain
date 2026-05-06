@@ -19,6 +19,7 @@ export function useNotes() {
 
   // Stay in sync when any note is saved — optimistic update already applied
   // locally, but this handles saves from other parts of the app too.
+  
   useEffect(() => {
     const handler = (saved: Note) => {
       setNotes((prev) => {

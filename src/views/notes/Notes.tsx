@@ -14,16 +14,22 @@ function Notes() {
 
   return (
     <div className={NoteStyles.notesContainer}>
+
+      {/* Section for creating new notes */}
       <div className={NoteStyles.composerWrapper}>
         <NoteCreator onCreate={create} onUpdate={update} />
       </div>
 
+      {/* Shows the number of notes */}
       <div className={NoteStyles.notesWrapper}>
         {notes.length > 0 && (
           <p className={NoteStyles.sectionLabel}>
             {notes.length} note{notes.length !== 1 ? 's' : ''}
           </p>
         )}
+
+        
+
         {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
         {!loading && notes.length === 0 && (
           <p className={NoteStyles.noteEmpty}>No notes yet.</p>

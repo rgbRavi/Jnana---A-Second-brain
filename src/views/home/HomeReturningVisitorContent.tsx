@@ -48,8 +48,8 @@ function CardStrip({ notes, update, updateTags, scrollable }: CardStripProps) {
       </div>
       {scrollable && (
         <div className={ContentStyles.scrollButtons}>
-          <button onClick={() => scroll('left')}>⬅</button>
-          <button onClick={() => scroll('right')}>➡</button>
+          <button onClick={() => scroll('left')}>◀</button>
+          <button onClick={() => scroll('right')}>▶</button>
         </div>
       )}
       {openNote && (
@@ -74,7 +74,11 @@ function DisplayLastSessionCards() {
     .map((id) => notes.find((n) => n.id === id))
     .filter((n): n is Note => !!n)
 
-  if (recentNotes.length === 0) return null
+  if (recentNotes.length === 0) return(
+    <div className={ContentStyles.emptyHint}>
+      It looks like you don't have any recently opened notes. Start by creating a new note or opening an existing one to see it here.
+    </div>
+  )
 
   return <CardStrip notes={recentNotes} update={update} updateTags={updateTags} scrollable />
 }
