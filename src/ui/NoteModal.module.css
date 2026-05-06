@@ -178,9 +178,10 @@
 .noteModalEditMode {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
   flex: 1;
   padding: 2rem;
+  padding-right: 3rem;
   gap: 1rem;
 }
 
@@ -203,7 +204,6 @@
 }
 
 .noteModalTextarea {
-  flex: 1;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

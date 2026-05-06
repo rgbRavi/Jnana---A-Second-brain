@@ -1,0 +1,67 @@
+.contentContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+h1{
+    text-align: center;
+    font-size: 2em;
+    margin-bottom: 0.5em;
+    color: var(--text-1);
+}
+
+.quote {
+    border-left: 4px solid var(--accent);
+    padding-left: 1em;
+    color: var(--text-2);
+    font-style: italic;
+    margin: 1.5em 0;
+}
+
+.homeBrief {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    margin-left: 5em;   
+    
+
+}
+
+
+.homeBrief h2 {
+    margin-bottom: 0.5em;   
+    margin-left: -1em;
+    color: var(--text-1);
+}
+
+p {
+  margin-bottom: 1em;
+}
+
+
+
+.homeBrief ul {
+    margin-top: auto;
+    margin-left: 1.5em;
+    margin-bottom: 1em;
+    list-style-type: disc;
+}
+
+.homeBrief li::marker {
+    color: var(--accent);
+}
+
+
+.gettingStarted {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    margin-left: 5em;   
+}
+
+.gettingStarted h2 {
+    margin-bottom: 0.5em;   
+    margin-left: -1em;
+    color: #BAC7D5;
+}

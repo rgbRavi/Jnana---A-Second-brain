@@ -7,6 +7,7 @@ import { useDocumentUpload } from '../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../hooks/useNoteAttachments'
 import { ComposerToolbar } from './editor/ComposerToolbar'
 import NoteModalStyles from './NoteModal.module.css'
+import { FavouriteBtn } from './editor/FavouriteBtn'
 
 interface Props {
   note: Note
@@ -50,7 +51,8 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.style.height = 'inherit'
-      textareaRef.current.style.height = `${Math.max(textareaRef.current.scrollHeight, 100)}px`
+      const capped = Math.min(textareaRef.current.scrollHeight, 320)
+      textareaRef.current.style.height = `${Math.max(capped, 120)}px`
     }
   }, [isEditing, content])
 
@@ -83,6 +85,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   return (
     <div className={NoteModalStyles.noteModalOverlay} onClick={onClose}>
       <div className={NoteModalStyles.noteModalContainer} onClick={(e) => e.stopPropagation()}>
+        <FavouriteBtn noteId={note.id} />
         <button className={NoteModalStyles.noteModalClose} onClick={onClose} aria-label="Close">
           ✕
         </button>

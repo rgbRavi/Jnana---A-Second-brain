@@ -212,5 +212,5 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
     video.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
-  return <div ref={containerRef}>{renderContent()}</div>
+  return <div ref={containerRef} className={MdStyles.root}>{renderContent()}</div>
 }
