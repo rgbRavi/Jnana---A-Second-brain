@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
+import type { Note } from '../../types'
 import { NoteCreator } from '../../ui/editor/NoteCreator'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
@@ -11,6 +12,15 @@ function Notes() {
   const { notes, loading, create, update, remove, updateTags } = useNotesContext()
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
+
+  useEffect(() => {
+    const handler = (note: Note) => {
+      eventBus.emit('note:opened', note)
+      setExpandedNoteId(note.id)
+    }
+    eventBus.on('note:navigate', handler)
+    return () => eventBus.off('note:navigate', handler)
+  }, [])
 
   return (
     <div className={NoteStyles.notesContainer}>
@@ -30,6 +40,7 @@ function Notes() {
 
         
 
+        {/* This is the list of notes currently available */}
         {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
         {!loading && notes.length === 0 && (
           <p className={NoteStyles.noteEmpty}>No notes yet.</p>
@@ -44,7 +55,8 @@ function Notes() {
           />
         ))}
       </div>
-
+      
+      {/* This sections displays the expanded note when clicked from the notes list as a modal */}
       {expandedNote && (
         <NoteModal
           note={expandedNote}
