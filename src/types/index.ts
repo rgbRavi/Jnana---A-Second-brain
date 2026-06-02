@@ -108,6 +108,30 @@ export interface IndexStats {
   indexedNoteCount: number
 }
 
+/** A source note the analyzer actually drew from (grounding, not hallucinated). */
+export interface SourceNote {
+  noteId: string
+  title: string
+}
+
+/**
+ * Structured output from the Thread/Day analyzer. Deliberately not free prose:
+ * the UI renders each field as its own section, and `sourceNotes` is computed
+ * from the retrieved notes (never from the model) so every analysis is grounded.
+ */
+export interface AnalysisResult {
+  summary: string
+  keyConcepts: string[]
+  openQuestions: string[]
+  weakSpots: string[]
+  sourceNotes: SourceNote[]
+}
+
+/** What to analyze: a topic (semantic) or a time window (e.g. yesterday). */
+export type AnalyzeInput =
+  | { mode: 'topic'; query: string }
+  | { mode: 'window'; since: number; until: number; label: string }
+
 /**
  * The provider abstraction the rest of the AI layer codes against.
  * Concrete adapters (OpenAI-compatible, Ollama) implement it so features
