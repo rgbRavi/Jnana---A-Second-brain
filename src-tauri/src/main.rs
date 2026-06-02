@@ -3,8 +3,10 @@
 mod commands;
 mod db;
 
+use commands::ai::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::embeddings::*;
 use commands::media::*;
 use commands::notes::*;
 
@@ -147,6 +149,12 @@ fn main() {
             add_favourite,
             get_favourite_note_ids,
             remove_favourite,
+            ai_fetch,
+            save_note_embeddings,
+            search_embeddings,
+            delete_note_embeddings,
+            get_indexed_note_ids,
+            get_index_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

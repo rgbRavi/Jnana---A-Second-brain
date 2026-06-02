@@ -23,6 +23,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v2(conn)?;
     }
 
+    if version < 3 {
+        migrate_v3(conn)?;
+    }
+
     Ok(())
 }
 
@@ -90,6 +94,34 @@ fn migrate_v2(conn: &Connection) -> Result<()> {
         );
 
         INSERT INTO schema_version (version) VALUES (2);
+        ",
+    )
+}
+
+/// V3: Local vector store for the AI/RAG layer.
+///
+/// Each note is split into chunks; every chunk gets an embedding vector
+/// (produced by whichever AI provider the user configured). Vectors are
+/// stored as a raw little-endian f32 BLOB plus their dimension, so cosine
+/// search can be done entirely in Rust without a vector-DB dependency.
+fn migrate_v3(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS embeddings (
+            id          TEXT PRIMARY KEY,
+            note_id     TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            chunk_text  TEXT NOT NULL,
+            vector      BLOB NOT NULL,
+            dim         INTEGER NOT NULL,
+            model       TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_embeddings_note ON embeddings(note_id);
+
+        INSERT INTO schema_version (version) VALUES (3);
         ",
     )
 }

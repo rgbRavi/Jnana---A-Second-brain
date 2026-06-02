@@ -253,3 +253,105 @@ pub fn remove_favourite(conn: &Connection, note_id: &str) -> Result<()> {
     conn.execute("DELETE FROM favourites WHERE note_id = ?1", params![note_id])?;
     Ok(())
 }
+
+// ─── Embeddings (RAG vector store) ──────────────────────
+
+pub struct EmbeddingRow {
+    pub id: String,
+    pub note_id: String,
+    pub chunk_index: i64,
+    pub chunk_text: String,
+    pub vector: Vec<f32>,
+    pub model: String,
+    pub created_at: i64,
+}
+
+/// Pack an f32 vector into a little-endian byte BLOB.
+fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(vector.len() * 4);
+    for v in vector {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    bytes
+}
+
+/// Unpack a little-endian byte BLOB back into an f32 vector.
+fn blob_to_vector(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect()
+}
+
+/// Replace every embedding for a note in a single transaction.
+/// Re-indexing a note deletes its stale chunks first, then inserts the new set.
+pub fn replace_embeddings_for_note(
+    conn: &mut Connection,
+    note_id: &str,
+    rows: &[EmbeddingRow],
+) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    for row in rows {
+        let blob = vector_to_blob(&row.vector);
+        tx.execute(
+            "INSERT INTO embeddings
+               (id, note_id, chunk_index, chunk_text, vector, dim, model, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                row.id,
+                row.note_id,
+                row.chunk_index,
+                row.chunk_text,
+                blob,
+                row.vector.len() as i64,
+                row.model,
+                row.created_at,
+            ],
+        )?;
+    }
+    tx.commit()
+}
+
+pub fn delete_embeddings_for_note(conn: &Connection, note_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    Ok(())
+}
+
+/// A single stored chunk plus its decoded vector, used for in-memory search.
+pub struct StoredChunk {
+    pub note_id: String,
+    pub chunk_index: i64,
+    pub chunk_text: String,
+    pub vector: Vec<f32>,
+}
+
+/// Load every chunk vector. The vector store is small (one user's notes),
+/// so a full scan + cosine in Rust is fast enough and avoids a vector DB.
+pub fn fetch_all_chunks(conn: &Connection) -> Result<Vec<StoredChunk>> {
+    let mut stmt = conn.prepare(
+        "SELECT note_id, chunk_index, chunk_text, vector FROM embeddings",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let blob: Vec<u8> = row.get(3)?;
+        Ok(StoredChunk {
+            note_id: row.get(0)?,
+            chunk_index: row.get(1)?,
+            chunk_text: row.get(2)?,
+            vector: blob_to_vector(&blob),
+        })
+    })?;
+    rows.collect()
+}
+
+/// Distinct note ids that currently have at least one embedding,
+/// so the indexer can skip already-indexed notes.
+pub fn fetch_indexed_note_ids(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT note_id FROM embeddings")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn count_embeddings(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT COUNT(*) FROM embeddings", [], |r| r.get(0))
+}
