@@ -5,6 +5,7 @@ import type {
   Note,
   SourceNote,
 } from '../../types'
+import { getLinks } from '../notes'
 import { getProvider } from './provider'
 import { retrieve } from './rag'
 
@@ -56,8 +57,9 @@ function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> {
  *
  * - `topic` mode uses semantic retrieval over the vector store.
  * - `window` mode pulls notes created/updated within a time range.
+ * - `note` mode analyzes one note plus the notes linked to it (its thread).
  *
- * In both cases the source notes are resolved from the actual notes used as
+ * In all cases the source notes are resolved from the actual notes used as
  * context, so the cited sources can never be hallucinated by the model.
  */
 export async function analyze(
@@ -80,6 +82,25 @@ export async function analyze(
       if (note) contextNotes.push(note)
       if (contextNotes.length >= MAX_CONTEXT_NOTES) break
     }
+  } else if (input.mode === 'note') {
+    // The selected note first, then its thread: notes linked in either
+    // direction, most recently touched first.
+    contextNotes = []
+    const root = byId.get(input.noteId)
+    if (root) {
+      contextNotes.push(root)
+      let linkedIds: string[] = []
+      try {
+        linkedIds = await getLinks(root.id)
+      } catch (err) {
+        console.error('[analyze] failed to load linked notes:', err)
+      }
+      const linked = linkedIds
+        .map((id) => byId.get(id))
+        .filter((n): n is Note => !!n && n.id !== root.id)
+        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+      contextNotes.push(...linked.slice(0, MAX_CONTEXT_NOTES - 1))
+    }
   } else {
     contextNotes = notes
       .filter((n) => {
@@ -96,11 +117,14 @@ export async function analyze(
   }))
 
   if (contextNotes.length === 0) {
+    const emptyMessage =
+      input.mode === 'topic'
+        ? 'No indexed notes matched that topic. Try indexing your notes or a different phrasing.'
+        : input.mode === 'note'
+          ? 'That note could not be found — it may have been deleted.'
+          : 'No notes were found in that time window.'
     return {
-      summary:
-        input.mode === 'topic'
-          ? 'No indexed notes matched that topic. Try indexing your notes or a different phrasing.'
-          : 'No notes were found in that time window.',
+      summary: emptyMessage,
       keyConcepts: [],
       openQuestions: [],
       weakSpots: [],
@@ -114,7 +138,11 @@ export async function analyze(
   const focus =
     input.mode === 'topic'
       ? `The user wants to understand what they've learned about: "${input.query}".`
-      : `The user wants a synthesis of what they recorded during: ${input.label}.`
+      : input.mode === 'note'
+        ? `The user wants an analysis of the note "${sourceNotes[0]?.title ?? 'Untitled'}"${
+            contextNotes.length > 1 ? ' together with the notes linked to it (its thread)' : ''
+          }.`
+        : `The user wants a synthesis of what they recorded during: ${input.label}.`
 
   const provider = getProvider(config)
   const raw = await provider.complete(

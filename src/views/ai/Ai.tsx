@@ -13,7 +13,7 @@ function Ai() {
   const openNote = notes.find((n) => n.id === openNoteId)
 
   return (
-    <div className="ai-view">
+    <div className={`ai-view ${styles.view}`}>
       <p className="section-label">AI Analyzer</p>
       <div className={styles.wrap}>
         <AiSettingsPanel
