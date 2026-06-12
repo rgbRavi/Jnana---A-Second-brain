@@ -1,6 +1,8 @@
+import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, AiProviderKind } from '../../types'
 
-const STORAGE_KEY = 'jnana.ai.config'
+/** Pre-Rust-storage location of the config; migrated away on first load. */
+const LEGACY_STORAGE_KEY = 'jnana.ai.config'
 
 /**
  * Per-provider defaults. The hybrid design means switching `provider` swaps
@@ -24,25 +26,46 @@ export function defaultConfig(provider: AiProviderKind = 'ollama'): AiConfig {
     enabled: false,
     provider,
     apiKey: '',
+    hasApiKey: false,
     autoIndex: true,
     ...PROVIDER_DEFAULTS[provider],
   }
 }
 
-export function loadAiConfig(): AiConfig {
+/**
+ * One-time migration: earlier versions kept the config (including the API
+ * key) in localStorage. Push it to the Rust store, then remove it so the key
+ * no longer lives in browser-reachable storage.
+ */
+async function migrateLegacyConfig(): Promise<void> {
+  const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+  if (!raw) return
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaultConfig()
-    const parsed = JSON.parse(raw) as Partial<AiConfig>
-    // Merge over defaults so config from an older version stays valid.
-    return { ...defaultConfig(parsed.provider ?? 'ollama'), ...parsed }
-  } catch {
-    return defaultConfig()
+    const legacy = JSON.parse(raw) as Partial<AiConfig>
+    const provider: AiProviderKind = legacy.provider === 'openai' ? 'openai' : 'ollama'
+    await invoke('set_ai_config', { config: { ...defaultConfig(provider), ...legacy } })
+  } catch (err) {
+    console.error('[ai] failed to migrate legacy config:', err)
   }
+  localStorage.removeItem(LEGACY_STORAGE_KEY)
 }
 
-export function saveAiConfig(config: AiConfig): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+/**
+ * Config is persisted on the Rust side (`ai_config.json` in the app data
+ * dir). The API key is write-only: it comes back empty, with `hasApiKey`
+ * reporting whether one is saved.
+ */
+export async function loadAiConfig(): Promise<AiConfig> {
+  await migrateLegacyConfig()
+  const stored = await invoke<Partial<AiConfig>>('get_ai_config')
+  const provider: AiProviderKind = stored.provider === 'openai' ? 'openai' : 'ollama'
+  // Fresh install reports an empty baseUrl — fall back to provider defaults.
+  if (!stored.baseUrl) return defaultConfig(provider)
+  return { ...defaultConfig(provider), ...stored, apiKey: '' }
+}
+
+export async function saveAiConfig(config: AiConfig): Promise<void> {
+  await invoke('set_ai_config', { config })
 }
 
 /** Defaults for a freshly-selected provider, preserving cross-provider fields. */

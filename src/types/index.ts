@@ -68,16 +68,24 @@ export interface Annotation {
 export type AiProviderKind = 'openai' | 'ollama'
 
 /**
- * User-configurable AI settings. Persisted locally (never bundled into the
- * binary) so the same abstraction can target a cloud API or a local model.
+ * User-configurable AI settings. Persisted on the Rust side (ai_config.json
+ * in the app data dir) so the API key never lives in browser-reachable
+ * storage. The same abstraction targets a cloud API or a local model.
  */
 export interface AiConfig {
   enabled: boolean
   provider: AiProviderKind
   /** Base URL of the API, e.g. https://api.openai.com/v1 or http://localhost:11434 */
   baseUrl: string
-  /** Bearer key for cloud providers; ignored by local providers like Ollama. */
+  /**
+   * Bearer key for cloud providers; ignored by local providers like Ollama.
+   * Write-only: always empty when loaded. Saving an empty string keeps the
+   * stored key, unless baseUrl/provider changed — that drops the key so it
+   * can never be redirected to a host it wasn't entered for.
+   */
   apiKey: string
+  /** Whether a key is currently saved on the Rust side. */
+  hasApiKey?: boolean
   embeddingModel: string
   chatModel: string
   /** Re-embed notes automatically on save when true. */

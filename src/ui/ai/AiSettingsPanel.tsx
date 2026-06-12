@@ -57,7 +57,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, onRe
                 <input
                   className={styles.input}
                   type="password"
-                  placeholder="sk-..."
+                  placeholder={config.hasApiKey ? '•••••• saved — type to replace' : 'sk-...'}
                   value={config.apiKey}
                   onChange={(e) => set('apiKey', e.target.value)}
                 />

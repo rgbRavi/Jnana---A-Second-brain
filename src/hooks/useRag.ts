@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
 import { eventBus } from '../lib/eventBus'
 import {
+  defaultConfig,
   loadAiConfig,
   saveAiConfig,
   indexNote,
@@ -21,17 +22,31 @@ import {
  * suggester, quiz) will sit on top of.
  */
 export function useRag() {
-  const [config, setConfig] = useState<AiConfig>(() => loadAiConfig())
+  const [config, setConfig] = useState<AiConfig>(() => defaultConfig())
   const [stats, setStats] = useState<IndexStats>({ chunkCount: 0, indexedNoteCount: 0 })
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null)
+
+  // Config lives on the Rust side — load it once on mount.
+  useEffect(() => {
+    loadAiConfig()
+      .then(setConfig)
+      .catch((err) => console.error('[useRag] failed to load AI config:', err))
+  }, [])
 
   // Keep a ref so event handlers always see the latest config without resubscribing.
   const configRef = useRef(config)
   configRef.current = config
 
   const updateConfig = useCallback((next: AiConfig) => {
-    setConfig(next)
-    saveAiConfig(next)
+    // Mirror the Rust-side key rules locally so the UI updates without a
+    // reload: a typed key sets presence; changing baseUrl/provider drops it.
+    setConfig((prev) => {
+      const sameTarget = next.baseUrl === prev.baseUrl && next.provider === prev.provider
+      return { ...next, hasApiKey: next.apiKey ? true : sameTarget && !!prev.hasApiKey }
+    })
+    void saveAiConfig(next).catch((err) =>
+      console.error('[useRag] failed to save AI config:', err),
+    )
   }, [])
 
   const refreshStats = useCallback(async () => {

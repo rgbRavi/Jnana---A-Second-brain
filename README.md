@@ -20,18 +20,22 @@ https://github.com/rgbRavi/Jnana---A-Second-brain
 Working today:
 - note CRUD with SQLite persistence
 - graph view driven by wikilinks
+- full-text search (MiniSearch) with title/tag/content boosting
+- auto-tags (`has:*`, `long-form`) plus user tags
+- favourites
 - local video import and playback
 - YouTube embeds
 - PDF import, viewing, and saved highlight annotations
 - document import through PDF conversion, text extraction, or external-open flow
+- AI/RAG layer: local vector store in SQLite, OpenAI-compatible or Ollama providers, Thread/Day analyzer
 - plugin framework scaffolding
 
 Not finished yet:
 - audio player
 - theme switcher
-- full-text search
 - markdown mirror/export
-- AI/plugin features
+- AI tag/link suggestions and quiz generator
+- plugin implementations and management UI
 
 ## Tech Stack
 
@@ -104,8 +108,10 @@ src-tauri/
 - `ui/` does not import `core/` directly
 - hooks are the boundary between UI and app services
 - notes, links, and annotations stay in sync through an event bus
-- local assets are served through a custom `jnana-asset://` protocol
+- wikilink syncing is a single Rust command (`sync_links`) that diffs inside SQLite
+- local assets are served through a custom `jnana-asset://` protocol (flat filenames only; traversal is rejected)
 - media registration is deferred for unsaved notes, then flushed after save
+- AI provider requests are proxied through Rust (`ai_request`); the AI config and API key are stored Rust-side, never in the WebView
 
 ## Documents and Media
 

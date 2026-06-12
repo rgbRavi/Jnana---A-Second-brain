@@ -65,48 +65,23 @@ export function createNote(title: string = 'Untitled'): Note {
   }
 }
 
+/**
+ * Sync this note's outbound [[wikilinks]] with the links table. The diff
+ * (title resolution, add/remove) runs inside SQLite via the `sync_links`
+ * command — one IPC call instead of pulling every note and link over the
+ * bridge on each save. Inbound links from other notes are preserved.
+ */
 export async function syncLinksForNote(noteId: string, content: string): Promise<void> {
-  // Parse every [[wikilink]] in the current content
   const linkMatches = content.match(/\[\[(.*?)\]\]/g) ?? []
-  const linkedTitles = new Set(
-    linkMatches.map((m) => m.slice(2, -2).trim().toLowerCase())
+  const titles = [...new Set(linkMatches.map((m) => m.slice(2, -2).trim().toLowerCase()))]
+
+  const { added, removed } = await invoke<{ added: string[]; removed: string[] }>(
+    'sync_links',
+    { noteId, titles },
   )
 
-  const [allNotes, allLinks] = await Promise.all([getAllNotes(), getAllLinks()])
-
-  // Resolve wikilink titles → note IDs (skip self-links)
-  const targetIds = new Set<string>()
-  for (const title of linkedTitles) {
-    const target = allNotes.find((n) => n.title.trim().toLowerCase() === title)
-    if (target && target.id !== noteId) {
-      targetIds.add(target.id)
-    }
-  }
-
-  // Find only OUTBOUND links from noteId (where noteId is from_id).
-  // getAllLinks() returns [from_id, to_id] pairs — we filter to only
-  // rows where this note is the source. This avoids the bidirectional
-  // getLinks() which returns both directions and would cause us to
-  // incorrectly remove links created by other notes pointing to noteId.
-  const outboundIds = new Set(
-    allLinks
-      .filter(([from]) => from === noteId)
-      .map(([, to]) => to)
-  )
-
-  // Add new links (in content but not yet in DB)
-  for (const id of targetIds) {
-    if (!outboundIds.has(id)) {
-      await createLink(noteId, id).catch(() => {})
-    }
-  }
-
-  // Remove stale outbound links (stored in DB but no longer in content)
-  for (const id of outboundIds) {
-    if (!targetIds.has(id)) {
-      await removeLink(noteId, id).catch(() => {})
-    }
-  }
+  for (const toId of added) eventBus.emit('link:created', { fromId: noteId, toId })
+  for (const toId of removed) eventBus.emit('link:removed', { fromId: noteId, toId })
 }
 
 export async function getFavouriteNoteIds(): Promise<string[]> {

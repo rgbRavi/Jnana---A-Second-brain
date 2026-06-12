@@ -93,6 +93,66 @@ pub fn remove_link(conn: &Connection, from_id: &str, to_id: &str) -> Result<()> 
     Ok(())
 }
 
+/// Diff-and-apply the outbound wikilinks for one note, entirely in SQLite —
+/// one IPC round-trip instead of pulling every note + link into the WebView.
+///
+/// `titles` are the `[[wikilink]]` targets found in the note content, matched
+/// case-insensitively against note titles (Unicode-aware lowering happens here
+/// in Rust because SQLite's LOWER() only handles ASCII). Inbound links from
+/// other notes are untouched. Returns the (added, removed) target note ids so
+/// the frontend can emit its link events.
+pub fn sync_links_for_note(
+    conn: &mut Connection,
+    note_id: &str,
+    titles: &[String],
+) -> Result<(Vec<String>, Vec<String>)> {
+    use std::collections::HashSet;
+
+    let wanted: HashSet<String> = titles.iter().map(|t| t.trim().to_lowercase()).collect();
+
+    let tx = conn.transaction()?;
+
+    // Resolve wikilink titles → note ids (skipping self-links).
+    let mut target_ids: HashSet<String> = HashSet::new();
+    {
+        let mut stmt = tx.prepare("SELECT id, title FROM notes")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (id, title) = row?;
+            if id != note_id && wanted.contains(&title.trim().to_lowercase()) {
+                target_ids.insert(id);
+            }
+        }
+    }
+
+    let outbound: HashSet<String> = {
+        let mut stmt = tx.prepare("SELECT to_id FROM links WHERE from_id = ?1")?;
+        let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+        rows.collect::<Result<_>>()?
+    };
+
+    let added: Vec<String> = target_ids.difference(&outbound).cloned().collect();
+    let removed: Vec<String> = outbound.difference(&target_ids).cloned().collect();
+
+    for to_id in &added {
+        tx.execute(
+            "INSERT OR IGNORE INTO links (from_id, to_id) VALUES (?1, ?2)",
+            params![note_id, to_id],
+        )?;
+    }
+    for to_id in &removed {
+        tx.execute(
+            "DELETE FROM links WHERE from_id = ?1 AND to_id = ?2",
+            params![note_id, to_id],
+        )?;
+    }
+
+    tx.commit()?;
+    Ok((added, removed))
+}
+
 pub fn fetch_links_for_note(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
     let mut stmt = conn.prepare(
         "SELECT to_id FROM links WHERE from_id = ?1

@@ -7,19 +7,16 @@ interface AiFetchResponse {
 }
 
 /**
- * Perform an HTTP request from the Rust side (see `ai_fetch`). This bypasses
- * the WebView CORS policy that would otherwise block direct calls to
- * api.openai.com, and keeps the API key out of browser-reachable fetch state.
+ * POST a JSON body to an endpoint of the configured AI provider via the Rust
+ * `ai_request` command. Only the endpoint *path* is supplied from here — the
+ * host comes from the Rust-side config and the API key is injected by Rust,
+ * so neither ever has to pass through (or be readable from) the WebView.
+ * Going through Rust also bypasses the WebView CORS policy that would block
+ * direct calls to api.openai.com.
  */
-async function aiFetchJson<T>(
-  url: string,
-  headers: Record<string, string>,
-  body: unknown,
-): Promise<T> {
-  const res = await invoke<AiFetchResponse>('ai_fetch', {
-    url,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
+async function aiPostJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await invoke<AiFetchResponse>('ai_request', {
+    path,
     body: JSON.stringify(body),
   })
 
@@ -33,21 +30,14 @@ async function aiFetchJson<T>(
 class OpenAiProvider implements AiProvider {
   readonly kind = 'openai' as const
   constructor(
-    private baseUrl: string,
-    private apiKey: string,
     readonly embeddingModel: string,
     private chatModel: string,
   ) {}
 
-  private authHeaders(): Record<string, string> {
-    return this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}
-  }
-
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return []
-    const data = await aiFetchJson<{ data: { embedding: number[] }[] }>(
-      `${this.baseUrl}/embeddings`,
-      this.authHeaders(),
+    const data = await aiPostJson<{ data: { embedding: number[] }[] }>(
+      '/embeddings',
       { model: this.embeddingModel, input: texts },
     )
     return data.data.map((d) => d.embedding)
@@ -58,9 +48,8 @@ class OpenAiProvider implements AiProvider {
       ...(opts?.system ? [{ role: 'system', content: opts.system }] : []),
       { role: 'user', content: prompt },
     ]
-    const data = await aiFetchJson<{ choices: { message: { content: string } }[] }>(
-      `${this.baseUrl}/chat/completions`,
-      this.authHeaders(),
+    const data = await aiPostJson<{ choices: { message: { content: string } }[] }>(
+      '/chat/completions',
       { model: this.chatModel, messages, temperature: opts?.temperature ?? 0.2 },
     )
     return data.choices[0]?.message?.content ?? ''
@@ -71,7 +60,6 @@ class OpenAiProvider implements AiProvider {
 class OllamaProvider implements AiProvider {
   readonly kind = 'ollama' as const
   constructor(
-    private baseUrl: string,
     readonly embeddingModel: string,
     private chatModel: string,
   ) {}
@@ -79,18 +67,16 @@ class OllamaProvider implements AiProvider {
   async embed(texts: string[]): Promise<number[][]> {
     // Ollama's /api/embed accepts batched input and returns embeddings[].
     if (texts.length === 0) return []
-    const data = await aiFetchJson<{ embeddings: number[][] }>(
-      `${this.baseUrl}/api/embed`,
-      {},
+    const data = await aiPostJson<{ embeddings: number[][] }>(
+      '/api/embed',
       { model: this.embeddingModel, input: texts },
     )
     return data.embeddings
   }
 
   async complete(prompt: string, opts?: { system?: string; temperature?: number }): Promise<string> {
-    const data = await aiFetchJson<{ response: string }>(
-      `${this.baseUrl}/api/generate`,
-      {},
+    const data = await aiPostJson<{ response: string }>(
+      '/api/generate',
       {
         model: this.chatModel,
         prompt,
@@ -105,12 +91,11 @@ class OllamaProvider implements AiProvider {
 
 /** Build the configured provider. The rest of the AI layer only sees `AiProvider`. */
 export function getProvider(config: AiConfig): AiProvider {
-  const base = config.baseUrl.replace(/\/+$/, '')
   switch (config.provider) {
     case 'openai':
-      return new OpenAiProvider(base, config.apiKey, config.embeddingModel, config.chatModel)
+      return new OpenAiProvider(config.embeddingModel, config.chatModel)
     case 'ollama':
-      return new OllamaProvider(base, config.embeddingModel, config.chatModel)
+      return new OllamaProvider(config.embeddingModel, config.chatModel)
     default:
       throw new Error(`Unknown AI provider: ${config.provider}`)
   }
