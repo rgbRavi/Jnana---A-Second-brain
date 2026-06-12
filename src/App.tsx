@@ -4,6 +4,7 @@ import Notes from './views/notes/Notes'
 import Graph from "./views/graph/Graph";
 import Search from "./views/search/Search";
 import Home from "./views/home/Home"
+import Ai from "./views/ai/Ai";
 
 function App() {
     return (
@@ -16,6 +17,7 @@ function App() {
                                 <Route path = "/notes" element = {<Notes />} />
                                 <Route path = "/graph" element = {<Graph />}/>
                                 <Route path = "/search" element = {<Search />}/>
+                                <Route path = "/ai" element = {<Ai />}/>
                         </Route>
                     </Routes>
                 </HashRouter>

@@ -125,6 +125,27 @@ pub fn get_all_links(state: State<'_, DbState>) -> Result<Vec<(String, String)>,
         .map_err(|e| format!("Failed to fetch all links: {}", e))
 }
 
+/// The link changes applied by `sync_links`, so the frontend can emit
+/// `link:created` / `link:removed` events without re-deriving the diff.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncLinksResult {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+#[command]
+pub fn sync_links(
+    state: State<'_, DbState>,
+    note_id: String,
+    titles: Vec<String>,
+) -> Result<SyncLinksResult, String> {
+    let mut conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::sync_links_for_note(&mut conn, &note_id, &titles)
+        .map(|(added, removed)| SyncLinksResult { added, removed })
+        .map_err(|e| format!("Failed to sync links: {}", e))
+}
+
 #[command]
 pub fn create_link(state: State<'_, DbState>, from_id: String, to_id: String) -> Result<(), String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;

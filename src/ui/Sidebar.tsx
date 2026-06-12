@@ -41,6 +41,14 @@ export function Sidebar(){
             >
               Graph
             </NavLink>
+            <NavLink
+              className={({ isActive }) =>
+                `${SidebarStyles.sidebarNavItem}${isActive ? ' ' + SidebarStyles.active : ''}`
+              }
+              to="/ai"
+            >
+              AI Analyzer
+            </NavLink>
           </nav>
         </aside>
     )

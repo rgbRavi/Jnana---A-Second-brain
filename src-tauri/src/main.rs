@@ -3,8 +3,10 @@
 mod commands;
 mod db;
 
+use commands::ai::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::embeddings::*;
 use commands::media::*;
 use commands::notes::*;
 
@@ -38,21 +40,40 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         // Share the single connection with all commands via managed state.
         .manage(Mutex::new(conn))
+        // AI settings (incl. the API key) live Rust-side — see commands/ai.rs.
+        .manage(AiState(Mutex::new(load_config_from_disk())))
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
 
-            if filename.is_empty() {
+            // Assets are stored flat in assets_dir() under generated names, so a
+            // legitimate request never contains a path separator, a parent-dir
+            // segment, or percent-encoding. Reject anything else outright to keep
+            // this handler from reading arbitrary host files.
+            let is_safe = !filename.is_empty()
+                && !filename.contains(['/', '\\', '%'])
+                && filename != ".."
+                && !std::path::Path::new(filename).is_absolute();
+
+            if !is_safe {
                 return tauri::http::Response::builder()
                     .status(400)
                     .header("Access-Control-Allow-Origin", "*")
-                    .body(b"Missing filename".to_vec())
+                    .body(b"Invalid filename".to_vec())
                     .unwrap();
             }
 
             let filepath = db::assets_dir().join(filename);
 
-            if !filepath.exists() {
+            // Defense in depth: the resolved file must still live inside assets_dir().
+            let assets_root = db::assets_dir().canonicalize().ok();
+            let resolved = filepath.canonicalize().ok();
+            let inside_assets = match (resolved, assets_root) {
+                (Some(resolved), Some(root)) => resolved.starts_with(root),
+                _ => false,
+            };
+
+            if !inside_assets || !filepath.exists() {
                 return tauri::http::Response::builder()
                     .status(404)
                     .header("Access-Control-Allow-Origin", "*")
@@ -130,6 +151,7 @@ fn main() {
             get_all_links,
             create_link,
             remove_link,
+            sync_links,
             save_asset,
             get_asset,
             get_asset_path,
@@ -147,6 +169,14 @@ fn main() {
             add_favourite,
             get_favourite_note_ids,
             remove_favourite,
+            get_ai_config,
+            set_ai_config,
+            ai_request,
+            save_note_embeddings,
+            search_embeddings,
+            delete_note_embeddings,
+            get_indexed_note_ids,
+            get_index_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
