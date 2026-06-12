@@ -165,7 +165,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
               onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             />
             <div className={NoteModalStyles.noteModalBody}>
-              <MarkdownLite content={content} lazy={false} noteId={note.id} />
+              <MarkdownLite content={content} lazy={false} noteId={note.id} fullscreen />
             </div>
             <time className={NoteModalStyles.noteModalTime}>
               {new Date(note.updatedAt).toLocaleString()}

@@ -93,6 +93,46 @@
   background: var(--surface-2);
 }
 
+/* Wikilink Button Styles */
+.wikilinkBtn {
+  display: inline-block;
+  background: rgba(124, 106, 247, 0.15);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin: 0 0.15rem;
+}
+
+.wikilinkBtn:hover {
+  background: rgba(124, 106, 247, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 106, 247, 0.2);
+}
+
+.wikilinkBtn:active {
+  transform: translateY(0);
+}
+
+.wikilinkBtnMissing {
+  composes: wikilinkBtn;
+  color: var(--text-3);
+  border-color: var(--border);
+  background: var(--surface-2);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wikilinkBtnMissing:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--surface-2);
+}
+
 /* Timestamp Button Styles */
 .timestampBtn {
   display: inline-block;
@@ -116,6 +156,91 @@
 
 .timestampBtn:active {
   transform: translateY(0);
+}
+
+/* Fullscreen / Lightbox overlay */
+.fullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreenContent {
+  position: relative;
+  width: 92vw;
+  height: 92vh;
+  background: var(--surface-1, #111116);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.lightboxContent {
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lightboxImage {
+  max-width: 100%;
+  max-height: calc(95vh - 3rem);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.fullscreenClose {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.fullscreenClose:hover {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+/* PDF expand button (shown above PDF in modal context) */
+.pdfExpandBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  margin-bottom: 0.5rem;
+  background: var(--surface-3, #2a2a35);
+  color: var(--text-2, #9896a4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pdfExpandBtn:hover {
+  color: var(--text-1, #f0eff5);
+  border-color: var(--border-hover);
 }
 
 /* YouTube Embed Styles */
