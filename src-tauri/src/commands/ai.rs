@@ -2,6 +2,34 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{command, State};
 
+/// Render an error with its full source chain, so a generic reqwest message
+/// like "error sending request" surfaces the real cause (Connection refused,
+/// proxy failure, dns error, …).
+fn err_chain(e: &dyn std::error::Error) -> String {
+    let mut msg = e.to_string();
+    let mut src = e.source();
+    while let Some(s) = src {
+        msg.push_str(" → ");
+        msg.push_str(&s.to_string());
+        src = s.source();
+    }
+    msg
+}
+
+/// Build an HTTP client. For loopback hosts we bypass any system/env proxy — a
+/// proxy can't reach the caller's own localhost, which otherwise turns a local
+/// request into a confusing "error sending request".
+fn http_client(timeout_secs: u64, is_loopback: bool) -> Result<reqwest::Client, String> {
+    let mut builder =
+        reqwest::Client::builder().timeout(std::time::Duration::from_secs(timeout_secs));
+    if is_loopback {
+        builder = builder.no_proxy();
+    }
+    builder
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))
+}
+
 /// User-facing AI settings, persisted on the Rust side (`ai_config.json` in
 /// the app data dir) so the API key never lives in browser-reachable storage.
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -14,6 +42,15 @@ pub struct AiConfig {
     pub base_url: String,
     pub embedding_model: String,
     pub chat_model: String,
+    // Transcription is configured separately from chat: the chat provider may be
+    // OpenRouter/Ollama (no STT endpoint), so transcription gets its own
+    // OpenAI-compatible base URL + key + model. "local" just points base_url at a
+    // local Whisper server (e.g. speaches/faster-whisper-server), mirroring Ollama.
+    pub transcription_provider: String,
+    pub transcription_base_url: String,
+    pub transcription_api_key: String,
+    pub transcription_model: String,
+    pub transcribe_on_record: bool,
 }
 
 /// Managed-state wrapper holding the live AI config.
@@ -31,6 +68,11 @@ pub struct AiConfigPublic {
     pub embedding_model: String,
     pub chat_model: String,
     pub has_api_key: bool,
+    pub transcription_provider: String,
+    pub transcription_base_url: String,
+    pub transcription_model: String,
+    pub transcribe_on_record: bool,
+    pub has_transcription_api_key: bool,
 }
 
 impl From<&AiConfig> for AiConfigPublic {
@@ -43,6 +85,11 @@ impl From<&AiConfig> for AiConfigPublic {
             embedding_model: c.embedding_model.clone(),
             chat_model: c.chat_model.clone(),
             has_api_key: !c.api_key.is_empty(),
+            transcription_provider: c.transcription_provider.clone(),
+            transcription_base_url: c.transcription_base_url.clone(),
+            transcription_model: c.transcription_model.clone(),
+            transcribe_on_record: c.transcribe_on_record,
+            has_transcription_api_key: !c.transcription_api_key.is_empty(),
         }
     }
 }
@@ -87,6 +134,14 @@ pub fn set_ai_config(
         let same_target = next.base_url == current.base_url && next.provider == current.provider;
         if same_target {
             next.api_key = current.api_key.clone();
+        }
+    }
+    // Same write-only rule for the transcription key.
+    if next.transcription_api_key.is_empty() {
+        let same_target = next.transcription_base_url == current.transcription_base_url
+            && next.transcription_provider == current.transcription_provider;
+        if same_target {
+            next.transcription_api_key = current.transcription_api_key.clone();
         }
     }
 
@@ -149,10 +204,7 @@ pub async fn ai_request(
 
     let url = format!("{}{}", config.base_url.trim_end_matches('/'), path);
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let client = http_client(120, is_loopback)?;
 
     let mut req = client
         .post(&url)
@@ -165,7 +217,7 @@ pub async fn ai_request(
     let resp = req
         .send()
         .await
-        .map_err(|e| format!("AI request failed: {}", e))?;
+        .map_err(|e| format!("AI request failed: {}", err_chain(&e)))?;
 
     let status = resp.status().as_u16();
     let text = resp
@@ -174,4 +226,92 @@ pub async fn ai_request(
         .map_err(|e| format!("Failed to read AI response body: {}", e))?;
 
     Ok(AiFetchResponse { status, body: text })
+}
+
+fn audio_mime(ext: &str) -> &'static str {
+    match ext {
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "flac" => "audio/flac",
+        "ogg" | "oga" | "opus" => "audio/ogg",
+        "webm" => "audio/webm",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Transcribe an audio asset via an OpenAI-compatible `/audio/transcriptions`
+/// endpoint. The host/key/model come from the Rust-side transcription config,
+/// so this works against OpenAI (cloud) or a local Whisper server (e.g.
+/// speaches / faster-whisper-server) by just pointing `transcriptionBaseUrl`
+/// at it. Returns the transcript text.
+#[command]
+pub async fn transcribe_audio(state: State<'_, AiState>, filename: String) -> Result<String, String> {
+    let config = state
+        .0
+        .lock()
+        .map_err(|e| format!("AI config lock error: {}", e))?
+        .clone();
+
+    let base = reqwest::Url::parse(&config.transcription_base_url)
+        .map_err(|_| "Transcription is not configured (set a base URL in AI settings).".to_string())?;
+    if base.scheme() != "http" && base.scheme() != "https" {
+        return Err("Transcription base URL must be http(s)".into());
+    }
+    let host = base.host_str().unwrap_or("");
+    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+    if !config.transcription_api_key.is_empty() && base.scheme() == "http" && !is_loopback {
+        return Err(
+            "Refusing to send the transcription key over http to a non-local host — use https."
+                .into(),
+        );
+    }
+
+    let path = crate::db::safe_asset_file(&filename)?;
+    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read audio asset: {}", e))?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(filename.clone())
+        .mime_str(audio_mime(ext))
+        .map_err(|e| format!("Invalid audio mime: {}", e))?;
+    let form = reqwest::multipart::Form::new()
+        .text("model", config.transcription_model.clone())
+        .part("file", part);
+
+    let url = format!(
+        "{}/audio/transcriptions",
+        config.transcription_base_url.trim_end_matches('/')
+    );
+    // Transcription is inherently long-running (a lecture on a CPU model can take
+    // many minutes), so allow up to an hour before giving up.
+    let client = http_client(3600, is_loopback)?;
+
+    let mut req = client.post(&url).multipart(form);
+    if !config.transcription_api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", config.transcription_api_key));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Transcription request failed: {}", err_chain(&e)))?;
+    let status = resp.status();
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read transcription response: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!(
+            "Transcription provider returned {}: {}",
+            status.as_u16(),
+            text.chars().take(500).collect::<String>()
+        ));
+    }
+
+    // OpenAI-compatible APIs return { "text": "..." }.
+    let parsed: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|_| format!("Unexpected transcription response: {}", text.chars().take(300).collect::<String>()))?;
+    Ok(parsed.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string())
 }

@@ -165,6 +165,7 @@ fn main() {
             get_ai_config,
             set_ai_config,
             ai_request,
+            transcribe_audio,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,

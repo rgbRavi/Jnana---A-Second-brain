@@ -1,5 +1,5 @@
-import type { AiConfig, AiProviderKind, IndexStats, Note } from '../../types'
-import { withProviderDefaults } from '../../core/ai'
+import type { AiConfig, AiProviderKind, IndexStats, Note, TranscriptionProviderKind } from '../../types'
+import { withProviderDefaults, withTranscriptionProviderDefaults } from '../../core/ai'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -109,6 +109,62 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, onRe
             : `Index all notes (${notes.length})`}
         </button>
       </div>
+
+      {/* ── Transcription (separate from chat — needs an OpenAI-compatible STT endpoint) ── */}
+      <h3 className={styles.modalTitle} style={{ marginTop: '1.5rem', fontSize: '0.95rem' }}>
+        Transcription
+      </h3>
+      <div className={styles.fields}>
+        <div className={styles.field}>
+          <label className={styles.label}>Backend</label>
+          <select
+            className={styles.select}
+            value={config.transcriptionProvider}
+            onChange={(e) =>
+              onChange(withTranscriptionProviderDefaults(config, e.target.value as TranscriptionProviderKind))
+            }
+          >
+            <option value="openai">OpenAI Whisper (cloud)</option>
+            <option value="local">Local Whisper server</option>
+          </select>
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label}>Base URL</label>
+          <input
+            className={styles.input}
+            value={config.transcriptionBaseUrl}
+            onChange={(e) => set('transcriptionBaseUrl', e.target.value)}
+          />
+        </div>
+
+        {config.transcriptionProvider === 'openai' && (
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.label}>API key</label>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder={config.hasTranscriptionApiKey ? '•••••• saved — type to replace' : 'sk-...'}
+              value={config.transcriptionApiKey}
+              onChange={(e) => set('transcriptionApiKey', e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className={styles.field}>
+          <label className={styles.label}>Model</label>
+          <input
+            className={styles.input}
+            value={config.transcriptionModel}
+            onChange={(e) => set('transcriptionModel', e.target.value)}
+          />
+        </div>
+      </div>
+
+      <p className={styles.hint}>
+        Use the <strong>Transcribe</strong> button under an audio clip in a note to transcribe it
+        in the background.
+      </p>
     </>
   )
 }

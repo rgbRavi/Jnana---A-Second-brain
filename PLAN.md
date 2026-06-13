@@ -34,15 +34,17 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 
 1. **Audio player** ✅ DONE — audio MIME types in `mime_from_ext`, `AsyncAudio`, `![audio]`
    embed + `[A0::HH:MM:SS]` timestamps in `MarkdownLite`, upload via toolbar 🎵 button.
-2. **Voice recording (mic)** ← CURRENT. The capture half of audio: a record button →
-   `MediaRecorder` → `uploadAsset` (the bytes path images use) → `![audio]` embed, reusing the
-   player and `[A0::…]` timestamps already built. Output is webm/opus. **Risk:** WebView2
-   microphone permission — must be verified on Windows; deny/no-mic shows a clear message.
-3. **Voice transcription** (bigger; its own item, after recording). record → text so memos
-   become full-text searchable *and* AI-analyzable, with `[A0::…]` synced back to the audio.
-   Needs a model decision: a **local Whisper sidecar** (keeps local-first, mirrors the Ollama
-   option) or **cloud STT** (same tradeoff as the OpenAI provider). Async processing + a
-   "transcribe" action on an audio embed.
+2. **Voice recording (mic)** ✅ DONE — `VoiceRecorder` (getUserMedia + MediaRecorder, graceful
+   permission denial) → `uploadAsset` → `![audio]` embed. Recording state is lifted to the
+   composer so Save is disabled (greyed + "Finish recording before save") while recording.
+   Verified: mic permission prompt works on Windows/WebView2.
+3. **Voice transcription** ← CURRENT (bigger). record → text so memos become full-text
+   searchable *and* AI-analyzable, with `[A0::…]` synced back to the audio. Engine decision
+   pending (see below). Plan: a Rust transcription command, a "Transcribe" action on an audio
+   embed, store the transcript with the note (so search + the analyzer pick it up).
+   - **Note:** the existing `ai_request` proxy is JSON-only; transcription needs its own path
+     (multipart upload for cloud, or a sidecar/native call for local). OpenRouter has no
+     transcription endpoint, so the current OpenRouter key can't be reused for cloud STT.
 4. **Markdown export** — write notes out as `.md` (per-note + bulk). Doubles as the "markdown
    mirror" and the student "submit/share" gap. Decide: target folder via dialog; how to handle
    `jnana-asset://` / `external://` references (rewrite to relative paths or note them).

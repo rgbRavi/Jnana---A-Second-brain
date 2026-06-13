@@ -42,7 +42,16 @@ export function useRag() {
     // reload: a typed key sets presence; changing baseUrl/provider drops it.
     setConfig((prev) => {
       const sameTarget = next.baseUrl === prev.baseUrl && next.provider === prev.provider
-      return { ...next, hasApiKey: next.apiKey ? true : sameTarget && !!prev.hasApiKey }
+      const sameTxTarget =
+        next.transcriptionBaseUrl === prev.transcriptionBaseUrl &&
+        next.transcriptionProvider === prev.transcriptionProvider
+      return {
+        ...next,
+        hasApiKey: next.apiKey ? true : sameTarget && !!prev.hasApiKey,
+        hasTranscriptionApiKey: next.transcriptionApiKey
+          ? true
+          : sameTxTarget && !!prev.hasTranscriptionApiKey,
+      }
     })
     void saveAiConfig(next).catch((err) =>
       console.error('[useRag] failed to save AI config:', err),

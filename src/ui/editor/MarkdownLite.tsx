@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { invoke } from '@tauri-apps/api/core'
 import { useNotesContext } from '../../context/NotesContext'
+import { useTranscription } from '../../context/TranscriptionContext'
 import { eventBus } from '../../lib/eventBus'
 import { AsyncImage } from '../AsyncImage'
 import { AsyncVideo } from '../AsyncVideo'
@@ -33,8 +34,23 @@ function VideoEmbed({ url, videoIndex, lazy }: { url: string; videoIndex: number
   )
 }
 
-function AudioEmbed({ url, audioIndex, lazy }: { url: string; audioIndex: number; lazy: boolean }) {
+function AudioEmbed({
+  url,
+  audioIndex,
+  noteId,
+  lazy,
+}: {
+  url: string
+  audioIndex: number
+  noteId: string
+  lazy: boolean
+}) {
   const filename = url.replace('jnana-asset://', '')
+  const { notes } = useNotesContext()
+  const { jobs, transcribe } = useTranscription()
+  const busy = jobs.some((j) => j.filename === filename && j.status === 'running')
+  const title = notes.find((n) => n.id === noteId)?.title?.trim() || 'Untitled'
+
   return (
     <div
       className={MdStyles.noteAudioWrapper}
@@ -42,6 +58,19 @@ function AudioEmbed({ url, audioIndex, lazy }: { url: string; audioIndex: number
       onClick={(e) => e.stopPropagation()}
     >
       <AsyncAudio filename={filename} className={MdStyles.noteAudio} controls preload="metadata" lazy={lazy} />
+      {noteId && (
+        <button
+          className={MdStyles.noteAudioTranscribe}
+          disabled={busy}
+          onClick={(e) => {
+            e.stopPropagation()
+            transcribe(noteId, title, filename)
+          }}
+          title="Transcribe this audio to text in the background"
+        >
+          {busy ? 'Transcribing…' : '📝 Transcribe'}
+        </button>
+      )}
     </div>
   )
 }
@@ -207,7 +236,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         if (altText === 'video') {
           elements.push(<VideoEmbed key={key} url={url} videoIndex={videoCount++} lazy={lazy} />)
         } else if (altText === 'audio') {
-          elements.push(<AudioEmbed key={key} url={url} audioIndex={audioCount++} lazy={lazy} />)
+          elements.push(
+            <AudioEmbed key={key} url={url} audioIndex={audioCount++} noteId={noteId} lazy={lazy} />,
+          )
         } else if (altText === 'youtube') {
           elements.push(<YouTubeEmbed key={key} url={url} lazy={lazy} />)
         } else if (altText === 'pdf') {
