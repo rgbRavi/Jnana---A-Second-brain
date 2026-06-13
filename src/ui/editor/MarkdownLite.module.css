@@ -94,13 +94,38 @@
 }
 
 .noteAudioWrapper {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
   margin: 0.75rem 0;
   width: 100%;
 }
 
 .noteAudio {
   width: 100%;
+}
+
+.noteAudioTranscribe {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.noteAudioTranscribe:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.noteAudioTranscribe:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* Wikilink Button Styles */

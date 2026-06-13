@@ -67,6 +67,9 @@ export interface Annotation {
 /** Which family of API the provider speaks. */
 export type AiProviderKind = 'openai' | 'ollama'
 
+/** Transcription backend: OpenAI cloud, or a local OpenAI-compatible Whisper server. */
+export type TranscriptionProviderKind = 'openai' | 'local'
+
 /**
  * User-configurable AI settings. Persisted on the Rust side (ai_config.json
  * in the app data dir) so the API key never lives in browser-reachable
@@ -90,6 +93,17 @@ export interface AiConfig {
   chatModel: string
   /** Re-embed notes automatically on save when true. */
   autoIndex: boolean
+
+  // ── Transcription (configured separately from chat) ──
+  transcriptionProvider: TranscriptionProviderKind
+  transcriptionBaseUrl: string
+  /** Write-only, same rules as apiKey. Empty for local servers. */
+  transcriptionApiKey: string
+  transcriptionModel: string
+  /** Whether a transcription key is currently saved Rust-side. */
+  hasTranscriptionApiKey?: boolean
+  /** Auto-transcribe audio when recorded/imported, inserting the text into the note. */
+  transcribeOnRecord: boolean
 }
 
 /** A single embeddable slice of a note. */

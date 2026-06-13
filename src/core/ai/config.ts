@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { AiConfig, AiProviderKind } from '../../types'
+import type { AiConfig, AiProviderKind, TranscriptionProviderKind } from '../../types'
 
 /** Pre-Rust-storage location of the config; migrated away on first load. */
 const LEGACY_STORAGE_KEY = 'jnana.ai.config'
@@ -21,6 +21,25 @@ const PROVIDER_DEFAULTS: Record<AiProviderKind, Pick<AiConfig, 'baseUrl' | 'embe
   },
 }
 
+/**
+ * Transcription backend defaults. "openai" is the cloud Whisper API; "local"
+ * points at an OpenAI-compatible local Whisper server (e.g. speaches /
+ * faster-whisper-server), the STT equivalent of running Ollama for chat.
+ */
+const TRANSCRIPTION_DEFAULTS: Record<
+  TranscriptionProviderKind,
+  Pick<AiConfig, 'transcriptionBaseUrl' | 'transcriptionModel'>
+> = {
+  openai: {
+    transcriptionBaseUrl: 'https://api.openai.com/v1',
+    transcriptionModel: 'whisper-1',
+  },
+  local: {
+    transcriptionBaseUrl: 'http://localhost:8000/v1',
+    transcriptionModel: 'Systran/faster-whisper-small',
+  },
+}
+
 export function defaultConfig(provider: AiProviderKind = 'ollama'): AiConfig {
   return {
     enabled: false,
@@ -28,8 +47,21 @@ export function defaultConfig(provider: AiProviderKind = 'ollama'): AiConfig {
     apiKey: '',
     hasApiKey: false,
     autoIndex: true,
+    transcriptionProvider: 'openai',
+    transcriptionApiKey: '',
+    hasTranscriptionApiKey: false,
+    transcribeOnRecord: false,
+    ...TRANSCRIPTION_DEFAULTS.openai,
     ...PROVIDER_DEFAULTS[provider],
   }
+}
+
+/** Defaults for a freshly-selected transcription provider. */
+export function withTranscriptionProviderDefaults(
+  config: AiConfig,
+  provider: TranscriptionProviderKind,
+): AiConfig {
+  return { ...config, transcriptionProvider: provider, ...TRANSCRIPTION_DEFAULTS[provider] }
 }
 
 /**
@@ -61,7 +93,8 @@ export async function loadAiConfig(): Promise<AiConfig> {
   const provider: AiProviderKind = stored.provider === 'openai' ? 'openai' : 'ollama'
   // Fresh install reports an empty baseUrl — fall back to provider defaults.
   if (!stored.baseUrl) return defaultConfig(provider)
-  return { ...defaultConfig(provider), ...stored, apiKey: '' }
+  // Both keys are write-only — they always come back blank.
+  return { ...defaultConfig(provider), ...stored, apiKey: '', transcriptionApiKey: '' }
 }
 
 export async function saveAiConfig(config: AiConfig): Promise<void> {

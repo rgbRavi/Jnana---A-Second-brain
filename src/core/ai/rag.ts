@@ -69,6 +69,15 @@ export async function getIndexStats(): Promise<IndexStats> {
 }
 
 /**
+ * Transcribe a stored audio asset to text via the configured transcription
+ * backend (OpenAI cloud or a local Whisper server). The host/key/model live
+ * Rust-side; this just names the asset to transcribe.
+ */
+export async function transcribeAudio(filename: string): Promise<string> {
+  return invoke<string>('transcribe_audio', { filename })
+}
+
+/**
  * (Re)index a batch of notes — used for the initial backfill or after a
  * provider/model change. Embeds notes sequentially to stay within provider
  * rate limits and reports progress so the UI can show a bar.
