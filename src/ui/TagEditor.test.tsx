@@ -5,7 +5,7 @@ import { TagEditor } from './TagEditor'
 describe('TagEditor', () => {
   it('renders auto tags and user tags differently', () => {
     const tags = ['has:media', 'idea', 'project']
-    const { getByText, queryByText } = render(<TagEditor tags={tags} onChange={vi.fn()} />)
+    const { getByText } = render(<TagEditor tags={tags} onChange={vi.fn()} />)
 
     const autoTag = getByText('has:media')
     expect(autoTag.className).toContain('tagChipAuto')

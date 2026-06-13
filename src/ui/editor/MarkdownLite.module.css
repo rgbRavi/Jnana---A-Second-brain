@@ -93,6 +93,16 @@
   background: var(--surface-2);
 }
 
+.noteAudioWrapper {
+  display: block;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+
+.noteAudio {
+  width: 100%;
+}
+
 /* Wikilink Button Styles */
 .wikilinkBtn {
   display: inline-block;

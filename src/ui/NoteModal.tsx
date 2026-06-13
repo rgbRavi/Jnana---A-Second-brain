@@ -24,6 +24,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { handleDocumentUpload } = useDocumentUpload({
@@ -33,7 +34,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     onInsertMarkdown: (md) => setContent((prev) => prev + md),
   })
 
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
+  const { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
@@ -118,6 +119,9 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                   onInsertMarkdown={(md) => setContent((prev) => prev + md)}
                   onImageUpload={handleImageUpload}
                   onVideoUpload={() => void handleVideoUpload()}
+                  onAudioUpload={() => void handleAudioUpload()}
+                  onRecordAudio={(blob) => void handleAudioBlob(blob)}
+                  onRecordingChange={setIsRecording}
                   onDocumentUpload={handleDocumentUpload}
                   disabled={saving || uploading}
                 />
@@ -135,13 +139,18 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 >
                   Cancel
                 </button>
-                <button
-                  className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnSave}`}
-                  onClick={handleSave}
-                  disabled={saving || uploading}
+                <span
+                  style={{ display: 'inline-flex' }}
+                  title={isRecording ? 'Finish recording before save' : undefined}
                 >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
+                  <button
+                    className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnSave}`}
+                    onClick={handleSave}
+                    disabled={saving || uploading || isRecording}
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                </span>
               </div>
             </div>
           </div>

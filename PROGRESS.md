@@ -2,7 +2,7 @@
 
 ## Status: Phase 1 mostly complete, Phase 2 underway, Phase 3 (AI) started
 
-Last updated: 2026-06-12
+Last updated: 2026-06-13
 
 ---
 
@@ -347,7 +347,9 @@ Current theme status:
 
 ### Phase 2 remaining
 - [x] In-memory full-text search (MiniSearch)
-- [ ] Audio player and audio rendering
+- [x] Audio player and audio rendering (`![audio]` + `[A0::HH:MM:SS]` timestamps)
+- [ ] Voice recording from the mic (capture half of audio) — in progress
+- [ ] Voice transcription (record → searchable/AI-analyzable text) — needs local-Whisper/cloud decision
 - [ ] Video timestamp writing from the player UI
 - [ ] Markdown file mirror/export
 - [ ] ffmpeg sidecar for HEVC/H.265 transcoding
@@ -385,7 +387,9 @@ Current theme status:
 - [x] PDF viewer with annotations
 - [x] Document conversion and import
 - [x] In-memory search (MiniSearch)
-- [ ] Audio player with markers
+- [x] Audio player + `[A0::…]` timestamps
+- [ ] Voice recording from the mic — in progress
+- [ ] Voice transcription (record → text; local Whisper sidecar or cloud STT)
 - [ ] Player-assisted timestamp writing
 - [ ] Markdown mirror/export
 - [ ] HEVC transcoding support

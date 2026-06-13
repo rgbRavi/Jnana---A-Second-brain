@@ -22,6 +22,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { handleDocumentUpload } = useDocumentUpload({
@@ -31,7 +32,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     onInsertMarkdown: (md) => setContent((prev) => prev + md),
   })
 
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
+  const { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
     noteId: note.id,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
@@ -109,6 +110,9 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
               onInsertMarkdown={(md) => setContent((prev) => prev + md)}
               onImageUpload={handleImageUpload}
               onVideoUpload={() => void handleVideoUpload()}
+              onAudioUpload={() => void handleAudioUpload()}
+              onRecordAudio={(blob) => void handleAudioBlob(blob)}
+              onRecordingChange={setIsRecording}
               onDocumentUpload={handleDocumentUpload}
               disabled={saving || uploading}
             />
@@ -124,13 +128,18 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
             >
               Cancel
             </button>
-            <button
-              className={Styles.composerSave}
-              onClick={handleSave}
-              disabled={saving || uploading || (!content.trim() && !title.trim())}
+            <span
+              style={{ display: 'inline-flex' }}
+              title={isRecording ? 'Finish recording before save' : undefined}
             >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+              <button
+                className={Styles.composerSave}
+                onClick={handleSave}
+                disabled={saving || uploading || isRecording || (!content.trim() && !title.trim())}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </span>
           </div>
           <span className={Styles.composerHint}>⌘ enter to save</span>
         </div>

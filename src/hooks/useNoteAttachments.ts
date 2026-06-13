@@ -8,7 +8,7 @@ interface UseNoteAttachmentsProps {
   onUploadFinish: () => void
   onInsertMarkdown: (markdown: string) => void
   onFocus?: () => void
-  onRegisterPendingMedia?: (filename: string, type: 'video' | 'pdf' | 'image') => void
+  onRegisterPendingMedia?: (filename: string, type: 'video' | 'pdf' | 'image' | 'audio') => void
 }
 
 export function useNoteAttachments({
@@ -77,5 +77,57 @@ export function useNoteAttachments({
     }
   }
 
-  return { handleImageUpload, handleVideoUpload }
+  // Save a recording captured from the mic (a Blob, not a picked file). Mirrors
+  // handleImageUpload's bytes path — no file dialog. Recordings are webm/opus.
+  const handleAudioBlob = async (blob: Blob) => {
+    onUploadStart()
+    try {
+      const arrayBuffer = await blob.arrayBuffer()
+      const filename = await uploadAsset(new Uint8Array(arrayBuffer), 'webm')
+
+      if (onRegisterPendingMedia) {
+        onRegisterPendingMedia(filename, 'audio')
+      } else {
+        registerMediaRef(noteId, 'audio', filename).catch(console.error)
+      }
+
+      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+    } catch (err) {
+      console.error('Failed to save recording:', err)
+      alert('Failed to save recording: ' + String(err))
+    } finally {
+      onUploadFinish()
+      onFocus?.()
+    }
+  }
+
+  const handleAudioUpload = async () => {
+    onUploadStart()
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'm4a', 'aac', 'flac', 'oga', 'ogg', 'opus'] }],
+      })
+
+      if (!selected || typeof selected !== 'string') return
+
+      const filename = await importMedia(selected, noteId)
+
+      if (onRegisterPendingMedia) {
+        onRegisterPendingMedia(filename, 'audio')
+      } else {
+        registerMediaRef(noteId, 'audio', filename).catch(console.error)
+      }
+
+      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+    } catch (err) {
+      console.error('Failed to upload audio:', err)
+      alert('Failed to upload audio: ' + String(err))
+    } finally {
+      onUploadFinish()
+      onFocus?.()
+    }
+  }
+
+  return { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob }
 }

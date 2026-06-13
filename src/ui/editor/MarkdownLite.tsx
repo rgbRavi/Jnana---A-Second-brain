@@ -5,6 +5,7 @@ import { useNotesContext } from '../../context/NotesContext'
 import { eventBus } from '../../lib/eventBus'
 import { AsyncImage } from '../AsyncImage'
 import { AsyncVideo } from '../AsyncVideo'
+import { AsyncAudio } from '../AsyncAudio'
 import { AsyncYouTube } from '../AsyncYouTube'
 import { PdfViewer } from '../media/PdfViewer'
 import MdStyles from './MarkdownLite.module.css'
@@ -28,6 +29,19 @@ function VideoEmbed({ url, videoIndex, lazy }: { url: string; videoIndex: number
       onClick={(e) => e.stopPropagation()}
     >
       <AsyncVideo filename={filename} className={MdStyles.noteVideo} controls preload="metadata" lazy={lazy} />
+    </div>
+  )
+}
+
+function AudioEmbed({ url, audioIndex, lazy }: { url: string; audioIndex: number; lazy: boolean }) {
+  const filename = url.replace('jnana-asset://', '')
+  return (
+    <div
+      className={MdStyles.noteAudioWrapper}
+      data-audio-index={audioIndex}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <AsyncAudio filename={filename} className={MdStyles.noteAudio} controls preload="metadata" lazy={lazy} />
     </div>
   )
 }
@@ -142,9 +156,11 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
   const externalLinkRegex = /\[([^\]]+)\]\((external:\/\/[^)]+)\)/g
   const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}:\d{2})\]/g
+  const audioTimestampRegex = /\[A(\d+)::(\d{2}:\d{2}:\d{2})\]/g
   const simpleTimestampRegex = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
 
   let videoCount = 0
+  let audioCount = 0
 
   const renderContent = () => {
     const elements: React.ReactNode[] = []
@@ -176,6 +192,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
     allMatches.sort((a, b) => a.index - b.index)
 
     for (const m of allMatches) {
+      // Skip matches that overlap one already consumed (otherwise substring's
+      // argument-swap duplicates text — the cause of the tripled timestamp).
+      if (m.index < lastIndex) continue
       const textBefore = content.substring(lastIndex, m.index)
       if (textBefore) elements.push(renderTextWithTimestamps(textBefore, lastIndex))
 
@@ -187,6 +206,8 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
 
         if (altText === 'video') {
           elements.push(<VideoEmbed key={key} url={url} videoIndex={videoCount++} lazy={lazy} />)
+        } else if (altText === 'audio') {
+          elements.push(<AudioEmbed key={key} url={url} audioIndex={audioCount++} lazy={lazy} />)
         } else if (altText === 'youtube') {
           elements.push(<YouTubeEmbed key={key} url={url} lazy={lazy} />)
         } else if (altText === 'pdf') {
@@ -212,6 +233,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
 
     type InlineMatch =
       | { index: number; endIndex: number; type: 'indexed'; videoIndex: number; time: string }
+      | { index: number; endIndex: number; type: 'audio'; audioIndex: number; time: string }
       | { index: number; endIndex: number; type: 'simple'; time: string }
       | { index: number; endIndex: number; type: 'wikilink'; title: string }
 
@@ -220,6 +242,11 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
     timestampWithIndexRegex.lastIndex = 0
     while ((match = timestampWithIndexRegex.exec(text)) !== null) {
       allMatches.push({ index: match.index, endIndex: timestampWithIndexRegex.lastIndex, type: 'indexed', videoIndex: parseInt(match[1], 10), time: match[2] })
+    }
+
+    audioTimestampRegex.lastIndex = 0
+    while ((match = audioTimestampRegex.exec(text)) !== null) {
+      allMatches.push({ index: match.index, endIndex: audioTimestampRegex.lastIndex, type: 'audio', audioIndex: parseInt(match[1], 10), time: match[2] })
     }
 
     simpleTimestampRegex.lastIndex = 0
@@ -237,6 +264,8 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
     allMatches.sort((a, b) => a.index - b.index)
 
     for (const ts of allMatches) {
+      // Skip overlapping matches (e.g. the inner [00:05] of a [[00:05]] wikilink).
+      if (ts.index < lastIndex) continue
       const textBefore = text.substring(lastIndex, ts.index)
       if (textBefore) elements.push(<span key={`text-${offset + lastIndex}`}>{textBefore}</span>)
 
@@ -260,12 +289,14 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         )
       } else {
         const seconds = timeStringToSeconds(ts.time)
-        const videoIndex = ts.type === 'indexed' ? ts.videoIndex : 0
+        const kind = ts.type === 'audio' ? 'audio' : 'video'
+        const index =
+          ts.type === 'indexed' ? ts.videoIndex : ts.type === 'audio' ? ts.audioIndex : 0
         elements.push(
           <button
             key={`ts-${offset + ts.index}`}
             className={MdStyles.timestampBtn}
-            onClick={() => handleTimestampClick(videoIndex, seconds)}
+            onClick={() => handleMediaSeek(kind, index, seconds)}
             title={`Seek to ${ts.time}`}
           >
             {ts.time}
@@ -281,15 +312,16 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
     return elements.length > 0 ? <span key={`text-group-${offset}`}>{elements}</span> : null
   }
 
-  const handleTimestampClick = (videoIndex: number, seconds: number) => {
+  const handleMediaSeek = (kind: 'video' | 'audio', index: number, seconds: number) => {
     if (!containerRef.current) return
-    const wrapper = containerRef.current.querySelector(`[data-video-index="${videoIndex}"]`) as HTMLElement | null
+    const attr = kind === 'video' ? 'data-video-index' : 'data-audio-index'
+    const wrapper = containerRef.current.querySelector(`[${attr}="${index}"]`) as HTMLElement | null
     if (!wrapper) return
-    const video = wrapper.querySelector('video') as HTMLVideoElement | null
-    if (!video) return
-    video.currentTime = seconds
-    video.play()
-    video.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const media = wrapper.querySelector(kind) as HTMLMediaElement | null
+    if (!media) return
+    media.currentTime = seconds
+    media.play()
+    media.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
   return <div ref={containerRef} className={MdStyles.root}>{renderContent()}</div>

@@ -20,6 +20,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const [tags, setTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saveFavourite, setSaveFavourite] = useState(false)
   const { addToFavourites } = useFavourites()
@@ -36,7 +37,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     onRegisterPendingMedia: addPendingMedia,
   })
 
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
+  const { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
     noteId: pendingNoteId.current,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
@@ -119,16 +120,24 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
             onInsertMarkdown={(md) => setContent((prev) => prev + md)}
             onImageUpload={handleImageUpload}
             onVideoUpload={() => void handleVideoUpload()}
+            onAudioUpload={() => void handleAudioUpload()}
+            onRecordAudio={(blob) => void handleAudioBlob(blob)}
+            onRecordingChange={setIsRecording}
             onDocumentUpload={handleDocumentUpload}
             disabled={saving || uploading}
           />
-          <button
-            className={Styles.composerSave}
-            onClick={handleSave}
-            disabled={saving || (!content.trim() && !title.trim())}
+          <span
+            style={{ display: 'inline-flex' }}
+            title={isRecording ? 'Finish recording before save' : undefined}
           >
-            {saving ? 'Saving…' : "That's my note →"}
-          </button>
+            <button
+              className={Styles.composerSave}
+              onClick={handleSave}
+              disabled={saving || isRecording || (!content.trim() && !title.trim())}
+            >
+              {saving ? 'Saving…' : "That's my note →"}
+            </button>
+          </span>
         </div>
       </div>
     </div>
