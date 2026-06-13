@@ -24,6 +24,11 @@ export function useSearch(notes: Note[]) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [ready, setReady] = useState(false)
 
+  // The build effect reads the query through a ref so typing a query never
+  // triggers a full index rebuild — only `notes` changes do.
+  const queryRef = useRef(query)
+  queryRef.current = query
+
   const runSearch = useCallback((nextQuery: string) => {
     const index = indexRef.current
     if (!index || !nextQuery.trim()) {
@@ -45,8 +50,9 @@ export function useSearch(notes: Note[]) {
       indexRef.current = index
       setReady(true)
 
-      if (query.trim()) {
-        setResults(searchNotes(query, index))
+      const current = queryRef.current
+      if (current.trim()) {
+        setResults(searchNotes(current, index))
       } else {
         setResults([])
       }
@@ -57,7 +63,7 @@ export function useSearch(notes: Note[]) {
     return () => {
       cancelled = true
     }
-  }, [notes, query])
+  }, [notes])
 
   useEffect(() => {
     const handleSaved = (note: Note) => {

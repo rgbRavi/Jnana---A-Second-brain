@@ -3,11 +3,13 @@ import { MarkdownLite } from './editor/MarkdownLite'
 import type { Note } from '../types'
 import { TagEditor } from './TagEditor'
 import { isAutoTag } from '../core/tags'
-import { useDocumentUpload } from '../hooks/useDocumentUpload'
-import { useNoteAttachments } from '../hooks/useNoteAttachments'
+import { useComposer } from '../hooks/useComposer'
 import { ComposerToolbar } from './editor/ComposerToolbar'
 import NoteModalStyles from './NoteModal.module.css'
 import { FavouriteBtn } from './editor/FavouriteBtn'
+import { exportNotes } from '../core/export'
+import { useNotesContext } from '../context/NotesContext'
+import { ComposerSuggestions } from './ai/ComposerSuggestions'
 
 interface Props {
   note: Note
@@ -23,22 +25,14 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const [content, setContent] = useState(note.content || '')
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { notes } = useNotesContext()
+  const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
 
-  const { handleDocumentUpload } = useDocumentUpload({
+  const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: note.id,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-  })
-
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
-    noteId: note.id,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-    onFocus: () => textareaRef.current?.focus(),
+    appendMarkdown: (md) => setContent((prev) => prev + md),
+    focusTextarea: () => textareaRef.current?.focus(),
   })
 
   useEffect(() => {
@@ -104,6 +98,16 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
               tags={tags}
               onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
             />
+            <ComposerSuggestions
+              note={{ ...note, title, content, tags }}
+              allNotes={notes}
+              currentTags={tags.filter((t) => !isAutoTag(t))}
+              onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+              onAddLink={(linkTitle) => {
+                const wl = `[[${linkTitle}]]`
+                setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+              }}
+            />
             <textarea
               ref={textareaRef}
               className={NoteModalStyles.noteModalTextarea}
@@ -114,13 +118,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             />
             <div className={NoteModalStyles.noteModalActions}>
               <div className={NoteModalStyles.noteModalToolbar}>
-                <ComposerToolbar
-                  onInsertMarkdown={(md) => setContent((prev) => prev + md)}
-                  onImageUpload={handleImageUpload}
-                  onVideoUpload={() => void handleVideoUpload()}
-                  onDocumentUpload={handleDocumentUpload}
-                  disabled={saving || uploading}
-                />
+                <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
               </div>
               <div className={NoteModalStyles.noteModalSaveRow}>
                 <button
@@ -135,13 +133,18 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 >
                   Cancel
                 </button>
-                <button
-                  className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnSave}`}
-                  onClick={handleSave}
-                  disabled={saving || uploading}
+                <span
+                  style={{ display: 'inline-flex' }}
+                  title={isRecording ? 'Finish recording before save' : undefined}
                 >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
+                  <button
+                    className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnSave}`}
+                    onClick={handleSave}
+                    disabled={saving || uploading || isRecording}
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </button>
+                </span>
               </div>
             </div>
           </div>
@@ -149,6 +152,21 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
           <div className={NoteModalStyles.noteModalViewMode}>
             <div className={NoteModalStyles.noteModalHeader}>
               <h2 className={NoteModalStyles.noteModalTitle}>{title || 'Untitled'}</h2>
+              <button
+                className={NoteModalStyles.noteModalEditBtn}
+                onClick={async () => {
+                  try {
+                    const n = await exportNotes([note])
+                    if (n) alert('Exported note as Markdown.')
+                  } catch (err) {
+                    alert('Export failed: ' + String(err))
+                  }
+                }}
+                aria-label="Export note as Markdown"
+                title="Export as Markdown"
+              >
+                ⤓
+              </button>
               {onUpdate && (
                 <button
                   className={NoteModalStyles.noteModalEditBtn}
@@ -164,8 +182,23 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
               tags={note.tags}
               onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             />
+            <ComposerSuggestions
+              note={note}
+              allNotes={notes}
+              currentTags={currentUserTags}
+              onAddTag={onUpdateTags ? (tag) => onUpdateTags(note.id, [...currentUserTags, tag]) : undefined}
+              onAddLink={
+                onUpdate
+                  ? (linkTitle) => {
+                      const wl = `[[${linkTitle}]]`
+                      if (note.content.includes(wl)) return
+                      onUpdate(note.id, note.title, `${note.content.trimEnd()}\n\n${wl}\n`)
+                    }
+                  : undefined
+              }
+            />
             <div className={NoteModalStyles.noteModalBody}>
-              <MarkdownLite content={content} lazy={false} noteId={note.id} />
+              <MarkdownLite content={content} lazy={false} noteId={note.id} fullscreen />
             </div>
             <time className={NoteModalStyles.noteModalTime}>
               {new Date(note.updatedAt).toLocaleString()}

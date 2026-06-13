@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './MarkdownLite'
 import type { Note } from '../../types'
-import { useDocumentUpload } from '../../hooks/useDocumentUpload'
-import { useNoteAttachments } from '../../hooks/useNoteAttachments'
+import { useComposer } from '../../hooks/useComposer'
+import { useNotesContext } from '../../context/NotesContext'
 import { TagEditor } from '../TagEditor'
+import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { isAutoTag } from '../../core/tags'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteItem.module.css'
@@ -21,22 +22,12 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [content, setContent] = useState(note.content || '')
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const { notes } = useNotesContext()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const { handleDocumentUpload } = useDocumentUpload({
+  const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: note.id,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-  })
-
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
-    noteId: note.id,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-    onFocus: () => textareaRef.current?.focus(),
+    appendMarkdown: (md) => setContent((prev) => prev + md),
+    focusTextarea: () => textareaRef.current?.focus(),
   })
 
   useEffect(() => {
@@ -95,6 +86,16 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
           tags={tags}
           onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
         />
+        <ComposerSuggestions
+          note={{ ...note, title, content, tags }}
+          allNotes={notes}
+          currentTags={tags.filter((t) => !isAutoTag(t))}
+          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
+        />
         <textarea
           ref={textareaRef}
           className={Styles.composerBodyBorderless}
@@ -105,13 +106,7 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
         />
         <div className={Styles.composerFooterBorderlessFooter}>
           <div className={Styles.composerActions}>
-            <ComposerToolbar
-              onInsertMarkdown={(md) => setContent((prev) => prev + md)}
-              onImageUpload={handleImageUpload}
-              onVideoUpload={() => void handleVideoUpload()}
-              onDocumentUpload={handleDocumentUpload}
-              disabled={saving || uploading}
-            />
+            <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
             <button
               className={Styles.composerCancel}
               onClick={() => {
@@ -124,13 +119,18 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
             >
               Cancel
             </button>
-            <button
-              className={Styles.composerSave}
-              onClick={handleSave}
-              disabled={saving || uploading || (!content.trim() && !title.trim())}
+            <span
+              style={{ display: 'inline-flex' }}
+              title={isRecording ? 'Finish recording before save' : undefined}
             >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
+              <button
+                className={Styles.composerSave}
+                onClick={handleSave}
+                disabled={saving || uploading || isRecording || (!content.trim() && !title.trim())}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </span>
           </div>
           <span className={Styles.composerHint}>⌘ enter to save</span>
         </div>

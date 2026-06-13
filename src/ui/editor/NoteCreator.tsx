@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Note } from '../../types'
-import { useDocumentUpload } from '../../hooks/useDocumentUpload'
-import { useNoteAttachments } from '../../hooks/useNoteAttachments'
+import { useComposer } from '../../hooks/useComposer'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
+import { useNotesContext } from '../../context/NotesContext'
 import { TagEditor } from '../TagEditor'
+import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteCreator.module.css'
 import FavStyles from './FavouriteBtn.module.css'
@@ -19,31 +20,33 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const [content, setContent] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saveFavourite, setSaveFavourite] = useState(false)
+  // Bumped on save to remount the AI suggestion panels, clearing their results
+  // when the composer is reset for a new note.
+  const [draftKey, setDraftKey] = useState(0)
   const { addToFavourites } = useFavourites()
 
   const pendingNoteId = useRef(crypto.randomUUID())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
+  const { notes } = useNotesContext()
 
-  const { handleDocumentUpload } = useDocumentUpload({
+  const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: pendingNoteId.current,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
+    appendMarkdown: (md) => setContent((prev) => prev + md),
+    focusTextarea: () => textareaRef.current?.focus(),
     onRegisterPendingMedia: addPendingMedia,
   })
 
-  const { handleImageUpload, handleVideoUpload } = useNoteAttachments({
-    noteId: pendingNoteId.current,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-    onFocus: () => textareaRef.current?.focus(),
-    onRegisterPendingMedia: addPendingMedia,
-  })
+  const draftNote: Note = {
+    id: pendingNoteId.current,
+    title,
+    content,
+    tags,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
 
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
@@ -58,6 +61,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     setSaveFavourite(false)
     pendingNoteId.current = crypto.randomUUID()
     resetPendingMedia()
+    setDraftKey((k) => k + 1)
     setSaving(false)
     textareaRef.current?.focus()
   }
@@ -102,6 +106,17 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       />
       <div className={Styles.composerTagSection}>
         <TagEditor tags={tags} onChange={setTags} />
+        <ComposerSuggestions
+          key={draftKey}
+          note={draftNote}
+          allNotes={notes}
+          currentTags={tags}
+          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
+        />
       </div>
       <textarea
         ref={textareaRef}
@@ -115,20 +130,19 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       <div className={Styles.composerFooter}>
         <span className={Styles.composerHint}>⌘ enter to save</span>
         <div className={Styles.composerActionsRight}>
-          <ComposerToolbar
-            onInsertMarkdown={(md) => setContent((prev) => prev + md)}
-            onImageUpload={handleImageUpload}
-            onVideoUpload={() => void handleVideoUpload()}
-            onDocumentUpload={handleDocumentUpload}
-            disabled={saving || uploading}
-          />
-          <button
-            className={Styles.composerSave}
-            onClick={handleSave}
-            disabled={saving || (!content.trim() && !title.trim())}
+          <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
+          <span
+            style={{ display: 'inline-flex' }}
+            title={isRecording ? 'Finish recording before save' : undefined}
           >
-            {saving ? 'Saving…' : "That's my note →"}
-          </button>
+            <button
+              className={Styles.composerSave}
+              onClick={handleSave}
+              disabled={saving || isRecording || (!content.trim() && !title.trim())}
+            >
+              {saving ? 'Saving…' : "That's my note →"}
+            </button>
+          </span>
         </div>
       </div>
     </div>

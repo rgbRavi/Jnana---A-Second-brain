@@ -1,7 +1,12 @@
-import React, { useRef } from 'react'
-import { openPath } from '@tauri-apps/plugin-opener'
+import React, { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { invoke } from '@tauri-apps/api/core'
+import { useNotesContext } from '../../context/NotesContext'
+import { useTranscription } from '../../context/TranscriptionContext'
+import { eventBus } from '../../lib/eventBus'
 import { AsyncImage } from '../AsyncImage'
 import { AsyncVideo } from '../AsyncVideo'
+import { AsyncAudio } from '../AsyncAudio'
 import { AsyncYouTube } from '../AsyncYouTube'
 import { PdfViewer } from '../media/PdfViewer'
 import MdStyles from './MarkdownLite.module.css'
@@ -10,6 +15,8 @@ interface Props {
   content: string
   noteId?: string
   lazy?: boolean
+  /** Enables fullscreen expand for PDF and image embeds (use in modal context) */
+  fullscreen?: boolean
 }
 
 // ── Private embed components ──────────────────────────────────────────────────
@@ -17,8 +24,53 @@ interface Props {
 function VideoEmbed({ url, videoIndex, lazy }: { url: string; videoIndex: number; lazy: boolean }) {
   const filename = url.replace('jnana-asset://', '')
   return (
-    <div className={MdStyles.noteVideoWrapper} data-video-index={videoIndex}>
+    <div
+      className={MdStyles.noteVideoWrapper}
+      data-video-index={videoIndex}
+      onClick={(e) => e.stopPropagation()}
+    >
       <AsyncVideo filename={filename} className={MdStyles.noteVideo} controls preload="metadata" lazy={lazy} />
+    </div>
+  )
+}
+
+function AudioEmbed({
+  url,
+  audioIndex,
+  noteId,
+  lazy,
+}: {
+  url: string
+  audioIndex: number
+  noteId: string
+  lazy: boolean
+}) {
+  const filename = url.replace('jnana-asset://', '')
+  const { notes } = useNotesContext()
+  const { jobs, transcribe } = useTranscription()
+  const busy = jobs.some((j) => j.filename === filename && j.status === 'running')
+  const title = notes.find((n) => n.id === noteId)?.title?.trim() || 'Untitled'
+
+  return (
+    <div
+      className={MdStyles.noteAudioWrapper}
+      data-audio-index={audioIndex}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <AsyncAudio filename={filename} className={MdStyles.noteAudio} controls preload="metadata" lazy={lazy} />
+      {noteId && (
+        <button
+          className={MdStyles.noteAudioTranscribe}
+          disabled={busy}
+          onClick={(e) => {
+            e.stopPropagation()
+            transcribe(noteId, title, filename)
+          }}
+          title="Transcribe this audio to text in the background"
+        >
+          {busy ? 'Transcribing…' : '📝 Transcribe'}
+        </button>
+      )}
     </div>
   )
 }
@@ -35,28 +87,66 @@ function YouTubeEmbed({ url, lazy }: { url: string; lazy: boolean }) {
   )
 }
 
-function PdfEmbed({ url, noteId }: { url: string; noteId: string }) {
+function PdfEmbed({ url, noteId, fullscreen }: { url: string; noteId: string; fullscreen: boolean }) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const filename = url.replace('jnana-asset://', '')
   return (
-    <div className={MdStyles.notePdfWrapper}>
-      <PdfViewer filename={filename} noteId={noteId} />
-    </div>
+    <>
+      <div className={MdStyles.notePdfWrapper}>
+        {fullscreen && (
+          <button
+            className={MdStyles.pdfExpandBtn}
+            onClick={(e) => { e.stopPropagation(); setIsFullscreen(true) }}
+            title="View full screen"
+          >
+            ⛶ Full screen
+          </button>
+        )}
+        <PdfViewer filename={filename} noteId={noteId} />
+      </div>
+      {isFullscreen && createPortal(
+        <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
+          <div className={MdStyles.fullscreenContent} onClick={(e) => e.stopPropagation()}>
+            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)}>✕</button>
+            <PdfViewer filename={filename} noteId={noteId} />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
-function ImageEmbed({ url, altText, lazy }: { url: string; altText: string; lazy: boolean }) {
-  if (url.startsWith('jnana-asset://')) {
-    const filename = url.replace('jnana-asset://', '')
-    return (
-      <span className={MdStyles.noteImageWrapper}>
-        <AsyncImage filename={filename} alt={altText} className={MdStyles.noteImage} lazy={lazy} />
-      </span>
-    )
-  }
+function ImageEmbed({ url, altText, lazy, fullscreen }: { url: string; altText: string; lazy: boolean; fullscreen: boolean }) {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const handleClick = fullscreen ? (e: React.MouseEvent) => { e.stopPropagation(); setIsFullscreen(true) } : undefined
+
+  const imgEl = url.startsWith('jnana-asset://')
+    ? <AsyncImage filename={url.replace('jnana-asset://', '')} alt={altText} className={MdStyles.noteImage} lazy={lazy} />
+    : <img src={url} alt={altText} className={MdStyles.noteImage} />
+
   return (
-    <span className={MdStyles.noteImageWrapper}>
-      <img src={url} alt={altText} className={MdStyles.noteImage} />
-    </span>
+    <>
+      <span
+        className={MdStyles.noteImageWrapper}
+        onClick={handleClick}
+        style={fullscreen ? { cursor: 'zoom-in' } : undefined}
+      >
+        {imgEl}
+      </span>
+      {isFullscreen && createPortal(
+        <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
+          <div className={MdStyles.lightboxContent} onClick={(e) => e.stopPropagation()}>
+            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)}>✕</button>
+            {url.startsWith('jnana-asset://')
+              ? <AsyncImage filename={url.replace('jnana-asset://', '')} alt={altText} className={MdStyles.lightboxImage} lazy={false} />
+              : <img src={url} alt={altText} className={MdStyles.lightboxImage} />
+            }
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -68,7 +158,7 @@ function ExternalDocLink({ name, path }: { name: string; path: string }) {
       <span className={MdStyles.noteExternalDocName}>{displayName}</span>
       <button
         className={MdStyles.noteExternalDocBtn}
-        onClick={() => openPath(path).catch(console.error)}
+        onClick={() => invoke('open_asset', { path }).catch(console.error)}
       >
         Open
       </button>
@@ -87,15 +177,19 @@ function timeStringToSeconds(timeStr: string): number {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
+export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const { notes } = useNotesContext()
 
+  const wikilinkRegex = /\[\[(.*?)\]\]/g
   const imageRegex = /!\[([^\]]*)\]\((.*?)\)/g
   const externalLinkRegex = /\[([^\]]+)\]\((external:\/\/[^)]+)\)/g
   const timestampWithIndexRegex = /\[V(\d+)::(\d{2}:\d{2}:\d{2})\]/g
+  const audioTimestampRegex = /\[A(\d+)::(\d{2}:\d{2}:\d{2})\]/g
   const simpleTimestampRegex = /\[(\d{1,2}:\d{2}(?::\d{2})?)\]/g
 
   let videoCount = 0
+  let audioCount = 0
 
   const renderContent = () => {
     const elements: React.ReactNode[] = []
@@ -127,6 +221,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
     allMatches.sort((a, b) => a.index - b.index)
 
     for (const m of allMatches) {
+      // Skip matches that overlap one already consumed (otherwise substring's
+      // argument-swap duplicates text — the cause of the tripled timestamp).
+      if (m.index < lastIndex) continue
       const textBefore = content.substring(lastIndex, m.index)
       if (textBefore) elements.push(renderTextWithTimestamps(textBefore, lastIndex))
 
@@ -138,12 +235,16 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
 
         if (altText === 'video') {
           elements.push(<VideoEmbed key={key} url={url} videoIndex={videoCount++} lazy={lazy} />)
+        } else if (altText === 'audio') {
+          elements.push(
+            <AudioEmbed key={key} url={url} audioIndex={audioCount++} noteId={noteId} lazy={lazy} />,
+          )
         } else if (altText === 'youtube') {
           elements.push(<YouTubeEmbed key={key} url={url} lazy={lazy} />)
         } else if (altText === 'pdf') {
-          elements.push(<PdfEmbed key={key} url={url} noteId={noteId} />)
+          elements.push(<PdfEmbed key={key} url={url} noteId={noteId} fullscreen={fullscreen} />)
         } else {
-          elements.push(<ImageEmbed key={key} url={url} altText={altText} lazy={lazy} />)
+          elements.push(<ImageEmbed key={key} url={url} altText={altText} lazy={lazy} fullscreen={fullscreen} />)
         }
       }
 
@@ -161,11 +262,22 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
     let lastIndex = 0
     let match: RegExpExecArray | null
 
-    const allMatches: Array<{ index: number; endIndex: number; type: 'indexed' | 'simple'; videoIndex?: number; time: string }> = []
+    type InlineMatch =
+      | { index: number; endIndex: number; type: 'indexed'; videoIndex: number; time: string }
+      | { index: number; endIndex: number; type: 'audio'; audioIndex: number; time: string }
+      | { index: number; endIndex: number; type: 'simple'; time: string }
+      | { index: number; endIndex: number; type: 'wikilink'; title: string }
+
+    const allMatches: InlineMatch[] = []
 
     timestampWithIndexRegex.lastIndex = 0
     while ((match = timestampWithIndexRegex.exec(text)) !== null) {
       allMatches.push({ index: match.index, endIndex: timestampWithIndexRegex.lastIndex, type: 'indexed', videoIndex: parseInt(match[1], 10), time: match[2] })
+    }
+
+    audioTimestampRegex.lastIndex = 0
+    while ((match = audioTimestampRegex.exec(text)) !== null) {
+      allMatches.push({ index: match.index, endIndex: audioTimestampRegex.lastIndex, type: 'audio', audioIndex: parseInt(match[1], 10), time: match[2] })
     }
 
     simpleTimestampRegex.lastIndex = 0
@@ -173,25 +285,55 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
       allMatches.push({ index: match.index, endIndex: simpleTimestampRegex.lastIndex, type: 'simple', time: match[1] })
     }
 
+    wikilinkRegex.lastIndex = 0
+    while ((match = wikilinkRegex.exec(text)) !== null) {
+      if (match[1].trim()) {
+        allMatches.push({ index: match.index, endIndex: wikilinkRegex.lastIndex, type: 'wikilink', title: match[1].trim() })
+      }
+    }
+
     allMatches.sort((a, b) => a.index - b.index)
 
     for (const ts of allMatches) {
+      // Skip overlapping matches (e.g. the inner [00:05] of a [[00:05]] wikilink).
+      if (ts.index < lastIndex) continue
       const textBefore = text.substring(lastIndex, ts.index)
       if (textBefore) elements.push(<span key={`text-${offset + lastIndex}`}>{textBefore}</span>)
 
-      const seconds = timeStringToSeconds(ts.time)
-      const videoIndex = ts.type === 'indexed' && ts.videoIndex !== undefined ? ts.videoIndex : 0
-
-      elements.push(
-        <button
-          key={`ts-${offset + ts.index}`}
-          className={MdStyles.timestampBtn}
-          onClick={() => handleTimestampClick(videoIndex, seconds)}
-          title={`Seek to ${ts.time}`}
-        >
-          {ts.time}
-        </button>
-      )
+      if (ts.type === 'wikilink') {
+        const foundNote = notes.find(n => n.title.toLowerCase() === ts.title.toLowerCase())
+        elements.push(
+          <button
+            key={`wl-${offset + ts.index}`}
+            className={foundNote ? MdStyles.wikilinkBtn : MdStyles.wikilinkBtnMissing}
+            onClick={foundNote && fullscreen ? (e) => {
+              e.stopPropagation()
+              if (window.confirm(`Open note "${foundNote.title}"?`)) {
+                eventBus.emit('note:navigate', foundNote)
+              }
+            } : undefined}
+            style={foundNote && !fullscreen ? { cursor: 'default' } : undefined}
+            title={foundNote ? foundNote.title : `Note not found: ${ts.title}`}
+          >
+            {ts.title}
+          </button>
+        )
+      } else {
+        const seconds = timeStringToSeconds(ts.time)
+        const kind = ts.type === 'audio' ? 'audio' : 'video'
+        const index =
+          ts.type === 'indexed' ? ts.videoIndex : ts.type === 'audio' ? ts.audioIndex : 0
+        elements.push(
+          <button
+            key={`ts-${offset + ts.index}`}
+            className={MdStyles.timestampBtn}
+            onClick={() => handleMediaSeek(kind, index, seconds)}
+            title={`Seek to ${ts.time}`}
+          >
+            {ts.time}
+          </button>
+        )
+      }
       lastIndex = ts.endIndex
     }
 
@@ -201,15 +343,16 @@ export function MarkdownLite({ content, noteId = '', lazy = true }: Props) {
     return elements.length > 0 ? <span key={`text-group-${offset}`}>{elements}</span> : null
   }
 
-  const handleTimestampClick = (videoIndex: number, seconds: number) => {
+  const handleMediaSeek = (kind: 'video' | 'audio', index: number, seconds: number) => {
     if (!containerRef.current) return
-    const wrapper = containerRef.current.querySelector(`[data-video-index="${videoIndex}"]`) as HTMLElement | null
+    const attr = kind === 'video' ? 'data-video-index' : 'data-audio-index'
+    const wrapper = containerRef.current.querySelector(`[${attr}="${index}"]`) as HTMLElement | null
     if (!wrapper) return
-    const video = wrapper.querySelector('video') as HTMLVideoElement | null
-    if (!video) return
-    video.currentTime = seconds
-    video.play()
-    video.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const media = wrapper.querySelector(kind) as HTMLMediaElement | null
+    if (!media) return
+    media.currentTime = seconds
+    media.play()
+    media.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
   return <div ref={containerRef} className={MdStyles.root}>{renderContent()}</div>

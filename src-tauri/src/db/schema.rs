@@ -23,6 +23,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v2(conn)?;
     }
 
+    if version < 3 {
+        migrate_v3(conn)?;
+    }
+
     Ok(())
 }
 
@@ -92,4 +96,63 @@ fn migrate_v2(conn: &Connection) -> Result<()> {
         INSERT INTO schema_version (version) VALUES (2);
         ",
     )
+}
+
+/// V3: Local vector store for the AI/RAG layer.
+///
+/// Each note is split into chunks; every chunk gets an embedding vector
+/// (produced by whichever AI provider the user configured). Vectors are
+/// stored as a raw little-endian f32 BLOB plus their dimension, so cosine
+/// search can be done entirely in Rust without a vector-DB dependency.
+fn migrate_v3(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS embeddings (
+            id          TEXT PRIMARY KEY,
+            note_id     TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            chunk_text  TEXT NOT NULL,
+            vector      BLOB NOT NULL,
+            dim         INTEGER NOT NULL,
+            model       TEXT NOT NULL,
+            created_at  INTEGER NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_embeddings_note ON embeddings(note_id);
+
+        INSERT INTO schema_version (version) VALUES (3);
+        ",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn test_run_migrations() {
+        let conn = Connection::open_in_memory().unwrap();
+        let result = run_migrations(&conn);
+        assert!(result.is_ok());
+
+        // Verify version is 3
+        let version: i32 = conn
+            .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+
+        // Verify tables exist
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
+        let tables: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+        
+        assert!(tables.contains(&"notes".to_string()));
+        assert!(tables.contains(&"links".to_string()));
+        assert!(tables.contains(&"embeddings".to_string()));
+
+        // Running again should be safe (idempotent)
+        let result2 = run_migrations(&conn);
+        assert!(result2.is_ok());
+    }
 }

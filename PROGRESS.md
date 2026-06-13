@@ -1,16 +1,16 @@
 # Jnana - Progress Log
 
-## Status: Phase 1 mostly complete, Phase 2 started
+## Status: Phase 1 mostly complete, Phase 2 underway, Phase 3 (AI) started
 
-Last updated: 2026-04-20
+Last updated: 2026-06-13
 
 ---
 
 ## What is Jnana
 
-Jnana is a local-first desktop knowledge app for students. It currently supports plain notes, PDFs, local videos, YouTube embeds, images, and document import in one workspace. Notes connect through wikilinks and a graph view. A plugin framework exists, but plugin implementations and activation UI are not built yet.
+Jnana is a local-first desktop knowledge app for students. It currently supports plain notes, PDFs, local videos, YouTube embeds, images, and document import in one workspace. Notes connect through wikilinks and a graph view, with full-text search (MiniSearch), auto/user tags, and favourites. The AI layer has landed: a local vector store in SQLite (embeddings per note chunk), pluggable providers (OpenAI-compatible or local Ollama), and a Thread/Day analyzer. A plugin framework exists, but plugin implementations and activation UI are not built yet.
 
-Audio support, theme switching, search, and AI features are still pending.
+Audio support, theme switching, markdown export, and the remaining AI features (tag/link suggestions, quiz) are still pending.
 
 ---
 
@@ -164,11 +164,13 @@ What does not exist yet:
 
 ### Link sync
 
-`syncLinksForNote` is diff-based:
-- outbound links are recomputed from note content
-- new links are added
+`syncLinksForNote` parses `[[wikilink]]` titles in the WebView, then hands them
+to the Rust `sync_links` command, which resolves titles and diffs the links
+table inside SQLite in one transaction:
+- new outbound links are added
 - stale outbound links are removed
 - inbound links from other notes are preserved
+- the returned added/removed ids drive `link:created` / `link:removed` events
 
 ### Media pipeline
 
@@ -198,13 +200,16 @@ notes        -- id, title, content, tags, created_at, updated_at
 links        -- from_id, to_id
 media_refs   -- id, note_id, media_type, path, meta
 annotations  -- id, note_id, media_id, kind, position, content, created_at
+favourites   -- note_id
+embeddings   -- id, note_id, chunk_index, chunk_text, vector, dim, model, created_at
 ```
 
 Notes:
 - foreign keys are enabled
 - child rows cascade on delete
 - WAL mode is enabled
-- schema versioning exists and is currently at v1
+- schema versioning exists and is currently at v3 (v2 favourites, v3 embeddings)
+- AI settings (including the API key) live outside the DB in `ai_config.json` in the app data dir, managed by Rust
 
 ---
 
@@ -222,6 +227,19 @@ Notes:
 | `get_all_links` | Fetch all `(from_id, to_id)` pairs |
 | `create_link` | Insert link if missing |
 | `remove_link` | Remove one directed link |
+| `sync_links` | Diff one note's outbound wikilinks inside SQLite; returns added/removed ids |
+| `add_favourite` / `remove_favourite` / `get_favourite_note_ids` | Favourites |
+
+### AI / RAG
+
+| Command | Description |
+|---|---|
+| `get_ai_config` / `set_ai_config` | AI settings stored Rust-side; API key is write-only and redacted on read |
+| `ai_request` | POST a JSON body to an endpoint path of the configured provider; Rust supplies the host and injects the key |
+| `save_note_embeddings` | Replace a note's chunk embeddings atomically |
+| `search_embeddings` | In-process cosine similarity over all stored chunks |
+| `delete_note_embeddings` | Remove a note from the vector index |
+| `get_indexed_note_ids` / `get_index_stats` | Index introspection for the UI |
 
 ### Media
 
@@ -328,16 +346,21 @@ Current theme status:
 - no second active theme exists
 
 ### Phase 2 remaining
-- [ ] Audio player and audio rendering
+- [x] In-memory full-text search (MiniSearch)
+- [x] Audio player and audio rendering (`![audio]` + `[A0::HH:MM:SS]` timestamps)
+- [x] Voice recording from the mic (`VoiceRecorder`; Save blocked while recording)
+- [x] Voice transcription (record → text; cloud OpenAI or local Whisper server; background jobs)
+- [x] Markdown file mirror/export (per-note + bulk, with copied assets)
 - [ ] Video timestamp writing from the player UI
-- [ ] Markdown file mirror/export
 - [ ] ffmpeg sidecar for HEVC/H.265 transcoding
-- [ ] In-memory full-text search
 
-### Phase 3
-- [ ] AI plugin / RAG chatbot
-- [ ] Auto link suggester
-- [ ] Note summarizer
+### Phase 3 (AI) — started
+- [x] Local RAG foundation: chunking, embeddings in SQLite, semantic retrieval
+- [x] Provider abstraction: OpenAI-compatible (cloud) + Ollama (local)
+- [x] Thread/Day analyzer (topic and time-window modes)
+- [ ] AI tag suggestions
+- [ ] AI link suggestions
+- [ ] Quiz generator
 - [ ] Flashcard plugin
 - [ ] Pomodoro plugin
 
@@ -360,17 +383,21 @@ Current theme status:
 - [x] UI-to-core boundary restored through hooks
 - [ ] Theme switcher UI
 
-### Phase 2 - Media (early)
+### Phase 2 - Media (in progress)
 - [x] PDF viewer with annotations
 - [x] Document conversion and import
-- [ ] Audio player with markers
+- [x] In-memory search (MiniSearch)
+- [x] Audio player + `[A0::…]` timestamps
+- [x] Voice recording from the mic
+- [x] Voice transcription (cloud OpenAI or local Whisper server; background jobs + sidebar tray)
+- [x] Markdown mirror/export (per-note + bulk, assets copied)
 - [ ] Player-assisted timestamp writing
-- [ ] Markdown mirror/export
 - [ ] HEVC transcoding support
-- [ ] In-memory search
 
-### Phase 3 - AI
-- [ ] RAG chatbot over local notes
-- [ ] Auto link suggestions
-- [ ] Note summaries
-- [ ] AI as a user-supplied-key plugin
+### Phase 3 - AI (complete)
+- [x] RAG foundation over local notes (user-supplied key or local Ollama)
+- [x] Thread/Day analyzer (+ unified scope chat: topic/time/note)
+- [x] Tag suggestions
+- [x] Link suggestions
+- [x] Quiz generator
+- [x] Index staleness detection

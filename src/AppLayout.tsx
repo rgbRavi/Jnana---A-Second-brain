@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./ui/Sidebar";
 import { NotesProvider } from "./context/NotesContext";
+import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
 import AppStyles from "./App.module.css"
 
@@ -19,7 +20,9 @@ function AppInner() {
 export default function AppLayout(){
     return (
         <NotesProvider>
-            <AppInner />
+            <TranscriptionProvider>
+                <AppInner />
+            </TranscriptionProvider>
         </NotesProvider>
     )
 }

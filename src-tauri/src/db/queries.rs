@@ -93,6 +93,66 @@ pub fn remove_link(conn: &Connection, from_id: &str, to_id: &str) -> Result<()> 
     Ok(())
 }
 
+/// Diff-and-apply the outbound wikilinks for one note, entirely in SQLite —
+/// one IPC round-trip instead of pulling every note + link into the WebView.
+///
+/// `titles` are the `[[wikilink]]` targets found in the note content, matched
+/// case-insensitively against note titles (Unicode-aware lowering happens here
+/// in Rust because SQLite's LOWER() only handles ASCII). Inbound links from
+/// other notes are untouched. Returns the (added, removed) target note ids so
+/// the frontend can emit its link events.
+pub fn sync_links_for_note(
+    conn: &mut Connection,
+    note_id: &str,
+    titles: &[String],
+) -> Result<(Vec<String>, Vec<String>)> {
+    use std::collections::HashSet;
+
+    let wanted: HashSet<String> = titles.iter().map(|t| t.trim().to_lowercase()).collect();
+
+    let tx = conn.transaction()?;
+
+    // Resolve wikilink titles → note ids (skipping self-links).
+    let mut target_ids: HashSet<String> = HashSet::new();
+    {
+        let mut stmt = tx.prepare("SELECT id, title FROM notes")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (id, title) = row?;
+            if id != note_id && wanted.contains(&title.trim().to_lowercase()) {
+                target_ids.insert(id);
+            }
+        }
+    }
+
+    let outbound: HashSet<String> = {
+        let mut stmt = tx.prepare("SELECT to_id FROM links WHERE from_id = ?1")?;
+        let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+        rows.collect::<Result<_>>()?
+    };
+
+    let added: Vec<String> = target_ids.difference(&outbound).cloned().collect();
+    let removed: Vec<String> = outbound.difference(&target_ids).cloned().collect();
+
+    for to_id in &added {
+        tx.execute(
+            "INSERT OR IGNORE INTO links (from_id, to_id) VALUES (?1, ?2)",
+            params![note_id, to_id],
+        )?;
+    }
+    for to_id in &removed {
+        tx.execute(
+            "DELETE FROM links WHERE from_id = ?1 AND to_id = ?2",
+            params![note_id, to_id],
+        )?;
+    }
+
+    tx.commit()?;
+    Ok((added, removed))
+}
+
 pub fn fetch_links_for_note(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
     let mut stmt = conn.prepare(
         "SELECT to_id FROM links WHERE from_id = ?1
@@ -252,4 +312,210 @@ pub fn fetch_favourite_note_ids(conn: &Connection) -> Result<Vec<String>> {
 pub fn remove_favourite(conn: &Connection, note_id: &str) -> Result<()> {
     conn.execute("DELETE FROM favourites WHERE note_id = ?1", params![note_id])?;
     Ok(())
+}
+
+// ─── Embeddings (RAG vector store) ──────────────────────
+
+pub struct EmbeddingRow {
+    pub id: String,
+    pub note_id: String,
+    pub chunk_index: i64,
+    pub chunk_text: String,
+    pub vector: Vec<f32>,
+    pub model: String,
+    pub created_at: i64,
+}
+
+/// Pack an f32 vector into a little-endian byte BLOB.
+fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(vector.len() * 4);
+    for v in vector {
+        bytes.extend_from_slice(&v.to_le_bytes());
+    }
+    bytes
+}
+
+/// Unpack a little-endian byte BLOB back into an f32 vector.
+fn blob_to_vector(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect()
+}
+
+/// Replace every embedding for a note in a single transaction.
+/// Re-indexing a note deletes its stale chunks first, then inserts the new set.
+pub fn replace_embeddings_for_note(
+    conn: &mut Connection,
+    note_id: &str,
+    rows: &[EmbeddingRow],
+) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    for row in rows {
+        let blob = vector_to_blob(&row.vector);
+        tx.execute(
+            "INSERT INTO embeddings
+               (id, note_id, chunk_index, chunk_text, vector, dim, model, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                row.id,
+                row.note_id,
+                row.chunk_index,
+                row.chunk_text,
+                blob,
+                row.vector.len() as i64,
+                row.model,
+                row.created_at,
+            ],
+        )?;
+    }
+    tx.commit()
+}
+
+pub fn delete_embeddings_for_note(conn: &Connection, note_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    Ok(())
+}
+
+/// A single stored chunk plus its decoded vector, used for in-memory search.
+pub struct StoredChunk {
+    pub note_id: String,
+    pub chunk_index: i64,
+    pub chunk_text: String,
+    pub vector: Vec<f32>,
+}
+
+/// Load every chunk vector. The vector store is small (one user's notes),
+/// so a full scan + cosine in Rust is fast enough and avoids a vector DB.
+pub fn fetch_all_chunks(conn: &Connection) -> Result<Vec<StoredChunk>> {
+    let mut stmt = conn.prepare(
+        "SELECT note_id, chunk_index, chunk_text, vector FROM embeddings",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let blob: Vec<u8> = row.get(3)?;
+        Ok(StoredChunk {
+            note_id: row.get(0)?,
+            chunk_index: row.get(1)?,
+            chunk_text: row.get(2)?,
+            vector: blob_to_vector(&blob),
+        })
+    })?;
+    rows.collect()
+}
+
+/// Distinct note ids that currently have at least one embedding,
+/// so the indexer can skip already-indexed notes.
+pub fn fetch_indexed_note_ids(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT note_id FROM embeddings")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn count_embeddings(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT COUNT(*) FROM embeddings", [], |r| r.get(0))
+}
+
+/// (note_id, latest embedding `created_at`) per indexed note, so the UI can
+/// flag notes edited since they were last indexed.
+pub fn fetch_index_times(conn: &Connection) -> Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare("SELECT note_id, MAX(created_at) FROM embeddings GROUP BY note_id")?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use crate::db::schema::run_migrations;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_insert_and_fetch_note() {
+        let conn = setup_db();
+        let note = NoteRow {
+            id: "1".to_string(),
+            title: "Test Note".to_string(),
+            content: "Hello World".to_string(),
+            tags: "[]".to_string(),
+            created_at: 12345,
+            updated_at: 12345,
+        };
+
+        insert_or_update_note(&conn, &note).unwrap();
+
+        let fetched = fetch_note(&conn, "1").unwrap();
+        assert_eq!(fetched.title, "Test Note");
+        assert_eq!(fetched.content, "Hello World");
+
+        let all = fetch_all_notes(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+    }
+
+    #[test]
+    fn test_sync_links_for_note() {
+        let mut conn = setup_db();
+        
+        // Insert notes
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        
+        insert_or_update_note(&conn, &note1).unwrap();
+        insert_or_update_note(&conn, &note2).unwrap();
+        insert_or_update_note(&conn, &note3).unwrap();
+
+        // 1. Initial sync (adds link to note 2)
+        let titles = vec!["target one".to_string()];
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &titles).unwrap();
+        assert_eq!(added, vec!["2".to_string()]);
+        assert!(removed.is_empty());
+
+        let links = fetch_links_for_note(&conn, "1").unwrap();
+        assert_eq!(links, vec!["2".to_string()]);
+
+        // 2. Second sync (removes note 2, adds note 3)
+        let titles = vec!["Target Two".to_string()];
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &titles).unwrap();
+        assert_eq!(added, vec!["3".to_string()]);
+        assert_eq!(removed, vec!["2".to_string()]);
+
+        let links = fetch_links_for_note(&conn, "1").unwrap();
+        assert_eq!(links, vec!["3".to_string()]);
+    }
+
+    #[test]
+    fn test_sync_links_skips_self_and_removes_stale() {
+        let mut conn = setup_db();
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        insert_or_update_note(&conn, &note1).unwrap();
+        insert_or_update_note(&conn, &note2).unwrap();
+
+        sync_links_for_note(&mut conn, "1", &vec!["target one".to_string()]).unwrap();
+
+        // Linking a note to its own title resolves to self → skipped, and the
+        // previously-added link is now stale → removed.
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["source".to_string()]).unwrap();
+        assert!(added.is_empty());
+        assert_eq!(removed, vec!["2".to_string()]);
+        assert!(fetch_links_for_note(&conn, "1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_sync_links_ignores_unresolved_titles() {
+        let mut conn = setup_db();
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        insert_or_update_note(&conn, &note1).unwrap();
+
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["does not exist".to_string()]).unwrap();
+        assert!(added.is_empty());
+        assert!(removed.is_empty());
+    }
 }

@@ -1,10 +1,14 @@
 import { useRef } from 'react'
+import { VoiceRecorder } from './VoiceRecorder'
 import Styles from './NoteCreator.module.css'
 
 interface Props {
   onInsertMarkdown: (markdown: string) => void
   onImageUpload: (file: File | undefined, onDone: () => void) => void
   onVideoUpload: () => void
+  onAudioUpload: () => void
+  onRecordAudio: (blob: Blob) => void
+  onRecordingChange?: (recording: boolean) => void
   onDocumentUpload: () => void
   disabled: boolean
 }
@@ -13,6 +17,9 @@ export function ComposerToolbar({
   onInsertMarkdown,
   onImageUpload,
   onVideoUpload,
+  onAudioUpload,
+  onRecordAudio,
+  onRecordingChange,
   onDocumentUpload,
   disabled,
 }: Props) {
@@ -53,6 +60,18 @@ export function ComposerToolbar({
         disabled={disabled}
         title="Attach Video"
       >🎬</button>
+      <button
+        className={Styles.composerIconBtn}
+        onClick={onAudioUpload}
+        disabled={disabled}
+        title="Attach Audio"
+      >🎵</button>
+      <VoiceRecorder
+        className={Styles.composerIconBtn}
+        onRecorded={onRecordAudio}
+        onRecordingChange={onRecordingChange}
+        disabled={disabled}
+      />
       <button
         className={Styles.composerIconBtn}
         onClick={onDocumentUpload}

@@ -1,5 +1,7 @@
-use crate::db::assets_dir;
+use crate::db::{assets_dir, is_within_assets, safe_asset_file};
 use std::fs;
+use std::path::PathBuf;
+use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 
 #[tauri::command]
@@ -8,8 +10,11 @@ pub fn save_asset(bytes: Vec<u8>, extension: String) -> Result<String, String> {
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create assets directory: {}", e))?;
 
+    // The extension is interpolated into the filename, so strip it to safe
+    // characters — otherwise a value like "../../evil" would escape the dir.
+    let ext: String = extension.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
     let id = Uuid::new_v4().to_string();
-    let filename = format!("{}.{}", id, extension);
+    let filename = if ext.is_empty() { id.clone() } else { format!("{}.{}", id, ext) };
     let filepath = dir.join(&filename);
 
     fs::write(&filepath, bytes)
@@ -20,17 +25,33 @@ pub fn save_asset(bytes: Vec<u8>, extension: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn get_asset(filename: String) -> Result<Vec<u8>, String> {
-    let filepath = assets_dir().join(&filename);
+    let filepath = safe_asset_file(&filename)?;
     fs::read(&filepath)
         .map_err(|e| format!("Failed to read asset {}: {}", filename, e))
 }
 
 #[tauri::command]
 pub fn get_asset_path(filename: String) -> Result<String, String> {
-    let filepath = assets_dir().join(&filename);
+    let filepath = safe_asset_file(&filename)?;
     if filepath.exists() {
         Ok(filepath.to_string_lossy().to_string())
     } else {
         Err(format!("Asset not found: {}", filename))
     }
+}
+
+/// Open an app-managed asset in the system's default application.
+///
+/// Replaces a blanket `opener:allow-open-path` capability: `path` must resolve
+/// to a file inside `assets_dir()`, so the WebView can only open files Jnana
+/// itself copied in (e.g. imported documents), never arbitrary host files.
+#[tauri::command]
+pub fn open_asset(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let target = PathBuf::from(&path);
+    if !is_within_assets(&target) {
+        return Err("Refusing to open a path outside the assets directory".into());
+    }
+    app.opener()
+        .open_path(target.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| format!("Failed to open asset: {}", e))
 }

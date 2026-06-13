@@ -3,8 +3,11 @@
 mod commands;
 mod db;
 
+use commands::ai::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::embeddings::*;
+use commands::export::*;
 use commands::media::*;
 use commands::notes::*;
 
@@ -19,6 +22,12 @@ fn mime_from_ext(ext: &str) -> &'static str {
         "avi" => "video/x-msvideo",
         "mkv" => "video/x-matroska",
         "ogg" => "video/ogg",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "aac" => "audio/aac",
+        "flac" => "audio/flac",
+        "oga" | "opus" => "audio/ogg",
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
@@ -38,19 +47,24 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         // Share the single connection with all commands via managed state.
         .manage(Mutex::new(conn))
+        // AI settings (incl. the API key) live Rust-side — see commands/ai.rs.
+        .manage(AiState(Mutex::new(load_config_from_disk())))
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
 
-            if filename.is_empty() {
-                return tauri::http::Response::builder()
-                    .status(400)
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(b"Missing filename".to_vec())
-                    .unwrap();
-            }
-
-            let filepath = db::assets_dir().join(filename);
+            // Shared guard: rejects traversal/absolute names and confirms the
+            // resolved file stays inside assets_dir() (see db::safe_asset_file).
+            let filepath = match db::safe_asset_file(filename) {
+                Ok(p) => p,
+                Err(_) => {
+                    return tauri::http::Response::builder()
+                        .status(400)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(b"Invalid filename".to_vec())
+                        .unwrap();
+                }
+            };
 
             if !filepath.exists() {
                 return tauri::http::Response::builder()
@@ -130,9 +144,11 @@ fn main() {
             get_all_links,
             create_link,
             remove_link,
+            sync_links,
             save_asset,
             get_asset,
             get_asset_path,
+            open_asset,
             import_media,
             convert_to_pdf,
             extract_text,
@@ -147,6 +163,17 @@ fn main() {
             add_favourite,
             get_favourite_note_ids,
             remove_favourite,
+            get_ai_config,
+            set_ai_config,
+            ai_request,
+            transcribe_audio,
+            export_notes,
+            save_note_embeddings,
+            search_embeddings,
+            delete_note_embeddings,
+            get_indexed_note_ids,
+            get_index_stats,
+            get_index_times,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
