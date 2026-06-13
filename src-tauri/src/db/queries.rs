@@ -415,3 +415,99 @@ pub fn fetch_indexed_note_ids(conn: &Connection) -> Result<Vec<String>> {
 pub fn count_embeddings(conn: &Connection) -> Result<i64> {
     conn.query_row("SELECT COUNT(*) FROM embeddings", [], |r| r.get(0))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+    use crate::db::schema::run_migrations;
+
+    fn setup_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_insert_and_fetch_note() {
+        let conn = setup_db();
+        let note = NoteRow {
+            id: "1".to_string(),
+            title: "Test Note".to_string(),
+            content: "Hello World".to_string(),
+            tags: "[]".to_string(),
+            created_at: 12345,
+            updated_at: 12345,
+        };
+
+        insert_or_update_note(&conn, &note).unwrap();
+
+        let fetched = fetch_note(&conn, "1").unwrap();
+        assert_eq!(fetched.title, "Test Note");
+        assert_eq!(fetched.content, "Hello World");
+
+        let all = fetch_all_notes(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+    }
+
+    #[test]
+    fn test_sync_links_for_note() {
+        let mut conn = setup_db();
+        
+        // Insert notes
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        
+        insert_or_update_note(&conn, &note1).unwrap();
+        insert_or_update_note(&conn, &note2).unwrap();
+        insert_or_update_note(&conn, &note3).unwrap();
+
+        // 1. Initial sync (adds link to note 2)
+        let titles = vec!["target one".to_string()];
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &titles).unwrap();
+        assert_eq!(added, vec!["2".to_string()]);
+        assert!(removed.is_empty());
+
+        let links = fetch_links_for_note(&conn, "1").unwrap();
+        assert_eq!(links, vec!["2".to_string()]);
+
+        // 2. Second sync (removes note 2, adds note 3)
+        let titles = vec!["Target Two".to_string()];
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &titles).unwrap();
+        assert_eq!(added, vec!["3".to_string()]);
+        assert_eq!(removed, vec!["2".to_string()]);
+
+        let links = fetch_links_for_note(&conn, "1").unwrap();
+        assert_eq!(links, vec!["3".to_string()]);
+    }
+
+    #[test]
+    fn test_sync_links_skips_self_and_removes_stale() {
+        let mut conn = setup_db();
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        insert_or_update_note(&conn, &note1).unwrap();
+        insert_or_update_note(&conn, &note2).unwrap();
+
+        sync_links_for_note(&mut conn, "1", &vec!["target one".to_string()]).unwrap();
+
+        // Linking a note to its own title resolves to self → skipped, and the
+        // previously-added link is now stale → removed.
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["source".to_string()]).unwrap();
+        assert!(added.is_empty());
+        assert_eq!(removed, vec!["2".to_string()]);
+        assert!(fetch_links_for_note(&conn, "1").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_sync_links_ignores_unresolved_titles() {
+        let mut conn = setup_db();
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        insert_or_update_note(&conn, &note1).unwrap();
+
+        let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["does not exist".to_string()]).unwrap();
+        assert!(added.is_empty());
+        assert!(removed.is_empty());
+    }
+}

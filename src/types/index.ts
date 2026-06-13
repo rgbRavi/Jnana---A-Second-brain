@@ -15,7 +15,7 @@ export interface Link {
 export interface MediaRef {
   id: string
   noteId: string
-  mediaType: 'pdf' | 'video' | 'youtube' | 'audio' | 'image'
+  mediaType: 'pdf' | 'video' | 'youtube' | 'audio' | 'image' | 'document'
   path: string
   meta: VideoMeta | PdfMeta | AudioMeta | {}
 }

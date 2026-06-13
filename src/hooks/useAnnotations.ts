@@ -30,7 +30,9 @@ export function useAnnotations(noteId: string) {
   useEffect(() => {
     const onCreate = (a: Annotation) => {
       if (a.noteId !== noteId) return
-      setAnnotations((prev) => [...prev, a])
+      // Idempotent: the creating component already appended optimistically, so
+      // skip if we've seen this id (mirrors the note:saved handling in useNotes).
+      setAnnotations((prev) => (prev.some((x) => x.id === a.id) ? prev : [...prev, a]))
     }
     const onUpdate = ({ id, content }: { id: string; content: string }) => {
       setAnnotations((prev) =>
@@ -92,7 +94,8 @@ export function useMediaAnnotations(mediaId: string) {
   useEffect(() => {
     const onCreate = (a: Annotation) => {
       if (a.mediaId !== mediaId) return
-      setAnnotations((prev) => [...prev, a])
+      // Idempotent: skip if the optimistic create already added this id.
+      setAnnotations((prev) => (prev.some((x) => x.id === a.id) ? prev : [...prev, a]))
     }
     const onUpdate = ({ id, content }: { id: string; content: string }) => {
       setAnnotations((prev) =>

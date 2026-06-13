@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' jnana-asset: http://jnana-asset.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self' jnana-asset: http://jnana-asset.localhost blob:; img-src 'self' data: jnana-asset: http://jnana-asset.localhost; frame-src https://www.youtube-nocookie.com https://www.youtube.com; fullscreen *"
+      "csp": "default-src 'self' jnana-asset: http://jnana-asset.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' jnana-asset: http://jnana-asset.localhost blob:; img-src 'self' data: jnana-asset: http://jnana-asset.localhost; frame-src https://www.youtube-nocookie.com https://www.youtube.com; fullscreen *"
     }
   },
   "bundle": {

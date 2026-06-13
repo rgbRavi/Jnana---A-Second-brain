@@ -125,3 +125,34 @@ fn migrate_v3(conn: &Connection) -> Result<()> {
         ",
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn test_run_migrations() {
+        let conn = Connection::open_in_memory().unwrap();
+        let result = run_migrations(&conn);
+        assert!(result.is_ok());
+
+        // Verify version is 3
+        let version: i32 = conn
+            .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+
+        // Verify tables exist
+        let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
+        let tables: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+        
+        assert!(tables.contains(&"notes".to_string()));
+        assert!(tables.contains(&"links".to_string()));
+        assert!(tables.contains(&"embeddings".to_string()));
+
+        // Running again should be safe (idempotent)
+        let result2 = run_migrations(&conn);
+        assert!(result2.is_ok());
+    }
+}
