@@ -132,6 +132,17 @@ pub async fn ai_request(
         return Err("AI base URL must be http(s)".into());
     }
 
+    // Don't transmit an API key in cleartext to a remote host. Local providers
+    // (e.g. Ollama on localhost over http) are exempt; everything else must use
+    // https when a key is set.
+    let host = base.host_str().unwrap_or("");
+    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+    if !config.api_key.is_empty() && base.scheme() == "http" && !is_loopback {
+        return Err(
+            "Refusing to send the API key over http to a non-local host — use https.".into(),
+        );
+    }
+
     if !path.starts_with('/') || path.starts_with("//") || path.contains("..") {
         return Err(format!("Invalid AI endpoint path: {}", path));
     }

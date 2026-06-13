@@ -6,6 +6,16 @@ import { NoteItem } from '../editor/NoteItem'
 import { SearchDocs } from '../SearchDocs'
 import type { Note } from '../../types'
 
+/** Escape user text before it's interpolated into the tooltip's raw HTML. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 interface Props {
   // Received from App.tsx which owns the single useNotes instance.
   // GraphView never calls useNotes() directly — that would create a second
@@ -145,7 +155,11 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           const preview =
             n.content.substring(0, 100).replace(/\n/g, ' ') +
             (n.content.length > 100 ? '…' : '')
-          return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--text-1);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${n.title}</strong><br/><span style="color:var(--text-2)">${preview}</span></div>`
+          // nodeLabel is rendered as raw HTML — escape note-derived text to
+          // prevent markup in a title/content from injecting into the tooltip.
+          const title = escapeHtml(n.title ?? '')
+          const safePreview = escapeHtml(preview)
+          return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--text-1);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${title}</strong><br/><span style="color:var(--text-2)">${safePreview}</span></div>`
         }}
         onNodeHover={(node: any) => setHoverNodeId(node ? node.id : null)}
         onNodeDragEnd={() => {

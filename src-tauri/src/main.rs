@@ -46,34 +46,20 @@ fn main() {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
 
-            // Assets are stored flat in assets_dir() under generated names, so a
-            // legitimate request never contains a path separator, a parent-dir
-            // segment, or percent-encoding. Reject anything else outright to keep
-            // this handler from reading arbitrary host files.
-            let is_safe = !filename.is_empty()
-                && !filename.contains(['/', '\\', '%'])
-                && filename != ".."
-                && !std::path::Path::new(filename).is_absolute();
-
-            if !is_safe {
-                return tauri::http::Response::builder()
-                    .status(400)
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(b"Invalid filename".to_vec())
-                    .unwrap();
-            }
-
-            let filepath = db::assets_dir().join(filename);
-
-            // Defense in depth: the resolved file must still live inside assets_dir().
-            let assets_root = db::assets_dir().canonicalize().ok();
-            let resolved = filepath.canonicalize().ok();
-            let inside_assets = match (resolved, assets_root) {
-                (Some(resolved), Some(root)) => resolved.starts_with(root),
-                _ => false,
+            // Shared guard: rejects traversal/absolute names and confirms the
+            // resolved file stays inside assets_dir() (see db::safe_asset_file).
+            let filepath = match db::safe_asset_file(filename) {
+                Ok(p) => p,
+                Err(_) => {
+                    return tauri::http::Response::builder()
+                        .status(400)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(b"Invalid filename".to_vec())
+                        .unwrap();
+                }
             };
 
-            if !inside_assets || !filepath.exists() {
+            if !filepath.exists() {
                 return tauri::http::Response::builder()
                     .status(404)
                     .header("Access-Control-Allow-Origin", "*")
@@ -155,6 +141,7 @@ fn main() {
             save_asset,
             get_asset,
             get_asset_path,
+            open_asset,
             import_media,
             convert_to_pdf,
             extract_text,

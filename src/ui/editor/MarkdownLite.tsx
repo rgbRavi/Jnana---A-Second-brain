@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { openPath } from '@tauri-apps/plugin-opener'
+import { invoke } from '@tauri-apps/api/core'
 import { useNotesContext } from '../../context/NotesContext'
 import { eventBus } from '../../lib/eventBus'
 import { AsyncImage } from '../AsyncImage'
@@ -115,7 +115,7 @@ function ExternalDocLink({ name, path }: { name: string; path: string }) {
       <span className={MdStyles.noteExternalDocName}>{displayName}</span>
       <button
         className={MdStyles.noteExternalDocBtn}
-        onClick={() => openPath(path).catch(console.error)}
+        onClick={() => invoke('open_asset', { path }).catch(console.error)}
       >
         Open
       </button>

@@ -11,6 +11,7 @@ import { retrieve } from './rag'
 
 const MAX_CONTEXT_NOTES = 8
 const MAX_CHARS_PER_NOTE = 1500
+const MAX_HISTORY_TURNS = 6
 
 const SYSTEM_PROMPT = `You are a study analyst embedded in a personal knowledge app.
 You are given excerpts from the user's OWN notes. Analyze ONLY what is present in
@@ -26,6 +27,74 @@ Respond with a SINGLE JSON object and nothing else, matching exactly:
 }
 Keep each list item short (one line). Use [] for a list with no items. Output JSON only.`
 
+const ASK_SYSTEM_PROMPT = `You are a study assistant embedded in a personal knowledge app.
+Answer the user's question using ONLY the excerpts from their own notes provided
+below. If the notes don't contain the answer, say so plainly — never invent facts
+or fill gaps with outside knowledge. Be concise and direct, in plain text.`
+
+/**
+ * Resolve which notes form the context for an analysis or question.
+ *
+ * - `topic` mode uses semantic retrieval over the vector store.
+ * - `window` mode pulls notes created/updated within a time range.
+ * - `note` mode takes one note plus the notes linked to it (its thread).
+ */
+async function resolveContextNotes(
+  input: AnalyzeInput,
+  config: AiConfig,
+  notes: Note[],
+): Promise<Note[]> {
+  const byId = new Map(notes.map((n) => [n.id, n]))
+
+  if (input.mode === 'topic') {
+    const hits = await retrieve(input.query, config, MAX_CONTEXT_NOTES * 2)
+    // Collapse chunk hits to unique notes, preserving relevance order.
+    const seen = new Set<string>()
+    const contextNotes: Note[] = []
+    for (const hit of hits) {
+      if (seen.has(hit.noteId)) continue
+      seen.add(hit.noteId)
+      const note = byId.get(hit.noteId)
+      if (note) contextNotes.push(note)
+      if (contextNotes.length >= MAX_CONTEXT_NOTES) break
+    }
+    return contextNotes
+  }
+
+  if (input.mode === 'note') {
+    // The selected note first, then its thread: notes linked in either
+    // direction, most recently touched first.
+    const root = byId.get(input.noteId)
+    if (!root) return []
+    let linkedIds: string[] = []
+    try {
+      linkedIds = await getLinks(root.id)
+    } catch (err) {
+      console.error('[analyze] failed to load linked notes:', err)
+    }
+    const linked = linkedIds
+      .map((id) => byId.get(id))
+      .filter((n): n is Note => !!n && n.id !== root.id)
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    return [root, ...linked.slice(0, MAX_CONTEXT_NOTES - 1)]
+  }
+
+  return notes
+    .filter((n) => {
+      const t = n.updatedAt ?? n.createdAt
+      return t >= input.since && t <= input.until
+    })
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+    .slice(0, MAX_CONTEXT_NOTES)
+}
+
+function toSourceNotes(contextNotes: Note[]): SourceNote[] {
+  return contextNotes.map((n) => ({
+    noteId: n.id,
+    title: n.title?.trim() || 'Untitled',
+  }))
+}
+
 /** Build the context block sent to the model from a set of notes. */
 function buildContext(snippets: { title: string; text: string }[]): string {
   return snippets
@@ -33,8 +102,25 @@ function buildContext(snippets: { title: string; text: string }[]): string {
     .join('\n\n')
 }
 
+function contextBlockFor(contextNotes: Note[]): string {
+  return buildContext(
+    contextNotes.map((n) => ({ title: n.title?.trim() || 'Untitled', text: n.content })),
+  )
+}
+
+function emptyContextMessage(input: AnalyzeInput): string {
+  switch (input.mode) {
+    case 'topic':
+      return 'No indexed notes matched that topic. Try indexing your notes or a different phrasing.'
+    case 'note':
+      return 'That note could not be found — it may have been deleted.'
+    default:
+      return 'No notes were found in that time window.'
+  }
+}
+
 /** Tolerantly extract a JSON object from a model response (handles code fences/prose). */
-function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> {
+export function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> {
   let text = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
@@ -53,78 +139,22 @@ function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> {
 }
 
 /**
- * Run the Thread/Day analyzer.
+ * Run the Thread/Day analyzer over the context selected by `input`.
  *
- * - `topic` mode uses semantic retrieval over the vector store.
- * - `window` mode pulls notes created/updated within a time range.
- * - `note` mode analyzes one note plus the notes linked to it (its thread).
- *
- * In all cases the source notes are resolved from the actual notes used as
- * context, so the cited sources can never be hallucinated by the model.
+ * The source notes are resolved from the actual notes used as context, so the
+ * cited sources can never be hallucinated by the model.
  */
 export async function analyze(
   input: AnalyzeInput,
   config: AiConfig,
   notes: Note[],
 ): Promise<AnalysisResult> {
-  const byId = new Map(notes.map((n) => [n.id, n]))
-  let contextNotes: Note[]
-
-  if (input.mode === 'topic') {
-    const hits = await retrieve(input.query, config, MAX_CONTEXT_NOTES * 2)
-    // Collapse chunk hits to unique notes, preserving relevance order.
-    const seen = new Set<string>()
-    contextNotes = []
-    for (const hit of hits) {
-      if (seen.has(hit.noteId)) continue
-      seen.add(hit.noteId)
-      const note = byId.get(hit.noteId)
-      if (note) contextNotes.push(note)
-      if (contextNotes.length >= MAX_CONTEXT_NOTES) break
-    }
-  } else if (input.mode === 'note') {
-    // The selected note first, then its thread: notes linked in either
-    // direction, most recently touched first.
-    contextNotes = []
-    const root = byId.get(input.noteId)
-    if (root) {
-      contextNotes.push(root)
-      let linkedIds: string[] = []
-      try {
-        linkedIds = await getLinks(root.id)
-      } catch (err) {
-        console.error('[analyze] failed to load linked notes:', err)
-      }
-      const linked = linkedIds
-        .map((id) => byId.get(id))
-        .filter((n): n is Note => !!n && n.id !== root.id)
-        .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-      contextNotes.push(...linked.slice(0, MAX_CONTEXT_NOTES - 1))
-    }
-  } else {
-    contextNotes = notes
-      .filter((n) => {
-        const t = n.updatedAt ?? n.createdAt
-        return t >= input.since && t <= input.until
-      })
-      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-      .slice(0, MAX_CONTEXT_NOTES)
-  }
-
-  const sourceNotes: SourceNote[] = contextNotes.map((n) => ({
-    noteId: n.id,
-    title: n.title?.trim() || 'Untitled',
-  }))
+  const contextNotes = await resolveContextNotes(input, config, notes)
+  const sourceNotes = toSourceNotes(contextNotes)
 
   if (contextNotes.length === 0) {
-    const emptyMessage =
-      input.mode === 'topic'
-        ? 'No indexed notes matched that topic. Try indexing your notes or a different phrasing.'
-        : input.mode === 'note'
-          ? 'That note could not be found — it may have been deleted.'
-          : 'No notes were found in that time window.'
     return {
-      summary: emptyMessage,
+      summary: emptyContextMessage(input),
       keyConcepts: [],
       openQuestions: [],
       weakSpots: [],
@@ -132,9 +162,7 @@ export async function analyze(
     }
   }
 
-  const context = buildContext(
-    contextNotes.map((n) => ({ title: n.title?.trim() || 'Untitled', text: n.content })),
-  )
+  const context = contextBlockFor(contextNotes)
   const focus =
     input.mode === 'topic'
       ? `The user wants to understand what they've learned about: "${input.query}".`
@@ -162,6 +190,59 @@ export async function analyze(
       sourceNotes,
     }
   }
+}
+
+/** One question/answer exchange in a grounded follow-up conversation. */
+export interface AskTurn {
+  question: string
+  answer: string
+}
+
+export interface AskResult {
+  answer: string
+  sourceNotes: SourceNote[]
+}
+
+/**
+ * Ask a free-form question against the same note context an analysis uses
+ * (topic retrieval, time window, or note + thread). Earlier turns are folded
+ * into the prompt so follow-ups read like a conversation, while the answer
+ * stays grounded in the user's own notes.
+ */
+export async function askNotes(
+  input: AnalyzeInput,
+  question: string,
+  history: AskTurn[],
+  config: AiConfig,
+  notes: Note[],
+): Promise<AskResult> {
+  const contextNotes = await resolveContextNotes(input, config, notes)
+  const sourceNotes = toSourceNotes(contextNotes)
+
+  if (contextNotes.length === 0) {
+    return { answer: emptyContextMessage(input), sourceNotes: [] }
+  }
+
+  const convo = history
+    .slice(-MAX_HISTORY_TURNS)
+    .map((t) => `Q: ${t.question}\nA: ${t.answer}`)
+    .join('\n\n')
+
+  const prompt = [
+    `Here are the user's notes:\n\n${contextBlockFor(contextNotes)}`,
+    convo ? `Earlier in this conversation:\n\n${convo}` : '',
+    `Question: ${question}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const provider = getProvider(config)
+  const answer = await provider.complete(prompt, {
+    system: ASK_SYSTEM_PROMPT,
+    temperature: 0.3,
+  })
+
+  return { answer: answer.trim(), sourceNotes }
 }
 
 /** Convenience builders for the common time windows offered in the UI. */

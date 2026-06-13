@@ -32,7 +32,7 @@ export async function inferTags(note: Note): Promise<string[]> {
     // ── Content-based tags (regex on note text) ───────────────────
     if (/https?:\/\//.test(content))        tags.push('has:link');
     if (/\[\[.*?\]\]/.test(content))        tags.push('has:wikilink');
-    if (/\(external:\/\/+\)/.test(content)) tags.push('has:docxlink');
+    if (/\(external:\/\//.test(content)) tags.push('has:docxlink');
 
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount > 1000)                   tags.push('long-form');
