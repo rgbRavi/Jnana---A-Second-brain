@@ -101,7 +101,9 @@ export function useRag() {
     }
 
     const handleDeleted = ({ id }: { id: string }) => {
-      void removeNoteFromIndex(id).then(refreshStats).catch(() => {})
+      void removeNoteFromIndex(id)
+        .then(refreshStats)
+        .catch((err) => console.error('[useRag] failed to de-index deleted note:', err))
     }
 
     eventBus.on('note:saved', handleSaved)

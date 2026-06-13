@@ -68,8 +68,9 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 
 ## Phase C — Polish & consistency pass (after Phase B's feature set is stable)
 
-- [ ] Extract a shared `<Modal>` component (NoteModal + AI settings modal currently duplicate
-      the overlay/container pattern) and reuse everywhere.
+- [ ] Extract a shared `<Modal>` component (NoteModal + the MarkdownLite lightbox / PDF
+      fullscreen duplicate the overlay/container pattern; the old AI-settings modal classes in
+      `Ai.module.css` are now dead and can go).
 - [ ] Establish design tokens / a small component layer; apply consistent styling across the
       now-complete feature set.
 - [ ] Dark/light theme toggle (pure UI — belongs in this pass; students study at night).
@@ -78,6 +79,20 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       (`PdfViewer.tsx`).
 - [ ] CSP runtime check: confirm the `script-src 'self'` tightening holds in `tauri dev`;
       revisit `style-src 'unsafe-inline'` (needs nonces) only if worth it.
+- [ ] **Hybrid markdown AST renderer (remark) — only if pursuing rich formatting.** NOT a perf
+      fix: editing uses a `<textarea>`, so MarkdownLite only parses on *view*, not per keystroke
+      (the "typing latency" claim doesn't apply). If many note cards re-parse on save, memoize
+      parsed segments by content string first — cheap, no dependency. Adopt remark *only* to
+      unlock real markdown (headings/bold/lists/code/**tables**). If so: do it as a hybrid —
+      remark + remark-gfm for standard syntax, custom micromark/remark extensions for the
+      app's tokens (`[[wikilink]]`, `![audio|video|youtube|pdf]`, `[V/A/D::…]`), rendering the
+      AST to the **existing** embed components. Hardest part: preserve document-order media
+      indexing (`data-video-index`/`data-audio-index`) for timestamp seeking. Adds ~100 KB+ to
+      the bundle. Sequence after the polish items above.
+- [ ] **Tables** — full spec in [TABLES.md](TABLES.md). Fenced `table` block holding CSV,
+      rendered by a `TableEmbed` and authored via a hand-rolled grid `TableEditor` (add/remove
+      row+col, **paste TSV from spreadsheets**), exported to a GFM pipe table. Ships on the
+      current renderer; composes with remark-gfm later.
 
 ---
 
@@ -90,6 +105,25 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 - [ ] Embedding search scans all chunks per query — fine at personal scale; revisit only if
       retrieval latency becomes noticeable (>10k chunks).
 - [ ] Grow test coverage alongside features (component tests via testing-library now available).
+
+## Graph enhancements (next session)
+
+Fixed already: drag/zoom freeze (removed `pauseAnimation`), node-position cache so connecting
+doesn't reflow the graph, and a connect-nodes mode (appends `[[title]]` to the source note so
+the edge is durable). Remaining ideas, roughly best value-for-effort first:
+
+- [ ] **Disconnect a link** — the complement to Connect; the feature is one-way without it. A
+      click-an-edge or "disconnect mode" that **strips the `[[wikilink]]` from the source note's
+      content** (mirror of connect — not a raw `dropLink`, or sync would re-add it). `useGraph`
+      has `dropLink` but it must go through content to be durable.
+- [ ] **Tag-based coloring / clustering** — color or cluster nodes by tag. Highest "this is my
+      second brain" payoff and reuses the existing tag system the graph currently ignores.
+- [ ] **Orphan / hub highlighting** — flag notes with no links (worth connecting) and heavily
+      linked hubs; cheap to compute from edges.
+- [ ] **Filter the visible graph** — by tag / date / search match (search currently only focuses
+      one node; let it narrow the visible set).
+- [ ] **Directed edges** — arrowheads showing which note links to which (links are directional).
+- [ ] **Pin layout** — let dragged nodes stay put instead of the force layout reflowing them.
 
 ## Explicitly deferred (don't do yet)
 

@@ -8,13 +8,21 @@ import { eventBus } from '../lib/eventBus'
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Load all notes on mount
   useEffect(() => {
-    getAllNotes().then((fetched) => {
-      setNotes(fetched)
-      setLoading(false)
-    })
+    getAllNotes()
+      .then((fetched) => {
+        setNotes(fetched)
+        setLoading(false)
+      })
+      .catch((err) => {
+        // Don't leave the list hung on "Loading…" with no signal.
+        console.error('Failed to load notes:', err)
+        setError('Could not load your notes.')
+        setLoading(false)
+      })
   }, [])
 
   // Stay in sync when any note is saved — optimistic update already applied
@@ -117,5 +125,5 @@ export function useNotes() {
     if (saved) await saveNote(saved)
   }, [])
 
-  return { notes, loading, create, update, updateTags, remove }
+  return { notes, loading, error, create, update, updateTags, remove }
 }

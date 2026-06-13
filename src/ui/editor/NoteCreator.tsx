@@ -1,14 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Note } from '../../types'
-import { useDocumentUpload } from '../../hooks/useDocumentUpload'
-import { useNoteAttachments } from '../../hooks/useNoteAttachments'
+import { useComposer } from '../../hooks/useComposer'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
 import { useNotesContext } from '../../context/NotesContext'
-import { isAutoTag } from '../../core/tags'
 import { TagEditor } from '../TagEditor'
-import { TagSuggestions } from '../ai/TagSuggestions'
-import { LinkSuggestions } from '../ai/LinkSuggestions'
+import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteCreator.module.css'
 import FavStyles from './FavouriteBtn.module.css'
@@ -23,8 +20,6 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const [content, setContent] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saveFavourite, setSaveFavourite] = useState(false)
   // Bumped on save to remount the AI suggestion panels, clearing their results
@@ -37,8 +32,13 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
   const { notes } = useNotesContext()
 
-  // Tag vocabulary across all notes (no auto-tags), for AI suggestions on the draft.
-  const tagVocabulary = [...new Set(notes.flatMap((n) => n.tags).filter((t) => !isAutoTag(t)))]
+  const { uploading, isRecording, toolbarProps } = useComposer({
+    noteId: pendingNoteId.current,
+    appendMarkdown: (md) => setContent((prev) => prev + md),
+    focusTextarea: () => textareaRef.current?.focus(),
+    onRegisterPendingMedia: addPendingMedia,
+  })
+
   const draftNote: Note = {
     id: pendingNoteId.current,
     title,
@@ -47,23 +47,6 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }
-
-  const { handleDocumentUpload } = useDocumentUpload({
-    noteId: pendingNoteId.current,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => { setUploading(false); textareaRef.current?.focus() },
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-    onRegisterPendingMedia: addPendingMedia,
-  })
-
-  const { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
-    noteId: pendingNoteId.current,
-    onUploadStart: () => setUploading(true),
-    onUploadFinish: () => setUploading(false),
-    onInsertMarkdown: (md) => setContent((prev) => prev + md),
-    onFocus: () => textareaRef.current?.focus(),
-    onRegisterPendingMedia: addPendingMedia,
-  })
 
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
@@ -123,17 +106,12 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       />
       <div className={Styles.composerTagSection}>
         <TagEditor tags={tags} onChange={setTags} />
-        <TagSuggestions
-          key={`tags-${draftKey}`}
-          note={draftNote}
-          vocabulary={tagVocabulary}
-          currentTags={tags}
-          onAccept={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-        />
-        <LinkSuggestions
-          key={`links-${draftKey}`}
+        <ComposerSuggestions
+          key={draftKey}
           note={draftNote}
           allNotes={notes}
+          currentTags={tags}
+          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
           onAddLink={(linkTitle) => {
             const wl = `[[${linkTitle}]]`
             setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
@@ -152,16 +130,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       <div className={Styles.composerFooter}>
         <span className={Styles.composerHint}>⌘ enter to save</span>
         <div className={Styles.composerActionsRight}>
-          <ComposerToolbar
-            onInsertMarkdown={(md) => setContent((prev) => prev + md)}
-            onImageUpload={handleImageUpload}
-            onVideoUpload={() => void handleVideoUpload()}
-            onAudioUpload={() => void handleAudioUpload()}
-            onRecordAudio={(blob) => void handleAudioBlob(blob)}
-            onRecordingChange={setIsRecording}
-            onDocumentUpload={handleDocumentUpload}
-            disabled={saving || uploading}
-          />
+          <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
           <span
             style={{ display: 'inline-flex' }}
             title={isRecording ? 'Finish recording before save' : undefined}

@@ -29,12 +29,17 @@ export function useGraph() {
   // Load everything on mount
   useEffect(() => {
     async function load() {
-      const [notes, links] = await Promise.all([getAllNotes(), getAllLinks()])
-      setNodes(notes.map(noteToNode))
-      setEdges(links.map(([from, to]) => ({ source: from, target: to })))
-      setLoading(false)
+      try {
+        const [notes, links] = await Promise.all([getAllNotes(), getAllLinks()])
+        setNodes(notes.map(noteToNode))
+        setEdges(links.map(([from, to]) => ({ source: from, target: to })))
+      } catch (err) {
+        console.error('Failed to load graph:', err)
+      } finally {
+        setLoading(false)
+      }
     }
-    load()
+    void load()
   }, [])
 
   // When a note is saved, upsert it in the node list.
