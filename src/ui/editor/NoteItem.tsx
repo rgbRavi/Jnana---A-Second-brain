@@ -3,7 +3,10 @@ import { MarkdownLite } from './MarkdownLite'
 import type { Note } from '../../types'
 import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
+import { useNotesContext } from '../../context/NotesContext'
 import { TagEditor } from '../TagEditor'
+import { TagSuggestions } from '../ai/TagSuggestions'
+import { LinkSuggestions } from '../ai/LinkSuggestions'
 import { isAutoTag } from '../../core/tags'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteItem.module.css'
@@ -23,6 +26,8 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const { notes } = useNotesContext()
+  const tagVocabulary = [...new Set(notes.flatMap((n) => n.tags).filter((t) => !isAutoTag(t)))]
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const { handleDocumentUpload } = useDocumentUpload({
@@ -95,6 +100,20 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
         <TagEditor
           tags={tags}
           onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
+        />
+        <TagSuggestions
+          note={{ ...note, title, content, tags }}
+          vocabulary={tagVocabulary}
+          currentTags={tags.filter((t) => !isAutoTag(t))}
+          onAccept={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+        />
+        <LinkSuggestions
+          note={{ ...note, title, content, tags }}
+          allNotes={notes}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
         />
         <textarea
           ref={textareaRef}

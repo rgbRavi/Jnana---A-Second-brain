@@ -448,6 +448,20 @@
 
 .settingsBtn:hover { border-color: var(--border-hover); }
 
+/* ─── Provider settings sections ─── */
+.providerSection {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.subhead {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0 0 0.5rem;
+}
+
 /* ─── Settings modal (mirrors NoteModal overlay pattern) ─── */
 .modalOverlay {
   position: fixed;
@@ -575,6 +589,70 @@
   gap: 0.4rem;
   align-items: flex-start;
   width: 100%;
+}
+
+/* ─── Quiz ─── */
+.quizItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.quizQ {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.quizKind {
+  display: inline-block;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: rgba(124, 106, 247, 0.12);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+.quizReveal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.quizReveal:hover { border-color: var(--accent); color: var(--text-1); }
+
+.quizAnswer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--accent);
+}
+
+.quizA {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.quizExpl {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-3);
 }
 
 .disabledNote {

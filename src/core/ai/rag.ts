@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { AiConfig, IndexStats, Note, RetrievalHit } from '../../types'
+import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../types'
 import { chunkNote } from './chunk'
-import { getProvider } from './provider'
+import { getEmbeddingProvider } from './provider'
 
 /**
  * Embed a note's chunks and persist them to the local vector store.
@@ -17,8 +17,7 @@ export async function indexNote(note: Note, config: AiConfig): Promise<number> {
     return 0
   }
 
-  const provider = getProvider(config)
-  const vectors = await provider.embed(chunks.map((c) => c.chunkText))
+  const vectors = await getEmbeddingProvider(config).embed(chunks.map((c) => c.chunkText))
 
   const payload = chunks.map((c, i) => ({
     chunkIndex: c.chunkIndex,
@@ -28,7 +27,7 @@ export async function indexNote(note: Note, config: AiConfig): Promise<number> {
 
   await invoke('save_note_embeddings', {
     noteId: note.id,
-    model: provider.embeddingModel,
+    model: config.embeddingModel,
     chunks: payload,
   })
 
@@ -50,8 +49,7 @@ export async function retrieve(
   topK = 8,
 ): Promise<RetrievalHit[]> {
   if (!query.trim()) return []
-  const provider = getProvider(config)
-  const [queryVector] = await provider.embed([query])
+  const [queryVector] = await getEmbeddingProvider(config).embed([query])
   if (!queryVector) return []
 
   return invoke<RetrievalHit[]>('search_embeddings', {
@@ -66,6 +64,24 @@ export async function getIndexedNoteIds(): Promise<string[]> {
 
 export async function getIndexStats(): Promise<IndexStats> {
   return invoke<IndexStats>('get_index_stats')
+}
+
+/** When each indexed note was last embedded — used to detect stale notes. */
+export async function getIndexTimes(): Promise<IndexTime[]> {
+  return invoke<IndexTime[]>('get_index_times')
+}
+
+/**
+ * Notes that need (re)indexing: have embeddable text but were never indexed,
+ * or were edited (`updatedAt`) after their last embedding.
+ */
+export function staleNotes(notes: Note[], indexTimes: IndexTime[]): Note[] {
+  const indexedAt = new Map(indexTimes.map((t) => [t.noteId, t.indexedAt]))
+  return notes.filter((n) => {
+    if (chunkNote(n).length === 0) return false // nothing to embed
+    const at = indexedAt.get(n.id)
+    return at === undefined || (n.updatedAt ?? 0) > at
+  })
 }
 
 /**

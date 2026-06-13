@@ -1,24 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, AiProviderKind, TranscriptionProviderKind } from '../../types'
 
-/** Pre-Rust-storage location of the config; migrated away on first load. */
+/** Pre-Rust-storage location of the config; cleared on load. */
 const LEGACY_STORAGE_KEY = 'jnana.ai.config'
 
-/**
- * Per-provider defaults. The hybrid design means switching `provider` swaps
- * sensible base URLs and model names without the user re-typing everything.
- */
-const PROVIDER_DEFAULTS: Record<AiProviderKind, Pick<AiConfig, 'baseUrl' | 'embeddingModel' | 'chatModel'>> = {
-  openai: {
-    baseUrl: 'https://api.openai.com/v1',
-    embeddingModel: 'text-embedding-3-small',
-    chatModel: 'gpt-4o-mini',
-  },
-  ollama: {
-    baseUrl: 'http://localhost:11434',
-    embeddingModel: 'nomic-embed-text',
-    chatModel: 'llama3.1',
-  },
+/** Per-provider chat defaults — swapped in when the chat provider changes. */
+const CHAT_DEFAULTS: Record<AiProviderKind, Pick<AiConfig, 'chatBaseUrl' | 'chatModel'>> = {
+  openai: { chatBaseUrl: 'https://api.openai.com/v1', chatModel: 'gpt-4o-mini' },
+  ollama: { chatBaseUrl: 'http://localhost:11434', chatModel: 'llama3.1' },
+}
+
+/** Per-provider embedding defaults — independent of chat. */
+const EMBED_DEFAULTS: Record<AiProviderKind, Pick<AiConfig, 'embeddingBaseUrl' | 'embeddingModel'>> = {
+  openai: { embeddingBaseUrl: 'https://api.openai.com/v1', embeddingModel: 'text-embedding-3-small' },
+  ollama: { embeddingBaseUrl: 'http://localhost:11434', embeddingModel: 'nomic-embed-text' },
 }
 
 /**
@@ -30,30 +25,38 @@ const TRANSCRIPTION_DEFAULTS: Record<
   TranscriptionProviderKind,
   Pick<AiConfig, 'transcriptionBaseUrl' | 'transcriptionModel'>
 > = {
-  openai: {
-    transcriptionBaseUrl: 'https://api.openai.com/v1',
-    transcriptionModel: 'whisper-1',
-  },
-  local: {
-    transcriptionBaseUrl: 'http://localhost:8000/v1',
-    transcriptionModel: 'Systran/faster-whisper-small',
-  },
+  openai: { transcriptionBaseUrl: 'https://api.openai.com/v1', transcriptionModel: 'whisper-1' },
+  local: { transcriptionBaseUrl: 'http://localhost:8000/v1', transcriptionModel: 'Systran/faster-whisper-small' },
 }
 
-export function defaultConfig(provider: AiProviderKind = 'ollama'): AiConfig {
+export function defaultConfig(): AiConfig {
   return {
     enabled: false,
-    provider,
-    apiKey: '',
-    hasApiKey: false,
     autoIndex: true,
+    chatProvider: 'ollama',
+    chatApiKey: '',
+    hasChatApiKey: false,
+    ...CHAT_DEFAULTS.ollama,
+    embeddingProvider: 'ollama',
+    embeddingApiKey: '',
+    hasEmbeddingApiKey: false,
+    ...EMBED_DEFAULTS.ollama,
     transcriptionProvider: 'openai',
     transcriptionApiKey: '',
     hasTranscriptionApiKey: false,
     transcribeOnRecord: false,
     ...TRANSCRIPTION_DEFAULTS.openai,
-    ...PROVIDER_DEFAULTS[provider],
   }
+}
+
+/** Defaults for a freshly-selected chat provider. */
+export function withChatProviderDefaults(config: AiConfig, provider: AiProviderKind): AiConfig {
+  return { ...config, chatProvider: provider, ...CHAT_DEFAULTS[provider] }
+}
+
+/** Defaults for a freshly-selected embedding provider. */
+export function withEmbeddingProviderDefaults(config: AiConfig, provider: AiProviderKind): AiConfig {
+  return { ...config, embeddingProvider: provider, ...EMBED_DEFAULTS[provider] }
 }
 
 /** Defaults for a freshly-selected transcription provider. */
@@ -64,44 +67,37 @@ export function withTranscriptionProviderDefaults(
   return { ...config, transcriptionProvider: provider, ...TRANSCRIPTION_DEFAULTS[provider] }
 }
 
-/**
- * One-time migration: earlier versions kept the config (including the API
- * key) in localStorage. Push it to the Rust store, then remove it so the key
- * no longer lives in browser-reachable storage.
- */
-async function migrateLegacyConfig(): Promise<void> {
-  const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
-  if (!raw) return
-  try {
-    const legacy = JSON.parse(raw) as Partial<AiConfig>
-    const provider: AiProviderKind = legacy.provider === 'openai' ? 'openai' : 'ollama'
-    await invoke('set_ai_config', { config: { ...defaultConfig(provider), ...legacy } })
-  } catch (err) {
-    console.error('[ai] failed to migrate legacy config:', err)
-  }
-  localStorage.removeItem(LEGACY_STORAGE_KEY)
+/** Old localStorage config (incl. keys) is obsolete — the Rust store + its
+ * file migration own the config now; just clear the stale browser copy. */
+function clearLegacyConfig(): void {
+  if (localStorage.getItem(LEGACY_STORAGE_KEY)) localStorage.removeItem(LEGACY_STORAGE_KEY)
 }
 
+const asKind = (v: unknown): AiProviderKind => (v === 'openai' ? 'openai' : 'ollama')
+
 /**
- * Config is persisted on the Rust side (`ai_config.json` in the app data
- * dir). The API key is write-only: it comes back empty, with `hasApiKey`
- * reporting whether one is saved.
+ * Config is persisted on the Rust side (`ai_config.json`). API keys are
+ * write-only: they come back empty, with `has*ApiKey` reporting whether one is
+ * saved.
  */
 export async function loadAiConfig(): Promise<AiConfig> {
-  await migrateLegacyConfig()
+  clearLegacyConfig()
   const stored = await invoke<Partial<AiConfig>>('get_ai_config')
-  const provider: AiProviderKind = stored.provider === 'openai' ? 'openai' : 'ollama'
-  // Fresh install reports an empty baseUrl — fall back to provider defaults.
-  if (!stored.baseUrl) return defaultConfig(provider)
-  // Both keys are write-only — they always come back blank.
-  return { ...defaultConfig(provider), ...stored, apiKey: '', transcriptionApiKey: '' }
+  // Fresh install (nothing configured) — use defaults.
+  if (!stored.chatBaseUrl && !stored.embeddingBaseUrl) return defaultConfig()
+  return {
+    ...defaultConfig(),
+    ...stored,
+    chatProvider: asKind(stored.chatProvider),
+    embeddingProvider: asKind(stored.embeddingProvider),
+    transcriptionProvider: stored.transcriptionProvider === 'local' ? 'local' : 'openai',
+    // Keys are write-only — always blank on load.
+    chatApiKey: '',
+    embeddingApiKey: '',
+    transcriptionApiKey: '',
+  }
 }
 
 export async function saveAiConfig(config: AiConfig): Promise<void> {
   await invoke('set_ai_config', { config })
-}
-
-/** Defaults for a freshly-selected provider, preserving cross-provider fields. */
-export function withProviderDefaults(config: AiConfig, provider: AiProviderKind): AiConfig {
-  return { ...config, provider, ...PROVIDER_DEFAULTS[provider] }
 }

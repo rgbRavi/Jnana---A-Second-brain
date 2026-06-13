@@ -45,16 +45,24 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
    - **Note:** the existing `ai_request` proxy is JSON-only; transcription needs its own path
      (multipart upload for cloud, or a sidecar/native call for local). OpenRouter has no
      transcription endpoint, so the current OpenRouter key can't be reused for cloud STT.
-4. **Markdown export** — write notes out as `.md` (per-note + bulk). Doubles as the "markdown
-   mirror" and the student "submit/share" gap. Decide: target folder via dialog; how to handle
-   `jnana-asset://` / `external://` references (rewrite to relative paths or note them).
-5. **AI tag suggestions** — reuse `retrieve()` + existing-tag vocabulary; suggest existing tags
-   first, show why, one-click accept/reject. Never auto-mutate notes.
-6. **AI link suggestions** — for a note, retrieve nearest chunks from *other* notes and offer
-   "[[wikilink]] to X?" with the overlapping passage as evidence.
-7. **Quiz generator** — built on the analyzer's keyConcepts/weakSpots output.
-8. **AI index staleness** — compare note `updated_at` vs embedding `created_at`; surface
-   "N notes need (re)indexing" in the settings modal.
+4. **Markdown export** ✅ DONE — export one note (NoteModal ⤓) or all (Notes view "Export all")
+   to a chosen folder as `.md`; media refs rewritten to relative `assets/` paths with the asset
+   files copied alongside (portable to Obsidian/VS Code). Rust `export_notes` command +
+   `core/export.ts`.
+5. **AI tag suggestions** ✅ DONE — "✨ Suggest tags" in NoteModal: grounded in the note + the
+   user's tag vocabulary, existing tags shown before proposed-new ones, reason on hover, one
+   click to apply. Never auto-mutates (`core/ai/suggestTags.ts` + `TagSuggestions`).
+6. **AI link suggestions** ✅ DONE — "🔗 Suggest links" in NoteModal: retrieval over the vector
+   store finds related notes (excludes self + already-linked), shows the matching passage as
+   evidence, one click appends a `[[wikilink]]`. Pure retrieval, no LLM (`core/ai/suggestLinks.ts`
+   + `LinkSuggestions`).
+7. **Quiz generator** ✅ DONE — a "Quiz" mode in the analyzer: generates recall/application/
+   compare questions over the current scope, each revealing answer + explanation on click
+   (`core/ai/quiz.ts`, `QuizCard` in `AiChat`).
+8. **AI index staleness** ✅ DONE — `get_index_times` (Rust) compared to note `updated_at`;
+   the settings modal shows "N need (re)indexing" with an "Index N updated" button.
+
+**Phase B complete.**
 
 ---
 

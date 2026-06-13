@@ -7,6 +7,7 @@ use commands::ai::*;
 use commands::annotations::*;
 use commands::assets::*;
 use commands::embeddings::*;
+use commands::export::*;
 use commands::media::*;
 use commands::notes::*;
 
@@ -166,11 +167,13 @@ fn main() {
             set_ai_config,
             ai_request,
             transcribe_audio,
+            export_notes,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,
             get_indexed_note_ids,
             get_index_stats,
+            get_index_times,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

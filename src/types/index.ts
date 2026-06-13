@@ -72,29 +72,34 @@ export type TranscriptionProviderKind = 'openai' | 'local'
 
 /**
  * User-configurable AI settings. Persisted on the Rust side (ai_config.json
- * in the app data dir) so the API key never lives in browser-reachable
- * storage. The same abstraction targets a cloud API or a local model.
+ * in the app data dir) so API keys never live in browser-reachable storage.
+ *
+ * Chat and embeddings are configured independently so you can, e.g., run a
+ * local embedding model (Ollama) while using an online chat API. Keys are
+ * write-only: always empty when loaded; saving an empty string keeps the
+ * stored key unless that provider's baseUrl/provider changed (then it's
+ * dropped so it can't be redirected to a host it wasn't entered for).
  */
 export interface AiConfig {
   enabled: boolean
-  provider: AiProviderKind
-  /** Base URL of the API, e.g. https://api.openai.com/v1 or http://localhost:11434 */
-  baseUrl: string
-  /**
-   * Bearer key for cloud providers; ignored by local providers like Ollama.
-   * Write-only: always empty when loaded. Saving an empty string keeps the
-   * stored key, unless baseUrl/provider changed — that drops the key so it
-   * can never be redirected to a host it wasn't entered for.
-   */
-  apiKey: string
-  /** Whether a key is currently saved on the Rust side. */
-  hasApiKey?: boolean
-  embeddingModel: string
-  chatModel: string
   /** Re-embed notes automatically on save when true. */
   autoIndex: boolean
 
-  // ── Transcription (configured separately from chat) ──
+  // ── Chat (LLM) provider ──
+  chatProvider: AiProviderKind
+  chatBaseUrl: string
+  chatApiKey: string
+  hasChatApiKey?: boolean
+  chatModel: string
+
+  // ── Embedding provider (independent of chat) ──
+  embeddingProvider: AiProviderKind
+  embeddingBaseUrl: string
+  embeddingApiKey: string
+  hasEmbeddingApiKey?: boolean
+  embeddingModel: string
+
+  // ── Transcription (configured separately too) ──
   transcriptionProvider: TranscriptionProviderKind
   transcriptionBaseUrl: string
   /** Write-only, same rules as apiKey. Empty for local servers. */
@@ -128,6 +133,36 @@ export interface RetrievalHit {
 export interface IndexStats {
   chunkCount: number
   indexedNoteCount: number
+}
+
+/** When a note was last embedded (latest chunk `created_at`, ms). */
+export interface IndexTime {
+  noteId: string
+  indexedAt: number
+}
+
+/** An AI-suggested tag for a note. `isNew` = not already in the user's vocabulary. */
+export interface TagSuggestion {
+  tag: string
+  reason: string
+  isNew: boolean
+}
+
+/** An AI-suggested wikilink to a related note, with the matching passage as evidence. */
+export interface LinkSuggestion {
+  noteId: string
+  title: string
+  evidence: string
+  score: number
+}
+
+/** A single quiz question generated from the user's notes. */
+export interface QuizQuestion {
+  /** recall | application | compare — a hint at the question's type. */
+  kind: string
+  question: string
+  answer: string
+  explanation: string
 }
 
 /** A source note the analyzer actually drew from (grounding, not hallucinated). */

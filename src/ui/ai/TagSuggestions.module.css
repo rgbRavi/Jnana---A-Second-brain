@@ -1,0 +1,76 @@
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.suggestBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.suggestBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
+.suggestBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(124, 106, 247, 0.1);
+  border: 1px dashed var(--accent);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip:hover {
+  background: rgba(124, 106, 247, 0.2);
+}
+
+.chipNew {
+  border-style: solid;
+}
+
+.newMark {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.error {
+  font-size: 0.78rem;
+  color: var(--danger, #e5484d);
+}
+
+.empty {
+  font-size: 0.78rem;
+  color: var(--text-3);
+}

@@ -5,6 +5,7 @@ import { NoteCreator } from '../../ui/editor/NoteCreator'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
+import { exportNotes } from '../../core/export'
 
 import NoteStyles from './Notes.module.css'
 
@@ -22,6 +23,15 @@ function Notes() {
     return () => eventBus.off('note:navigate', handler)
   }, [])
 
+  const handleExportAll = async () => {
+    try {
+      const n = await exportNotes(notes)
+      if (n) alert(`Exported ${n} note${n !== 1 ? 's' : ''} as Markdown.`)
+    } catch (err) {
+      alert('Export failed: ' + String(err))
+    }
+  }
+
   return (
     <div className={NoteStyles.notesContainer}>
 
@@ -33,9 +43,14 @@ function Notes() {
       {/* Shows the number of notes */}
       <div className={NoteStyles.notesWrapper}>
         {notes.length > 0 && (
-          <p className={NoteStyles.sectionLabel}>
-            {notes.length} note{notes.length !== 1 ? 's' : ''}
-          </p>
+          <div className={NoteStyles.notesHeader}>
+            <p className={NoteStyles.sectionLabel}>
+              {notes.length} note{notes.length !== 1 ? 's' : ''}
+            </p>
+            <button className={NoteStyles.exportAllBtn} onClick={handleExportAll}>
+              ⤓ Export all
+            </button>
+          </div>
         )}
 
         

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { AiConfig, AnalysisResult, AnalyzeInput, Note, SourceNote } from '../../types'
-import { analyze, askNotes, type AskTurn } from '../../core/ai'
+import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote } from '../../types'
+import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -10,13 +10,14 @@ interface Props {
 }
 
 type ScopeKind = 'topic' | 'time' | 'note'
-type ResponseMode = 'analyze' | 'chat'
+type ResponseMode = 'analyze' | 'chat' | 'quiz'
 
 /** One entry in the unified chat thread. */
 type ChatMessage =
   | { kind: 'question'; text: string }
   | { kind: 'answer'; text: string; sources: SourceNote[] }
   | { kind: 'analysis'; result: AnalysisResult }
+  | { kind: 'quiz'; questions: QuizQuestion[] }
 
 const DAY = 24 * 60 * 60 * 1000
 const MAX_RANGE_DAYS = 90
@@ -251,6 +252,22 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       return
     }
 
+    if (responseMode === 'quiz') {
+      setBusy(true)
+      setThread(base)
+      setLastScopeKey(key)
+      try {
+        const questions = await generateQuiz(scope, config, notes)
+        setThread([...base, { kind: 'quiz', questions }])
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Quiz generation failed.')
+      } finally {
+        setBusy(false)
+        setInput('')
+      }
+      return
+    }
+
     // Chat mode needs a question once scope commands are stripped.
     if (!question) {
       setError('Type a question to ask about this scope.')
@@ -383,6 +400,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
           {thread.map((m, i) =>
             m.kind === 'analysis' ? (
               <AnalysisCard key={i} result={m.result} onOpenNote={onOpenNote} />
+            ) : m.kind === 'quiz' ? (
+              <QuizCard key={i} questions={m.questions} />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
                 {m.text}
@@ -405,7 +424,15 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         </div>
       )}
 
-      {busy && <p className={styles.spinner}>{responseMode === 'analyze' ? 'Analyzing your notes…' : 'Thinking…'}</p>}
+      {busy && (
+        <p className={styles.spinner}>
+          {responseMode === 'analyze'
+            ? 'Analyzing your notes…'
+            : responseMode === 'quiz'
+              ? 'Building your quiz…'
+              : 'Thinking…'}
+        </p>
+      )}
       {error && <p className={styles.error}>{error}</p>}
 
       {/* ── Mode toggle + composer ── */}
@@ -423,6 +450,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         >
           Chat
         </button>
+        <button
+          className={`${styles.btn} ${responseMode === 'quiz' ? styles.btnActive : ''}`}
+          onClick={() => setResponseMode('quiz')}
+        >
+          Quiz
+        </button>
       </div>
 
       <div className={styles.chatInputRow}>
@@ -430,9 +463,11 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
           className={styles.chatInput}
           rows={2}
           placeholder={
-            responseMode === 'analyze'
-              ? 'Set scope above and press Analyze — or type /today, /week, @NoteTitle to scope quickly.'
-              : 'Ask a question about this scope… (try /today, /week, @NoteTitle · Enter to send)'
+            responseMode === 'chat'
+              ? 'Ask a question about this scope… (try /today, /week, @NoteTitle · Enter to send)'
+              : responseMode === 'quiz'
+                ? 'Set scope above and press Quiz me — or type /today, /week, @NoteTitle to scope quickly.'
+                : 'Set scope above and press Analyze — or type /today, /week, @NoteTitle to scope quickly.'
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -444,7 +479,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
           }}
         />
         <button className={styles.btnPrimary} disabled={sendDisabled} onClick={() => void send()}>
-          {responseMode === 'analyze' ? 'Analyze' : 'Send'}
+          {responseMode === 'analyze' ? 'Analyze' : responseMode === 'quiz' ? 'Quiz me' : 'Send'}
         </button>
       </div>
     </div>
@@ -575,6 +610,45 @@ function AnalysisCard({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** A generated quiz — each question reveals its answer + explanation on click. */
+function QuizCard({ questions }: { questions: QuizQuestion[] }) {
+  const [revealed, setRevealed] = useState<Set<number>>(new Set())
+  const toggle = (i: number) =>
+    setRevealed((prev) => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+
+  if (questions.length === 0) {
+    return <p className={styles.hint}>Not enough in these notes to build a quiz.</p>
+  }
+
+  return (
+    <div className={styles.analysisCard}>
+      <span className={styles.sectionTitle}>Quiz · {questions.length} questions</span>
+      {questions.map((q, i) => (
+        <div key={i} className={styles.quizItem}>
+          <p className={styles.quizQ}>
+            <span className={styles.quizKind}>{q.kind}</span>
+            {i + 1}. {q.question}
+          </p>
+          <button className={styles.quizReveal} onClick={() => toggle(i)}>
+            {revealed.has(i) ? 'Hide answer' : 'Show answer'}
+          </button>
+          {revealed.has(i) && (
+            <div className={styles.quizAnswer}>
+              <p className={styles.quizA}>{q.answer}</p>
+              {q.explanation && <p className={styles.quizExpl}>{q.explanation}</p>}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

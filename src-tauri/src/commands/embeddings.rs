@@ -127,6 +127,27 @@ pub fn get_indexed_note_ids(state: State<'_, DbState>) -> Result<Vec<String>, St
         .map_err(|e| format!("Failed to fetch indexed note ids: {}", e))
 }
 
+/// When each indexed note was last embedded — the frontend compares this to a
+/// note's `updated_at` to count notes that need (re)indexing.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexTime {
+    pub note_id: String,
+    pub indexed_at: i64,
+}
+
+#[command]
+pub fn get_index_times(state: State<'_, DbState>) -> Result<Vec<IndexTime>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::fetch_index_times(&conn)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|(note_id, indexed_at)| IndexTime { note_id, indexed_at })
+                .collect()
+        })
+        .map_err(|e| format!("Failed to fetch index times: {}", e))
+}
+
 #[command]
 pub fn get_index_stats(state: State<'_, DbState>) -> Result<IndexStats, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;

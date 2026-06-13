@@ -5,6 +5,7 @@ import Graph from "./views/graph/Graph";
 import Search from "./views/search/Search";
 import Home from "./views/home/Home"
 import Ai from "./views/ai/Ai";
+import Settings from "./views/settings/Settings";
 
 function App() {
     return (
@@ -18,6 +19,7 @@ function App() {
                                 <Route path = "/graph" element = {<Graph />}/>
                                 <Route path = "/search" element = {<Search />}/>
                                 <Route path = "/ai" element = {<Ai />}/>
+                                <Route path = "/settings" element = {<Settings />}/>
                         </Route>
                     </Routes>
                 </HashRouter>

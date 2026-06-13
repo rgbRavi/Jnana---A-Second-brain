@@ -36,16 +36,21 @@ fn http_client(timeout_secs: u64, is_loopback: bool) -> Result<reqwest::Client, 
 #[serde(rename_all = "camelCase", default)]
 pub struct AiConfig {
     pub enabled: bool,
-    pub provider: String,
-    pub api_key: String,
     pub auto_index: bool,
-    pub base_url: String,
-    pub embedding_model: String,
+    // Chat and embeddings are configured independently, so you can run a local
+    // embedding model (Ollama) while using an online chat API (and vice-versa).
+    pub chat_provider: String,
+    pub chat_base_url: String,
+    pub chat_api_key: String,
     pub chat_model: String,
-    // Transcription is configured separately from chat: the chat provider may be
-    // OpenRouter/Ollama (no STT endpoint), so transcription gets its own
-    // OpenAI-compatible base URL + key + model. "local" just points base_url at a
-    // local Whisper server (e.g. speaches/faster-whisper-server), mirroring Ollama.
+    pub embedding_provider: String,
+    pub embedding_base_url: String,
+    pub embedding_api_key: String,
+    pub embedding_model: String,
+    // Transcription is configured separately too: the chat provider may be
+    // OpenRouter (no STT endpoint), so transcription gets its own OpenAI-compatible
+    // base URL + key + model. "local" just points base_url at a local Whisper
+    // server (e.g. speaches/faster-whisper-server), mirroring Ollama.
     pub transcription_provider: String,
     pub transcription_base_url: String,
     pub transcription_api_key: String,
@@ -62,12 +67,15 @@ pub struct AiState(pub Mutex<AiConfig>);
 #[serde(rename_all = "camelCase")]
 pub struct AiConfigPublic {
     pub enabled: bool,
-    pub provider: String,
     pub auto_index: bool,
-    pub base_url: String,
-    pub embedding_model: String,
+    pub chat_provider: String,
+    pub chat_base_url: String,
     pub chat_model: String,
-    pub has_api_key: bool,
+    pub has_chat_api_key: bool,
+    pub embedding_provider: String,
+    pub embedding_base_url: String,
+    pub embedding_model: String,
+    pub has_embedding_api_key: bool,
     pub transcription_provider: String,
     pub transcription_base_url: String,
     pub transcription_model: String,
@@ -79,12 +87,15 @@ impl From<&AiConfig> for AiConfigPublic {
     fn from(c: &AiConfig) -> Self {
         AiConfigPublic {
             enabled: c.enabled,
-            provider: c.provider.clone(),
             auto_index: c.auto_index,
-            base_url: c.base_url.clone(),
-            embedding_model: c.embedding_model.clone(),
+            chat_provider: c.chat_provider.clone(),
+            chat_base_url: c.chat_base_url.clone(),
             chat_model: c.chat_model.clone(),
-            has_api_key: !c.api_key.is_empty(),
+            has_chat_api_key: !c.chat_api_key.is_empty(),
+            embedding_provider: c.embedding_provider.clone(),
+            embedding_base_url: c.embedding_base_url.clone(),
+            embedding_model: c.embedding_model.clone(),
+            has_embedding_api_key: !c.embedding_api_key.is_empty(),
             transcription_provider: c.transcription_provider.clone(),
             transcription_base_url: c.transcription_base_url.clone(),
             transcription_model: c.transcription_model.clone(),
@@ -98,12 +109,37 @@ fn config_path() -> std::path::PathBuf {
     crate::db::data_dir().join("ai_config.json")
 }
 
+/// One-time migration from the old single-provider config (provider/baseUrl/
+/// apiKey shared by chat + embeddings) to the split chat_*/embedding_* shape.
+fn migrate_legacy(mut cfg: AiConfig, raw: &str) -> AiConfig {
+    if !cfg.chat_base_url.is_empty() || !cfg.embedding_base_url.is_empty() {
+        return cfg; // already migrated
+    }
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(raw) {
+        let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let (provider, base, key) = (s("provider"), s("baseUrl"), s("apiKey"));
+        if !base.is_empty() {
+            cfg.chat_provider = provider.clone();
+            cfg.chat_base_url = base.clone();
+            cfg.chat_api_key = key.clone();
+            cfg.embedding_provider = provider;
+            cfg.embedding_base_url = base;
+            cfg.embedding_api_key = key;
+        }
+    }
+    cfg
+}
+
 /// Load the persisted config at startup (missing/corrupt file → defaults).
 pub fn load_config_from_disk() -> AiConfig {
-    std::fs::read_to_string(config_path())
-        .ok()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+    let raw = match std::fs::read_to_string(config_path()) {
+        Ok(raw) => raw,
+        Err(_) => return AiConfig::default(),
+    };
+    match serde_json::from_str::<AiConfig>(&raw) {
+        Ok(cfg) => migrate_legacy(cfg, &raw),
+        Err(_) => AiConfig::default(),
+    }
 }
 
 fn persist(config: &AiConfig) -> Result<(), String> {
@@ -130,19 +166,26 @@ pub fn set_ai_config(
     let mut current = state.0.lock().map_err(|e| format!("AI config lock error: {}", e))?;
 
     let mut next = config;
-    if next.api_key.is_empty() {
-        let same_target = next.base_url == current.base_url && next.provider == current.provider;
-        if same_target {
-            next.api_key = current.api_key.clone();
-        }
+    // Keys are write-only: an empty key keeps the stored one, unless that
+    // provider's base URL/provider changed (then it's dropped so a key can't be
+    // redirected to a host it wasn't entered for).
+    if next.chat_api_key.is_empty()
+        && next.chat_base_url == current.chat_base_url
+        && next.chat_provider == current.chat_provider
+    {
+        next.chat_api_key = current.chat_api_key.clone();
     }
-    // Same write-only rule for the transcription key.
-    if next.transcription_api_key.is_empty() {
-        let same_target = next.transcription_base_url == current.transcription_base_url
-            && next.transcription_provider == current.transcription_provider;
-        if same_target {
-            next.transcription_api_key = current.transcription_api_key.clone();
-        }
+    if next.embedding_api_key.is_empty()
+        && next.embedding_base_url == current.embedding_base_url
+        && next.embedding_provider == current.embedding_provider
+    {
+        next.embedding_api_key = current.embedding_api_key.clone();
+    }
+    if next.transcription_api_key.is_empty()
+        && next.transcription_base_url == current.transcription_base_url
+        && next.transcription_provider == current.transcription_provider
+    {
+        next.transcription_api_key = current.transcription_api_key.clone();
     }
 
     persist(&next)?;
@@ -168,6 +211,7 @@ pub struct AiFetchResponse {
 #[command]
 pub async fn ai_request(
     state: State<'_, AiState>,
+    target: String,
     path: String,
     body: String,
 ) -> Result<AiFetchResponse, String> {
@@ -181,7 +225,14 @@ pub async fn ai_request(
         return Err("AI is disabled in settings".into());
     }
 
-    let base = reqwest::Url::parse(&config.base_url)
+    // Pick the chat or embedding provider's base URL + key based on the call site.
+    let (base_url, api_key) = if target == "embedding" {
+        (config.embedding_base_url, config.embedding_api_key)
+    } else {
+        (config.chat_base_url, config.chat_api_key)
+    };
+
+    let base = reqwest::Url::parse(&base_url)
         .map_err(|e| format!("Invalid AI base URL: {}", e))?;
     if base.scheme() != "http" && base.scheme() != "https" {
         return Err("AI base URL must be http(s)".into());
@@ -192,7 +243,7 @@ pub async fn ai_request(
     // https when a key is set.
     let host = base.host_str().unwrap_or("");
     let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
-    if !config.api_key.is_empty() && base.scheme() == "http" && !is_loopback {
+    if !api_key.is_empty() && base.scheme() == "http" && !is_loopback {
         return Err(
             "Refusing to send the API key over http to a non-local host — use https.".into(),
         );
@@ -202,7 +253,7 @@ pub async fn ai_request(
         return Err(format!("Invalid AI endpoint path: {}", path));
     }
 
-    let url = format!("{}{}", config.base_url.trim_end_matches('/'), path);
+    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
 
     let client = http_client(120, is_loopback)?;
 
@@ -210,8 +261,8 @@ pub async fn ai_request(
         .post(&url)
         .header("Content-Type", "application/json")
         .body(body);
-    if !config.api_key.is_empty() {
-        req = req.header("Authorization", format!("Bearer {}", config.api_key));
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", api_key));
     }
 
     let resp = req

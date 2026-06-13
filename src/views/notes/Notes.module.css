@@ -25,15 +25,40 @@
   gap: 0.75rem;
 }
 
+.notesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .sectionLabel {
   font-size: 0.7rem;
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-3);
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border);
+}
+
+.exportAllBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all 0.15s;
   flex-shrink: 0;
+}
+
+.exportAllBtn:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
 }
 
 .noteEmpty {

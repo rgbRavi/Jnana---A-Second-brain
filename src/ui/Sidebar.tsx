@@ -57,6 +57,7 @@ export function Sidebar(){
             </NavLink>
           </nav>
 
+          <div className={SidebarStyles.sidebarBottom}>
           {jobs.length > 0 && (
             <div className={SidebarStyles.transcribeFooter}>
               {trayOpen && (
@@ -91,6 +92,16 @@ export function Sidebar(){
               </button>
             </div>
           )}
+
+            <NavLink
+              className={({ isActive }) =>
+                `${SidebarStyles.settingsLink}${isActive ? ' ' + SidebarStyles.active : ''}`
+              }
+              to="/settings"
+            >
+              ⚙ Settings
+            </NavLink>
+          </div>
         </aside>
     )
 }

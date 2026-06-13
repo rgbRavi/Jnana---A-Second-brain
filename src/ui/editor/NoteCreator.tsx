@@ -4,7 +4,11 @@ import { useDocumentUpload } from '../../hooks/useDocumentUpload'
 import { useNoteAttachments } from '../../hooks/useNoteAttachments'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
+import { useNotesContext } from '../../context/NotesContext'
+import { isAutoTag } from '../../core/tags'
 import { TagEditor } from '../TagEditor'
+import { TagSuggestions } from '../ai/TagSuggestions'
+import { LinkSuggestions } from '../ai/LinkSuggestions'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteCreator.module.css'
 import FavStyles from './FavouriteBtn.module.css'
@@ -23,11 +27,26 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const [isRecording, setIsRecording] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saveFavourite, setSaveFavourite] = useState(false)
+  // Bumped on save to remount the AI suggestion panels, clearing their results
+  // when the composer is reset for a new note.
+  const [draftKey, setDraftKey] = useState(0)
   const { addToFavourites } = useFavourites()
 
   const pendingNoteId = useRef(crypto.randomUUID())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
+  const { notes } = useNotesContext()
+
+  // Tag vocabulary across all notes (no auto-tags), for AI suggestions on the draft.
+  const tagVocabulary = [...new Set(notes.flatMap((n) => n.tags).filter((t) => !isAutoTag(t)))]
+  const draftNote: Note = {
+    id: pendingNoteId.current,
+    title,
+    content,
+    tags,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
 
   const { handleDocumentUpload } = useDocumentUpload({
     noteId: pendingNoteId.current,
@@ -59,6 +78,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     setSaveFavourite(false)
     pendingNoteId.current = crypto.randomUUID()
     resetPendingMedia()
+    setDraftKey((k) => k + 1)
     setSaving(false)
     textareaRef.current?.focus()
   }
@@ -103,6 +123,22 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       />
       <div className={Styles.composerTagSection}>
         <TagEditor tags={tags} onChange={setTags} />
+        <TagSuggestions
+          key={`tags-${draftKey}`}
+          note={draftNote}
+          vocabulary={tagVocabulary}
+          currentTags={tags}
+          onAccept={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+        />
+        <LinkSuggestions
+          key={`links-${draftKey}`}
+          note={draftNote}
+          allNotes={notes}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
+        />
       </div>
       <textarea
         ref={textareaRef}

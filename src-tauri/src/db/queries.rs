@@ -416,6 +416,14 @@ pub fn count_embeddings(conn: &Connection) -> Result<i64> {
     conn.query_row("SELECT COUNT(*) FROM embeddings", [], |r| r.get(0))
 }
 
+/// (note_id, latest embedding `created_at`) per indexed note, so the UI can
+/// flag notes edited since they were last indexed.
+pub fn fetch_index_times(conn: &Connection) -> Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare("SELECT note_id, MAX(created_at) FROM embeddings GROUP BY note_id")?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -10,6 +10,8 @@ import {
   removeNoteFromIndex,
   retrieve,
   getIndexStats,
+  getIndexTimes,
+  staleNotes,
 } from '../core/ai'
 
 /**
@@ -25,6 +27,7 @@ export function useRag() {
   const [config, setConfig] = useState<AiConfig>(() => defaultConfig())
   const [stats, setStats] = useState<IndexStats>({ chunkCount: 0, indexedNoteCount: 0 })
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null)
+  const [stale, setStale] = useState<Note[]>([])
 
   // Config lives on the Rust side — load it once on mount.
   useEffect(() => {
@@ -41,16 +44,20 @@ export function useRag() {
     // Mirror the Rust-side key rules locally so the UI updates without a
     // reload: a typed key sets presence; changing baseUrl/provider drops it.
     setConfig((prev) => {
-      const sameTarget = next.baseUrl === prev.baseUrl && next.provider === prev.provider
-      const sameTxTarget =
+      const sameChat = next.chatBaseUrl === prev.chatBaseUrl && next.chatProvider === prev.chatProvider
+      const sameEmbed =
+        next.embeddingBaseUrl === prev.embeddingBaseUrl &&
+        next.embeddingProvider === prev.embeddingProvider
+      const sameTx =
         next.transcriptionBaseUrl === prev.transcriptionBaseUrl &&
         next.transcriptionProvider === prev.transcriptionProvider
       return {
         ...next,
-        hasApiKey: next.apiKey ? true : sameTarget && !!prev.hasApiKey,
+        hasChatApiKey: next.chatApiKey ? true : sameChat && !!prev.hasChatApiKey,
+        hasEmbeddingApiKey: next.embeddingApiKey ? true : sameEmbed && !!prev.hasEmbeddingApiKey,
         hasTranscriptionApiKey: next.transcriptionApiKey
           ? true
-          : sameTxTarget && !!prev.hasTranscriptionApiKey,
+          : sameTx && !!prev.hasTranscriptionApiKey,
       }
     })
     void saveAiConfig(next).catch((err) =>
@@ -69,6 +76,19 @@ export function useRag() {
   useEffect(() => {
     void refreshStats()
   }, [refreshStats])
+
+  /** Recompute which notes need (re)indexing (edited since last embed, or never indexed). */
+  const refreshStaleness = useCallback(async (notes: Note[]) => {
+    if (!configRef.current.enabled) {
+      setStale([])
+      return
+    }
+    try {
+      setStale(staleNotes(notes, await getIndexTimes()))
+    } catch (err) {
+      console.error('[useRag] staleness check failed:', err)
+    }
+  }, [])
 
   // Auto-sync the vector store with note lifecycle events.
   useEffect(() => {
@@ -109,9 +129,20 @@ export function useRag() {
       await indexNotes(notes, config, (done, total) => setIndexing({ done, total }))
       setIndexing(null)
       await refreshStats()
+      await refreshStaleness(notes)
     },
-    [config, refreshStats],
+    [config, refreshStats, refreshStaleness],
   )
 
-  return { config, updateConfig, stats, indexing, search, reindexAll, refreshStats }
+  return {
+    config,
+    updateConfig,
+    stats,
+    indexing,
+    stale,
+    search,
+    reindexAll,
+    refreshStats,
+    refreshStaleness,
+  }
 }

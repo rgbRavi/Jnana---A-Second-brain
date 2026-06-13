@@ -6,7 +6,7 @@ import type {
   SourceNote,
 } from '../../types'
 import { getLinks } from '../notes'
-import { getProvider } from './provider'
+import { getChatProvider } from './provider'
 import { retrieve } from './rag'
 
 const MAX_CONTEXT_NOTES = 8
@@ -39,7 +39,7 @@ or fill gaps with outside knowledge. Be concise and direct, in plain text.`
  * - `window` mode pulls notes created/updated within a time range.
  * - `note` mode takes one note plus the notes linked to it (its thread).
  */
-async function resolveContextNotes(
+export async function resolveContextNotes(
   input: AnalyzeInput,
   config: AiConfig,
   notes: Note[],
@@ -102,7 +102,7 @@ function buildContext(snippets: { title: string; text: string }[]): string {
     .join('\n\n')
 }
 
-function contextBlockFor(contextNotes: Note[]): string {
+export function contextBlockFor(contextNotes: Note[]): string {
   return buildContext(
     contextNotes.map((n) => ({ title: n.title?.trim() || 'Untitled', text: n.content })),
   )
@@ -172,7 +172,7 @@ export async function analyze(
           }.`
         : `The user wants a synthesis of what they recorded during: ${input.label}.`
 
-  const provider = getProvider(config)
+  const provider = getChatProvider(config)
   const raw = await provider.complete(
     `${focus}\n\nHere are the relevant notes:\n\n${context}`,
     { system: SYSTEM_PROMPT, temperature: 0.2 },
@@ -236,7 +236,7 @@ export async function askNotes(
     .filter(Boolean)
     .join('\n\n')
 
-  const provider = getProvider(config)
+  const provider = getChatProvider(config)
   const answer = await provider.complete(prompt, {
     system: ASK_SYSTEM_PROMPT,
     temperature: 0.3,

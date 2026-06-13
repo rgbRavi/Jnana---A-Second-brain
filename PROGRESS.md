@@ -349,9 +349,9 @@ Current theme status:
 - [x] In-memory full-text search (MiniSearch)
 - [x] Audio player and audio rendering (`![audio]` + `[A0::HH:MM:SS]` timestamps)
 - [x] Voice recording from the mic (`VoiceRecorder`; Save blocked while recording)
-- [ ] Voice transcription (record → searchable/AI-analyzable text) — in progress; engine TBD
+- [x] Voice transcription (record → text; cloud OpenAI or local Whisper server; background jobs)
+- [x] Markdown file mirror/export (per-note + bulk, with copied assets)
 - [ ] Video timestamp writing from the player UI
-- [ ] Markdown file mirror/export
 - [ ] ffmpeg sidecar for HEVC/H.265 transcoding
 
 ### Phase 3 (AI) — started
@@ -389,14 +389,15 @@ Current theme status:
 - [x] In-memory search (MiniSearch)
 - [x] Audio player + `[A0::…]` timestamps
 - [x] Voice recording from the mic
-- [ ] Voice transcription (record → text; local Whisper sidecar or cloud STT) — in progress
+- [x] Voice transcription (cloud OpenAI or local Whisper server; background jobs + sidebar tray)
+- [x] Markdown mirror/export (per-note + bulk, assets copied)
 - [ ] Player-assisted timestamp writing
-- [ ] Markdown mirror/export
 - [ ] HEVC transcoding support
 
-### Phase 3 - AI (started)
+### Phase 3 - AI (complete)
 - [x] RAG foundation over local notes (user-supplied key or local Ollama)
-- [x] Thread/Day analyzer
-- [ ] Tag suggestions
-- [ ] Auto link suggestions
-- [ ] Quiz generator
+- [x] Thread/Day analyzer (+ unified scope chat: topic/time/note)
+- [x] Tag suggestions
+- [x] Link suggestions
+- [x] Quiz generator
+- [x] Index staleness detection
