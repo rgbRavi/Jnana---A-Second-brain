@@ -135,10 +135,14 @@ export interface AnalysisResult {
   sourceNotes: SourceNote[]
 }
 
-/** What to analyze: a topic (semantic) or a time window (e.g. yesterday). */
+/**
+ * What to analyze: a topic (semantic), a time window (e.g. yesterday), or a
+ * specific note — which also pulls in the notes it links to (its thread).
+ */
 export type AnalyzeInput =
   | { mode: 'topic'; query: string }
   | { mode: 'window'; since: number; until: number; label: string }
+  | { mode: 'note'; noteId: string }
 
 /**
  * The provider abstraction the rest of the AI layer codes against.
