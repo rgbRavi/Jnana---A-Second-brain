@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { importMedia, convertToPdf, extractText, registerMediaRef, getAssetPath } from '../core/media'
+import { toast } from '../lib/toast'
 
 interface UseDocumentUploadProps {
   noteId: string
@@ -64,7 +65,7 @@ export function useDocumentUpload({
             }
             onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
           } catch (err) {
-            alert(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
+            toast.error(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
           }
         } else if (choice === '2') {
           // Extract Text
@@ -72,7 +73,7 @@ export function useDocumentUpload({
             const text = await extractText(selected)
             onInsertMarkdown(`\n${text}\n`)
           } catch (err) {
-            alert(`Text extraction failed: ${err}\n\nPlease ensure Pandoc is installed.`)
+            toast.error(`Text extraction failed: ${err}\n\nPlease ensure Pandoc is installed.`)
           }
         } else if (choice === '3') {
           // Copy file into Jnana's assets dir so it is always available,
@@ -85,12 +86,12 @@ export function useDocumentUpload({
             const assetPath = await getAssetPath(filename)
             onInsertMarkdown(`\n[External: ${originalName}](external://${encodeURIComponent(assetPath)})\n`)
           } catch (err) {
-            alert(`Failed to copy document: ${err}`)
+            toast.error(`Failed to copy document: ${err}`)
           }
         }
       }
     } catch (err) {
-      alert('Failed to upload document: ' + String(err))
+      toast.error('Failed to upload document: ' + String(err))
     } finally {
       setUploading(false)
       onUploadFinish()

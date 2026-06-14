@@ -6,6 +6,7 @@ import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
 import { exportNotes } from '../../core/export'
+import { toast } from '../../lib/toast'
 
 import NoteStyles from './Notes.module.css'
 
@@ -26,9 +27,9 @@ function Notes() {
   const handleExportAll = async () => {
     try {
       const n = await exportNotes(notes)
-      if (n) alert(`Exported ${n} note${n !== 1 ? 's' : ''} as Markdown.`)
+      if (n) toast.success(`Exported ${n} note${n !== 1 ? 's' : ''} as Markdown.`)
     } catch (err) {
-      alert('Export failed: ' + String(err))
+      toast.error('Export failed: ' + String(err))
     }
   }
 

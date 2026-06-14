@@ -10,6 +10,7 @@ import { FavouriteBtn } from './editor/FavouriteBtn'
 import { exportNotes } from '../core/export'
 import { useNotesContext } from '../context/NotesContext'
 import { ComposerSuggestions } from './ai/ComposerSuggestions'
+import { toast } from '../lib/toast'
 
 interface Props {
   note: Note
@@ -58,7 +59,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
       setIsEditing(false)
     } catch (err) {
       console.error('Failed to save note:', err)
-      alert('Failed to save note')
+      toast.error('Failed to save note.')
     } finally {
       setSaving(false)
     }
@@ -157,9 +158,9 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 onClick={async () => {
                   try {
                     const n = await exportNotes([note])
-                    if (n) alert('Exported note as Markdown.')
+                    if (n) toast.success('Exported note as Markdown.')
                   } catch (err) {
-                    alert('Export failed: ' + String(err))
+                    toast.error('Export failed: ' + String(err))
                   }
                 }}
                 aria-label="Export note as Markdown"

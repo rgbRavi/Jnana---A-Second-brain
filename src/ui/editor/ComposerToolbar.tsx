@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { VoiceRecorder } from './VoiceRecorder'
+import { toast } from '../../lib/toast'
 import Styles from './NoteCreator.module.css'
 
 interface Props {
@@ -31,7 +32,7 @@ export function ComposerToolbar({
     const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
     const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)
     const videoId = shortMatch?.[1] || watchMatch?.[1]
-    if (!videoId) { alert('Could not extract a YouTube video ID from that URL.'); return }
+    if (!videoId) { toast.error('Could not extract a YouTube video ID from that URL.'); return }
     onInsertMarkdown(`\n![youtube](https://youtube.com/watch?v=${videoId})\n`)
   }
 

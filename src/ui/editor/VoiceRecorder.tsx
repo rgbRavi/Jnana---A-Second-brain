@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toast } from '../../lib/toast'
 
 interface Props {
   /** Called with the finished recording once the user stops. */
@@ -75,11 +76,11 @@ export function VoiceRecorder({ onRecorded, onRecordingChange, className, disabl
       setRecordingState(false)
       const name = err instanceof DOMException ? err.name : ''
       if (name === 'NotAllowedError' || name === 'SecurityError') {
-        alert('Microphone access was blocked. Allow microphone access for Jnana and try again.')
+        toast.error('Microphone access was blocked. Allow microphone access for Jnana and try again.')
       } else if (name === 'NotFoundError') {
-        alert('No microphone was found.')
+        toast.error('No microphone was found.')
       } else {
-        alert('Could not start recording: ' + String(err))
+        toast.error('Could not start recording: ' + String(err))
       }
     }
   }

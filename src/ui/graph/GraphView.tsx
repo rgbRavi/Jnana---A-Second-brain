@@ -6,6 +6,7 @@ import { useGraph } from '../../hooks/useGraph'
 import { useViewState } from '../../hooks/useViewState'
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
+import { toast } from '../../lib/toast'
 import type { Note } from '../../types'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -620,7 +621,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           )
         }
       } else if (source && !targetTitle) {
-        alert('Give the target note a title first — links connect by [[title]].')
+        toast.info('Give the target note a title first — links connect by [[title]].')
       }
     },
     [graphData.nodes, onUpdate],

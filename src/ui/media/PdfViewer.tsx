@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { usePdfAnnotations } from '../../hooks/usePdfAnnotations'
+import { toast } from '../../lib/toast'
 
 // Use Vite's asset import to bundle the worker correctly for offline use
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -167,7 +168,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
       await createHighlight(rectBox)
     } catch (err) {
       console.error('Failed to create annotation:', err)
-      alert('Failed to save highlight.')
+      toast.error('Failed to save highlight.')
     } finally {
       setCurrentRect(null)
     }

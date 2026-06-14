@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./ui/Sidebar";
+import { Toaster } from "./ui/Toaster";
 import { NotesProvider } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
@@ -13,6 +14,7 @@ function AppInner() {
             <main className={AppStyles.mainContent}>
                 <Outlet />
             </main>
+            <Toaster />
         </div>
     )
 }
