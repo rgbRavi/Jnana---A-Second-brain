@@ -22,6 +22,8 @@ interface Props {
   canThink: boolean
   deepResearch: boolean
   onDeepResearchChange: (v: boolean) => void
+  agent: boolean
+  onAgentChange: (v: boolean) => void
   /** Model supports vision — used only for the attach tooltip. */
   vision: boolean
   /** Style/Skills controls, injected by the parent (which owns preset state). */
@@ -152,6 +154,8 @@ export function ChatComposer({
   canThink,
   deepResearch,
   onDeepResearchChange,
+  agent,
+  onAgentChange,
   vision,
   presetControls,
   disabled,
@@ -279,6 +283,14 @@ export function ChatComposer({
             style={pill(deepResearch)}
           >
             🔬 Deep research
+          </button>
+          <button
+            onClick={() => onAgentChange(!agent)}
+            disabled={busy}
+            title="Agent mode: the AI can search, read and propose changes to your notes (writes need your approval)"
+            style={pill(agent)}
+          >
+            🤖 Agent
           </button>
 
           <div style={{ marginLeft: 'auto' }}>

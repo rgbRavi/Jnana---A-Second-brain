@@ -323,6 +323,14 @@ Notes:
 - [x] Styles (response tone) + Skills (reusable instructions) — picker + manager, seeded defaults
 - [x] Projects: custom instructions + knowledge base (notes/files); grounds & groups its chats
 
+### Agentic AI — Phase A (tools over the vault)
+- [x] Tool-calling in the provider (`chatWithTools`) for OpenAI-compatible + Ollama
+- [x] Native tools: search / read / recent / graph_neighbors (read) + create / append / set_tags / link (staged writes)
+- [x] Agent loop (`runAgent`) with step cap + live step callbacks
+- [x] 🤖 Agent toggle in AI Chat — step chips + propose-then-confirm ProposalCards (Apply/Skip)
+- [ ] MCP client — Jnana's agent uses external MCP servers (Phase B)
+- [ ] MCP server — expose Jnana to Claude Desktop / other agents (Phase C)
+
 ### View state persistence
 - [x] `useViewState` hook (module-store-backed `useState`) survives view switches
 - [x] Composer draft (title / body / tags / favourite) kept across views

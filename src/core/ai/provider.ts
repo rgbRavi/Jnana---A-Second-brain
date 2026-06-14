@@ -305,3 +305,142 @@ export async function streamChat(
     })
   })
 }
+
+// ── Tool-calling (the agent loop) ───────────────────────────────────────────
+
+/** A tool the model may call. `parameters` is a JSON Schema object. */
+export interface ToolDef {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+}
+
+/** A tool invocation the model requested. */
+export interface ToolCall {
+  id: string
+  name: string
+  args: Record<string, unknown>
+}
+
+/** One message in the agent loop — richer than ChatTurn (adds tool roles). */
+export interface AgentMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string
+  /** Present on assistant turns that requested tools. */
+  toolCalls?: ToolCall[]
+  /** Present on tool-result turns. */
+  toolCallId?: string
+  /** Tool name (tool-result turns). */
+  name?: string
+}
+
+const safeParseArgs = (raw: unknown): Record<string, unknown> => {
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as Record<string, unknown>
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function toOpenAiMessage(m: AgentMessage): Record<string, unknown> {
+  if (m.role === 'tool') {
+    return { role: 'tool', tool_call_id: m.toolCallId, content: m.content }
+  }
+  if (m.role === 'assistant' && m.toolCalls?.length) {
+    return {
+      role: 'assistant',
+      content: m.content || null,
+      tool_calls: m.toolCalls.map((tc) => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: JSON.stringify(tc.args ?? {}) },
+      })),
+    }
+  }
+  return { role: m.role, content: m.content }
+}
+
+function toOllamaMessage(m: AgentMessage): Record<string, unknown> {
+  if (m.role === 'tool') {
+    return { role: 'tool', content: m.content, name: m.name }
+  }
+  if (m.role === 'assistant' && m.toolCalls?.length) {
+    return {
+      role: 'assistant',
+      content: m.content,
+      tool_calls: m.toolCalls.map((tc) => ({ function: { name: tc.name, arguments: tc.args ?? {} } })),
+    }
+  }
+  return { role: m.role, content: m.content }
+}
+
+/**
+ * One agentic turn: send the conversation + available tools and get back the
+ * model's text and any tool calls it wants to make. Non-streaming (tool-call
+ * deltas are awkward to stream); the caller runs the loop. Works against
+ * OpenAI-compatible `/chat/completions` and Ollama `/api/chat`. If the model
+ * doesn't support tools it simply returns text with no tool calls.
+ */
+export async function chatWithTools(
+  config: AiConfig,
+  messages: AgentMessage[],
+  tools: ToolDef[],
+  opts?: { temperature?: number },
+): Promise<{ content: string; toolCalls: ToolCall[] }> {
+  const toolsPayload = tools.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }))
+  const temperature = opts?.temperature ?? 0.2
+
+  if (config.chatProvider === 'openai') {
+    const body: Record<string, unknown> = {
+      model: config.chatModel,
+      messages: messages.map(toOpenAiMessage),
+      temperature,
+      stream: false,
+    }
+    // Some endpoints reject an empty `tools` array — only send when non-empty.
+    if (toolsPayload.length) {
+      body.tools = toolsPayload
+      body.tool_choice = 'auto'
+    }
+    const data = await aiPostJson<{
+      choices: { message: { content: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[]
+    }>('chat', '/chat/completions', body)
+    const msg = data.choices[0]?.message
+    return {
+      content: msg?.content ?? '',
+      toolCalls: (msg?.tool_calls ?? []).map((tc) => ({
+        id: tc.id,
+        name: tc.function.name,
+        args: safeParseArgs(tc.function.arguments),
+      })),
+    }
+  }
+
+  // Ollama /api/chat — same tools shape; arguments come back as an object.
+  const ollamaBody: Record<string, unknown> = {
+    model: config.chatModel,
+    messages: messages.map(toOllamaMessage),
+    stream: false,
+    options: { temperature },
+  }
+  if (toolsPayload.length) ollamaBody.tools = toolsPayload
+  const data = await aiPostJson<{
+    message: { content?: string; tool_calls?: { id?: string; function: { name: string; arguments: unknown } }[] }
+  }>('chat', '/api/chat', ollamaBody)
+  const msg = data.message
+  return {
+    content: msg?.content ?? '',
+    toolCalls: (msg?.tool_calls ?? []).map((tc, i) => ({
+      id: tc.id ?? `call_${i}`,
+      name: tc.function.name,
+      args: safeParseArgs(tc.function.arguments),
+    })),
+  }
+}
