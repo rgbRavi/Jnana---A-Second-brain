@@ -106,24 +106,65 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       retrieval latency becomes noticeable (>10k chunks).
 - [ ] Grow test coverage alongside features (component tests via testing-library now available).
 
-## Graph enhancements (next session)
+## Graph enhancements ✅ DONE
 
-Fixed already: drag/zoom freeze (removed `pauseAnimation`), node-position cache so connecting
+Earlier fixes: drag/zoom freeze (removed `pauseAnimation`), node-position cache so connecting
 doesn't reflow the graph, and a connect-nodes mode (appends `[[title]]` to the source note so
-the edge is durable). Remaining ideas, roughly best value-for-effort first:
+the edge is durable).
 
-- [ ] **Disconnect a link** — the complement to Connect; the feature is one-way without it. A
-      click-an-edge or "disconnect mode" that **strips the `[[wikilink]]` from the source note's
-      content** (mirror of connect — not a raw `dropLink`, or sync would re-add it). `useGraph`
-      has `dropLink` but it must go through content to be durable.
-- [ ] **Tag-based coloring / clustering** — color or cluster nodes by tag. Highest "this is my
-      second brain" payoff and reuses the existing tag system the graph currently ignores.
-- [ ] **Orphan / hub highlighting** — flag notes with no links (worth connecting) and heavily
-      linked hubs; cheap to compute from edges.
-- [ ] **Filter the visible graph** — by tag / date / search match (search currently only focuses
-      one node; let it narrow the visible set).
-- [ ] **Directed edges** — arrowheads showing which note links to which (links are directional).
-- [ ] **Pin layout** — let dragged nodes stay put instead of the force layout reflowing them.
+All in `GraphView.tsx`; `GraphNode` carries `tags` + `createdAt` from `useGraph`. The controls
+are organised as an **Obsidian-style settings panel** (top-right, collapsible accordion sections;
+🎛 button to reopen when closed; reset-all ↺ + close ✕ on the Filters header). Hidden while the
+focused-note panel is open.
+
+- [x] **Node right-click menu** — Right-click a note for: **Connect to a note** (a rubber-band
+      line follows the cursor — click any other note to link, or Esc to cancel), **Disconnect all
+      links** (shown only when the note has ≥1 link; strips the matching `[[wikilink]]` from both
+      sides via `stripWikilink` → `onUpdate`, so sync can't re-add it), and **Delete note**.
+      Delete/connect use the **native Tauri `ask` dialog** — the WebView's `window.confirm` was
+      ignoring Cancel here.
+- [x] **Filters section** — narrows the visible set by free text (title/body/tags), an "updated
+      within" date preset, an orphans-only toggle, and **tag chips** (moved in here); shows a live
+      visible/total count + Clear.
+- [x] **Groups section** — user-defined color categories (Obsidian "Groups"): each group is a
+      query + color; `#tag`/`tag:` matches by tag, plain text matches the note title. First
+      matching group colors the node. Replaces the old auto "Tags" coloring.
+- [x] **Display section** — Arrows (directed edges, arrowhead at target), Highlight hubs & orphans
+      (orphans degree 0 = small/amber, hubs ≥4 = large/ringed; mini-legend), Pin dragged nodes
+      (`fx`/`fy` on drag end; off releases pins + reheats), and sliders for **Text fade threshold**
+      (label alpha vs `globalScale`), **Node size** (radius multiplier) and **Link thickness**
+      (`linkWidth`), plus an **Animate** button (`d3ReheatSimulation` + `zoomToFit`).
+- [x] **Forces section** — sliders for center / repel / link force + link distance with live
+      values, hints (full description on hover), "See clusters" / "Compact" presets and Reset.
+      **Center force** is a custom `makeRadialForce` pulling nodes toward the origin (d3's built-in
+      `forceCenter` only *recenters*, it doesn't compact), so higher = tighter & more circular.
+- [x] **Compact jump-to-note** — top-left search shrunk to a single text box with a small
+      results dropdown that focuses the chosen node (replaced the large `SearchDocs` card).
+
+## View-state persistence ✅ DONE
+
+Switching views unmounts the previous route (react-router), which used to drop all of its
+in-progress state. Added `useViewState(key, initial)` ([src/hooks/useViewState.ts](src/hooks/useViewState.ts)) —
+a drop-in `useState` backed by a **subscribable** module-level store (via `useSyncExternalStore`)
+that outlives unmount/remount — and applied it to:
+
+- Composer draft (`NoteCreator`: title / body / tags / favourite)
+- Search query (`useSearch`; results recompute from it on remount)
+- AI analyzer (`AiChat`: thread, scope kind/inputs, mode, composer text, **plus busy/error**)
+- Graph settings (`GraphView`: filters, groups, display, forces, panel open-state)
+
+Because the store is an external store with its own setters (not per-instance React state), an
+**in-flight async request survives navigation**: if you switch away while the analyzer/quiz is
+still running, the request keeps going and its result is written to the store when it resolves —
+so it's there (and the spinner updates live) when you return. This was the missing piece: a plain
+mirror-on-change store lost the answer because the resolving promise's `setState` targeted the
+unmounted instance.
+
+In-memory only (resets on a full app reload) — the goal was to stop losing work when navigating,
+not disk persistence. Transient UI (hover, open dropdowns/menus, busy/error, focused node, open
+note modals) is deliberately left un-persisted. AI provider settings already persist to disk via
+`useRag`/`saveAiConfig`. If cross-reload persistence is wanted later, back the store with
+`localStorage` (needs Set/array serialization for `filterTags`/`groups`).
 
 ## Explicitly deferred (don't do yet)
 

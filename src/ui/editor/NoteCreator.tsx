@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Note } from '../../types'
+import { useViewState } from '../../hooks/useViewState'
 import { useComposer } from '../../hooks/useComposer'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
@@ -16,12 +17,13 @@ interface Props {
 }
 
 export function NoteCreator({ onCreate, onUpdate }: Props) {
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [tags, setTags] = useState<string[]>([])
+  // Draft fields persist across view switches so an in-progress note isn't lost.
+  const [title, setTitle] = useViewState('notes.composer.title', '')
+  const [content, setContent] = useViewState('notes.composer.content', '')
+  const [tags, setTags] = useViewState<string[]>('notes.composer.tags', [])
+  const [saveFavourite, setSaveFavourite] = useViewState('notes.composer.favourite', false)
   const [saving, setSaving] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [saveFavourite, setSaveFavourite] = useState(false)
   // Bumped on save to remount the AI suggestion panels, clearing their results
   // when the composer is reset for a new note.
   const [draftKey, setDraftKey] = useState(0)

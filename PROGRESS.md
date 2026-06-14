@@ -289,6 +289,23 @@ Notes:
 - [x] Focus view for clicked nodes
 - [x] Edit/delete from graph panel
 - [x] Graph stays in sync through events
+- [x] Node right-click menu — connect / disconnect-all / delete
+- [x] Connect to a note via rubber-band line + click (appends `[[title]]`)
+- [x] Disconnect all links (strips the `[[wikilink]]` from both sides)
+- [x] Native Tauri confirm for delete (WebView `window.confirm` ignored Cancel)
+- [x] Collapsible settings panel (Filters / Groups / Display / Forces)
+- [x] Filters: text / date / orphans-only / tag chips, live count
+- [x] Groups: user-defined color categories by `#tag` or note title
+- [x] Display: arrows, hub/orphan highlight, pin, text-fade / node-size / link-thickness, Animate
+- [x] Forces: center / repel / link force + distance, presets, reset
+- [x] Compact jump-to-note search box
+
+### View state persistence
+- [x] `useViewState` hook (module-store-backed `useState`) survives view switches
+- [x] Composer draft (title / body / tags / favourite) kept across views
+- [x] Search query kept (results recompute from it)
+- [x] AI chat thread + scope + composer kept
+- [x] Graph settings panel (filters / groups / display / forces) kept
 
 ### Video
 - [x] Import local video files

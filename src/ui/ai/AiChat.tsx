@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
+import { useViewState } from '../../hooks/useViewState'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -135,22 +136,26 @@ function toHistory(msgs: ChatMessage[]): AskTurn[] {
 }
 
 export function AiChat({ config, notes, onOpenNote }: Props) {
-  const [scopeKind, setScopeKind] = useState<ScopeKind>('topic')
-  const [responseMode, setResponseMode] = useState<ResponseMode>('analyze')
+  // Scope, mode, inputs and the conversation persist across view switches so the
+  // chat isn't lost when navigating away. (busy/error are transient — plain state.)
+  const [scopeKind, setScopeKind] = useViewState<ScopeKind>('ai.scopeKind', 'topic')
+  const [responseMode, setResponseMode] = useViewState<ResponseMode>('ai.responseMode', 'analyze')
 
   // Per-kind scope inputs.
-  const [topicPhrase, setTopicPhrase] = useState('')
-  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+  const [topicPhrase, setTopicPhrase] = useViewState('ai.topicPhrase', '')
+  const [selectedNote, setSelectedNote] = useViewState<Note | null>('ai.selectedNote', null)
   const today = toInputDate(new Date())
-  const [fromStr, setFromStr] = useState(() => toInputDate(new Date(Date.now() - 6 * DAY)))
-  const [toStr, setToStr] = useState(today)
+  const [fromStr, setFromStr] = useViewState('ai.fromStr', () => toInputDate(new Date(Date.now() - 6 * DAY)))
+  const [toStr, setToStr] = useViewState('ai.toStr', today)
 
-  // Conversation.
-  const [thread, setThread] = useState<ChatMessage[]>([])
-  const [lastScopeKey, setLastScopeKey] = useState<string | null>(null)
-  const [input, setInput] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Conversation. busy/error persist too so a request that's still running when
+  // you switch views keeps its spinner, and the answer lands when it resolves —
+  // the async setters write to the shared store regardless of mount state.
+  const [thread, setThread] = useViewState<ChatMessage[]>('ai.thread', [])
+  const [lastScopeKey, setLastScopeKey] = useViewState<string | null>('ai.lastScopeKey', null)
+  const [input, setInput] = useViewState('ai.input', '')
+  const [busy, setBusy] = useViewState('ai.busy', false)
+  const [error, setError] = useViewState<string | null>('ai.error', null)
 
   const rangeDays = useMemo(() => {
     const diff = Math.round((startOfDay(toStr) - startOfDay(fromStr)) / DAY) + 1

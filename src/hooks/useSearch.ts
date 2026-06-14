@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import MiniSearch, { type SearchResult } from 'minisearch'
 import type { Note } from '../types'
 import { eventBus } from '../lib/eventBus'
+import { useViewState } from './useViewState'
 import {
   createNoteIndex,
   updateIndexedNote,
@@ -18,9 +19,11 @@ type IndexedNote = {
   updatedAt: number
 }
 
-export function useSearch(notes: Note[]) {
+export function useSearch(notes: Note[], persistKey = 'search:query') {
   const indexRef = useRef<MiniSearch<IndexedNote> | null>(null)
-  const [query, setQuery] = useState('')
+  // Query persists across view switches; results are recomputed from it when the
+  // index (re)builds on remount, so they don't need separate persistence.
+  const [query, setQuery] = useViewState(persistKey, '')
   const [results, setResults] = useState<SearchResult[]>([])
   const [ready, setReady] = useState(false)
 
