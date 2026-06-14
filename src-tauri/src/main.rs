@@ -4,6 +4,7 @@ mod commands;
 mod db;
 
 use commands::ai::*;
+use commands::ai_workspace::*;
 use commands::annotations::*;
 use commands::assets::*;
 use commands::chat::*;
@@ -185,6 +186,15 @@ fn main() {
             save_conversation,
             delete_conversation,
             rename_conversation,
+            list_presets,
+            save_preset,
+            delete_preset,
+            list_projects,
+            save_project,
+            delete_project,
+            list_project_knowledge,
+            add_project_knowledge,
+            remove_project_knowledge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

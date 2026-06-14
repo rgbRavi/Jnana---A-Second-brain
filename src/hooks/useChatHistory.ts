@@ -57,7 +57,7 @@ export function useChatHistory(
   }, [mode, setActiveId])
 
   const persist = useCallback(
-    async (messages: unknown, scope: unknown, title: string) => {
+    async (messages: unknown, scope: unknown, title: string, projectId?: string | null) => {
       // Read the current id from the store in case it changed mid-request.
       const id = getViewState<string>(`ai.conv.${mode}`) ?? activeId
       const now = Date.now()
@@ -67,6 +67,7 @@ export function useChatHistory(
         title: title.trim() || 'New chat',
         messages: JSON.stringify(messages ?? []),
         scope: scope == null ? null : JSON.stringify(scope),
+        projectId: projectId ?? null,
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
       }

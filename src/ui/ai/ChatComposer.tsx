@@ -24,6 +24,8 @@ interface Props {
   onDeepResearchChange: (v: boolean) => void
   /** Model supports vision — used only for the attach tooltip. */
   vision: boolean
+  /** Style/Skills controls, injected by the parent (which owns preset state). */
+  presetControls?: React.ReactNode
   disabled?: boolean
 }
 
@@ -151,6 +153,7 @@ export function ChatComposer({
   deepResearch,
   onDeepResearchChange,
   vision,
+  presetControls,
   disabled,
 }: Props) {
   const canSend = !busy && (value.trim() !== '' || attachments.length > 0)
@@ -254,6 +257,7 @@ export function ChatComposer({
             📎 Attach
           </button>
           <NotePicker notes={notes} onPick={onAddNote} />
+          {presetControls}
           <button
             onClick={() => onThinkChange(!think)}
             disabled={!canThink || busy}

@@ -17,8 +17,13 @@ export function ChatHistory({ mode }: { mode: string }) {
   // Same key + default factory as useChatHistory so the highlight stays in sync.
   const [activeId] = useViewState<string>(`ai.conv.${mode}`, newId)
   const [collapsed, setCollapsed] = useViewState('ai.history.collapsed', false)
+  // In AI Chat, the drawer is scoped to the active project (Claude-style grouping).
+  const [activeProjectId] = useViewState('ai.free.projectId', '')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameText, setRenameText] = useState('')
+
+  const visible =
+    mode === 'chat' ? list.filter((c) => (c.projectId ?? '') === (activeProjectId ?? '')) : list
 
   const refresh = useCallback(() => {
     listConversations(mode)
@@ -138,10 +143,10 @@ export function ChatHistory({ mode }: { mode: string }) {
       </div>
 
       <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px', minHeight: 0 }}>
-        {list.length === 0 && (
+        {visible.length === 0 && (
           <p style={{ fontSize: '0.76rem', color: 'var(--text-3)', padding: '0.4rem 0.2rem' }}>No saved chats yet.</p>
         )}
-        {list.map((c) => {
+        {visible.map((c) => {
           const active = c.id === activeId
           return (
             <div

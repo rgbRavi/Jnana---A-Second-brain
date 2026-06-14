@@ -31,6 +31,14 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v4(conn)?;
     }
 
+    if version < 5 {
+        migrate_v5(conn)?;
+    }
+
+    if version < 6 {
+        migrate_v6(conn)?;
+    }
+
     Ok(())
 }
 
@@ -158,6 +166,66 @@ fn migrate_v4(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V5: AI presets — reusable response Styles and Skills (Claude-style).
+///
+/// Both are "a named instruction that augments the system prompt", so they share
+/// one table keyed by `kind` ('style' | 'skill'). `body` holds the instruction
+/// text. Projects (with their own knowledge base) get a separate later migration.
+fn migrate_v5(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS ai_presets (
+            id          TEXT PRIMARY KEY,
+            kind        TEXT NOT NULL,
+            name        TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            body        TEXT NOT NULL DEFAULT '',
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ai_presets_kind ON ai_presets(kind);
+
+        INSERT INTO schema_version (version) VALUES (5);
+        ",
+    )
+}
+
+/// V6: AI Projects — a project carries custom instructions plus a knowledge base
+/// (attached notes and uploaded files) that grounds every chat inside it.
+/// Conversations gain a nullable `project_id` so chats can belong to a project.
+fn migrate_v6(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS ai_projects (
+            id           TEXT PRIMARY KEY,
+            name         TEXT NOT NULL,
+            description  TEXT NOT NULL DEFAULT '',
+            instructions TEXT NOT NULL DEFAULT '',
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_project_knowledge (
+            id          TEXT PRIMARY KEY,
+            project_id  TEXT NOT NULL,
+            kind        TEXT NOT NULL,   -- 'note' | 'file'
+            ref_id      TEXT NOT NULL,   -- note id, or asset filename
+            label       TEXT NOT NULL DEFAULT '',
+            created_at  INTEGER NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES ai_projects(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_project_knowledge_project ON ai_project_knowledge(project_id);
+
+        ALTER TABLE conversations ADD COLUMN project_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project_id);
+
+        INSERT INTO schema_version (version) VALUES (6);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,11 +237,11 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 4
+        // Verify version is 6
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, 6);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -183,6 +251,9 @@ mod tests {
         assert!(tables.contains(&"links".to_string()));
         assert!(tables.contains(&"embeddings".to_string()));
         assert!(tables.contains(&"conversations".to_string()));
+        assert!(tables.contains(&"ai_presets".to_string()));
+        assert!(tables.contains(&"ai_projects".to_string()));
+        assert!(tables.contains(&"ai_project_knowledge".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);

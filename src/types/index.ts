@@ -20,6 +20,8 @@ export interface StoredConversation {
   title: string
   messages: string
   scope: string | null
+  /** Owning project (AI Chat), or null. */
+  projectId: string | null
   createdAt: number
   updatedAt: number
 }
@@ -29,6 +31,43 @@ export interface ConversationMeta {
   id: string
   mode: string
   title: string
+  projectId: string | null
+  updatedAt: number
+}
+
+/** An AI Project: custom instructions + a knowledge base that grounds its chats. */
+export interface AiProject {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** One knowledge item attached to a project. */
+export interface ProjectKnowledge {
+  id: string
+  projectId: string
+  /** "note" | "file" */
+  kind: 'note' | 'file'
+  /** note id, or asset filename */
+  refId: string
+  label: string
+  createdAt: number
+}
+
+/** A reusable AI preset: a response Style or a Skill. Both augment the system prompt. */
+export type PresetKind = 'style' | 'skill'
+
+export interface AiPreset {
+  id: string
+  kind: PresetKind
+  name: string
+  description: string
+  /** The instruction text prepended to the system prompt when selected. */
+  body: string
+  createdAt: number
   updatedAt: number
 }
 

@@ -14,6 +14,8 @@ pub struct ConversationRow {
     pub title: String,
     pub messages: String,
     pub scope: Option<String>,
+    /// Owning project (AI Chat mode), or null.
+    pub project_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -25,6 +27,7 @@ pub struct ConversationMeta {
     pub id: String,
     pub mode: String,
     pub title: String,
+    pub project_id: Option<String>,
     pub updated_at: i64,
 }
 

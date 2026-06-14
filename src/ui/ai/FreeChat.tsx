@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react'
-import type { AiConfig, Note, StoredConversation } from '../../types'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { AiConfig, Note, ProjectKnowledge, StoredConversation } from '../../types'
 import {
   streamChat,
   buildUserTurn,
@@ -11,10 +11,15 @@ import {
   type ChatAttachment,
   type StreamRoute,
 } from '../../core/ai'
+import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { useViewState, getViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
+import { usePresets } from '../../hooks/usePresets'
+import { useProjects } from '../../hooks/useProjects'
 import { eventBus } from '../../lib/eventBus'
 import { ChatComposer } from './ChatComposer'
+import { PresetPicker } from './PresetPicker'
+import { ProjectBar } from './ProjectBar'
 import styles from './Ai.module.css'
 
 const titleFrom = (messages: FreeMessage[]): string => {
@@ -52,6 +57,25 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const [deepResearch, setDeepResearch] = useViewState('ai.free.deepResearch', false)
   const [busy, setBusy] = useViewState('ai.free.busy', false)
   const [error, setError] = useViewState<string | null>('ai.free.error', null)
+
+  // Styles & Skills (presets) — selection persists across view switches.
+  const { styles: stylePresets, skills: skillPresets, refresh: refreshPresets } = usePresets()
+  const [styleId, setStyleId] = useViewState('ai.free.styleId', '')
+  const [skillIds, setSkillIds] = useViewState<string[]>('ai.free.skillIds', [])
+
+  // Projects — the active project grounds the chat with its instructions + knowledge.
+  const { projects, refresh: refreshProjects } = useProjects()
+  const [projectId, setProjectId] = useViewState('ai.free.projectId', '')
+  const [projectKnowledge, setProjectKnowledge] = useState<ProjectKnowledge[]>([])
+  useEffect(() => {
+    if (!projectId) {
+      setProjectKnowledge([])
+      return
+    }
+    listProjectKnowledge(projectId)
+      .then(setProjectKnowledge)
+      .catch(() => setProjectKnowledge([]))
+  }, [projectId])
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -154,16 +178,29 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     const route: StreamRoute | undefined = useDrEndpoint
       ? { target: 'deepResearch', provider: config.deepResearchProvider, model: config.deepResearchModel }
       : undefined
-    const system: ChatTurn[] =
-      deepResearch && !useDrEndpoint
-        ? [
-            {
-              role: 'system',
-              content:
-                'You are a helpful assistant. Reason thoroughly and methodically: break the problem into steps, weigh multiple angles, and give a comprehensive, well-structured answer.',
-            },
-          ]
-        : []
+
+    // System prompt = project grounding + selected Style + Skills (+ deep-research).
+    const systemParts: string[] = []
+    const activeProject = projects.find((p) => p.id === projectId)
+    if (activeProject) {
+      try {
+        const grounding = await buildProjectGrounding(activeProject, projectKnowledge, notes)
+        if (grounding) systemParts.push(grounding)
+      } catch (e) {
+        console.error('Failed to build project grounding:', e)
+      }
+    }
+    const presetSystem = buildPresetSystem(
+      stylePresets.find((s) => s.id === styleId),
+      skillPresets.filter((s) => skillIds.includes(s.id)),
+    )
+    if (presetSystem) systemParts.push(presetSystem)
+    if (deepResearch && !useDrEndpoint) {
+      systemParts.push(
+        'Reason thoroughly and methodically: break the problem into steps, weigh multiple angles, and give a comprehensive, well-structured answer.',
+      )
+    }
+    const system: ChatTurn[] = systemParts.length ? [{ role: 'system', content: systemParts.join('\n\n') }] : []
     const turns: ChatTurn[] = [...system, ...prior, userTurn]
 
     const controller = new AbortController()
@@ -193,7 +230,7 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       // Persist the conversation (reads the freshly-updated store, so it works
       // even if we've navigated away while streaming).
       const finalMessages = getViewState<FreeMessage[]>('ai.free.messages') ?? []
-      void persist(finalMessages, null, titleFrom(finalMessages))
+      void persist(finalMessages, null, titleFrom(finalMessages), getViewState<string>('ai.free.projectId') || null)
     }
   }
 
@@ -209,11 +246,14 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Header: model + new chat */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.6rem' }}>
-        <span className={styles.scopeLabel}>
-          {config.chatProvider} · {config.chatModel || 'no model set'}
-        </span>
+      {/* Header: project + model + new chat */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <ProjectBar projects={projects} projectId={projectId} onProjectId={setProjectId} notes={notes} onChanged={refreshProjects} />
+          <span className={styles.scopeLabel}>
+            {config.chatProvider} · {config.chatModel || 'no model set'}
+          </span>
+        </div>
         {messages.length > 0 && (
           <button className={styles.btn} onClick={newChat} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}>
             + New chat
@@ -288,6 +328,17 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
             deepResearch={deepResearch}
             onDeepResearchChange={setDeepResearch}
             vision={caps.vision}
+            presetControls={
+              <PresetPicker
+                styles={stylePresets}
+                skills={skillPresets}
+                styleId={styleId}
+                onStyleId={setStyleId}
+                skillIds={skillIds}
+                onSkillIds={setSkillIds}
+                onChanged={refreshPresets}
+              />
+            }
           />
         </div>
       </div>

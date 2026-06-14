@@ -166,6 +166,31 @@ note modals) is deliberately left un-persisted. AI provider settings already per
 `useRag`/`saveAiConfig`. If cross-reload persistence is wanted later, back the store with
 `localStorage` (needs Set/array serialization for `filterTags`/`groups`).
 
+## AI Chat — dual-mode + history + Styles/Skills/Projects ✅ DONE
+
+Full design in [the plan file](../../Users/vravi/.claude/plans/add-following-features-in-buzzing-engelbart.md).
+Shipped in phases:
+
+- [x] **Dual mode** — toggle between **Focused AI Assist** (the grounded analyzer) and **AI Chat**
+      (a streaming chatbot). Streaming via a Rust `ai_chat_stream` command over a Tauri `Channel`
+      (raw SSE/NDJSON forwarded; parsed TS-side), with `ai_chat_cancel` for Stop.
+- [x] **Native multimodal attachments** — images → vision blocks, documents → extracted text,
+      audio → transcription; plus **attach Jnana notes** with an "include thread" checkbox that
+      folds in the note's linked notes.
+- [x] **Thinking toggle** (reasoning models) and **Deep research** — its own configurable endpoint
+      in AI settings, else a best-effort system-prompt directive.
+- [x] **Chat history** (SQLite `conversations`, migrate_v4) — collapsible per-mode sidebar with
+      New chat / load / rename / delete; survives reload; in-flight streams still persist.
+- [x] **Styles & Skills** (`ai_presets`, migrate_v5) — reusable system-prompt presets; composer
+      picker (style select + skills multiselect) + manager modal; seeded defaults.
+- [x] **Projects** (`ai_projects` + `ai_project_knowledge` + `conversations.project_id`,
+      migrate_v6) — custom instructions + a knowledge base of attached notes/files that grounds
+      every chat in the project; project picker + manager; the history drawer scopes to the active
+      project. Knowledge is folded into context (capped); deeper per-doc embedding/retrieval is a
+      future refinement.
+- [x] UX polish — bottom-pinned composer with scrollable messages, model-name history dropdowns
+      in settings, scrollable note picker.
+
 ## Explicitly deferred (don't do yet)
 
 - Connection pool (`r2d2`/`deadpool`) — unnecessary for a single-user app.

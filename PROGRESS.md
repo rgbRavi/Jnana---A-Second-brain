@@ -241,6 +241,9 @@ Notes:
 | `import_file` | Copy a user-picked file into assets (for AI-chat attachments); returns the stored filename |
 | `list_conversations` / `get_conversation` | AI chat history (per-mode list; full conversation by id) |
 | `save_conversation` / `rename_conversation` / `delete_conversation` | Upsert/rename/delete a stored conversation |
+| `list_presets` / `save_preset` / `delete_preset` | AI Styles & Skills (reusable system-prompt presets) |
+| `list_projects` / `save_project` / `delete_project` | AI Projects (instructions + knowledge base) |
+| `list_project_knowledge` / `add_project_knowledge` / `remove_project_knowledge` | Manage a project's attached notes/files |
 | `save_note_embeddings` | Replace a note's chunk embeddings atomically |
 | `search_embeddings` | In-process cosine similarity over all stored chunks |
 | `delete_note_embeddings` | Remove a note from the vector index |
@@ -317,7 +320,8 @@ Notes:
 - [x] Chat history + New chat persisted to SQLite (both modes; drawer + load/rename/delete)
 - [x] Collapsible history sidebar; bottom-pinned composer with scrollable messages (Claude/ChatGPT-style)
 - [x] AI settings remember used model names per field (datalist combobox)
-- [ ] Styles / Projects / Skills (Phase 3)
+- [x] Styles (response tone) + Skills (reusable instructions) — picker + manager, seeded defaults
+- [x] Projects: custom instructions + knowledge base (notes/files); grounds & groups its chats
 
 ### View state persistence
 - [x] `useViewState` hook (module-store-backed `useState`) survives view switches

@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod ai_workspace;
 pub mod annotations;
 pub mod assets;
 pub mod chat;
