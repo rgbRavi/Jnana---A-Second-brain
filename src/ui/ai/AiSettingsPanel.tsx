@@ -1,8 +1,13 @@
+import { useState } from 'react'
 import type { AiConfig, IndexStats, Note } from '../../types'
 import {
   withChatProviderDefaults,
   withEmbeddingProviderDefaults,
   withTranscriptionProviderDefaults,
+  withDeepResearchProviderDefaults,
+  getModelHistory,
+  rememberModel,
+  type ModelKind,
 } from '../../core/ai'
 import styles from './Ai.module.css'
 
@@ -32,10 +37,23 @@ interface ProviderSectionProps {
   modelLabel: string
   model: string
   onModel: (value: string) => void
+  /** Which model-name history bucket feeds this field's dropdown. */
+  historyKey?: ModelKind
 }
 
-/** A reusable provider block: backend select + base URL + (optional) key + model. */
+/** A reusable provider block: backend select + base URL + (optional) key + model.
+ *  The model field is a combobox — free text plus a dropdown of names used before. */
 function ProviderSection(p: ProviderSectionProps) {
+  const [suggestions, setSuggestions] = useState<string[]>(() =>
+    p.historyKey ? getModelHistory(p.historyKey) : [],
+  )
+  const listId = p.historyKey ? `models-${p.historyKey}` : undefined
+  const commitModel = () => {
+    if (p.historyKey && p.model.trim()) {
+      rememberModel(p.historyKey, p.model)
+      setSuggestions(getModelHistory(p.historyKey))
+    }
+  }
   return (
     <section className={styles.providerSection}>
       <h3 className={styles.subhead}>{p.title}</h3>
@@ -72,7 +90,21 @@ function ProviderSection(p: ProviderSectionProps) {
 
         <div className={`${styles.field} ${styles.fieldWide}`}>
           <label className={styles.label}>{p.modelLabel}</label>
-          <input className={styles.input} value={p.model} onChange={(e) => p.onModel(e.target.value)} />
+          <input
+            className={styles.input}
+            value={p.model}
+            list={listId}
+            placeholder="Type or pick a model…"
+            onChange={(e) => p.onModel(e.target.value)}
+            onBlur={commitModel}
+          />
+          {listId && (
+            <datalist id={listId}>
+              {suggestions.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          )}
         </div>
       </div>
     </section>
@@ -119,6 +151,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         modelLabel="Chat model"
         model={config.chatModel}
         onModel={(v) => set('chatModel', v)}
+        historyKey="chat"
       />
 
       <ProviderSection
@@ -136,6 +169,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         modelLabel="Embedding model"
         model={config.embeddingModel}
         onModel={(v) => set('embeddingModel', v)}
+        historyKey="embedding"
       />
 
       <div className={styles.row}>
@@ -175,6 +209,25 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         modelLabel="Model"
         model={config.transcriptionModel}
         onModel={(v) => set('transcriptionModel', v)}
+        historyKey="transcription"
+      />
+
+      <ProviderSection
+        title="Deep research"
+        hint="Optional. Used by the AI-Chat 'Deep research' toggle. Set a model to route deep-research requests to a dedicated endpoint/model; leave the model blank to fall back to a system-prompt directive on the normal chat model."
+        provider={config.deepResearchProvider}
+        options={LLM_OPTIONS}
+        onProvider={(v) => onChange(withDeepResearchProviderDefaults(config, v as AiConfig['deepResearchProvider']))}
+        baseUrl={config.deepResearchBaseUrl}
+        onBaseUrl={(v) => set('deepResearchBaseUrl', v)}
+        showKey={config.deepResearchProvider === 'openai'}
+        apiKey={config.deepResearchApiKey}
+        hasKey={!!config.hasDeepResearchApiKey}
+        onKey={(v) => set('deepResearchApiKey', v)}
+        modelLabel="Deep research model"
+        model={config.deepResearchModel}
+        onModel={(v) => set('deepResearchModel', v)}
+        historyKey="deepResearch"
       />
     </>
   )

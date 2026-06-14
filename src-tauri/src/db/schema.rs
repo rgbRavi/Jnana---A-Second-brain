@@ -27,6 +27,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v3(conn)?;
     }
 
+    if version < 4 {
+        migrate_v4(conn)?;
+    }
+
     Ok(())
 }
 
@@ -126,6 +130,34 @@ fn migrate_v3(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V4: AI chat conversations (history for both "Focused AI Assist" and "AI Chat").
+///
+/// One row per conversation. `messages` is a JSON array of the mode's message
+/// union and `scope` is the focused-mode scope snapshot (null for free chat) —
+/// stored as JSON columns, matching how `notes.tags` / annotation positions are
+/// persisted. Plenty for personal scale; revisit only if a single conversation
+/// grows large enough that rewriting the blob per turn is noticeable.
+fn migrate_v4(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS conversations (
+            id          TEXT PRIMARY KEY,
+            mode        TEXT NOT NULL,
+            title       TEXT NOT NULL DEFAULT 'New chat',
+            messages    TEXT NOT NULL DEFAULT '[]',
+            scope       TEXT,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conversations_mode_updated
+            ON conversations(mode, updated_at);
+
+        INSERT INTO schema_version (version) VALUES (4);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -137,19 +169,20 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 3
+        // Verify version is 4
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
         let tables: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
-        
+
         assert!(tables.contains(&"notes".to_string()));
         assert!(tables.contains(&"links".to_string()));
         assert!(tables.contains(&"embeddings".to_string()));
+        assert!(tables.contains(&"conversations".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);

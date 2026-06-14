@@ -236,6 +236,11 @@ Notes:
 |---|---|
 | `get_ai_config` / `set_ai_config` | AI settings stored Rust-side; API key is write-only and redacted on read |
 | `ai_request` | POST a JSON body to an endpoint path of the configured provider; Rust supplies the host and injects the key |
+| `ai_chat_stream` | Stream a chat completion: forwards raw SSE/NDJSON chunks to the frontend over a Tauri Channel (live tokens) |
+| `ai_chat_cancel` | Stop an in-flight `ai_chat_stream` by request id |
+| `import_file` | Copy a user-picked file into assets (for AI-chat attachments); returns the stored filename |
+| `list_conversations` / `get_conversation` | AI chat history (per-mode list; full conversation by id) |
+| `save_conversation` / `rename_conversation` / `delete_conversation` | Upsert/rename/delete a stored conversation |
 | `save_note_embeddings` | Replace a note's chunk embeddings atomically |
 | `search_embeddings` | In-process cosine similarity over all stored chunks |
 | `delete_note_embeddings` | Remove a note from the vector index |
@@ -299,6 +304,20 @@ Notes:
 - [x] Display: arrows, hub/orphan highlight, pin, text-fade / node-size / link-thickness, Animate
 - [x] Forces: center / repel / link force + distance, presets, reset
 - [x] Compact jump-to-note search box
+
+### AI Chat (dual-mode) — Phases 1–2
+- [x] Mode toggle: "Focused AI Assist" (analyzer) ⇄ "AI Chat" (chatbot)
+- [x] Streaming responses (live tokens) via Rust Channel + TS SSE/NDJSON parsing
+- [x] Stop button cancels an in-flight stream
+- [x] Multi-turn free chat; in-flight stream survives view switches (store-bound)
+- [x] Native multimodal: images→vision blocks, docs→extracted text, audio→transcription
+- [x] Attach Jnana notes as context, with an "include thread" (linked notes) option
+- [x] Thinking toggle (reasoning models)
+- [x] Deep research: own endpoint in AI settings; falls back to a system prompt if unset
+- [x] Chat history + New chat persisted to SQLite (both modes; drawer + load/rename/delete)
+- [x] Collapsible history sidebar; bottom-pinned composer with scrollable messages (Claude/ChatGPT-style)
+- [x] AI settings remember used model names per field (datalist combobox)
+- [ ] Styles / Projects / Skills (Phase 3)
 
 ### View state persistence
 - [x] `useViewState` hook (module-store-backed `useState`) survives view switches

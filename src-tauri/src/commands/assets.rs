@@ -23,6 +23,36 @@ pub fn save_asset(bytes: Vec<u8>, extension: String) -> Result<String, String> {
     Ok(filename)
 }
 
+/// Copy a user-picked file (from a native file dialog) into the assets dir and
+/// return its stored filename. Unlike `import_media` this records no media_ref —
+/// it's for AI-chat attachments, which belong to a conversation, not a note. The
+/// frontend already has the original path's extension to classify/derive mime.
+#[tauri::command]
+pub fn import_file(path: String) -> Result<String, String> {
+    let src = PathBuf::from(&path);
+    let bytes = fs::read(&src).map_err(|e| format!("Failed to read file: {}", e))?;
+
+    let dir = assets_dir();
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to create assets directory: {}", e))?;
+
+    // Sanitise the extension before interpolating it into the filename.
+    let ext: String = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+    let id = Uuid::new_v4().to_string();
+    let filename = if ext.is_empty() { id.clone() } else { format!("{}.{}", id, ext) };
+
+    fs::write(dir.join(&filename), &bytes)
+        .map_err(|e| format!("Failed to write asset: {}", e))?;
+
+    Ok(filename)
+}
+
 #[tauri::command]
 pub fn get_asset(filename: String) -> Result<Vec<u8>, String> {
     let filepath = safe_asset_file(&filename)?;

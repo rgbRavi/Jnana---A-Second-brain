@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
-import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote } from '../../types'
+import { useCallback, useMemo, useState } from 'react'
+import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
-import { useViewState } from '../../hooks/useViewState'
+import { useViewState, getViewState } from '../../hooks/useViewState'
+import { useChatHistory } from '../../hooks/useChatHistory'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -122,6 +123,27 @@ function parseScope(text: string, notes: Note[]): { directive: Directive | null;
   return { directive: null, rest: text }
 }
 
+/** Focused-mode scope snapshot persisted alongside a conversation. */
+interface FocusedScope {
+  scopeKind?: ScopeKind
+  responseMode?: ResponseMode
+  topicPhrase?: string
+  selectedNote?: Note | null
+  fromStr?: string
+  toStr?: string
+  lastScopeKey?: string | null
+}
+
+/** A readable title for a focused conversation, from its first question or scope. */
+function focusedTitle(thread: ChatMessage[], scope: FocusedScope): string {
+  const q = thread.find((m) => m.kind === 'question')
+  if (q && q.kind === 'question') return q.text.slice(0, 60)
+  if (scope.scopeKind === 'topic' && scope.topicPhrase) return `Topic: ${scope.topicPhrase}`.slice(0, 60)
+  if (scope.scopeKind === 'note' && scope.selectedNote) return `Note: ${scope.selectedNote.title || 'Untitled'}`.slice(0, 60)
+  if (scope.scopeKind === 'time') return 'Time-range analysis'
+  return 'Analysis'
+}
+
 /** Pair up question→answer messages into the history askNotes expects. */
 function toHistory(msgs: ChatMessage[]): AskTurn[] {
   const turns: AskTurn[] = []
@@ -156,6 +178,58 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
   const [input, setInput] = useViewState('ai.input', '')
   const [busy, setBusy] = useViewState('ai.busy', false)
   const [error, setError] = useViewState<string | null>('ai.error', null)
+
+  // ── History wiring (load/new from the drawer; persist after each turn) ──
+  const loadConv = useCallback(
+    (c: StoredConversation) => {
+      try {
+        setThread(JSON.parse(c.messages) as ChatMessage[])
+      } catch {
+        setThread([])
+      }
+      setError(null)
+      if (c.scope) {
+        try {
+          const s = JSON.parse(c.scope) as FocusedScope
+          if (s.scopeKind) setScopeKind(s.scopeKind)
+          if (s.responseMode) setResponseMode(s.responseMode)
+          setTopicPhrase(s.topicPhrase ?? '')
+          setSelectedNote(s.selectedNote ?? null)
+          if (s.fromStr) setFromStr(s.fromStr)
+          if (s.toStr) setToStr(s.toStr)
+          setLastScopeKey(s.lastScopeKey ?? null)
+        } catch {
+          /* leave scope as-is on parse error */
+        }
+      }
+    },
+    [setThread, setError, setScopeKind, setResponseMode, setTopicPhrase, setSelectedNote, setFromStr, setToStr, setLastScopeKey],
+  )
+
+  const resetChat = useCallback(() => {
+    setThread([])
+    setLastScopeKey(null)
+    setInput('')
+    setError(null)
+  }, [setThread, setLastScopeKey, setInput, setError])
+
+  const { persist } = useChatHistory('focused', loadConv, resetChat)
+
+  /** Snapshot the live thread + scope from the store and upsert the conversation. */
+  const persistNow = useCallback(() => {
+    const thread = getViewState<ChatMessage[]>('ai.thread') ?? []
+    if (thread.length === 0) return
+    const scope: FocusedScope = {
+      scopeKind: getViewState<ScopeKind>('ai.scopeKind'),
+      responseMode: getViewState<ResponseMode>('ai.responseMode'),
+      topicPhrase: getViewState<string>('ai.topicPhrase'),
+      selectedNote: getViewState<Note | null>('ai.selectedNote'),
+      fromStr: getViewState<string>('ai.fromStr'),
+      toStr: getViewState<string>('ai.toStr'),
+      lastScopeKey: getViewState<string | null>('ai.lastScopeKey'),
+    }
+    void persist(thread, scope, focusedTitle(thread, scope))
+  }, [persist])
 
   const rangeDays = useMemo(() => {
     const diff = Math.round((startOfDay(toStr) - startOfDay(fromStr)) / DAY) + 1
@@ -248,6 +322,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       try {
         const result = await analyze(scope, config, notes)
         setThread([...base, { kind: 'analysis', result }])
+        persistNow()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Analysis failed.')
       } finally {
@@ -264,6 +339,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       try {
         const questions = await generateQuiz(scope, config, notes)
         setThread([...base, { kind: 'quiz', questions }])
+        persistNow()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Quiz generation failed.')
       } finally {
@@ -287,6 +363,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     try {
       const res = await askNotes(scope, question, toHistory(base), config, notes)
       setThread((prev) => [...prev, { kind: 'answer', text: res.answer, sources: res.sourceNotes }])
+      persistNow()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Question failed.')
     } finally {
@@ -309,8 +386,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     busy || (responseMode === 'chat' ? !input.trim() : !(input.trim() || buildScope()))
 
   return (
-    <div className={styles.panel}>
-      {/* ── Scope bar ── */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* ── Scope bar (fixed header) ── */}
       <div className={styles.scopeBar}>
         <div className={styles.scopeChips}>
           <span className={styles.scopeLabel}>Scope</span>
@@ -399,7 +476,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         )}
       </div>
 
-      {/* ── Thread ── */}
+      {/* ── Thread + status (scrolls) ── */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: '1rem' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
       {thread.length > 0 && (
         <div className={styles.thread}>
           {thread.map((m, i) =>
@@ -439,8 +518,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         </p>
       )}
       {error && <p className={styles.error}>{error}</p>}
+        </div>
+      </div>
 
-      {/* ── Mode toggle + composer ── */}
+      {/* ── Bottom bar: mode toggle + composer (pinned) ── */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
       <div className={styles.modeToggle}>
         <span className={styles.scopeLabel}>Mode</span>
         <button
@@ -486,6 +569,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         <button className={styles.btnPrimary} disabled={sendDisabled} onClick={() => void send()}>
           {responseMode === 'analyze' ? 'Analyze' : responseMode === 'quiz' ? 'Quiz me' : 'Send'}
         </button>
+      </div>
+        </div>
       </div>
     </div>
   )

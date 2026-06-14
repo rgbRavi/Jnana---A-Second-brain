@@ -12,6 +12,26 @@ export interface Link {
   toId: string
 }
 
+/** A persisted AI-chat conversation (history). `messages`/`scope` are JSON strings. */
+export interface StoredConversation {
+  id: string
+  /** "focused" | "chat" */
+  mode: string
+  title: string
+  messages: string
+  scope: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+/** Lightweight conversation summary for the history list. */
+export interface ConversationMeta {
+  id: string
+  mode: string
+  title: string
+  updatedAt: number
+}
+
 export interface MediaRef {
   id: string
   noteId: string
@@ -109,6 +129,16 @@ export interface AiConfig {
   hasTranscriptionApiKey?: boolean
   /** Auto-transcribe audio when recorded/imported, inserting the text into the note. */
   transcribeOnRecord: boolean
+
+  // ── Deep research (its own endpoint; optional) ──
+  // When deepResearchModel is set, the AI-Chat "Deep research" toggle routes
+  // requests here; otherwise it falls back to a system-prompt directive.
+  deepResearchProvider: AiProviderKind
+  deepResearchBaseUrl: string
+  /** Write-only, same rules as the other keys. */
+  deepResearchApiKey: string
+  deepResearchModel: string
+  hasDeepResearchApiKey?: boolean
 }
 
 /** A single embeddable slice of a note. */

@@ -29,6 +29,14 @@ const TRANSCRIPTION_DEFAULTS: Record<
   local: { transcriptionBaseUrl: 'http://localhost:8000/v1', transcriptionModel: 'Systran/faster-whisper-small' },
 }
 
+/** Per-provider deep-research defaults (base URL only; model is left blank so
+ *  the endpoint stays opt-in — the toggle falls back to a system prompt until a
+ *  model is set). */
+const DEEP_RESEARCH_DEFAULTS: Record<AiProviderKind, Pick<AiConfig, 'deepResearchBaseUrl'>> = {
+  openai: { deepResearchBaseUrl: 'https://api.openai.com/v1' },
+  ollama: { deepResearchBaseUrl: 'http://localhost:11434' },
+}
+
 export function defaultConfig(): AiConfig {
   return {
     enabled: false,
@@ -46,6 +54,11 @@ export function defaultConfig(): AiConfig {
     hasTranscriptionApiKey: false,
     transcribeOnRecord: false,
     ...TRANSCRIPTION_DEFAULTS.openai,
+    deepResearchProvider: 'openai',
+    deepResearchApiKey: '',
+    hasDeepResearchApiKey: false,
+    deepResearchModel: '',
+    ...DEEP_RESEARCH_DEFAULTS.openai,
   }
 }
 
@@ -65,6 +78,16 @@ export function withTranscriptionProviderDefaults(
   provider: TranscriptionProviderKind,
 ): AiConfig {
   return { ...config, transcriptionProvider: provider, ...TRANSCRIPTION_DEFAULTS[provider] }
+}
+
+/** Defaults for a freshly-selected deep-research provider. */
+export function withDeepResearchProviderDefaults(config: AiConfig, provider: AiProviderKind): AiConfig {
+  return { ...config, deepResearchProvider: provider, ...DEEP_RESEARCH_DEFAULTS[provider] }
+}
+
+/** Whether a dedicated deep-research endpoint is configured (a model is set). */
+export function hasDeepResearchEndpoint(config: AiConfig): boolean {
+  return config.deepResearchModel.trim() !== '' && config.deepResearchBaseUrl.trim() !== ''
 }
 
 /** Old localStorage config (incl. keys) is obsolete — the Rust store + its
@@ -91,10 +114,12 @@ export async function loadAiConfig(): Promise<AiConfig> {
     chatProvider: asKind(stored.chatProvider),
     embeddingProvider: asKind(stored.embeddingProvider),
     transcriptionProvider: stored.transcriptionProvider === 'local' ? 'local' : 'openai',
+    deepResearchProvider: asKind(stored.deepResearchProvider),
     // Keys are write-only — always blank on load.
     chatApiKey: '',
     embeddingApiKey: '',
     transcriptionApiKey: '',
+    deepResearchApiKey: '',
   }
 }
 

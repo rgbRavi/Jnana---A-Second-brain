@@ -1,5 +1,6 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, Channel } from '@tauri-apps/api/core'
 import type { AiConfig, AiProviderKind } from '../../types'
+import { isThinkingModel } from './capabilities'
 
 interface AiFetchResponse {
   status: number
@@ -117,4 +118,190 @@ function providerEmbed(kind: AiProviderKind, model: string): EmbeddingProvider {
 
 function providerChat(kind: AiProviderKind, model: string): ChatProvider {
   return kind === 'openai' ? openAiChat(model) : ollamaChat(model)
+}
+
+// ── Streaming multi-turn chat (the "AI Chat" mode) ──────────────────────────
+
+/** A file attached to a chat turn, for providers that accept native file input. */
+export interface ChatFile {
+  /** data URL (`data:<mime>;base64,...`). */
+  dataUrl: string
+  mime: string
+  name: string
+}
+
+/** One message in a multi-turn chat. Images/files are native multimodal blocks. */
+export interface ChatTurn {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+  /** Image data URLs (vision models). */
+  images?: string[]
+  /** Native file attachments (e.g. PDFs) where the provider supports them. */
+  files?: ChatFile[]
+}
+
+/** Which configured endpoint a stream targets, and the model to use there. */
+export interface StreamRoute {
+  /** Rust-side target picks the base URL + key. */
+  target: 'chat' | 'deepResearch'
+  provider: AiProviderKind
+  model: string
+}
+
+export interface StreamChatOpts {
+  /** When false on a thinking model, request reasoning be turned off. */
+  think?: boolean
+  temperature?: number
+  /** Aborting cancels the in-flight request server-side. */
+  signal?: AbortSignal
+  /** Override the endpoint/model (e.g. a dedicated deep-research endpoint). */
+  route?: StreamRoute
+}
+
+/** Internal event shape mirrored from the Rust `StreamMsg`. */
+type StreamMsg = { type: 'chunk'; text: string } | { type: 'done' } | { type: 'error'; message: string }
+
+const stripDataUrl = (s: string) => s.replace(/^data:[^;]+;base64,/, '')
+
+function openAiContent(turn: ChatTurn): unknown {
+  const hasMedia = (turn.images?.length ?? 0) > 0 || (turn.files?.length ?? 0) > 0
+  if (!hasMedia) return turn.content
+  const blocks: unknown[] = []
+  if (turn.content) blocks.push({ type: 'text', text: turn.content })
+  for (const url of turn.images ?? []) blocks.push({ type: 'image_url', image_url: { url } })
+  for (const f of turn.files ?? []) blocks.push({ type: 'file', file: { filename: f.name, file_data: f.dataUrl } })
+  return blocks
+}
+
+function buildChatRequest(
+  provider: AiProviderKind,
+  model: string,
+  messages: ChatTurn[],
+  opts: StreamChatOpts,
+): { path: string; body: Record<string, unknown> } {
+  const thinkOff = opts.think === false && isThinkingModel(model)
+
+  if (provider === 'openai') {
+    const body: Record<string, unknown> = {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: openAiContent(m) })),
+      stream: true,
+      temperature: opts.temperature ?? 0.7,
+    }
+    // Best-effort: only reasoning models accept this; gate so we don't 400 others.
+    if (thinkOff) body.reasoning_effort = 'minimal'
+    return { path: '/chat/completions', body }
+  }
+
+  // Ollama /api/chat: native multi-turn with base64 images and a `think` flag.
+  const body: Record<string, unknown> = {
+    model,
+    messages: messages.map((m) => {
+      const msg: Record<string, unknown> = { role: m.role, content: m.content }
+      if (m.images?.length) msg.images = m.images.map(stripDataUrl)
+      return msg
+    }),
+    stream: true,
+    options: { temperature: opts.temperature ?? 0.7 },
+  }
+  if (opts.think === false && isThinkingModel(model)) body.think = false
+  return { path: '/api/chat', body }
+}
+
+/** Parse one framing line into a content delta. SSE for OpenAI, NDJSON for Ollama. */
+function parseDelta(line: string, kind: AiProviderKind): string {
+  if (kind === 'openai') {
+    if (!line.startsWith('data:')) return ''
+    const payload = line.slice(5).trim()
+    if (payload === '[DONE]') return ''
+    try {
+      const j = JSON.parse(payload)
+      return j.choices?.[0]?.delta?.content ?? ''
+    } catch {
+      return ''
+    }
+  }
+  // Ollama NDJSON: one JSON object per line.
+  try {
+    const j = JSON.parse(line)
+    return j.message?.content ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Stream a multi-turn chat completion. Tokens are delivered to `onToken` as they
+ * arrive and the full text is returned when the stream ends. Goes through the
+ * Rust `ai_chat_stream` command (auth + CORS bypass), which forwards raw SSE /
+ * NDJSON chunks over a Channel; provider-specific delta parsing happens here.
+ */
+export async function streamChat(
+  config: AiConfig,
+  messages: ChatTurn[],
+  opts: StreamChatOpts,
+  onToken: (delta: string) => void,
+): Promise<string> {
+  const route: StreamRoute = opts.route ?? {
+    target: 'chat',
+    provider: config.chatProvider,
+    model: config.chatModel,
+  }
+  const kind = route.provider
+  const { path, body } = buildChatRequest(route.provider, route.model, messages, opts)
+  const requestId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+
+  let full = ''
+  let buffer = ''
+  const channel = new Channel<StreamMsg>()
+
+  const flush = (line: string) => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+    const delta = parseDelta(trimmed, kind)
+    if (delta) {
+      full += delta
+      onToken(delta)
+    }
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const onAbort = () => {
+      void invoke('ai_chat_cancel', { requestId }).catch(() => {})
+    }
+    if (opts.signal) {
+      if (opts.signal.aborted) onAbort()
+      else opts.signal.addEventListener('abort', onAbort, { once: true })
+    }
+    const cleanup = () => opts.signal?.removeEventListener('abort', onAbort)
+
+    channel.onmessage = (msg) => {
+      if (msg.type === 'chunk') {
+        buffer += msg.text
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) flush(line)
+      } else if (msg.type === 'done') {
+        flush(buffer)
+        buffer = ''
+        cleanup()
+        resolve(full)
+      } else {
+        cleanup()
+        reject(new Error(msg.message))
+      }
+    }
+
+    invoke('ai_chat_stream', {
+      target: route.target,
+      path,
+      body: JSON.stringify(body),
+      requestId,
+      onEvent: channel,
+    }).catch((e) => {
+      cleanup()
+      reject(e instanceof Error ? e : new Error(String(e)))
+    })
+  })
 }

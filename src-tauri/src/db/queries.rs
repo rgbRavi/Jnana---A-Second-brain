@@ -1,3 +1,4 @@
+use crate::commands::chat::{ConversationMeta, ConversationRow};
 use crate::commands::notes::NoteRow;
 use rusqlite::{params, Connection, Result};
 
@@ -167,6 +168,82 @@ pub fn fetch_all_links(conn: &Connection) -> Result<Vec<(String, String)>> {
     let mut stmt = conn.prepare("SELECT from_id, to_id FROM links")?;
     let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
     rows.collect()
+}
+
+// ─── Conversations (AI chat history) ────────────────────
+
+pub fn upsert_conversation(conn: &Connection, c: &ConversationRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO conversations (id, mode, title, messages, scope, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           title      = excluded.title,
+           messages   = excluded.messages,
+           scope      = excluded.scope,
+           updated_at = excluded.updated_at",
+        params![c.id, c.mode, c.title, c.messages, c.scope, c.created_at, c.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow> {
+    conn.query_row(
+        "SELECT id, mode, title, messages, scope, created_at, updated_at
+         FROM conversations WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(ConversationRow {
+                id: row.get(0)?,
+                mode: row.get(1)?,
+                title: row.get(2)?,
+                messages: row.get(3)?,
+                scope: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        },
+    )
+}
+
+pub fn list_conversations(conn: &Connection, mode: Option<&str>) -> Result<Vec<ConversationMeta>> {
+    let to_meta = |row: &rusqlite::Row| {
+        Ok(ConversationMeta {
+            id: row.get(0)?,
+            mode: row.get(1)?,
+            title: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    };
+    match mode {
+        Some(m) => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, updated_at FROM conversations
+                 WHERE mode = ?1 ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map(params![m], to_meta)?;
+            rows.collect()
+        }
+        None => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, updated_at FROM conversations ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map([], to_meta)?;
+            rows.collect()
+        }
+    }
+}
+
+pub fn delete_conversation(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM conversations WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn rename_conversation(conn: &Connection, id: &str, title: &str, updated_at: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE conversations SET title = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, title, updated_at],
+    )?;
+    Ok(())
 }
 
 // ─── Media Refs ─────────────────────────────────────────
