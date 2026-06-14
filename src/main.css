@@ -4,6 +4,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  color-scheme: dark; /* native controls (selects, date pickers, scrollbars) render dark */
   --bg:           #0d0d0f;
   --surface:      #141417;
   --surface-2:    #1c1c21;
@@ -24,31 +25,45 @@
 }
 
 html { height: 100%; }
-body { height: 100%; background: var(--bg); color: var(--text-1); font-family: var(--font-body); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  /* Firefox scrollbar (WebView is Chromium, but harmless and future-proof). */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
 #root { height: 100%; }
 
-/* Scrollbar width */
+/* Scrollbars — tokenized so they blend with the dark surfaces. The thumb uses a
+   transparent border + padding-box clip to sit inset from the track. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
 }
 
-/* Track (background) */
 ::-webkit-scrollbar-track {
-  background: #1a1a1a; /* match your dark UI */
-  border-radius: 10px;
+  background: transparent;
 }
 
-/* Thumb (the draggable part) */
 ::-webkit-scrollbar-thumb {
-  background: #444;
+  background: var(--border-hover);
   border-radius: 10px;
-  border: 2px solid #1a1a1a;
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 
-/* Hover effect */
 ::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: var(--text-3);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
