@@ -12,6 +12,65 @@ export interface Link {
   toId: string
 }
 
+/** A persisted AI-chat conversation (history). `messages`/`scope` are JSON strings. */
+export interface StoredConversation {
+  id: string
+  /** "focused" | "chat" */
+  mode: string
+  title: string
+  messages: string
+  scope: string | null
+  /** Owning project (AI Chat), or null. */
+  projectId: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+/** Lightweight conversation summary for the history list. */
+export interface ConversationMeta {
+  id: string
+  mode: string
+  title: string
+  projectId: string | null
+  updatedAt: number
+}
+
+/** An AI Project: custom instructions + a knowledge base that grounds its chats. */
+export interface AiProject {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** One knowledge item attached to a project. */
+export interface ProjectKnowledge {
+  id: string
+  projectId: string
+  /** "note" | "file" */
+  kind: 'note' | 'file'
+  /** note id, or asset filename */
+  refId: string
+  label: string
+  createdAt: number
+}
+
+/** A reusable AI preset: a response Style or a Skill. Both augment the system prompt. */
+export type PresetKind = 'style' | 'skill'
+
+export interface AiPreset {
+  id: string
+  kind: PresetKind
+  name: string
+  description: string
+  /** The instruction text prepended to the system prompt when selected. */
+  body: string
+  createdAt: number
+  updatedAt: number
+}
+
 export interface MediaRef {
   id: string
   noteId: string
@@ -109,6 +168,16 @@ export interface AiConfig {
   hasTranscriptionApiKey?: boolean
   /** Auto-transcribe audio when recorded/imported, inserting the text into the note. */
   transcribeOnRecord: boolean
+
+  // ── Deep research (its own endpoint; optional) ──
+  // When deepResearchModel is set, the AI-Chat "Deep research" toggle routes
+  // requests here; otherwise it falls back to a system-prompt directive.
+  deepResearchProvider: AiProviderKind
+  deepResearchBaseUrl: string
+  /** Write-only, same rules as the other keys. */
+  deepResearchApiKey: string
+  deepResearchModel: string
+  hasDeepResearchApiKey?: boolean
 }
 
 /** A single embeddable slice of a note. */

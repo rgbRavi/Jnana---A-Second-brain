@@ -1,5 +1,9 @@
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::ipc::Channel;
 use tauri::{command, State};
 
 /// Render an error with its full source chain, so a generic reqwest message
@@ -56,6 +60,14 @@ pub struct AiConfig {
     pub transcription_api_key: String,
     pub transcription_model: String,
     pub transcribe_on_record: bool,
+    // Deep research is configured separately too: it may need a different model
+    // (e.g. a reasoning/research model) or a different OpenAI-compatible host than
+    // ordinary chat. When `deep_research_model` is set the "Deep research" toggle
+    // routes there; otherwise it falls back to a system-prompt directive.
+    pub deep_research_provider: String,
+    pub deep_research_base_url: String,
+    pub deep_research_api_key: String,
+    pub deep_research_model: String,
 }
 
 /// Managed-state wrapper holding the live AI config.
@@ -81,6 +93,10 @@ pub struct AiConfigPublic {
     pub transcription_model: String,
     pub transcribe_on_record: bool,
     pub has_transcription_api_key: bool,
+    pub deep_research_provider: String,
+    pub deep_research_base_url: String,
+    pub deep_research_model: String,
+    pub has_deep_research_api_key: bool,
 }
 
 impl From<&AiConfig> for AiConfigPublic {
@@ -101,6 +117,10 @@ impl From<&AiConfig> for AiConfigPublic {
             transcription_model: c.transcription_model.clone(),
             transcribe_on_record: c.transcribe_on_record,
             has_transcription_api_key: !c.transcription_api_key.is_empty(),
+            deep_research_provider: c.deep_research_provider.clone(),
+            deep_research_base_url: c.deep_research_base_url.clone(),
+            deep_research_model: c.deep_research_model.clone(),
+            has_deep_research_api_key: !c.deep_research_api_key.is_empty(),
         }
     }
 }
@@ -187,6 +207,12 @@ pub fn set_ai_config(
     {
         next.transcription_api_key = current.transcription_api_key.clone();
     }
+    if next.deep_research_api_key.is_empty()
+        && next.deep_research_base_url == current.deep_research_base_url
+        && next.deep_research_provider == current.deep_research_provider
+    {
+        next.deep_research_api_key = current.deep_research_api_key.clone();
+    }
 
     persist(&next)?;
     *current = next;
@@ -199,6 +225,39 @@ pub fn set_ai_config(
 pub struct AiFetchResponse {
     pub status: u16,
     pub body: String,
+}
+
+/// Resolve a request target (chat/embedding) to its full URL + key, applying
+/// the same URL/path/cleartext-key validation for both the one-shot `ai_request`
+/// and the streaming `ai_chat_stream`. Returns (url, api_key, is_loopback).
+fn resolve_target(config: &AiConfig, target: &str, path: &str) -> Result<(String, String, bool), String> {
+    // Pick the provider's base URL + key based on the call site.
+    let (base_url, api_key) = match target {
+        "embedding" => (config.embedding_base_url.clone(), config.embedding_api_key.clone()),
+        "deepResearch" => (config.deep_research_base_url.clone(), config.deep_research_api_key.clone()),
+        _ => (config.chat_base_url.clone(), config.chat_api_key.clone()),
+    };
+
+    let base = reqwest::Url::parse(&base_url).map_err(|e| format!("Invalid AI base URL: {}", e))?;
+    if base.scheme() != "http" && base.scheme() != "https" {
+        return Err("AI base URL must be http(s)".into());
+    }
+
+    // Don't transmit an API key in cleartext to a remote host. Local providers
+    // (e.g. Ollama on localhost over http) are exempt; everything else must use
+    // https when a key is set.
+    let host = base.host_str().unwrap_or("");
+    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+    if !api_key.is_empty() && base.scheme() == "http" && !is_loopback {
+        return Err("Refusing to send the API key over http to a non-local host — use https.".into());
+    }
+
+    if !path.starts_with('/') || path.starts_with("//") || path.contains("..") {
+        return Err(format!("Invalid AI endpoint path: {}", path));
+    }
+
+    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    Ok((url, api_key, is_loopback))
 }
 
 /// HTTP bridge for the AI layer.
@@ -225,35 +284,7 @@ pub async fn ai_request(
         return Err("AI is disabled in settings".into());
     }
 
-    // Pick the chat or embedding provider's base URL + key based on the call site.
-    let (base_url, api_key) = if target == "embedding" {
-        (config.embedding_base_url, config.embedding_api_key)
-    } else {
-        (config.chat_base_url, config.chat_api_key)
-    };
-
-    let base = reqwest::Url::parse(&base_url)
-        .map_err(|e| format!("Invalid AI base URL: {}", e))?;
-    if base.scheme() != "http" && base.scheme() != "https" {
-        return Err("AI base URL must be http(s)".into());
-    }
-
-    // Don't transmit an API key in cleartext to a remote host. Local providers
-    // (e.g. Ollama on localhost over http) are exempt; everything else must use
-    // https when a key is set.
-    let host = base.host_str().unwrap_or("");
-    let is_loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
-    if !api_key.is_empty() && base.scheme() == "http" && !is_loopback {
-        return Err(
-            "Refusing to send the API key over http to a non-local host — use https.".into(),
-        );
-    }
-
-    if !path.starts_with('/') || path.starts_with("//") || path.contains("..") {
-        return Err(format!("Invalid AI endpoint path: {}", path));
-    }
-
-    let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    let (url, api_key, is_loopback) = resolve_target(&config, &target, &path)?;
 
     let client = http_client(120, is_loopback)?;
 
@@ -365,4 +396,150 @@ pub async fn transcribe_audio(state: State<'_, AiState>, filename: String) -> Re
     let parsed: serde_json::Value = serde_json::from_str(&text)
         .map_err(|_| format!("Unexpected transcription response: {}", text.chars().take(300).collect::<String>()))?;
     Ok(parsed.get("text").and_then(|v| v.as_str()).unwrap_or("").to_string())
+}
+
+// ─── Streaming chat ─────────────────────────────────────────────────────────
+
+/// Registry of in-flight stream cancellation flags, keyed by the request id the
+/// frontend generates. `ai_chat_cancel` flips the flag; the streaming loop polls it.
+#[derive(Default)]
+pub struct StreamCancels(pub Mutex<HashMap<String, Arc<AtomicBool>>>);
+
+/// One event pushed to the frontend over the per-request Channel. Serialized as
+/// `{ "type": "chunk" | "done" | "error", ... }`.
+#[derive(Clone, Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum StreamMsg {
+    /// A raw slice of the provider's HTTP response body (SSE or NDJSON). The
+    /// frontend buffers and parses provider-specific framing.
+    Chunk { text: String },
+    Done,
+    Error { message: String },
+}
+
+/// Stream a chat completion. Identical auth/validation to `ai_request`, but the
+/// response body is forwarded to the frontend in chunks over `on_event` instead
+/// of being buffered — so tokens render live. The caller must set `stream: true`
+/// in `body`; provider-specific delta parsing stays on the TS side.
+#[command]
+pub async fn ai_chat_stream(
+    state: State<'_, AiState>,
+    cancels: State<'_, StreamCancels>,
+    target: String,
+    path: String,
+    body: String,
+    request_id: String,
+    on_event: Channel<StreamMsg>,
+) -> Result<(), String> {
+    let config = state
+        .0
+        .lock()
+        .map_err(|e| format!("AI config lock error: {}", e))?
+        .clone();
+
+    if !config.enabled {
+        return Err("AI is disabled in settings".into());
+    }
+
+    let (url, api_key, is_loopback) = resolve_target(&config, &target, &path)?;
+
+    // Register a cancellation flag for this request.
+    let flag = Arc::new(AtomicBool::new(false));
+    if let Ok(mut map) = cancels.0.lock() {
+        map.insert(request_id.clone(), flag.clone());
+    }
+
+    let outcome = stream_body(&url, &api_key, is_loopback, body, &flag, &on_event).await;
+
+    // Always drop the registry entry, however we left the loop.
+    if let Ok(mut map) = cancels.0.lock() {
+        map.remove(&request_id);
+    }
+
+    match outcome {
+        Ok(()) => {
+            let _ = on_event.send(StreamMsg::Done);
+        }
+        Err(message) => {
+            let _ = on_event.send(StreamMsg::Error { message });
+        }
+    }
+    Ok(())
+}
+
+/// Do the actual streaming POST + forwarding. Returns the error message to emit
+/// on failure; chunks are sent through `on_event` as they arrive.
+async fn stream_body(
+    url: &str,
+    api_key: &str,
+    is_loopback: bool,
+    body: String,
+    flag: &Arc<AtomicBool>,
+    on_event: &Channel<StreamMsg>,
+) -> Result<(), String> {
+    // Generation can be slow; allow up to 10 minutes.
+    let client = http_client(600, is_loopback)?;
+    let mut req = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .body(body);
+    if !api_key.is_empty() {
+        req = req.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("AI request failed: {}", err_chain(&e)))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "AI provider returned {}: {}",
+            status.as_u16(),
+            text.chars().take(500).collect::<String>()
+        ));
+    }
+
+    // Forward decoded text, keeping any partial trailing UTF-8 sequence in the
+    // buffer so a multi-byte char split across chunks is never corrupted.
+    let mut stream = resp.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(item) = stream.next().await {
+        if flag.load(Ordering::Relaxed) {
+            break; // cancelled from the frontend
+        }
+        let bytes = item.map_err(|e| format!("Stream error: {}", err_chain(&e)))?;
+        buf.extend_from_slice(&bytes);
+        let text = match std::str::from_utf8(&buf) {
+            Ok(s) => {
+                let out = s.to_string();
+                buf.clear();
+                out
+            }
+            Err(e) => {
+                let valid_len = e.valid_up_to();
+                let out = String::from_utf8_lossy(&buf[..valid_len]).to_string();
+                buf.drain(..valid_len);
+                out
+            }
+        };
+        if !text.is_empty() {
+            let _ = on_event.send(StreamMsg::Chunk { text });
+        }
+    }
+
+    Ok(())
+}
+
+/// Signal a running `ai_chat_stream` (by request id) to stop early.
+#[command]
+pub fn ai_chat_cancel(cancels: State<'_, StreamCancels>, request_id: String) -> Result<(), String> {
+    if let Ok(map) = cancels.0.lock() {
+        if let Some(flag) = map.get(&request_id) {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+    Ok(())
 }
