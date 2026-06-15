@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type Ref } from 'react'
 import { useNavigate } from 'react-router-dom'
 import GridLayout, { useContainerWidth, type Layout } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
@@ -16,6 +16,12 @@ import { HeroSection, type DashboardActions } from './sections'
 import { CustomizePanel } from './CustomizePanel'
 import { LayoutSwitcher } from './LayoutSwitcher'
 import { COLLAPSED_H, GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type GridItem, type SectionId } from './types'
+
+/** Custom resize handle — a comfortable hit area with a themed grip. The same
+ *  element RGL wires the resize to, so there's no tiny/mismatched target. */
+const resizeHandle = (axis: string, ref: Ref<HTMLElement>) => (
+  <span ref={ref as Ref<HTMLSpanElement>} className={`${styles.rgHandle} ${styles[`rgHandle_${axis}`] ?? ''}`} />
+)
 
 const sameGrid = (a: GridItem[], b: GridItem[]) =>
   a.length === b.length &&
@@ -118,8 +124,8 @@ export function Dashboard() {
             layout={layout}
             onLayoutChange={onLayoutChange}
             gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT, margin: GRID_MARGIN, containerPadding: [0, 0] }}
-            dragConfig={{ handle: '.dashboard-drag-handle', threshold: 6 }}
-            resizeConfig={{ handles: ['s', 'e', 'se'] as const }}
+            dragConfig={{ enabled: true, handle: '.dashboard-drag-handle', threshold: 6 }}
+            resizeConfig={{ enabled: true, handles: ['e', 's', 'se'] as const, handleComponent: resizeHandle }}
           >
             {layout.map((item) => (
               <div key={item.i} className={styles.gridItem}>

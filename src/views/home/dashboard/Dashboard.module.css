@@ -199,46 +199,74 @@
   opacity: 0.95;
 }
 
-/* Resize handles — themed bars on each edge/corner, brighter on hover. */
-.grid :global(.react-resizable-handle) {
-  background: none !important;
-  padding: 0 !important;
+/* Resize handles (custom handleComponent) — comfortable hit area + themed grip. */
+.rgHandle {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  touch-action: none;
 }
-.grid :global(.react-resizable-handle-e) {
-  right: 2px !important;
-  top: 50% !important;
-  width: 4px !important;
-  height: 30px !important;
-  margin-top: -15px !important;
+.rgHandle::after {
+  content: '';
+  position: absolute;
+  background: var(--border-hover);
   border-radius: 3px;
-  background: var(--border-hover) !important;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rgHandle_e {
+  top: 50%;
+  right: 0;
+  width: 14px;
+  height: 54px;
+  margin-top: -27px;
   cursor: ew-resize;
 }
-.grid :global(.react-resizable-handle-s) {
-  bottom: 2px !important;
-  left: 50% !important;
-  width: 30px !important;
-  height: 4px !important;
-  margin-left: -15px !important;
-  border-radius: 3px;
-  background: var(--border-hover) !important;
+.rgHandle_e::after {
+  top: 50%;
+  right: 3px;
+  width: 4px;
+  height: 42px;
+  margin-top: -21px;
+}
+.rgHandle_s {
+  left: 50%;
+  bottom: 0;
+  width: 54px;
+  height: 14px;
+  margin-left: -27px;
   cursor: ns-resize;
 }
-.grid :global(.react-resizable-handle-se) {
-  right: 4px !important;
-  bottom: 4px !important;
-  width: 9px !important;
-  height: 9px !important;
+.rgHandle_s::after {
+  left: 50%;
+  bottom: 3px;
+  height: 4px;
+  width: 42px;
+  margin-left: -21px;
+}
+.rgHandle_se {
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  z-index: 6;
+  cursor: nwse-resize;
+}
+.rgHandle_se::after {
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  background: transparent;
   border-right: 2px solid var(--border-hover);
   border-bottom: 2px solid var(--border-hover);
   border-radius: 0 0 4px 0;
-  cursor: nwse-resize;
 }
-.grid :global(.react-grid-item:hover .react-resizable-handle-e),
-.grid :global(.react-grid-item:hover .react-resizable-handle-s) {
-  background: var(--accent) !important;
+/* Brighten the grip when hovering the card. */
+:global(.react-grid-item:hover) .rgHandle::after {
+  background: var(--accent);
 }
-.grid :global(.react-grid-item:hover .react-resizable-handle-se) {
+:global(.react-grid-item:hover) .rgHandle_se::after {
+  background: transparent;
   border-color: var(--accent);
 }
 
@@ -299,6 +327,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* don't let dragging near a card select its text */
+  user-select: none;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
