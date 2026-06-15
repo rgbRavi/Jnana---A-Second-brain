@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { usePdfAnnotations } from '../../hooks/usePdfAnnotations'
 import { toast } from '../../lib/toast'
+import { showPromptDialog } from '../../lib/dialog'
 
 // Use Vite's asset import to bundle the worker correctly for offline use
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -204,9 +205,14 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
               // Using a high z-index to overlay nicely
               zIndex: 10,
             }}
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation()
-              const newContent = window.prompt('Edit highlight note:', a.content || '')
+              const newContent = await showPromptDialog({
+                title: 'Edit highlight note',
+                placeholder: 'Add a note for this highlight…',
+                defaultValue: a.content || '',
+                confirmLabel: 'Save',
+              })
               if (newContent !== null && newContent !== a.content) {
                 updateAnnotation(a.id, newContent)
               }

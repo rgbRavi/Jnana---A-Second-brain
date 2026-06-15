@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { VoiceRecorder } from './VoiceRecorder'
 import { toast } from '../../lib/toast'
+import { showPromptDialog } from '../../lib/dialog'
 import Styles from './NoteCreator.module.css'
 
 interface Props {
@@ -26,8 +27,13 @@ export function ComposerToolbar({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleYouTubeEmbed = () => {
-    const url = window.prompt('Paste a YouTube URL:')
+  const handleYouTubeEmbed = async () => {
+    const url = await showPromptDialog({
+      title: 'Embed YouTube video',
+      message: 'Paste a YouTube link to embed the video in your note.',
+      placeholder: 'https://youtube.com/watch?v=…',
+      confirmLabel: 'Embed',
+    })
     if (!url) return
     const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)
     const watchMatch = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/)

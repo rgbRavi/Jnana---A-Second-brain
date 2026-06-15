@@ -1,12 +1,15 @@
 // src/lib/dialog.ts
 //
-// A promise-based, in-app choice dialog — a modern replacement for blocking
-// native window.prompt()/confirm() dialogs. Importable anywhere:
+// Promise-based, in-app dialogs — a modern replacement for blocking native
+// window.prompt()/confirm() dialogs. Importable anywhere:
 //
-//   const choice = await showChoiceDialog({ title, message, options })
+//   const choice  = await showChoiceDialog({ title, options })   // pick a card
+//   const text    = await showPromptDialog({ title, placeholder }) // text input
+//   const ok      = await showConfirmDialog({ title, message })    // yes / no
 //
 // Same module-store + useSyncExternalStore pattern as toast.ts. Rendered once by
-// <DialogHost />. Resolves with the chosen option's `value`, or null if cancelled.
+// <DialogHost />. Choice/prompt resolve with a string or null (cancelled);
+// confirm resolves with a boolean.
 
 export interface DialogOption {
   value: string
@@ -24,10 +27,33 @@ export interface ChoiceDialog {
   cancelLabel?: string
 }
 
-interface ActiveDialog extends ChoiceDialog {
+export interface PromptDialog {
+  title: string
+  message?: string
+  placeholder?: string
+  defaultValue?: string
+  confirmLabel?: string
+  cancelLabel?: string
+}
+
+export interface ConfirmDialog {
+  title: string
+  message?: string
+  confirmLabel?: string
+  cancelLabel?: string
+  /** Style the confirm button as destructive. */
+  danger?: boolean
+}
+
+interface Base {
   id: number
   resolve: (value: string | null) => void
 }
+
+export type ActiveDialog =
+  | ({ kind: 'choice' } & ChoiceDialog & Base)
+  | ({ kind: 'prompt' } & PromptDialog & Base)
+  | ({ kind: 'confirm' } & ConfirmDialog & Base)
 
 let current: ActiveDialog | null = null
 const listeners = new Set<() => void>()
@@ -60,12 +86,26 @@ export function resolveDialog(value: string | null): void {
   close(value)
 }
 
-/** Show a modal choice dialog; resolves with the chosen value or null if cancelled. */
-export function showChoiceDialog(config: ChoiceDialog): Promise<string | null> {
+function present(make: (base: Base) => ActiveDialog): Promise<string | null> {
   // Only one dialog at a time — cancel any in-flight one first.
   if (current) close(null)
   return new Promise<string | null>((resolve) => {
-    current = { ...config, id: nextId++, resolve }
+    current = make({ id: nextId++, resolve })
     emit()
   })
+}
+
+/** Show a card-picker dialog; resolves with the chosen value or null if cancelled. */
+export function showChoiceDialog(config: ChoiceDialog): Promise<string | null> {
+  return present((base) => ({ kind: 'choice', ...config, ...base }))
+}
+
+/** Show a single-line text-input dialog; resolves with the text or null if cancelled. */
+export function showPromptDialog(config: PromptDialog): Promise<string | null> {
+  return present((base) => ({ kind: 'prompt', ...config, ...base }))
+}
+
+/** Show a yes/no confirmation; resolves true if confirmed, false if cancelled. */
+export function showConfirmDialog(config: ConfirmDialog): Promise<boolean> {
+  return present((base) => ({ kind: 'confirm', ...config, ...base })).then((v) => v !== null)
 }
