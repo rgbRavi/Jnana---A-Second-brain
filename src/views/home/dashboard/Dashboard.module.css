@@ -178,11 +178,92 @@
   background: var(--surface-2);
 }
 
-/* ── react-grid-layout ───────────────────────────────────────────────────── */
-/* Grid item + resize-handle + placeholder theming lives in main.css (global),
-   since react-grid-layout's classes aren't CSS-module-scoped. */
+/* ── Draggable / resizable grid (custom DashboardGrid) ───────────────────── */
+.grid {
+  position: relative;
+  width: 100%;
+}
 .gridItem {
   box-sizing: border-box;
+  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+}
+/* The card being dragged/resized tracks the cursor instantly (no lag). */
+.gridItemMoving {
+  transition: none;
+  z-index: 10;
+}
+.gridItemMoving .card {
+  border-color: var(--accent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Resize handles — comfortable hit zones with a themed grip. */
+.rgHandle {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.rgHandle::after {
+  content: '';
+  position: absolute;
+  background: var(--border-hover);
+  border-radius: 3px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rgHandle_e {
+  top: 50%;
+  right: 0;
+  width: 12px;
+  height: 60px;
+  margin-top: -30px;
+  cursor: ew-resize;
+}
+.rgHandle_e::after {
+  top: 50%;
+  right: 3px;
+  width: 4px;
+  height: 40px;
+  margin-top: -20px;
+}
+.rgHandle_s {
+  left: 50%;
+  bottom: 0;
+  height: 12px;
+  width: 60px;
+  margin-left: -30px;
+  cursor: ns-resize;
+}
+.rgHandle_s::after {
+  left: 50%;
+  bottom: 3px;
+  height: 4px;
+  width: 40px;
+  margin-left: -20px;
+}
+.rgHandle_se {
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  z-index: 6;
+  cursor: nwse-resize;
+}
+.rgHandle_se::after {
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  background: transparent;
+  border-right: 2px solid var(--border-hover);
+  border-bottom: 2px solid var(--border-hover);
+  border-radius: 0 0 4px 0;
+}
+.gridItem:hover .rgHandle::after {
+  background: var(--accent);
+}
+.gridItem:hover .rgHandle_se::after {
+  background: transparent;
+  border-color: var(--accent);
 }
 
 /* ── Hero stat grid ──────────────────────────────────────────────────────── */

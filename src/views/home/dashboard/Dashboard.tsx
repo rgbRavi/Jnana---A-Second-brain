@@ -1,11 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-// RGL v2's legacy wrapper = the proven v1 API (WidthProvider + flat props), and
-// it's React-19-safe (passes nodeRef, no findDOMNode). The hooks v2 component
-// wasn't wiring drag/resize here.
-import GridLayoutBase, { WidthProvider, type Layout } from 'react-grid-layout/legacy'
-import 'react-grid-layout/css/styles.css'
-import 'react-resizable/css/styles.css'
 import type { Note } from '../../../types'
 import { useNotesContext } from '../../../context/NotesContext'
 import { setViewState } from '../../../hooks/useViewState'
@@ -16,12 +10,11 @@ import { useDashboardData } from './useDashboardData'
 import { useDashboardPrefs } from './useDashboardPrefs'
 import { SECTIONS } from './registry'
 import { DashboardCard } from './components/DashboardCard'
+import { DashboardGrid } from './components/DashboardGrid'
 import { HeroSection, type DashboardActions } from './sections'
 import { CustomizePanel } from './CustomizePanel'
 import { LayoutSwitcher } from './LayoutSwitcher'
 import { COLLAPSED_H, GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type GridItem, type SectionId } from './types'
-
-const GridLayout = WidthProvider(GridLayoutBase)
 
 const sameGrid = (a: GridItem[], b: GridItem[]) =>
   a.length === b.length &&
@@ -30,8 +23,8 @@ const sameGrid = (a: GridItem[], b: GridItem[]) =>
     return o && g.i === o.i && g.x === o.x && g.y === o.y && g.w === o.w && g.h === o.h
   })
 
-/** The Home dashboard: a hero stat row + a react-grid-layout of widget cards the
- *  user can move (drag the ⠿ grip), resize (any edge/corner) and hide/collapse. */
+/** The Home dashboard: a hero stat row + a grid of widget cards the user can
+ *  move (drag the ⠿ grip), resize (any edge/corner) and hide/collapse. */
 export function Dashboard() {
   const data = useDashboardData()
   const prefs = useDashboardPrefs()
@@ -60,19 +53,15 @@ export function Dashboard() {
   // background-tasks auto-hides when nothing's running.
   const isVisible = (id: SectionId) => !prefs.isHidden(id) && !(id === 'backgroundTasks' && data.tasks.length === 0)
 
-  // The layout RGL renders: visible items, with collapsed ones shrunk to header height.
-  const layout: Layout = prefs.active.grid
+  // Visible items, with collapsed ones shrunk to header height.
+  const layout: GridItem[] = prefs.active.grid
     .filter((g) => isVisible(g.i))
-    .map((g) =>
-      prefs.isCollapsed(g.i)
-        ? { ...g, h: COLLAPSED_H, minH: COLLAPSED_H, maxH: COLLAPSED_H, isResizable: false }
-        : g,
-    )
+    .map((g) => (prefs.isCollapsed(g.i) ? { ...g, h: COLLAPSED_H } : g))
 
-  const onLayoutChange = (next: Layout) => {
+  const onLayoutChange = (next: GridItem[]) => {
     const byId = new Map(next.map((it) => [it.i, it]))
     const merged: GridItem[] = prefs.active.grid.map((g) => {
-      const n = byId.get(g.i)
+      const n = byId.get(g.i as SectionId)
       if (!n) return g // hidden — keep its stored position
       // Preserve the expanded height for collapsed cards.
       const h = prefs.isCollapsed(g.i) ? g.h : n.h
@@ -115,26 +104,16 @@ export function Dashboard() {
 
       <HeroSection data={data} />
 
-      <GridLayout
-        className={styles.grid}
-        layout={layout}
+      <DashboardGrid
+        items={layout}
         cols={GRID_COLS}
         rowHeight={ROW_HEIGHT}
         margin={GRID_MARGIN}
-        containerPadding={[0, 0]}
-        compactType="vertical"
-        isDraggable
-        isResizable
-        draggableHandle=".dashboard-drag-handle"
-        resizeHandles={['e', 's', 'se']}
-        onLayoutChange={onLayoutChange}
-      >
-        {layout.map((item) => (
-          <div key={item.i} className={styles.gridItem}>
-            {renderSection(item.i as SectionId)}
-          </div>
-        ))}
-      </GridLayout>
+        isResizable={(id) => !prefs.isCollapsed(id as SectionId)}
+        dragHandleSelector=".dashboard-drag-handle"
+        onChange={onLayoutChange}
+        renderItem={(id) => renderSection(id as SectionId)}
+      />
 
       {customizing && <CustomizePanel onClose={() => setCustomizing(false)} />}
 

@@ -22,7 +22,6 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-force-graph-2d": "^1.29.1",
-    "react-grid-layout": "^2.2.3",
     "react-router-dom": "^7.14.2"
   },
   "devDependencies": {
