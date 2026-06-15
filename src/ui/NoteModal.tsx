@@ -8,8 +8,10 @@ import { ComposerToolbar } from './editor/ComposerToolbar'
 import NoteModalStyles from './NoteModal.module.css'
 import { FavouriteBtn } from './editor/FavouriteBtn'
 import { exportNotes } from '../core/export'
+import { setNoteProgress } from '../core/notes'
 import { useNotesContext } from '../context/NotesContext'
 import { ComposerSuggestions } from './ai/ComposerSuggestions'
+import { toast } from '../lib/toast'
 
 interface Props {
   note: Note
@@ -26,6 +28,8 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const maxProgressRef = useRef(0)
   const { notes } = useNotesContext()
   const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
 
@@ -41,6 +45,30 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     setTags(note.tags)
     setIsEditing(false)
   }, [note])
+
+  // Track reading progress (max scroll fraction reached) and persist it on close
+  // / note change — drives the dashboard's "Continue learning".
+  useEffect(() => {
+    maxProgressRef.current = 0
+    const noteId = note.id
+    // A short note that fits without scrolling counts as fully read.
+    const probe = window.setTimeout(() => {
+      const el = bodyRef.current
+      if (el && el.scrollHeight - el.clientHeight <= 4) maxProgressRef.current = 1
+    }, 250)
+    return () => {
+      window.clearTimeout(probe)
+      if (maxProgressRef.current > 0) void setNoteProgress(noteId, maxProgressRef.current)
+    }
+  }, [note.id])
+
+  const handleBodyScroll = () => {
+    const el = bodyRef.current
+    if (!el) return
+    const scrollable = el.scrollHeight - el.clientHeight
+    const frac = scrollable > 4 ? el.scrollTop / scrollable : 1
+    if (frac > maxProgressRef.current) maxProgressRef.current = Math.min(1, frac)
+  }
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -58,7 +86,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
       setIsEditing(false)
     } catch (err) {
       console.error('Failed to save note:', err)
-      alert('Failed to save note')
+      toast.error('Failed to save note.')
     } finally {
       setSaving(false)
     }
@@ -157,9 +185,9 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 onClick={async () => {
                   try {
                     const n = await exportNotes([note])
-                    if (n) alert('Exported note as Markdown.')
+                    if (n) toast.success('Exported note as Markdown.')
                   } catch (err) {
-                    alert('Export failed: ' + String(err))
+                    toast.error('Export failed: ' + String(err))
                   }
                 }}
                 aria-label="Export note as Markdown"
@@ -197,7 +225,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                   : undefined
               }
             />
-            <div className={NoteModalStyles.noteModalBody}>
+            <div className={NoteModalStyles.noteModalBody} ref={bodyRef} onScroll={handleBodyScroll}>
               <MarkdownLite content={content} lazy={false} noteId={note.id} fullscreen />
             </div>
             <time className={NoteModalStyles.noteModalTime}>

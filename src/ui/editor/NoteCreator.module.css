@@ -1,81 +1,239 @@
-/* Composer */
-.composer {
-  position: relative;
+/* ── Docked composer ──────────────────────────────────────────────────────────
+   Fixed to the content area (right of the sidebar). The dock is click-through;
+   only the pill / panel capture input, so the list behind stays interactive. */
+.dock {
+  position: fixed;
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* ── Collapsed pill ── */
+.pill {
+  position: absolute;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1.5rem;
+  border: 1px solid var(--border-hover);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: text;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.2s ease, transform 0.2s ease, color 0.15s, border-color 0.15s;
+}
+
+.pill:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.pillIcon {
+  font-size: 0.95rem;
+  color: var(--accent);
+}
+
+/* Hide the pill when the composer is open. */
+.expanded .pill,
+.fullscreen .pill {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px);
+  pointer-events: none;
+}
+
+/* ── Expanded / fullscreen panel ── */
+.panel {
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 0;
+  /* Expanded height is content-driven (grows upward as you type, clamped by the
+     body's min/max-height); fullscreen overrides this to fill the area. */
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  border-bottom: none;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.5);
+  /* Start below the bottom edge so opening slides it up into view. */
+  transform: translateY(110%);
+  opacity: 0;
+  transition: transform 0.24s ease, height 0.24s ease, opacity 0.18s ease, left 0.24s ease,
+    right 0.24s ease, border-radius 0.24s ease;
+  /* No overflow:hidden — the "+" menu opens upward out of the footer and must
+     not be clipped. The collapsed panel is hidden by being translated off-screen
+     and `inert`; the body textarea scrolls internally. */
 }
 
-.composer:focus-within {
+.panel:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
 }
 
-.composerTitle {
+.expanded .panel {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.fullscreen .panel {
+  left: 0;
+  right: 0;
+  height: 100%;
+  border-radius: 0;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* ── Header row ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.headerBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+
+.headerBtn:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+/* ── Title ── */
+.title {
   width: 100%;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
-  padding: 0.9rem 1.25rem;
+  padding: 0.65rem 1rem;
   font-size: 1rem;
   font-weight: 600;
   font-family: var(--font-body);
   color: var(--text-1);
   outline: none;
+  flex-shrink: 0;
 }
 
-.composerTitle::placeholder { color: var(--text-3); }
-
-/* Strip the TagEditor's own card look so it blends into the composer */
-.composerTagSection {
-  border-bottom: 1px solid var(--border);
+.title::placeholder {
+  color: var(--text-3);
 }
 
-.composerTagSection > div {
+/* ── Tags + suggestions ── */
+.tagSection {
+  flex-shrink: 0;
+}
+
+/* Strip the TagEditor's own card look so it blends into the composer. */
+.tagSection > div {
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
-  padding: 0.4rem 1.25rem;
-  min-height: 36px;
+  padding: 0.35rem 1rem;
+  min-height: 34px;
 }
 
-.composerBody {
+.suggestRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0 1rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Neutralize the suggestion blocks' own top margin inside the row. */
+.suggestRow > div {
+  margin-top: 0;
+}
+
+/* ── Body ── */
+.body {
   width: 100%;
   background: transparent;
   border: none;
-  padding: 0.85rem 1.25rem 1rem;
+  padding: 0.85rem 1rem 1rem;
   font-size: 0.9rem;
   font-family: var(--font-body);
   color: var(--text-1);
   line-height: 1.7;
   resize: none;
   outline: none;
-  min-height: 120px;
   overflow-y: auto;
 }
 
-.composerBody::placeholder { color: var(--text-3); }
-
-.composerFooter {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.6rem 1rem 0.6rem 1.25rem;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
+/* Expanded: a ~⅓-viewport baseline that grows with content (JS sets the inline
+   height; these clamp it), then the editor scrolls past the cap. */
+.expanded .body {
+  flex: 0 0 auto;
+  min-height: 16vh;
+  max-height: 52vh;
 }
 
-.composerHint {
+/* Fullscreen: the editor fills the remaining space. */
+.fullscreen .body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.body::placeholder {
+  color: var(--text-3);
+}
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.85rem 0.6rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+
+.hint {
   font-size: 0.72rem;
   font-family: var(--font-mono);
   color: var(--text-3);
   letter-spacing: 0.02em;
+  margin-left: 0.25rem;
 }
 
-.composerSave {
+.saveWrap {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.save {
   background: var(--accent);
   color: #fff;
   border: none;
@@ -85,79 +243,18 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: filter 0.15s, transform 0.1s;
 }
 
-.composerSave:hover:not(:disabled) { opacity: 0.88; }
-.composerSave:active:not(:disabled) { transform: scale(0.97); }
-.composerSave:disabled { opacity: 0.3; cursor: not-allowed; }
-
-/* Toolbar */
-.composerActionsRight {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
+.save:hover:not(:disabled) {
+  filter: brightness(1.08);
 }
 
-.composerIconBtn {
-  background: transparent;
-  color: var(--text-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 0.3rem 0.5rem;
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  line-height: 1;
+.save:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
-.composerIconBtn:hover:not(:disabled) {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-1);
-}
-
-.composerIconBtn:disabled {
-  opacity: 0.35;
+.save:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
-}
-
-/* Expand / minimize button — pinned to top-right */
-.expandBtn {
-  position: absolute;
-  top: 0.55rem;
-  right: 0.75rem;
-  background: transparent;
-  border: none;
-  color: var(--max-btn);
-  font-size: 1rem;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0.15rem 0.25rem;
-  border-radius: var(--radius-sm);
-  transition: color 0.15s, background 0.15s;
-  z-index: 1;
-}
-.expandBtn:hover { color: var(--text-1); background: var(--surface-2); }
-
-/* Fullscreen overlay */
-.composerFullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 999;
-  border-radius: 0;
-  border: none;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-}
-
-.composerFullscreen .composerBody {
-  flex: 1;
-  overflow-y: auto;
-  height: auto;
-  min-height: unset;
 }

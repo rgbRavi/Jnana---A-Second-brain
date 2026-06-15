@@ -2,11 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
 import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
+import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai'
+type Tab = 'ai' | 'composer'
 
-const TABS: { id: Tab; label: string }[] = [{ id: 'ai', label: 'AI Providers' }]
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'ai', label: 'AI Providers' },
+  { id: 'composer', label: 'Composer' },
+]
 
 function Settings() {
   const [tab, setTab] = useState<Tab>('ai')
@@ -46,6 +50,7 @@ function Settings() {
             onReindex={reindexAll}
           />
         )}
+        {tab === 'composer' && <ComposerSettingsPanel />}
       </div>
     </div>
   )

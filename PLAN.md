@@ -71,12 +71,17 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 - [ ] Extract a shared `<Modal>` component (NoteModal + the MarkdownLite lightbox / PDF
       fullscreen duplicate the overlay/container pattern; the old AI-settings modal classes in
       `Ai.module.css` are now dead and can go).
-- [ ] Establish design tokens / a small component layer; apply consistent styling across the
-      now-complete feature set.
+- [x] Establish design tokens / a small component layer — tokens live in `main.css`; first shared
+      components landed: `<Toaster />` (`lib/toast`) and `<DialogHost />` (`lib/dialog`, a
+      promise-based choice/prompt/confirm). Also: app-wide `:focus-visible` rings, themed
+      `::selection`, `prefers-reduced-motion`, `color-scheme: dark`, tokenized scrollbars, and
+      fixes for views that referenced undefined global CSS classes (Search / Graph / headings).
 - [ ] Dark/light theme toggle (pure UI — belongs in this pass; students study at night).
-- [ ] Replace the three `window.prompt` flows with proper modals: document-import choice
+- [x] Replace the three `window.prompt` flows with proper modals: document-import choice
       (`useDocumentUpload.ts`), YouTube URL (`ComposerToolbar.tsx`), highlight edit
-      (`PdfViewer.tsx`).
+      (`PdfViewer.tsx`) — all use `showChoiceDialog` / `showPromptDialog` now; the "Open note?"
+      `window.confirm` in `MarkdownLite` and every `alert()` are converted too (no native dialogs
+      remain).
 - [ ] CSP runtime check: confirm the `script-src 'self'` tightening holds in `tauri dev`;
       revisit `style-src 'unsafe-inline'` (needs nonces) only if worth it.
 - [ ] **Hybrid markdown AST renderer (remark) — only if pursuing rich formatting.** NOT a perf
@@ -190,6 +195,27 @@ Shipped in phases:
       future refinement.
 - [x] UX polish — bottom-pinned composer with scrollable messages, model-name history dropdowns
       in settings, scrollable note picker.
+
+## Agentic AI — Phase A ✅ DONE
+
+Full roadmap (Phases A–D, incl. MCP) in [the plan file](../../Users/vravi/.claude/plans/add-following-features-in-buzzing-engelbart.md).
+A tool-calling agent loop **inside AI Chat** (🤖 Agent toggle) with a **propose-then-confirm**
+write policy — read tools run freely; writes are staged as proposals the user approves.
+
+- [x] `chatWithTools` (provider) — OpenAI-compatible + Ollama tool-calling, degrades to a plain
+      answer when a model lacks tool support.
+- [x] Native tools (`core/ai/agent/tools.ts`): read = search / read / recent / graph_neighbors;
+      staged writes = create / append / set_tags / link. Links stage **by title** so a freshly
+      proposed note can be linked in the same run.
+- [x] `runAgent` loop with a step cap, write de-duplication, and live step callbacks; reasoning
+      narrated per step (`AgentSteps`).
+- [x] `ProposalCard` Apply / Skip (+ Apply all). Apply composes `[[wikilinks]]` into the note and
+      saves it once, so AI-applied links show as graph edges (fixed a link-sync race).
+- [x] Message actions: ↻ retry under a prompt; right-click menu = edit & retry / fork from here /
+      delete-from-here / delete message.
+- [ ] **Phase B — MCP client** (agent uses external MCP servers via `rmcp`, Rust-side transport).
+- [ ] **Phase C — MCP server** (expose the vault to Claude Desktop / other agents).
+- [ ] **Phase D — background/scheduled agents** (optional; reuse Phase-A tools headless).
 
 ## Explicitly deferred (don't do yet)
 

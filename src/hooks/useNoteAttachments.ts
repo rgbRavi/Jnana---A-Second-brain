@@ -1,6 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { importMedia, registerMediaRef } from '../core/media'
 import { uploadAsset } from '../core/notes'
+import { toast } from '../lib/toast'
 
 interface UseNoteAttachmentsProps {
   noteId: string
@@ -41,7 +42,7 @@ export function useNoteAttachments({
 
     } catch (err) {
       console.error('Failed to upload image:', err)
-      alert('Failed to upload image: ' + String(err))
+      toast.error('Failed to upload image: ' + String(err))
     } finally {
       clearInput?.()
       onUploadFinish()
@@ -70,7 +71,7 @@ export function useNoteAttachments({
       onInsertMarkdown(`\n![video](jnana-asset://${filename})\n`)
     } catch (err) {
       console.error('Failed to upload video:', err)
-      alert('Failed to upload video: ' + String(err))
+      toast.error('Failed to upload video: ' + String(err))
     } finally {
       onUploadFinish()
       onFocus?.()
@@ -94,7 +95,7 @@ export function useNoteAttachments({
       onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
     } catch (err) {
       console.error('Failed to save recording:', err)
-      alert('Failed to save recording: ' + String(err))
+      toast.error('Failed to save recording: ' + String(err))
     } finally {
       onUploadFinish()
       onFocus?.()
@@ -122,7 +123,7 @@ export function useNoteAttachments({
       onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
     } catch (err) {
       console.error('Failed to upload audio:', err)
-      alert('Failed to upload audio: ' + String(err))
+      toast.error('Failed to upload audio: ' + String(err))
     } finally {
       onUploadFinish()
       onFocus?.()

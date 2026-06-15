@@ -47,6 +47,9 @@ pub struct ProjectRow {
     pub instructions: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Optional dashboard color (hex); null → UI derives one from the id.
+    #[serde(default)]
+    pub color: Option<String>,
 }
 
 /// One knowledge item attached to a project: a note or an uploaded file.

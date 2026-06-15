@@ -326,8 +326,13 @@ Notes:
 ### Agentic AI — Phase A (tools over the vault)
 - [x] Tool-calling in the provider (`chatWithTools`) for OpenAI-compatible + Ollama
 - [x] Native tools: search / read / recent / graph_neighbors (read) + create / append / set_tags / link (staged writes)
-- [x] Agent loop (`runAgent`) with step cap + live step callbacks
+- [x] Agent loop (`runAgent`) with step cap, write de-duplication, and live step callbacks
 - [x] 🤖 Agent toggle in AI Chat — step chips + propose-then-confirm ProposalCards (Apply/Skip)
+- [x] Reasoning shown per step (`AgentSteps` renders the model's narration above each tool chip)
+- [x] Apply-all composes `[[wikilinks]]` into the note and saves once, so AI-applied links
+      surface as graph edges (fixes a link-sync race from the old create-then-update path)
+- [x] Message actions — ↻ retry under each prompt; right-click menu: edit & retry, fork from here,
+      delete-from-here, delete message
 - [ ] MCP client — Jnana's agent uses external MCP servers (Phase B)
 - [ ] MCP server — expose Jnana to Claude Desktop / other agents (Phase C)
 
@@ -337,6 +342,14 @@ Notes:
 - [x] Search query kept (results recompute from it)
 - [x] AI chat thread + scope + composer kept
 - [x] Graph settings panel (filters / groups / display / forces) kept
+
+### App-wide UX layer
+- [x] Toasts (`lib/toast` + `<Toaster />`) replace all blocking native `alert()` calls
+- [x] In-app dialogs (`lib/dialog` + `<DialogHost />`): choice / prompt / confirm — replace every
+      native `window.prompt` / `window.confirm` (doc-import, YouTube embed, open-note, highlight edit)
+- [x] Keyboard `:focus-visible` rings app-wide, themed `::selection`, `prefers-reduced-motion`
+- [x] Fixed views that rendered unstyled (Search / Graph / section headings referenced undefined
+      global CSS classes); global `color-scheme: dark` + tokenized scrollbars
 
 ### Video
 - [x] Import local video files

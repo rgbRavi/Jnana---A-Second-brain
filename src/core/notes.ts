@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import type { Note } from '../types'
+import type { Note, NoteProgress } from '../types'
 import { eventBus } from '../lib/eventBus'
 
 export async function getAllNotes(): Promise<Note[]> {
@@ -111,5 +111,15 @@ export async function addFavourite(noteId: string): Promise<void> {
 
 export async function removeFavourite(noteId: string): Promise<void> {
   return invoke<void>('remove_favourite', { noteId })
+}
+
+/** Persist how far through a note the user has read (0..1). */
+export async function setNoteProgress(noteId: string, progress: number): Promise<void> {
+  return invoke<void>('set_note_progress', { noteId, progress })
+}
+
+/** Reading progress for every note that has any (for the dashboard). */
+export async function listNoteProgress(): Promise<NoteProgress[]> {
+  return invoke<NoteProgress[]>('list_note_progress')
 }
 

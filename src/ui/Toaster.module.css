@@ -1,0 +1,91 @@
+.stack {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: min(380px, calc(100vw - 2.5rem));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding: 0.7rem 0.85rem;
+  color: var(--text-1);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  animation: toastIn 0.18s ease-out;
+}
+
+.icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.message {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.1rem;
+  margin-top: 1px;
+  transition: color 0.12s;
+}
+
+.close:hover {
+  color: var(--text-1);
+}
+
+/* Variants — accent rail + icon color. */
+.info {
+  border-left-color: var(--accent);
+}
+.info .icon {
+  color: var(--accent);
+}
+
+.success {
+  border-left-color: #3fb950;
+}
+.success .icon {
+  color: #3fb950;
+}
+
+.error {
+  border-left-color: var(--danger);
+}
+.error .icon {
+  color: var(--danger);
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

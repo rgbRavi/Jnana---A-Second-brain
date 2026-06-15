@@ -50,7 +50,7 @@ const NAV_ITEMS = [
   { to: "/notes", label: "Notes", icon: ICONS.notes },
   { to: "/search", label: "Search", icon: ICONS.search },
   { to: "/graph", label: "Graph", icon: ICONS.graph },
-  { to: "/ai", label: "AI Analyzer", icon: ICONS.ai },
+  { to: "/ai", label: "AI", icon: ICONS.ai },
 ]
 
 const itemClass =

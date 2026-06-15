@@ -1,6 +1,7 @@
 use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
 use crate::commands::chat::{ConversationMeta, ConversationRow};
-use crate::commands::notes::NoteRow;
+use crate::commands::media::RecentMediaRow;
+use crate::commands::notes::{NoteProgressRow, NoteRow};
 use rusqlite::{params, Connection, Result};
 
 // ─── Notes ──────────────────────────────────────────────
@@ -294,7 +295,7 @@ pub fn delete_preset(conn: &Connection, id: &str) -> Result<()> {
 
 pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, instructions, created_at, updated_at
+        "SELECT id, name, description, instructions, created_at, updated_at, color
          FROM ai_projects ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -305,6 +306,7 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
             instructions: row.get(3)?,
             created_at: row.get(4)?,
             updated_at: row.get(5)?,
+            color: row.get(6)?,
         })
     })?;
     rows.collect()
@@ -312,14 +314,15 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
 
 pub fn upsert_project(conn: &Connection, p: &ProjectRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO ai_projects (id, name, description, instructions, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO ai_projects (id, name, description, instructions, created_at, updated_at, color)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(id) DO UPDATE SET
            name         = excluded.name,
            description  = excluded.description,
            instructions = excluded.instructions,
-           updated_at   = excluded.updated_at",
-        params![p.id, p.name, p.description, p.instructions, p.created_at, p.updated_at],
+           updated_at   = excluded.updated_at,
+           color        = excluded.color",
+        params![p.id, p.name, p.description, p.instructions, p.created_at, p.updated_at, p.color],
     )?;
     Ok(())
 }
@@ -372,12 +375,33 @@ pub fn insert_media_ref(
     media_type: &str,
     path: &str,
     meta: &str,
+    created_at: i64,
 ) -> Result<()> {
     conn.execute(
-        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, note_id, media_type, path, meta],
+        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, note_id, media_type, path, meta, created_at],
     )?;
     Ok(())
+}
+
+/// Most-recently imported media across the whole vault, joined to its note title.
+pub fn recent_media(conn: &Connection, limit: i64) -> Result<Vec<RecentMediaRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
+         FROM media_refs m JOIN notes n ON n.id = m.note_id
+         ORDER BY m.created_at DESC, m.rowid DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt.query_map(params![limit], |row| {
+        Ok(RecentMediaRow {
+            filename: row.get(0)?,
+            media_type: row.get(1)?,
+            note_id: row.get(2)?,
+            note_title: row.get(3)?,
+            created_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
 }
 
 pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
@@ -389,6 +413,29 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
 pub fn fetch_media_types(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT DISTINCT media_type FROM media_refs WHERE note_id = ?1")?;
     let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+    rows.collect()
+}
+
+// ─── Note reading progress ──────────────────────────────
+
+pub fn set_note_progress(conn: &Connection, note_id: &str, progress: f64, updated_at: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO note_progress (note_id, progress, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(note_id) DO UPDATE SET progress = excluded.progress, updated_at = excluded.updated_at",
+        params![note_id, progress, updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn list_note_progress(conn: &Connection) -> Result<Vec<NoteProgressRow>> {
+    let mut stmt = conn.prepare("SELECT note_id, progress, updated_at FROM note_progress")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(NoteProgressRow {
+            note_id: row.get(0)?,
+            progress: row.get(1)?,
+            updated_at: row.get(2)?,
+        })
+    })?;
     rows.collect()
 }
 
