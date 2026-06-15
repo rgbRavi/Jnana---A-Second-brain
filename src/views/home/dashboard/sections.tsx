@@ -1,5 +1,7 @@
+import { useRef } from 'react'
 import styles from './Dashboard.module.css'
 import { preview, relativeTime } from './format'
+import { useWheelHorizontal } from './useWheelHorizontal'
 import type { Note } from '../../../types'
 import type { DashboardData } from './useDashboardData'
 import { StatCard } from './components/StatCard'
@@ -83,11 +85,13 @@ export function DailySummarySection({ data }: SectionProps) {
 
 // ── Continue Learning ───────────────────────────────────
 export function ContinueLearningSection({ data, actions }: SectionProps) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  useWheelHorizontal(rowRef)
   if (data.loading) return <SkeletonRows rows={2} />
   if (data.continueLearning.length === 0)
     return <p className={styles.empty}>Open a note to start a learning session — it'll show up here.</p>
   return (
-    <div className={styles.scrollRow}>
+    <div className={styles.scrollRow} ref={rowRef}>
       {data.continueLearning.map((item) => {
         const pct = Math.round(item.progress * 100)
         return (

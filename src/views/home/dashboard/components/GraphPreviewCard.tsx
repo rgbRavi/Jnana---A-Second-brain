@@ -13,14 +13,15 @@ interface Props {
 /** A small, live force-graph snapshot of the vault + headline graph stats. */
 export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(0)
+  const [size, setSize] = useState({ w: 0, h: 0 })
 
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth))
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
-    setWidth(el.clientWidth)
+    measure()
     return () => ro.disconnect()
   }, [])
 
@@ -36,11 +37,11 @@ export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
   return (
     <div className={styles.graphPreview}>
       <div className={styles.graphCanvas} ref={wrapRef} onClick={onOpen}>
-        {width > 0 && nodes.length > 0 ? (
+        {size.w > 0 && size.h > 0 && nodes.length > 0 ? (
           <ForceGraph2D
             graphData={data}
-            width={width}
-            height={190}
+            width={size.w}
+            height={size.h}
             backgroundColor="rgba(0,0,0,0)"
             nodeRelSize={2.4}
             nodeVal={(n: any) => n.val}
