@@ -7,9 +7,11 @@
   color-scheme: dark; /* native controls (selects, date pickers, scrollbars) render dark */
   --bg:           #0d0d0f;
   --surface:      #141417;
+  --surface-rgb:  20, 20, 23; /* = --surface, for rgba() (composer transparency) */
   --surface-2:    #1c1c21;
   --surface-3:    #26262e;
   --border:       #2a2a32;
+  --sidebar-width: 232px;
   --border-hover: #3d3d4a;
   --accent:       #7c6af7;
   --text-1:       #f0eff5;

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import type { Note } from '../../types'
-import { NoteCreator } from '../../ui/editor/NoteCreator'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
@@ -11,7 +10,7 @@ import { toast } from '../../lib/toast'
 import NoteStyles from './Notes.module.css'
 
 function Notes() {
-  const { notes, loading, error, create, update, remove, updateTags } = useNotesContext()
+  const { notes, loading, error, update, remove, updateTags } = useNotesContext()
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
@@ -36,10 +35,7 @@ function Notes() {
   return (
     <div className={NoteStyles.notesContainer}>
 
-      {/* Section for creating new notes */}
-      <div className={NoteStyles.composerWrapper}>
-        <NoteCreator onCreate={create} onUpdate={update} />
-      </div>
+      {/* The note composer floats at the bottom (mounted app-level in AppLayout). */}
 
       {/* Shows the number of notes */}
       <div className={NoteStyles.notesWrapper}>

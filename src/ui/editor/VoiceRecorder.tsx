@@ -1,5 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { toast } from '../../lib/toast'
+
+export interface VoiceRecorderHandle {
+  /** Start recording programmatically (e.g. from the Add-content menu). */
+  start: () => void
+}
 
 interface Props {
   /** Called with the finished recording once the user stops. */
@@ -8,6 +13,10 @@ interface Props {
   onRecordingChange?: (recording: boolean) => void
   className?: string
   disabled?: boolean
+  /** When true, render nothing while idle — only the active ⏹/timer control shows.
+   *  Used when recording is triggered externally (the "+" menu) and only the live
+   *  control should appear in the composer. */
+  hideIdleButton?: boolean
 }
 
 function fmtElapsed(totalSeconds: number): string {
@@ -23,7 +32,10 @@ function fmtElapsed(totalSeconds: number): string {
  * Microphone permission is requested lazily on first use; denial / no-device
  * surfaces a clear message instead of failing silently.
  */
-export function VoiceRecorder({ onRecorded, onRecordingChange, className, disabled }: Props) {
+export const VoiceRecorder = forwardRef<VoiceRecorderHandle, Props>(function VoiceRecorder(
+  { onRecorded, onRecordingChange, className, disabled, hideIdleButton },
+  ref,
+) {
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -91,6 +103,16 @@ export function VoiceRecorder({ onRecorded, onRecordingChange, className, disabl
     recorderRef.current = null
   }
 
+  useImperativeHandle(ref, () => ({
+    start: () => {
+      if (!disabled && !recording) void start()
+    },
+  }))
+
+  // In idle-hidden mode the trigger lives elsewhere (the "+" menu); render only
+  // the live control while recording.
+  if (hideIdleButton && !recording) return null
+
   return (
     <button
       type="button"
@@ -103,4 +125,4 @@ export function VoiceRecorder({ onRecorded, onRecordingChange, className, disabl
       {recording ? `⏹ ${fmtElapsed(elapsed)}` : '🎙️'}
     </button>
   )
-}
+})

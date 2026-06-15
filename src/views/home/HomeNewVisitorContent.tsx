@@ -1,10 +1,6 @@
-import { NoteCreator } from "../../ui/editor/NoteCreator"
-import { useNotesContext } from '../../context/NotesContext'
 import ContentStyles from "./HomeNewVisitorContent.module.css"
 
 function HomeNewVisitorContent() {
-
-    const {create, update} = useNotesContext()
     return(
         <div className={ContentStyles.contentContainer}>
             <h1> Hello and Welcome To Jnana !</h1>
@@ -26,9 +22,7 @@ function HomeNewVisitorContent() {
             </div>
             <div className={ContentStyles.gettingStarted}>
                 <h2>Getting Started</h2>
-                <p>Write Your First Note It's super easy !</p>
-                
-                <NoteCreator onCreate={create} onUpdate={update}/>
+                <p>Write your first note — it's super easy! Use the “Click to take a note” box pinned at the bottom.</p>
             </div>
         </div>
     )

@@ -1,6 +1,6 @@
 /* Sidebar */
 .sidebar {
-  width: 232px;
+  width: var(--sidebar-width);
   flex-shrink: 0;
   background: var(--surface);
   /* subtle top-down lift so the rail reads as distinct from the main canvas */

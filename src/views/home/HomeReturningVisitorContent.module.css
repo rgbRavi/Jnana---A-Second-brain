@@ -1,5 +1,6 @@
 .contentContainer {
-  padding: 1rem 2rem 2rem;
+  /* extra bottom padding clears the floating composer pill */
+  padding: 1rem 2rem 7rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;

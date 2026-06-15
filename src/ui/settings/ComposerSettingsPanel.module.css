@@ -1,0 +1,64 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 480px;
+}
+
+.intro {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.fieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.fieldHead label {
+  font-size: 0.85rem;
+  color: var(--text-1);
+}
+
+.value {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-1);
+  cursor: pointer;
+  line-height: 1.45;
+}
+
+.toggle input {
+  margin-top: 0.2rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hint {
+  font-size: 0.76rem;
+  color: var(--text-3);
+  line-height: 1.4;
+}

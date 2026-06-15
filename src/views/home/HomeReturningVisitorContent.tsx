@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useFavourites } from "../../hooks/useFavourites"
-import { NoteCreator } from "../../ui/editor/NoteCreator"
 import { NoteModal } from "../../ui/NoteModal"
 import { useNotesContext } from '../../context/NotesContext'
 import { getLastOpenedIds } from '../../hooks/useSaveLastOpened'
@@ -176,11 +175,9 @@ function DisplayFavourites() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function HomeReturningVisitorContent() {
-  const { create, update } = useNotesContext()
   return (
     <div className={ContentStyles.contentContainer}>
       <h1>Welcome Back to Jnana!</h1>
-      <NoteCreator onCreate={create} onUpdate={update} />
       <h2>Resume Where you left off…</h2>
       <DisplayLastSessionCards />
       <h2>Favourites</h2>
