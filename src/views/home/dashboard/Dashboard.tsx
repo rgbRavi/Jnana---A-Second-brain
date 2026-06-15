@@ -1,17 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from '@dnd-kit/core'
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
+import GridLayout, { useContainerWidth, type Layout } from 'react-grid-layout'
+import 'react-grid-layout/css/styles.css'
 import type { Note } from '../../../types'
 import { useNotesContext } from '../../../context/NotesContext'
 import { setViewState } from '../../../hooks/useViewState'
@@ -21,20 +11,21 @@ import styles from './Dashboard.module.css'
 import { useDashboardData } from './useDashboardData'
 import { useDashboardPrefs } from './useDashboardPrefs'
 import { SECTIONS } from './registry'
-import { SortableSection } from './components/SortableSection'
-import { Column } from './components/Column'
+import { DashboardCard } from './components/DashboardCard'
 import { HeroSection, type DashboardActions } from './sections'
 import { CustomizePanel } from './CustomizePanel'
 import { LayoutSwitcher } from './LayoutSwitcher'
-import type { SectionId } from './types'
+import { COLLAPSED_H, GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type GridItem, type SectionId } from './types'
 
-const columnIndexOf = (droppableId: string): number | null => {
-  const m = /^column-(\d+)$/.exec(droppableId)
-  return m ? Number(m[1]) : null
-}
+const sameGrid = (a: GridItem[], b: GridItem[]) =>
+  a.length === b.length &&
+  a.every((g, i) => {
+    const o = b[i]
+    return o && g.i === o.i && g.x === o.x && g.y === o.y && g.w === o.w && g.h === o.h
+  })
 
-/** The Home dashboard: a hero stat row + config-driven widget sections, each
- *  collapsible/hideable, rendered from the user's saved preferences. */
+/** The Home dashboard: a hero stat row + a react-grid-layout of widget cards the
+ *  user can move (drag the ⠿ grip), resize (any edge/corner) and hide/collapse. */
 export function Dashboard() {
   const data = useDashboardData()
   const prefs = useDashboardPrefs()
@@ -42,84 +33,63 @@ export function Dashboard() {
   const { update, updateTags } = useNotesContext()
   const [openNote, setOpenNote] = useState<Note | null>(null)
   const [customizing, setCustomizing] = useState(false)
-  const [activeId, setActiveId] = useState<SectionId | null>(null)
+  const { width, containerRef } = useContainerWidth()
 
-  const actions: DashboardActions = useMemo(
-    () => ({
-      openNote: (n) => {
-        eventBus.emit('note:opened', n)
-        setOpenNote(n)
-      },
-      goto: (path) => navigate(path),
-      newNote: () => setViewState('notes.composer.state', 'expanded'),
-      recordAudio: () => {
-        setViewState('notes.composer.state', 'expanded')
-        eventBus.emit('composer:record', null)
-      },
-      importFile: () => {
-        setViewState('notes.composer.state', 'expanded')
-        eventBus.emit('composer:import', null)
-      },
-    }),
-    [navigate],
-  )
+  const actions: DashboardActions = {
+    openNote: (n) => {
+      eventBus.emit('note:opened', n)
+      setOpenNote(n)
+    },
+    goto: (path) => navigate(path),
+    newNote: () => setViewState('notes.composer.state', 'expanded'),
+    recordAudio: () => {
+      setViewState('notes.composer.state', 'expanded')
+      eventBus.emit('composer:record', null)
+    },
+    importFile: () => {
+      setViewState('notes.composer.state', 'expanded')
+      eventBus.emit('composer:import', null)
+    },
+  }
 
   // background-tasks auto-hides when nothing's running.
   const isVisible = (id: SectionId) => !prefs.isHidden(id) && !(id === 'backgroundTasks' && data.tasks.length === 0)
-  const columns = prefs.active.columns
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
+  // The layout RGL renders: visible items, with collapsed ones shrunk to header height.
+  const layout: Layout = prefs.active.grid
+    .filter((g) => isVisible(g.i))
+    .map((g) =>
+      prefs.isCollapsed(g.i)
+        ? { ...g, h: COLLAPSED_H, minH: COLLAPSED_H, maxH: COLLAPSED_H, isResizable: false }
+        : g,
+    )
 
-  const onDragEnd = (e: DragEndEvent) => {
-    setActiveId(null)
-    const { active, over } = e
-    if (!over) return
-    const dragged = active.id as SectionId
-    const overId = String(over.id)
-    if (dragged === overId) return
-
-    const cols = columns.map((c) => [...c])
-    const fromCol = cols.findIndex((c) => c.includes(dragged))
-    if (fromCol === -1) return
-    const overCol = columnIndexOf(overId)
-    const toCol = overCol != null ? overCol : cols.findIndex((c) => c.includes(overId as SectionId))
-    if (toCol === -1) return
-
-    if (fromCol === toCol && overCol == null) {
-      const oldIndex = cols[fromCol].indexOf(dragged)
-      const newIndex = cols[fromCol].indexOf(overId as SectionId)
-      if (oldIndex !== newIndex && newIndex !== -1) cols[fromCol] = arrayMove(cols[fromCol], oldIndex, newIndex)
-    } else {
-      cols[fromCol].splice(cols[fromCol].indexOf(dragged), 1)
-      let insertAt = overCol != null ? cols[toCol].length : cols[toCol].indexOf(overId as SectionId)
-      if (insertAt === -1) insertAt = cols[toCol].length
-      cols[toCol].splice(insertAt, 0, dragged)
-    }
-    prefs.setColumns(cols)
+  const onLayoutChange = (next: Layout) => {
+    const byId = new Map(next.map((it) => [it.i, it]))
+    const merged: GridItem[] = prefs.active.grid.map((g) => {
+      const n = byId.get(g.i)
+      if (!n) return g // hidden — keep its stored position
+      // Preserve the expanded height for collapsed cards.
+      const h = prefs.isCollapsed(g.i) ? g.h : n.h
+      return { ...g, x: n.x, y: n.y, w: n.w, h }
+    })
+    if (!sameGrid(merged, prefs.active.grid)) prefs.setGrid(merged)
   }
 
   const renderSection = (id: SectionId) => {
     const def = SECTIONS[id]
     const Component = def.Component
-    const size = prefs.getSize(id)
     return (
-      <SortableSection
-        key={id}
-        id={id}
+      <DashboardCard
         title={def.title}
         icon={def.icon}
         collapsed={prefs.isCollapsed(id)}
         onToggleCollapse={() => prefs.toggleCollapsed(id)}
         onHide={() => prefs.toggleHidden(id)}
         onRefresh={def.refreshable ? data.refresh : undefined}
-        height={size.h}
-        onResizeHeight={(h) => prefs.setHeight(id, h)}
       >
         <Component data={data} actions={actions} />
-      </SortableSection>
+      </DashboardCard>
     )
   }
 
@@ -140,31 +110,25 @@ export function Dashboard() {
 
       <HeroSection data={data} />
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={(e: DragStartEvent) => setActiveId(e.active.id as SectionId)}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => setActiveId(null)}
-      >
-        <div className={styles.sections}>
-          {columns.map((col, i) => {
-            const colVisible = col.filter(isVisible)
-            return (
-              <Column key={i} id={`column-${i}`} items={colVisible}>
-                {colVisible.map(renderSection)}
-              </Column>
-            )
-          })}
-        </div>
-        <DragOverlay>
-          {activeId ? (
-            <div className={styles.dragOverlay}>
-              <span aria-hidden="true">{SECTIONS[activeId].icon}</span> {SECTIONS[activeId].title}
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      <div ref={containerRef} className={styles.gridWrap}>
+        {width > 0 && (
+          <GridLayout
+            className={styles.grid}
+            width={width}
+            layout={layout}
+            onLayoutChange={onLayoutChange}
+            gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT, margin: GRID_MARGIN, containerPadding: [0, 0] }}
+            dragConfig={{ handle: '.dashboard-drag-handle', threshold: 6 }}
+            resizeConfig={{ handles: ['s', 'e', 'se'] as const }}
+          >
+            {layout.map((item) => (
+              <div key={item.i} className={styles.gridItem}>
+                {renderSection(item.i as SectionId)}
+              </div>
+            ))}
+          </GridLayout>
+        )}
+      </div>
 
       {customizing && <CustomizePanel onClose={() => setCustomizing(false)} />}
 

@@ -6,14 +6,13 @@
 import { useSyncExternalStore } from 'react'
 import {
   ALL_SECTIONS,
-  COLUMN_COUNT,
   DEFAULT_LAYOUT_ID,
-  distribute,
+  defaultGrid,
   PRESET_LAYOUTS,
   type DashboardLayout,
   type DashboardPrefs,
+  type GridItem,
   type SectionId,
-  type SectionSize,
 } from './types'
 
 const STORAGE_KEY = 'jnana.dashboard.prefs'
@@ -21,42 +20,23 @@ const STORAGE_KEY = 'jnana.dashboard.prefs'
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `layout-${Date.now()}`
 
-/** Keep a layout's columns in sync with ALL_SECTIONS: drop unknown/dupes, ensure
- *  COLUMN_COUNT columns, append any new widgets to the shorter column. Migrates
- *  the legacy single `order` field into columns. */
+/** Ensure every section has a grid entry (drop unknown/dupes; fill missing from
+ *  the default grid). Layouts from before the grid model fall back to default. */
 function normalizeLayout(l: DashboardLayout): DashboardLayout {
   const known = new Set<SectionId>(ALL_SECTIONS)
-  const legacyOrder = (l as unknown as { order?: SectionId[] }).order
-  const source = l.columns ?? (legacyOrder ? distribute(legacyOrder.filter((id) => known.has(id))) : distribute(ALL_SECTIONS))
-
-  const seen = new Set<SectionId>()
-  const columns: SectionId[][] = source.map((col) =>
-    (col ?? []).filter((id) => {
-      if (!known.has(id) || seen.has(id)) return false
-      seen.add(id)
-      return true
-    }),
-  )
-  while (columns.length < COLUMN_COUNT) columns.push([])
-  // Append any sections not placed anywhere (e.g. new widgets) to the shortest column.
-  for (const id of ALL_SECTIONS) {
-    if (seen.has(id)) continue
-    let shortest = 0
-    for (let i = 1; i < columns.length; i++) if (columns[i].length < columns[shortest].length) shortest = i
-    columns[shortest].push(id)
-    seen.add(id)
+  const byId = new Map<SectionId, GridItem>()
+  for (const it of l.grid ?? []) {
+    if (it && known.has(it.i) && !byId.has(it.i)) byId.set(it.i, it)
   }
-
-  const sizes: Partial<Record<SectionId, SectionSize>> = {}
-  for (const [k, v] of Object.entries(l.sizes ?? {})) {
-    if (known.has(k as SectionId) && v) sizes[k as SectionId] = v
+  if (byId.size < ALL_SECTIONS.length) {
+    for (const d of defaultGrid()) if (!byId.has(d.i)) byId.set(d.i, d)
   }
+  const grid = ALL_SECTIONS.map((id) => byId.get(id)!)
   return {
     ...l,
-    columns,
+    grid,
     hidden: (l.hidden ?? []).filter((id) => known.has(id)),
     collapsed: (l.collapsed ?? []).filter((id) => known.has(id)),
-    sizes,
   }
 }
 
@@ -117,14 +97,6 @@ function mutateActive(fn: (l: DashboardLayout) => DashboardLayout) {
 const toggleInList = (list: SectionId[], id: SectionId) =>
   list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 
-function setSize(l: DashboardLayout, id: SectionId, patch: SectionSize): DashboardLayout {
-  const sizes = { ...(l.sizes ?? {}) }
-  const next: SectionSize = { ...(sizes[id] ?? {}), ...patch }
-  if (next.w === undefined && next.h === undefined) delete sizes[id]
-  else sizes[id] = next
-  return { ...l, sizes }
-}
-
 // ── Layout management (multiple saved layouts) ──
 function switchLayout(id: string) {
   if (prefs.layouts.some((l) => l.id === id)) commit({ ...prefs, activeLayoutId: id })
@@ -162,11 +134,8 @@ export interface DashboardPrefsApi {
   isCollapsed: (id: SectionId) => boolean
   toggleHidden: (id: SectionId) => void
   toggleCollapsed: (id: SectionId) => void
-  getSize: (id: SectionId) => SectionSize
-  /** Set a section's body height in px (undefined → auto). */
-  setHeight: (id: SectionId, h: number | undefined) => void
-  /** Persist a new column arrangement (drag-reorder). */
-  setColumns: (columns: SectionId[][]) => void
+  /** Persist a new grid arrangement (drag-move / resize). */
+  setGrid: (grid: GridItem[]) => void
   resetLayout: () => void
   switchLayout: (id: string) => void
   /** Save the current layout as a new named layout; returns its id. */
@@ -186,10 +155,8 @@ export function useDashboardPrefs(): DashboardPrefsApi {
     isCollapsed: (id) => active.collapsed.includes(id),
     toggleHidden: (id) => mutateActive((l) => ({ ...l, hidden: toggleInList(l.hidden, id) })),
     toggleCollapsed: (id) => mutateActive((l) => ({ ...l, collapsed: toggleInList(l.collapsed, id) })),
-    getSize: (id) => active.sizes?.[id] ?? {},
-    setHeight: (id, h) => mutateActive((l) => setSize(l, id, { h })),
-    setColumns: (columns) => mutateActive((l) => ({ ...l, columns })),
-    resetLayout: () => mutateActive((l) => ({ ...l, columns: distribute(ALL_SECTIONS), hidden: [], collapsed: [], sizes: {} })),
+    setGrid: (grid) => mutateActive((l) => ({ ...l, grid })),
+    resetLayout: () => mutateActive((l) => ({ ...l, grid: defaultGrid(), hidden: [], collapsed: [] })),
     switchLayout,
     createLayout,
     renameLayout,

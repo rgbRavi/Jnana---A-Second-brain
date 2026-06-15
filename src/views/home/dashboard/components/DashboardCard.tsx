@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import styles from '../Dashboard.module.css'
 
 interface Props {
@@ -8,80 +8,22 @@ interface Props {
   onToggleCollapse?: () => void
   onHide?: () => void
   onRefresh?: () => void
-  /** Body height in px (undefined = auto). */
-  height?: number
-  onResizeHeight?: (h: number | undefined) => void
   /** Right-aligned slot in the header. */
   action?: ReactNode
-  /** Drag handle (sortable) rendered at the start of the header. */
-  dragHandle?: ReactNode
-  /** Forwarded to the section element (sortable nodeRef). */
-  nodeRef?: (el: HTMLElement | null) => void
-  /** Extra inline style merged onto the section (sortable transform). */
-  style?: CSSProperties
   children: ReactNode
 }
 
-/** The shell every dashboard section renders inside: header (collapse / width /
- *  refresh / hide), a body that can be height-constrained, and a drag handle to
- *  resize that height. The column span is applied to the section's grid-column. */
-export function DashboardCard({
-  title,
-  icon,
-  collapsed,
-  onToggleCollapse,
-  onHide,
-  onRefresh,
-  height,
-  onResizeHeight,
-  action,
-  dragHandle,
-  nodeRef,
-  style,
-  children,
-}: Props) {
-  const bodyRef = useRef<HTMLDivElement>(null)
-  const dragStart = useRef<{ y: number; h: number } | null>(null)
-  const latest = useRef<number>(0)
-  const [dragH, setDragH] = useState<number | null>(null)
-
-  const appliedH = dragH ?? height
-
-  const beginResize = (e: ReactPointerEvent) => {
-    e.preventDefault()
-    const startH = appliedH ?? bodyRef.current?.offsetHeight ?? 220
-    dragStart.current = { y: e.clientY, h: startH }
-    latest.current = startH
-    setDragH(startH)
-    document.body.style.userSelect = 'none'
-
-    const move = (ev: PointerEvent) => {
-      if (!dragStart.current) return
-      const next = Math.max(120, dragStart.current.h + (ev.clientY - dragStart.current.y))
-      latest.current = next
-      setDragH(next)
-    }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      document.body.style.userSelect = ''
-      dragStart.current = null
-      onResizeHeight?.(latest.current)
-      setDragH(null)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
-  const sectionStyle: CSSProperties = { ...style }
-  const bodyStyle: CSSProperties | undefined =
-    appliedH != null ? { height: appliedH, overflowY: 'auto' } : undefined
-
+/** The shell every dashboard widget renders inside. Fills its grid cell; the
+ *  ⠿ grip is react-grid-layout's drag handle. Resize is handled by RGL's edge
+ *  handles, so there's no manual resize control here. */
+export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide, onRefresh, action, children }: Props) {
   return (
-    <section className={styles.card} style={sectionStyle} ref={nodeRef}>
+    <section className={styles.card}>
       <header className={styles.cardHeader}>
         <div className={styles.cardHeaderLeft}>
-          {dragHandle}
+          <span className={`${styles.dragHandle} dashboard-drag-handle`} title="Drag to move" aria-hidden="true">
+            ⠿
+          </span>
           <button
             type="button"
             className={styles.cardTitle}
@@ -118,22 +60,7 @@ export function DashboardCard({
           )}
         </div>
       </header>
-      {!collapsed && (
-        <>
-          <div className={styles.cardBody} ref={bodyRef} style={bodyStyle}>
-            {children}
-          </div>
-          {onResizeHeight && (
-            <div
-              className={styles.resizeHandle}
-              onPointerDown={beginResize}
-              onDoubleClick={() => onResizeHeight(undefined)}
-              title="Drag to resize · double-click to reset"
-              aria-hidden="true"
-            />
-          )}
-        </>
-      )}
+      {!collapsed && <div className={styles.cardBody}>{children}</div>}
     </section>
   )
 }

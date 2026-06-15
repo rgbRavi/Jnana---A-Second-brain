@@ -1,7 +1,6 @@
-// Dashboard configuration model. The Home page renders widgets purely from this
-// config (columns + hidden + collapsed + sizes), so adding a widget only touches
-// the registry + ALL_SECTIONS — never the page layout. Widgets live in 2
-// independent columns that pack tightly (masonry-style, no row gaps).
+// Dashboard configuration model. The Home page renders widgets from this config
+// via react-grid-layout: each widget has a grid position+size (x,y,w,h) the user
+// can drag to move and drag any edge/corner to resize; the grid auto-compacts.
 
 export type SectionId =
   | 'quickActions'
@@ -29,26 +28,30 @@ export const ALL_SECTIONS: SectionId[] = [
   'backgroundTasks',
 ]
 
-export const COLUMN_COUNT = 2
+export const GRID_COLS = 12
+export const ROW_HEIGHT = 20
+export const GRID_MARGIN: [number, number] = [14, 10]
+/** Height (rows) a collapsed card occupies — just its header. */
+export const COLLAPSED_H = 2
 
-/** Per-section size — body height (px). (`w` kept for back-compat; unused.) */
-export interface SectionSize {
-  w?: number
-  h?: number
+/** One widget's grid placement (units, not pixels — matches RGL LayoutItem). */
+export interface GridItem {
+  i: SectionId
+  x: number
+  y: number
+  w: number
+  h: number
+  minW?: number
+  minH?: number
 }
 
 export interface DashboardLayout {
   id: string
   name: string
-  /** Sections per column (independent, tightly-packed lists). */
-  columns: SectionId[][]
-  /** Sections the user has hidden. */
+  /** Grid placement for every section (hidden ones keep a position for when shown). */
+  grid: GridItem[]
   hidden: SectionId[]
-  /** Sections collapsed to their header. */
   collapsed: SectionId[]
-  /** Per-section height (resize). */
-  sizes: Partial<Record<SectionId, SectionSize>>
-  /** Built-in preset (always present, can't be deleted). */
   builtin?: boolean
 }
 
@@ -59,23 +62,36 @@ export interface DashboardPrefs {
 
 export const DEFAULT_LAYOUT_ID = 'default'
 
-/** Spread sections across COLUMN_COUNT columns round-robin (row-major reading order). */
-export function distribute(sections: SectionId[]): SectionId[][] {
-  const cols: SectionId[][] = Array.from({ length: COLUMN_COUNT }, () => [])
-  sections.forEach((s, i) => cols[i % COLUMN_COUNT].push(s))
-  return cols
+/** Sensible default heights (grid rows) per widget. */
+const DEFAULT_H: Record<SectionId, number> = {
+  quickActions: 4,
+  dailySummary: 4,
+  continueLearning: 8,
+  favourites: 7,
+  insights: 6,
+  graphSnapshot: 15,
+  projects: 7,
+  recentImports: 7,
+  activityHeatmap: 5,
+  backgroundTasks: 4,
+}
+const MIN_H: Partial<Record<SectionId, number>> = { graphSnapshot: 6 }
+
+/** Lay all sections out in two half-width columns, packed shortest-column-first. */
+export function defaultGrid(sections: SectionId[] = ALL_SECTIONS): GridItem[] {
+  const colH = [0, 0]
+  const half = GRID_COLS / 2
+  return sections.map((id) => {
+    const h = DEFAULT_H[id] ?? 5
+    const col = colH[0] <= colH[1] ? 0 : 1
+    const item: GridItem = { i: id, x: col * half, y: colH[col], w: half, h, minW: 3, minH: MIN_H[id] ?? 3 }
+    colH[col] += h
+    return item
+  })
 }
 
 export function makeDefaultLayout(): DashboardLayout {
-  return {
-    id: DEFAULT_LAYOUT_ID,
-    name: 'Default',
-    columns: distribute(ALL_SECTIONS),
-    hidden: [],
-    collapsed: [],
-    sizes: {},
-    builtin: true,
-  }
+  return { id: DEFAULT_LAYOUT_ID, name: 'Default', grid: defaultGrid(), hidden: [], collapsed: [], builtin: true }
 }
 
 /** A built-in preset layout that shows only `show` (the rest hidden). */
@@ -85,10 +101,9 @@ function preset(id: string, name: string, show: SectionId[]): DashboardLayout {
     id,
     name,
     builtin: true,
-    columns: distribute(ALL_SECTIONS),
+    grid: defaultGrid(),
     hidden: ALL_SECTIONS.filter((s) => !shown.has(s)),
     collapsed: [],
-    sizes: {},
   }
 }
 

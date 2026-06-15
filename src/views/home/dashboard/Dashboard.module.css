@@ -178,42 +178,68 @@
   background: var(--surface-2);
 }
 
-/* Independent columns that each pack tightly (masonry — no row-alignment gaps). */
-.sections {
-  display: flex;
-  gap: 1.1rem;
-  align-items: flex-start;
+/* ── react-grid-layout ───────────────────────────────────────────────────── */
+.gridWrap {
+  width: 100%;
 }
-.column {
-  flex: 1;
-  min-width: 0;
-  min-height: 48px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
-@media (max-width: 919px) {
-  .sections {
-    flex-direction: column;
-  }
+.gridItem {
+  box-sizing: border-box;
 }
 
-/* Floating preview of the card being dragged. */
-.dragOverlay {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
-  padding: 0.6rem 0.95rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-1);
-  cursor: grabbing;
+/* Drop placeholder while dragging/resizing. */
+.grid :global(.react-grid-placeholder) {
+  background: rgba(124, 106, 247, 0.18) !important;
+  border: 1px dashed var(--accent);
+  border-radius: 16px;
+  opacity: 1 !important;
+}
+.grid :global(.react-grid-item.react-draggable-dragging),
+.grid :global(.react-grid-item.resizing) {
+  z-index: 6;
+  opacity: 0.95;
+}
+
+/* Resize handles — themed bars on each edge/corner, brighter on hover. */
+.grid :global(.react-resizable-handle) {
+  background: none !important;
+  padding: 0 !important;
+}
+.grid :global(.react-resizable-handle-e) {
+  right: 2px !important;
+  top: 50% !important;
+  width: 4px !important;
+  height: 30px !important;
+  margin-top: -15px !important;
+  border-radius: 3px;
+  background: var(--border-hover) !important;
+  cursor: ew-resize;
+}
+.grid :global(.react-resizable-handle-s) {
+  bottom: 2px !important;
+  left: 50% !important;
+  width: 30px !important;
+  height: 4px !important;
+  margin-left: -15px !important;
+  border-radius: 3px;
+  background: var(--border-hover) !important;
+  cursor: ns-resize;
+}
+.grid :global(.react-resizable-handle-se) {
+  right: 4px !important;
+  bottom: 4px !important;
+  width: 9px !important;
+  height: 9px !important;
+  border-right: 2px solid var(--border-hover);
+  border-bottom: 2px solid var(--border-hover);
+  border-radius: 0 0 4px 0;
+  cursor: nwse-resize;
+}
+.grid :global(.react-grid-item:hover .react-resizable-handle-e),
+.grid :global(.react-grid-item:hover .react-resizable-handle-s) {
+  background: var(--accent) !important;
+}
+.grid :global(.react-grid-item:hover .react-resizable-handle-se) {
+  border-color: var(--accent);
 }
 
 /* ── Hero stat grid ──────────────────────────────────────────────────────── */
@@ -268,7 +294,11 @@
 
 /* ── Section card shell ──────────────────────────────────────────────────── */
 .card {
-  min-width: 0; /* allow the card (grid item) to shrink so its content can scroll */
+  height: 100%; /* fill the grid cell react-grid-layout sizes */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -370,10 +400,12 @@
 .cardBody {
   padding: 1rem;
   min-width: 0;
-  /* flex column so a fill-height child (the graph) can stretch when resized */
+  /* fill the card and scroll; flex column so a fill-height child (graph) stretches */
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
 }
 
 /* Drag handle to resize a card's body height (double-click resets). */
