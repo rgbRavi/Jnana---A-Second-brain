@@ -56,8 +56,8 @@
   left: 1.25rem;
   right: 1.25rem;
   bottom: 0;
-  height: 33vh;
-  min-height: 264px;
+  /* Expanded height is content-driven (grows upward as you type, clamped by the
+     body's min/max-height); fullscreen overrides this to fill the area. */
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -178,8 +178,6 @@
 
 /* ── Body ── */
 .body {
-  flex: 1;
-  min-height: 0;
   width: 100%;
   background: transparent;
   border: none;
@@ -191,6 +189,20 @@
   resize: none;
   outline: none;
   overflow-y: auto;
+}
+
+/* Expanded: a ~⅓-viewport baseline that grows with content (JS sets the inline
+   height; these clamp it), then the editor scrolls past the cap. */
+.expanded .body {
+  flex: 0 0 auto;
+  min-height: 16vh;
+  max-height: 52vh;
+}
+
+/* Fullscreen: the editor fills the remaining space. */
+.fullscreen .body {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .body::placeholder {

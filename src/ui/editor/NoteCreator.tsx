@@ -80,6 +80,20 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     return () => window.clearTimeout(t)
   }, [state])
 
+  // Grow the editor with its content while expanded — the panel is bottom-anchored
+  // so it expands upward. CSS min/max-height clamps it (then the editor scrolls).
+  // In fullscreen/collapsed the height is flex-driven, so clear the inline height.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    if (state !== 'expanded') {
+      el.style.height = ''
+      return
+    }
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [content, state])
+
   // Remember collapsed/expanded across reloads (fullscreen is transient).
   useEffect(() => {
     if (!options.rememberState) return
