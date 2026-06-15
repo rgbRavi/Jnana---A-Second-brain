@@ -5,17 +5,32 @@ import type { Note } from '../types'
 const STORAGE_KEY = 'jnana:last-opened'
 const MAX = 10
 
-export function getLastOpenedIds(): string[] {
+/** One opened-note record. Older stores held bare id strings — tolerated on read. */
+export interface LastOpened {
+  id: string
+  at: number
+}
+
+/** Full records (id + when last opened), most-recent first. */
+export function getLastOpened(): LastOpened[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as unknown[]
+    return raw
+      .map((e) => (typeof e === 'string' ? { id: e, at: 0 } : (e as LastOpened)))
+      .filter((e) => e && typeof e.id === 'string')
   } catch {
     return []
   }
 }
 
+/** Just the ids, most-recent first (back-compat for existing callers). */
+export function getLastOpenedIds(): string[] {
+  return getLastOpened().map((e) => e.id)
+}
+
 function pushLastOpened(id: string) {
-  const prev = getLastOpenedIds()
-  const next = [id, ...prev.filter((x) => x !== id)].slice(0, MAX)
+  const prev = getLastOpened().filter((e) => e.id !== id)
+  const next = [{ id, at: Date.now() }, ...prev].slice(0, MAX)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
 }
 

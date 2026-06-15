@@ -1,0 +1,737 @@
+/* ── Dashboard shell ─────────────────────────────────────────────────────── */
+.dashboard {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 1.5rem 2rem 7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.dashboardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dashTitle {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+}
+
+.dashSubtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+
+.customizeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.customizeBtn:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
+  background: rgba(124, 106, 247, 0.08);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+/* ── Hero stat grid ──────────────────────────────────────────────────────── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.9rem;
+}
+
+.stat {
+  position: relative;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), transparent 60%), var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  overflow: hidden;
+  transition: border-color 0.18s, transform 0.18s;
+}
+.stat:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+.statIcon {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.9rem;
+  font-size: 1.05rem;
+  opacity: 0.55;
+}
+.statValue {
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-1);
+  line-height: 1.1;
+}
+.statLabel {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin-top: 0.25rem;
+}
+.statSub {
+  font-size: 0.68rem;
+  color: var(--text-3);
+}
+
+/* ── Section card shell ──────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  transition: border-color 0.18s;
+}
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.85rem 0.7rem 0.95rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  border-radius: var(--radius-sm);
+}
+.cardTitle:disabled {
+  cursor: default;
+}
+.cardCaret {
+  display: inline-block;
+  font-size: 0.7rem;
+  color: var(--text-3);
+  transition: transform 0.18s;
+}
+.cardIcon {
+  font-size: 0.9rem;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.cardBtn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.cardBtn:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.cardBody {
+  padding: 1rem;
+}
+
+.empty {
+  font-size: 0.84rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  padding: 0.5rem 0.2rem;
+}
+
+/* ── Quick actions ───────────────────────────────────────────────────────── */
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.7rem;
+}
+.quickAction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 0.5rem;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s, background 0.15s;
+}
+.quickAction:hover {
+  border-color: var(--accent);
+  background: rgba(124, 106, 247, 0.08);
+  transform: translateY(-2px);
+}
+.quickIcon {
+  font-size: 1.3rem;
+}
+.quickLabel {
+  font-weight: 500;
+}
+
+/* ── Daily summary ───────────────────────────────────────────────────────── */
+.summary {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.summary b {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+/* ── Continue learning (horizontal scroll) ───────────────────────────────── */
+.scrollRow {
+  display: flex;
+  gap: 0.8rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  scroll-snap-type: x mandatory;
+}
+.learnCard {
+  flex: 0 0 230px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s;
+}
+.learnCard:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.learnTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.learnMeta {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.progressBar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-top: 0.2rem;
+}
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #9d8bff);
+  transition: width 0.3s ease;
+}
+.learnProgress {
+  font-size: 0.66rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+/* ── Insights ────────────────────────────────────────────────────────────── */
+.insightGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.7rem;
+}
+.insight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s, background 0.15s;
+}
+.insight[data-clickable='true']:hover {
+  transform: translateY(-2px);
+  background: var(--surface-3);
+}
+.insight:disabled {
+  cursor: default;
+}
+.insightCount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-1);
+  line-height: 1;
+}
+.insightLabel {
+  font-size: 0.74rem;
+  color: var(--text-2);
+}
+.insightNeutral {
+  border-left-color: var(--text-3);
+}
+.insightWarn {
+  border-left-color: #e3b341;
+}
+.insightAccent {
+  border-left-color: var(--accent);
+}
+.insightGood {
+  border-left-color: #3fb950;
+}
+
+/* ── Graph snapshot ──────────────────────────────────────────────────────── */
+.graphPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.graphCanvas {
+  position: relative;
+  height: 190px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, rgba(124, 106, 247, 0.06), transparent 70%), var(--bg);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.graphEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-3);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+.graphStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+.graphStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.3rem;
+}
+.graphStatVal {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.graphStatLabel {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  text-align: center;
+}
+.openGraphBtn {
+  align-self: flex-start;
+  background: rgba(124, 106, 247, 0.12);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.openGraphBtn:hover {
+  background: rgba(124, 106, 247, 0.2);
+}
+
+/* ── Projects ────────────────────────────────────────────────────────────── */
+.projectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.7rem;
+}
+.project {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.12s;
+}
+.project:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+}
+.projectDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.projectBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.projectName {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.projectMeta {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+/* ── Recent imports ──────────────────────────────────────────────────────── */
+.importList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.importItem {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.importItem:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+.importIcon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+.importMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.importTitle {
+  font-size: 0.84rem;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.importSub {
+  font-size: 0.68rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  text-transform: capitalize;
+}
+
+/* ── Background tasks ────────────────────────────────────────────────────── */
+.taskList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.task {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+}
+.task_error {
+  border-color: var(--danger);
+}
+.taskStatus {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.task_done .taskStatus {
+  color: #3fb950;
+}
+.task_error .taskStatus {
+  color: var(--danger);
+}
+.taskMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.taskLabel {
+  font-size: 0.84rem;
+  color: var(--text-1);
+}
+.taskSub {
+  font-size: 0.7rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.taskBar {
+  width: 80px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.taskBarFill {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: taskSlide 1.3s ease-in-out infinite;
+}
+@keyframes taskSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+/* ── Activity heatmap ────────────────────────────────────────────────────── */
+.heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.heatGrid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  overflow-x: auto;
+}
+.heatCell {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+.heatPad {
+  width: 12px;
+  height: 12px;
+}
+.heatL0 { background: var(--surface-3); }
+.heatL1 { background: rgba(124, 106, 247, 0.3); }
+.heatL2 { background: rgba(124, 106, 247, 0.5); }
+.heatL3 { background: rgba(124, 106, 247, 0.72); }
+.heatL4 { background: var(--accent); }
+.heatLegend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.66rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+/* ── Skeletons ───────────────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+.skeletonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Customize panel ─────────────────────────────────────────────────────── */
+.customizeOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: fadeIn 0.18s ease-out;
+}
+.customizePanel {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  padding: 1.2rem 1.25rem 1rem;
+  animation: popIn 0.2s ease-out;
+}
+.customizeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.customizeTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.customizeHint {
+  margin: 0.35rem 0 1rem;
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+.customizeList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.customizeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.customizeRow:hover {
+  background: var(--surface-2);
+}
+.customizeRow input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.customizeIcon {
+  font-size: 0.95rem;
+  width: 1.3rem;
+  text-align: center;
+}
+.customizeName {
+  flex: 1;
+}
+.customizeFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+.resetBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.resetBtn:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+.customizeNote {
+  font-size: 0.68rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

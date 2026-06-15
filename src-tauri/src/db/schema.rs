@@ -39,6 +39,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v6(conn)?;
     }
 
+    if version < 7 {
+        migrate_v7(conn)?;
+    }
+
     Ok(())
 }
 
@@ -226,6 +230,28 @@ fn migrate_v6(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V7: Dashboard data — media import timestamps (for "Recent imports"), a per-
+/// project color, and a reading-progress table (for "Continue learning").
+fn migrate_v7(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        ALTER TABLE media_refs ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0;
+        UPDATE media_refs SET created_at = (CAST(strftime('%s','now') AS INTEGER) * 1000) WHERE created_at = 0;
+
+        ALTER TABLE ai_projects ADD COLUMN color TEXT;
+
+        CREATE TABLE IF NOT EXISTS note_progress (
+            note_id    TEXT PRIMARY KEY,
+            progress   REAL NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (7);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,11 +263,11 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 6
+        // Verify version is 7
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -254,6 +280,7 @@ mod tests {
         assert!(tables.contains(&"ai_presets".to_string()));
         assert!(tables.contains(&"ai_projects".to_string()));
         assert!(tables.contains(&"ai_project_knowledge".to_string()));
+        assert!(tables.contains(&"note_progress".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);

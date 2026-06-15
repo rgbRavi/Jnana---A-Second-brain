@@ -1,8 +1,28 @@
 use crate::db::{assets_dir, DbState};
+use serde::Serialize;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 
 use std::process::Command;
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// A recently-imported media file, joined to the note it belongs to.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentMediaRow {
+    pub filename: String,
+    pub media_type: String,
+    pub note_id: String,
+    pub note_title: String,
+    pub created_at: i64,
+}
 
 /// Copy a media file into the assets directory and return the filename.
 ///
@@ -122,8 +142,16 @@ pub fn register_media_ref(
     // Use the filename as the media_refs.id — import_media already generates a UUID-based
     // filename, so it's unique. This lets PdfViewer (and other viewers) pass the filename
     // directly as mediaId when creating annotations, satisfying the FK constraint.
-    crate::db::queries::insert_media_ref(&conn, &filename, &note_id, &media_type, &filename, "{}")
+    crate::db::queries::insert_media_ref(&conn, &filename, &note_id, &media_type, &filename, "{}", now_ms())
         .map_err(|e| format!("Failed to insert media_ref: {}", e))
+}
+
+/// Most-recently imported media across the vault (for the dashboard's Recent Imports).
+#[tauri::command]
+pub fn recent_media(state: State<'_, DbState>, limit: u32) -> Result<Vec<RecentMediaRow>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    crate::db::queries::recent_media(&conn, limit as i64)
+        .map_err(|e| format!("Failed to fetch recent media: {}", e))
 }
 
 #[tauri::command]

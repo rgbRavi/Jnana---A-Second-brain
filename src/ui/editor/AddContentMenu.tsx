@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { VoiceRecorder, type VoiceRecorderHandle } from './VoiceRecorder'
 import { toast } from '../../lib/toast'
 import { showPromptDialog } from '../../lib/dialog'
+import { eventBus } from '../../lib/eventBus'
 import styles from './AddContentMenu.module.css'
 
 interface Props {
@@ -40,6 +41,18 @@ export function AddContentMenu({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recorderRef = useRef<VoiceRecorderHandle>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  // Dashboard quick-actions: "Record audio" / "Import file" drive the composer.
+  useEffect(() => {
+    const onRecord = () => recorderRef.current?.start()
+    const onImport = () => onDocumentUpload()
+    eventBus.on('composer:record', onRecord)
+    eventBus.on('composer:import', onImport)
+    return () => {
+      eventBus.off('composer:record', onRecord)
+      eventBus.off('composer:import', onImport)
+    }
+  }, [onDocumentUpload])
 
   // Close on outside click or Escape.
   useEffect(() => {

@@ -43,6 +43,8 @@ export interface AiProject {
   instructions: string
   createdAt: number
   updatedAt: number
+  /** Optional dashboard color (hex). When absent, the UI derives one from the id. */
+  color?: string
 }
 
 /** One knowledge item attached to a project. */
@@ -208,6 +210,22 @@ export interface IndexStats {
 export interface IndexTime {
   noteId: string
   indexedAt: number
+}
+
+/** A recently-imported media file (for the dashboard's Recent Imports). */
+export interface RecentMedia {
+  filename: string
+  mediaType: string
+  noteId: string
+  noteTitle: string
+  createdAt: number
+}
+
+/** A note's reading progress (0..1) — drives the dashboard's Continue Learning. */
+export interface NoteProgress {
+  noteId: string
+  progress: number
+  updatedAt: number
 }
 
 /** An AI-suggested tag for a note. `isNew` = not already in the user's vocabulary. */

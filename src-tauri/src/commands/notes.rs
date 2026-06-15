@@ -11,6 +11,23 @@ pub struct NoteRow {
     pub updated_at: i64,
 }
 
+/// A note's reading progress (0..1) — drives the dashboard's "Continue learning".
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteProgressRow {
+    pub note_id: String,
+    pub progress: f64,
+    pub updated_at: i64,
+}
+
+fn now_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Note {
@@ -178,5 +195,21 @@ pub fn get_favourite_note_ids(state: State<'_, DbState>) -> Result<Vec<String>, 
 pub fn remove_favourite(state: State<'_, DbState>, note_id: String) -> Result<(), String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
     queries::remove_favourite(&conn, &note_id)
-        .map_err(|e| format!("Failed to remove favourite: {}", e))  
+        .map_err(|e| format!("Failed to remove favourite: {}", e))
+}
+
+// ─── Reading progress ───────────────────────────────────
+
+#[command]
+pub fn set_note_progress(state: State<'_, DbState>, note_id: String, progress: f64) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::set_note_progress(&conn, &note_id, progress.clamp(0.0, 1.0), now_ms())
+        .map_err(|e| format!("Failed to set note progress: {}", e))
+}
+
+#[command]
+pub fn list_note_progress(state: State<'_, DbState>) -> Result<Vec<NoteProgressRow>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::list_note_progress(&conn)
+        .map_err(|e| format!("Failed to list note progress: {}", e))
 }
