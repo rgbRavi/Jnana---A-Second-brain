@@ -1,4 +1,7 @@
-use crate::commands::notes::NoteRow;
+use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
+use crate::commands::chat::{ConversationMeta, ConversationRow};
+use crate::commands::media::RecentMediaRow;
+use crate::commands::notes::{NoteProgressRow, NoteRow};
 use rusqlite::{params, Connection, Result};
 
 // ─── Notes ──────────────────────────────────────────────
@@ -169,6 +172,200 @@ pub fn fetch_all_links(conn: &Connection) -> Result<Vec<(String, String)>> {
     rows.collect()
 }
 
+// ─── Conversations (AI chat history) ────────────────────
+
+pub fn upsert_conversation(conn: &Connection, c: &ConversationRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(id) DO UPDATE SET
+           title      = excluded.title,
+           messages   = excluded.messages,
+           scope      = excluded.scope,
+           project_id = excluded.project_id,
+           updated_at = excluded.updated_at",
+        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.created_at, c.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow> {
+    conn.query_row(
+        "SELECT id, mode, title, messages, scope, project_id, created_at, updated_at
+         FROM conversations WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(ConversationRow {
+                id: row.get(0)?,
+                mode: row.get(1)?,
+                title: row.get(2)?,
+                messages: row.get(3)?,
+                scope: row.get(4)?,
+                project_id: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        },
+    )
+}
+
+pub fn list_conversations(conn: &Connection, mode: Option<&str>) -> Result<Vec<ConversationMeta>> {
+    let to_meta = |row: &rusqlite::Row| {
+        Ok(ConversationMeta {
+            id: row.get(0)?,
+            mode: row.get(1)?,
+            title: row.get(2)?,
+            project_id: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
+    };
+    match mode {
+        Some(m) => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, project_id, updated_at FROM conversations
+                 WHERE mode = ?1 ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map(params![m], to_meta)?;
+            rows.collect()
+        }
+        None => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, project_id, updated_at FROM conversations ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map([], to_meta)?;
+            rows.collect()
+        }
+    }
+}
+
+pub fn delete_conversation(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM conversations WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn rename_conversation(conn: &Connection, id: &str, title: &str, updated_at: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE conversations SET title = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, title, updated_at],
+    )?;
+    Ok(())
+}
+
+// ─── AI presets (Styles & Skills) ───────────────────────
+
+pub fn list_presets(conn: &Connection, kind: &str) -> Result<Vec<PresetRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, kind, name, description, body, created_at, updated_at
+         FROM ai_presets WHERE kind = ?1 ORDER BY name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map(params![kind], |row| {
+        Ok(PresetRow {
+            id: row.get(0)?,
+            kind: row.get(1)?,
+            name: row.get(2)?,
+            description: row.get(3)?,
+            body: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_preset(conn: &Connection, p: &PresetRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO ai_presets (id, kind, name, description, body, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           name        = excluded.name,
+           description = excluded.description,
+           body        = excluded.body,
+           updated_at  = excluded.updated_at",
+        params![p.id, p.kind, p.name, p.description, p.body, p.created_at, p.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_preset(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM ai_presets WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+// ─── AI projects + knowledge ────────────────────────────
+
+pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, description, instructions, created_at, updated_at, color
+         FROM ai_projects ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(ProjectRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            instructions: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
+            color: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_project(conn: &Connection, p: &ProjectRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO ai_projects (id, name, description, instructions, created_at, updated_at, color)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           name         = excluded.name,
+           description  = excluded.description,
+           instructions = excluded.instructions,
+           updated_at   = excluded.updated_at,
+           color        = excluded.color",
+        params![p.id, p.name, p.description, p.instructions, p.created_at, p.updated_at, p.color],
+    )?;
+    Ok(())
+}
+
+pub fn delete_project(conn: &Connection, id: &str) -> Result<()> {
+    // Knowledge rows cascade; detach any conversations that belonged to it.
+    conn.execute("UPDATE conversations SET project_id = NULL WHERE project_id = ?1", params![id])?;
+    conn.execute("DELETE FROM ai_projects WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn list_project_knowledge(conn: &Connection, project_id: &str) -> Result<Vec<KnowledgeRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, kind, ref_id, label, created_at
+         FROM ai_project_knowledge WHERE project_id = ?1 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![project_id], |row| {
+        Ok(KnowledgeRow {
+            id: row.get(0)?,
+            project_id: row.get(1)?,
+            kind: row.get(2)?,
+            ref_id: row.get(3)?,
+            label: row.get(4)?,
+            created_at: row.get(5)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn insert_project_knowledge(conn: &Connection, k: &KnowledgeRow) -> Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO ai_project_knowledge (id, project_id, kind, ref_id, label, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![k.id, k.project_id, k.kind, k.ref_id, k.label, k.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_project_knowledge(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM ai_project_knowledge WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
 // ─── Media Refs ─────────────────────────────────────────
 
 pub fn insert_media_ref(
@@ -178,12 +375,33 @@ pub fn insert_media_ref(
     media_type: &str,
     path: &str,
     meta: &str,
+    created_at: i64,
 ) -> Result<()> {
     conn.execute(
-        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, note_id, media_type, path, meta],
+        "INSERT OR IGNORE INTO media_refs (id, note_id, media_type, path, meta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, note_id, media_type, path, meta, created_at],
     )?;
     Ok(())
+}
+
+/// Most-recently imported media across the whole vault, joined to its note title.
+pub fn recent_media(conn: &Connection, limit: i64) -> Result<Vec<RecentMediaRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
+         FROM media_refs m JOIN notes n ON n.id = m.note_id
+         ORDER BY m.created_at DESC, m.rowid DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt.query_map(params![limit], |row| {
+        Ok(RecentMediaRow {
+            filename: row.get(0)?,
+            media_type: row.get(1)?,
+            note_id: row.get(2)?,
+            note_title: row.get(3)?,
+            created_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
 }
 
 pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
@@ -195,6 +413,29 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
 pub fn fetch_media_types(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
     let mut stmt = conn.prepare("SELECT DISTINCT media_type FROM media_refs WHERE note_id = ?1")?;
     let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+    rows.collect()
+}
+
+// ─── Note reading progress ──────────────────────────────
+
+pub fn set_note_progress(conn: &Connection, note_id: &str, progress: f64, updated_at: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO note_progress (note_id, progress, updated_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(note_id) DO UPDATE SET progress = excluded.progress, updated_at = excluded.updated_at",
+        params![note_id, progress, updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn list_note_progress(conn: &Connection) -> Result<Vec<NoteProgressRow>> {
+    let mut stmt = conn.prepare("SELECT note_id, progress, updated_at FROM note_progress")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(NoteProgressRow {
+            note_id: row.get(0)?,
+            progress: row.get(1)?,
+            updated_at: row.get(2)?,
+        })
+    })?;
     rows.collect()
 }
 

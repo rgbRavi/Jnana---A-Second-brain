@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Note } from '../../types'
+import { useViewState } from '../../hooks/useViewState'
 import { useComposer } from '../../hooks/useComposer'
 import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
+import { useComposerOptions, getComposerOptions } from '../../hooks/useComposerOptions'
 import { useNotesContext } from '../../context/NotesContext'
 import { TagEditor } from '../TagEditor'
 import { ComposerSuggestions } from '../ai/ComposerSuggestions'
-import { ComposerToolbar } from './ComposerToolbar'
+import { AddContentMenu } from './AddContentMenu'
 import Styles from './NoteCreator.module.css'
 import FavStyles from './FavouriteBtn.module.css'
 
@@ -15,16 +18,36 @@ interface Props {
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
 }
 
+type ComposerState = 'collapsed' | 'expanded' | 'fullscreen'
+
+const LAST_STATE_KEY = 'jnana.composer.lastState'
+
+/** Seed the open state from localStorage (only when "remember last state" is on). */
+function initialComposerState(): ComposerState {
+  if (!getComposerOptions().rememberState) return 'collapsed'
+  try {
+    return localStorage.getItem(LAST_STATE_KEY) === 'expanded' ? 'expanded' : 'collapsed'
+  } catch {
+    return 'collapsed'
+  }
+}
+
+/**
+ * The floating note composer: a compact "Click to take a note" pill that expands
+ * into a bottom sheet (⅓ height) and can be maximized to fill the content area.
+ * Mounted once at the app level (AppLayout) and shown on the Home & Notes views.
+ */
 export function NoteCreator({ onCreate, onUpdate }: Props) {
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [tags, setTags] = useState<string[]>([])
+  // Draft fields persist across view switches so an in-progress note isn't lost.
+  const [title, setTitle] = useViewState('notes.composer.title', '')
+  const [content, setContent] = useViewState('notes.composer.content', '')
+  const [tags, setTags] = useViewState<string[]>('notes.composer.tags', [])
+  const [saveFavourite, setSaveFavourite] = useViewState('notes.composer.favourite', false)
+  const [state, setState] = useViewState<ComposerState>('notes.composer.state', initialComposerState)
   const [saving, setSaving] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [saveFavourite, setSaveFavourite] = useState(false)
-  // Bumped on save to remount the AI suggestion panels, clearing their results
-  // when the composer is reset for a new note.
+  // Bumped on save to remount the AI suggestion panels, clearing their results.
   const [draftKey, setDraftKey] = useState(0)
+  const [options] = useComposerOptions()
   const { addToFavourites } = useFavourites()
 
   const pendingNoteId = useRef(crypto.randomUUID())
@@ -48,6 +71,41 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     updatedAt: Date.now(),
   }
 
+  const open = state !== 'collapsed'
+
+  // Focus the editor when the composer opens.
+  useEffect(() => {
+    if (state === 'collapsed') return
+    const t = window.setTimeout(() => textareaRef.current?.focus(), 60)
+    return () => window.clearTimeout(t)
+  }, [state])
+
+  // Grow the editor with its content while expanded — the panel is bottom-anchored
+  // so it expands upward. CSS min/max-height clamps it (then the editor scrolls).
+  // In fullscreen/collapsed the height is flex-driven, so clear the inline height.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    if (state !== 'expanded') {
+      el.style.height = ''
+      return
+    }
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [content, state])
+
+  // Remember collapsed/expanded across reloads (fullscreen is transient).
+  useEffect(() => {
+    if (!options.rememberState) return
+    if (state === 'collapsed' || state === 'expanded') {
+      try {
+        localStorage.setItem(LAST_STATE_KEY, state)
+      } catch {
+        /* storage unavailable */
+      }
+    }
+  }, [state, options.rememberState])
+
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
     setSaving(true)
@@ -66,77 +124,115 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     textareaRef.current?.focus()
   }
 
-  useEffect(() => {
-    if (!isFullscreen && textareaRef.current) {
-      textareaRef.current.style.height = 'inherit'
-      const capped = Math.min(textareaRef.current.scrollHeight, 320)
-      textareaRef.current.style.height = `${Math.max(capped, 120)}px`
+  const handleKeyDown = (e: ReactKeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      void handleSave()
+    } else if (e.key === 'Escape') {
+      setState((s) => (s === 'fullscreen' ? 'expanded' : 'collapsed'))
     }
-  }, [content, isFullscreen])
+  }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSave()
-    if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false)
+  const pillAlpha = Math.max(0, Math.min(1, (100 - options.transparency) / 100))
+  const pillStyle: CSSProperties = {
+    background: `rgba(var(--surface-rgb), ${pillAlpha})`,
+    backdropFilter: options.glass ? 'blur(12px)' : undefined,
+    WebkitBackdropFilter: options.glass ? 'blur(12px)' : undefined,
   }
 
   return (
-    <div className={`${Styles.composer} ${isFullscreen ? Styles.composerFullscreen : ''}`}>
+    <div className={`${Styles.dock} ${Styles[state]}`}>
+      {/* Collapsed pill */}
       <button
-        className={FavStyles.favouriteBtn}
-        onClick={() => setSaveFavourite(v => !v)}
-        title={saveFavourite ? 'Remove from favourites on save' : 'Add to favourites on save'}
         type="button"
+        className={Styles.pill}
+        style={pillStyle}
+        onClick={() => setState('expanded')}
+        aria-label="Take a note"
+        inert={open}
       >
-        {saveFavourite ? '★' : '☆'}
+        <span className={Styles.pillIcon} aria-hidden="true">
+          ✎
+        </span>
+        Click to take a note
       </button>
-      <button
-        className={Styles.expandBtn}
-        onClick={() => setIsFullscreen((v) => !v)}
-        title={isFullscreen ? 'Minimize' : 'Expand'}
-      >
-        {isFullscreen ? '🗕' : '🗖'}
-      </button>
-      <input
-        className={Styles.composerTitle}
-        type="text"
-        placeholder="Title (optional)"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-      <div className={Styles.composerTagSection}>
-        <TagEditor tags={tags} onChange={setTags} />
-        <ComposerSuggestions
-          key={draftKey}
-          note={draftNote}
-          allNotes={notes}
-          currentTags={tags}
-          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-          onAddLink={(linkTitle) => {
-            const wl = `[[${linkTitle}]]`
-            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
-          }}
+
+      {/* Expanded / fullscreen panel */}
+      <div className={Styles.panel} aria-label="Note composer" onKeyDown={handleKeyDown} inert={!open}>
+        <div className={Styles.header}>
+          <button
+            type="button"
+            className={FavStyles.favouriteBtn}
+            onClick={() => setSaveFavourite((v) => !v)}
+            title={saveFavourite ? 'Remove from favourites on save' : 'Add to favourites on save'}
+          >
+            {saveFavourite ? '★' : '☆'}
+          </button>
+          <div className={Styles.headerRight}>
+            <button
+              type="button"
+              className={Styles.headerBtn}
+              onClick={() => setState((s) => (s === 'fullscreen' ? 'expanded' : 'fullscreen'))}
+              title={state === 'fullscreen' ? 'Restore' : 'Maximize'}
+            >
+              {state === 'fullscreen' ? '🗗' : '⛶'}
+            </button>
+            <button
+              type="button"
+              className={Styles.headerBtn}
+              onClick={() => setState('collapsed')}
+              title="Collapse"
+            >
+              ⌄
+            </button>
+          </div>
+        </div>
+
+        <input
+          className={Styles.title}
+          type="text"
+          placeholder="Title (optional)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
-      </div>
-      <textarea
-        ref={textareaRef}
-        className={Styles.composerBody}
-        placeholder="What do you want to remember?"
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        onKeyDown={handleKeyDown}
-        autoFocus
-      />
-      <div className={Styles.composerFooter}>
-        <span className={Styles.composerHint}>⌘ enter to save</span>
-        <div className={Styles.composerActionsRight}>
-          <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
+
+        <div className={Styles.tagSection}>
+          <TagEditor tags={tags} onChange={setTags} />
+        </div>
+        <div className={Styles.suggestRow}>
+          <ComposerSuggestions
+            key={draftKey}
+            note={draftNote}
+            allNotes={notes}
+            currentTags={tags}
+            onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+            onAddLink={(linkTitle) => {
+              const wl = `[[${linkTitle}]]`
+              setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+            }}
+          />
+        </div>
+
+        <textarea
+          ref={textareaRef}
+          className={Styles.body}
+          placeholder="What do you want to remember?"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+
+        <div className={Styles.footer}>
+          <AddContentMenu {...toolbarProps} disabled={saving || uploading} />
+          <span className={Styles.hint}>⌘ enter to save</span>
           <span
-            style={{ display: 'inline-flex' }}
+            className={Styles.saveWrap}
             title={isRecording ? 'Finish recording before save' : undefined}
           >
             <button
-              className={Styles.composerSave}
+              type="button"
+              className={Styles.save}
               onClick={handleSave}
               disabled={saving || isRecording || (!content.trim() && !title.trim())}
             >

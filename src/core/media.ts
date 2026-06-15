@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { RecentMedia } from '../types'
 
 /**
  * Copy a media file into the assets directory.
@@ -52,5 +53,10 @@ export async function getMediaRefs(noteId: string): Promise<string[]> {
 
 export async function getMediaTypes(noteId: string): Promise<string[]> {
   return invoke<string[]>('get_media_types', { noteId })
-  
+
+}
+
+/** Most-recently imported media across the whole vault (for the dashboard). */
+export async function recentMedia(limit = 12): Promise<RecentMedia[]> {
+  return invoke<RecentMedia[]>('recent_media', { limit })
 }

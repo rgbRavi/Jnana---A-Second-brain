@@ -71,12 +71,17 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 - [ ] Extract a shared `<Modal>` component (NoteModal + the MarkdownLite lightbox / PDF
       fullscreen duplicate the overlay/container pattern; the old AI-settings modal classes in
       `Ai.module.css` are now dead and can go).
-- [ ] Establish design tokens / a small component layer; apply consistent styling across the
-      now-complete feature set.
+- [x] Establish design tokens / a small component layer — tokens live in `main.css`; first shared
+      components landed: `<Toaster />` (`lib/toast`) and `<DialogHost />` (`lib/dialog`, a
+      promise-based choice/prompt/confirm). Also: app-wide `:focus-visible` rings, themed
+      `::selection`, `prefers-reduced-motion`, `color-scheme: dark`, tokenized scrollbars, and
+      fixes for views that referenced undefined global CSS classes (Search / Graph / headings).
 - [ ] Dark/light theme toggle (pure UI — belongs in this pass; students study at night).
-- [ ] Replace the three `window.prompt` flows with proper modals: document-import choice
+- [x] Replace the three `window.prompt` flows with proper modals: document-import choice
       (`useDocumentUpload.ts`), YouTube URL (`ComposerToolbar.tsx`), highlight edit
-      (`PdfViewer.tsx`).
+      (`PdfViewer.tsx`) — all use `showChoiceDialog` / `showPromptDialog` now; the "Open note?"
+      `window.confirm` in `MarkdownLite` and every `alert()` are converted too (no native dialogs
+      remain).
 - [ ] CSP runtime check: confirm the `script-src 'self'` tightening holds in `tauri dev`;
       revisit `style-src 'unsafe-inline'` (needs nonces) only if worth it.
 - [ ] **Hybrid markdown AST renderer (remark) — only if pursuing rich formatting.** NOT a perf
@@ -106,24 +111,111 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       retrieval latency becomes noticeable (>10k chunks).
 - [ ] Grow test coverage alongside features (component tests via testing-library now available).
 
-## Graph enhancements (next session)
+## Graph enhancements ✅ DONE
 
-Fixed already: drag/zoom freeze (removed `pauseAnimation`), node-position cache so connecting
+Earlier fixes: drag/zoom freeze (removed `pauseAnimation`), node-position cache so connecting
 doesn't reflow the graph, and a connect-nodes mode (appends `[[title]]` to the source note so
-the edge is durable). Remaining ideas, roughly best value-for-effort first:
+the edge is durable).
 
-- [ ] **Disconnect a link** — the complement to Connect; the feature is one-way without it. A
-      click-an-edge or "disconnect mode" that **strips the `[[wikilink]]` from the source note's
-      content** (mirror of connect — not a raw `dropLink`, or sync would re-add it). `useGraph`
-      has `dropLink` but it must go through content to be durable.
-- [ ] **Tag-based coloring / clustering** — color or cluster nodes by tag. Highest "this is my
-      second brain" payoff and reuses the existing tag system the graph currently ignores.
-- [ ] **Orphan / hub highlighting** — flag notes with no links (worth connecting) and heavily
-      linked hubs; cheap to compute from edges.
-- [ ] **Filter the visible graph** — by tag / date / search match (search currently only focuses
-      one node; let it narrow the visible set).
-- [ ] **Directed edges** — arrowheads showing which note links to which (links are directional).
-- [ ] **Pin layout** — let dragged nodes stay put instead of the force layout reflowing them.
+All in `GraphView.tsx`; `GraphNode` carries `tags` + `createdAt` from `useGraph`. The controls
+are organised as an **Obsidian-style settings panel** (top-right, collapsible accordion sections;
+🎛 button to reopen when closed; reset-all ↺ + close ✕ on the Filters header). Hidden while the
+focused-note panel is open.
+
+- [x] **Node right-click menu** — Right-click a note for: **Connect to a note** (a rubber-band
+      line follows the cursor — click any other note to link, or Esc to cancel), **Disconnect all
+      links** (shown only when the note has ≥1 link; strips the matching `[[wikilink]]` from both
+      sides via `stripWikilink` → `onUpdate`, so sync can't re-add it), and **Delete note**.
+      Delete/connect use the **native Tauri `ask` dialog** — the WebView's `window.confirm` was
+      ignoring Cancel here.
+- [x] **Filters section** — narrows the visible set by free text (title/body/tags), an "updated
+      within" date preset, an orphans-only toggle, and **tag chips** (moved in here); shows a live
+      visible/total count + Clear.
+- [x] **Groups section** — user-defined color categories (Obsidian "Groups"): each group is a
+      query + color; `#tag`/`tag:` matches by tag, plain text matches the note title. First
+      matching group colors the node. Replaces the old auto "Tags" coloring.
+- [x] **Display section** — Arrows (directed edges, arrowhead at target), Highlight hubs & orphans
+      (orphans degree 0 = small/amber, hubs ≥4 = large/ringed; mini-legend), Pin dragged nodes
+      (`fx`/`fy` on drag end; off releases pins + reheats), and sliders for **Text fade threshold**
+      (label alpha vs `globalScale`), **Node size** (radius multiplier) and **Link thickness**
+      (`linkWidth`), plus an **Animate** button (`d3ReheatSimulation` + `zoomToFit`).
+- [x] **Forces section** — sliders for center / repel / link force + link distance with live
+      values, hints (full description on hover), "See clusters" / "Compact" presets and Reset.
+      **Center force** is a custom `makeRadialForce` pulling nodes toward the origin (d3's built-in
+      `forceCenter` only *recenters*, it doesn't compact), so higher = tighter & more circular.
+- [x] **Compact jump-to-note** — top-left search shrunk to a single text box with a small
+      results dropdown that focuses the chosen node (replaced the large `SearchDocs` card).
+
+## View-state persistence ✅ DONE
+
+Switching views unmounts the previous route (react-router), which used to drop all of its
+in-progress state. Added `useViewState(key, initial)` ([src/hooks/useViewState.ts](src/hooks/useViewState.ts)) —
+a drop-in `useState` backed by a **subscribable** module-level store (via `useSyncExternalStore`)
+that outlives unmount/remount — and applied it to:
+
+- Composer draft (`NoteCreator`: title / body / tags / favourite)
+- Search query (`useSearch`; results recompute from it on remount)
+- AI analyzer (`AiChat`: thread, scope kind/inputs, mode, composer text, **plus busy/error**)
+- Graph settings (`GraphView`: filters, groups, display, forces, panel open-state)
+
+Because the store is an external store with its own setters (not per-instance React state), an
+**in-flight async request survives navigation**: if you switch away while the analyzer/quiz is
+still running, the request keeps going and its result is written to the store when it resolves —
+so it's there (and the spinner updates live) when you return. This was the missing piece: a plain
+mirror-on-change store lost the answer because the resolving promise's `setState` targeted the
+unmounted instance.
+
+In-memory only (resets on a full app reload) — the goal was to stop losing work when navigating,
+not disk persistence. Transient UI (hover, open dropdowns/menus, busy/error, focused node, open
+note modals) is deliberately left un-persisted. AI provider settings already persist to disk via
+`useRag`/`saveAiConfig`. If cross-reload persistence is wanted later, back the store with
+`localStorage` (needs Set/array serialization for `filterTags`/`groups`).
+
+## AI Chat — dual-mode + history + Styles/Skills/Projects ✅ DONE
+
+Full design in [the plan file](../../Users/vravi/.claude/plans/add-following-features-in-buzzing-engelbart.md).
+Shipped in phases:
+
+- [x] **Dual mode** — toggle between **Focused AI Assist** (the grounded analyzer) and **AI Chat**
+      (a streaming chatbot). Streaming via a Rust `ai_chat_stream` command over a Tauri `Channel`
+      (raw SSE/NDJSON forwarded; parsed TS-side), with `ai_chat_cancel` for Stop.
+- [x] **Native multimodal attachments** — images → vision blocks, documents → extracted text,
+      audio → transcription; plus **attach Jnana notes** with an "include thread" checkbox that
+      folds in the note's linked notes.
+- [x] **Thinking toggle** (reasoning models) and **Deep research** — its own configurable endpoint
+      in AI settings, else a best-effort system-prompt directive.
+- [x] **Chat history** (SQLite `conversations`, migrate_v4) — collapsible per-mode sidebar with
+      New chat / load / rename / delete; survives reload; in-flight streams still persist.
+- [x] **Styles & Skills** (`ai_presets`, migrate_v5) — reusable system-prompt presets; composer
+      picker (style select + skills multiselect) + manager modal; seeded defaults.
+- [x] **Projects** (`ai_projects` + `ai_project_knowledge` + `conversations.project_id`,
+      migrate_v6) — custom instructions + a knowledge base of attached notes/files that grounds
+      every chat in the project; project picker + manager; the history drawer scopes to the active
+      project. Knowledge is folded into context (capped); deeper per-doc embedding/retrieval is a
+      future refinement.
+- [x] UX polish — bottom-pinned composer with scrollable messages, model-name history dropdowns
+      in settings, scrollable note picker.
+
+## Agentic AI — Phase A ✅ DONE
+
+Full roadmap (Phases A–D, incl. MCP) in [the plan file](../../Users/vravi/.claude/plans/add-following-features-in-buzzing-engelbart.md).
+A tool-calling agent loop **inside AI Chat** (🤖 Agent toggle) with a **propose-then-confirm**
+write policy — read tools run freely; writes are staged as proposals the user approves.
+
+- [x] `chatWithTools` (provider) — OpenAI-compatible + Ollama tool-calling, degrades to a plain
+      answer when a model lacks tool support.
+- [x] Native tools (`core/ai/agent/tools.ts`): read = search / read / recent / graph_neighbors;
+      staged writes = create / append / set_tags / link. Links stage **by title** so a freshly
+      proposed note can be linked in the same run.
+- [x] `runAgent` loop with a step cap, write de-duplication, and live step callbacks; reasoning
+      narrated per step (`AgentSteps`).
+- [x] `ProposalCard` Apply / Skip (+ Apply all). Apply composes `[[wikilinks]]` into the note and
+      saves it once, so AI-applied links show as graph edges (fixed a link-sync race).
+- [x] Message actions: ↻ retry under a prompt; right-click menu = edit & retry / fork from here /
+      delete-from-here / delete message.
+- [ ] **Phase B — MCP client** (agent uses external MCP servers via `rmcp`, Rust-side transport).
+- [ ] **Phase C — MCP server** (expose the vault to Claude Desktop / other agents).
+- [ ] **Phase D — background/scheduled agents** (optional; reuse Phase-A tools headless).
 
 ## Explicitly deferred (don't do yet)
 

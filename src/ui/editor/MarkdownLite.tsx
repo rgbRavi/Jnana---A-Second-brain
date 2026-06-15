@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useNotesContext } from '../../context/NotesContext'
 import { useTranscription } from '../../context/TranscriptionContext'
 import { eventBus } from '../../lib/eventBus'
+import { showConfirmDialog } from '../../lib/dialog'
 import { AsyncImage } from '../AsyncImage'
 import { AsyncVideo } from '../AsyncVideo'
 import { AsyncAudio } from '../AsyncAudio'
@@ -306,9 +307,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
           <button
             key={`wl-${offset + ts.index}`}
             className={foundNote ? MdStyles.wikilinkBtn : MdStyles.wikilinkBtnMissing}
-            onClick={foundNote && fullscreen ? (e) => {
+            onClick={foundNote && fullscreen ? async (e) => {
               e.stopPropagation()
-              if (window.confirm(`Open note "${foundNote.title}"?`)) {
+              if (await showConfirmDialog({ title: 'Open linked note?', message: `Open “${foundNote.title}”?`, confirmLabel: 'Open note' })) {
                 eventBus.emit('note:navigate', foundNote)
               }
             } : undefined}

@@ -2,6 +2,8 @@
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { importMedia, convertToPdf, extractText, registerMediaRef, getAssetPath } from '../core/media'
+import { toast } from '../lib/toast'
+import { showChoiceDialog } from '../lib/dialog'
 
 interface UseDocumentUploadProps {
   noteId: string
@@ -42,17 +44,18 @@ export function useDocumentUpload({
         }
         onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
       } else if (['doc', 'docx', 'odt'].includes(ext)) {
-        // Prompt user for handling option
-        const choice = window.prompt(
-          `How would you like to handle this ${ext.toUpperCase()} file?\n\n` +
-          `1: Convert to PDF (Best for Annotations)\n` +
-          `2: Extract plain text to note\n` +
-          `3: Link as external file (Open in default app)\n\n` +
-          `Enter 1, 2, or 3:`,
-          "1"
-        )
+        // Ask how to handle the document via an in-app modal.
+        const choice = await showChoiceDialog({
+          title: `Import ${ext.toUpperCase()} file`,
+          message: 'How would you like to add this document to your note?',
+          options: [
+            { value: 'pdf', label: 'Convert to PDF', description: 'Best for highlighting & annotations', icon: '📄', primary: true },
+            { value: 'text', label: 'Extract text into note', description: 'Insert the document’s plain text inline', icon: '📝' },
+            { value: 'link', label: 'Link as external file', description: 'Opens in your default app', icon: '🔗' },
+          ],
+        })
 
-        if (choice === '1') {
+        if (choice === 'pdf') {
           // Convert to PDF
           try {
             const tempPdfPath = await convertToPdf(selected)
@@ -64,17 +67,17 @@ export function useDocumentUpload({
             }
             onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
           } catch (err) {
-            alert(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
+            toast.error(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
           }
-        } else if (choice === '2') {
+        } else if (choice === 'text') {
           // Extract Text
           try {
             const text = await extractText(selected)
             onInsertMarkdown(`\n${text}\n`)
           } catch (err) {
-            alert(`Text extraction failed: ${err}\n\nPlease ensure Pandoc is installed.`)
+            toast.error(`Text extraction failed: ${err}\n\nPlease ensure Pandoc is installed.`)
           }
-        } else if (choice === '3') {
+        } else if (choice === 'link') {
           // Copy file into Jnana's assets dir so it is always available,
           // then open it from there via the Tauri opener plugin.
           try {
@@ -85,12 +88,12 @@ export function useDocumentUpload({
             const assetPath = await getAssetPath(filename)
             onInsertMarkdown(`\n[External: ${originalName}](external://${encodeURIComponent(assetPath)})\n`)
           } catch (err) {
-            alert(`Failed to copy document: ${err}`)
+            toast.error(`Failed to copy document: ${err}`)
           }
         }
       }
     } catch (err) {
-      alert('Failed to upload document: ' + String(err))
+      toast.error('Failed to upload document: ' + String(err))
     } finally {
       setUploading(false)
       onUploadFinish()

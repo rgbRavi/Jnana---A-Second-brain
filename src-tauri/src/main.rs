@@ -4,8 +4,10 @@ mod commands;
 mod db;
 
 use commands::ai::*;
+use commands::ai_workspace::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::chat::*;
 use commands::embeddings::*;
 use commands::export::*;
 use commands::media::*;
@@ -49,6 +51,8 @@ fn main() {
         .manage(Mutex::new(conn))
         // AI settings (incl. the API key) live Rust-side — see commands/ai.rs.
         .manage(AiState(Mutex::new(load_config_from_disk())))
+        // Cancellation flags for in-flight streaming chat requests.
+        .manage(StreamCancels::default())
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
@@ -155,6 +159,7 @@ fn main() {
             register_media_ref,
             get_media_refs,
             get_media_types,
+            recent_media,
             save_annotation,
             get_annotations_for_note,
             get_annotations_for_media,
@@ -163,10 +168,15 @@ fn main() {
             add_favourite,
             get_favourite_note_ids,
             remove_favourite,
+            set_note_progress,
+            list_note_progress,
             get_ai_config,
             set_ai_config,
             ai_request,
+            ai_chat_stream,
+            ai_chat_cancel,
             transcribe_audio,
+            import_file,
             export_notes,
             save_note_embeddings,
             search_embeddings,
@@ -174,6 +184,20 @@ fn main() {
             get_indexed_note_ids,
             get_index_stats,
             get_index_times,
+            list_conversations,
+            get_conversation,
+            save_conversation,
+            delete_conversation,
+            rename_conversation,
+            list_presets,
+            save_preset,
+            delete_preset,
+            list_projects,
+            save_project,
+            delete_project,
+            list_project_knowledge,
+            add_project_knowledge,
+            remove_project_knowledge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

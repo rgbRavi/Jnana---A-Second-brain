@@ -8,6 +8,8 @@ export interface GraphNode {
   id: string
   title: string
   content: string
+  tags: string[]
+  createdAt: number
   updatedAt: number
 }
 
@@ -123,6 +125,8 @@ function noteToNode(note: Note): GraphNode {
     id: note.id,
     title: note.title,
     content: note.content,
+    tags: note.tags ?? [],
+    createdAt: note.createdAt,
     updatedAt: note.updatedAt,
   }
 }

@@ -1,5 +1,5 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
-import type { Note } from '../types'
+import type { Note, NoteProgress } from '../types'
 import { eventBus } from '../lib/eventBus'
 
 export async function getAllNotes(): Promise<Note[]> {
@@ -49,6 +49,23 @@ export async function getAssetBlob(filename: string): Promise<Blob> {
   return new Blob([new Uint8Array(bytes)])
 }
 
+/** Copy a user-picked file (from a native dialog) into assets; returns the stored filename. */
+export async function importFile(path: string): Promise<string> {
+  return invoke<string>('import_file', { path })
+}
+
+/** Read a stored asset as a `data:<mime>;base64,...` URL (for vision/file model blocks). */
+export async function getAssetDataUrl(filename: string, mime: string): Promise<string> {
+  const bytes = await invoke<number[]>('get_asset', { filename })
+  const blob = new Blob([new Uint8Array(bytes)], { type: mime })
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
 export async function getAssetUrl(filename: string): Promise<string> {
   const absPath = await invoke<string>('get_asset_path', { filename })
   return convertFileSrc(absPath)
@@ -94,5 +111,15 @@ export async function addFavourite(noteId: string): Promise<void> {
 
 export async function removeFavourite(noteId: string): Promise<void> {
   return invoke<void>('remove_favourite', { noteId })
+}
+
+/** Persist how far through a note the user has read (0..1). */
+export async function setNoteProgress(noteId: string, progress: number): Promise<void> {
+  return invoke<void>('set_note_progress', { noteId, progress })
+}
+
+/** Reading progress for every note that has any (for the dashboard). */
+export async function listNoteProgress(): Promise<NoteProgress[]> {
+  return invoke<NoteProgress[]>('list_note_progress')
 }
 
