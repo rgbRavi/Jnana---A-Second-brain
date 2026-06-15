@@ -71,7 +71,7 @@ export function DashboardCard({
 
   const sectionStyle: CSSProperties = { gridColumn: `span ${width}` }
   const bodyStyle: CSSProperties | undefined =
-    appliedH != null ? { maxHeight: appliedH, overflowY: 'auto' } : undefined
+    appliedH != null ? { height: appliedH, overflowY: 'auto' } : undefined
 
   return (
     <section className={styles.card} style={sectionStyle}>

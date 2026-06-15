@@ -3,6 +3,7 @@
   max-width: 1180px;
   margin: 0 auto;
   width: 100%;
+  min-width: 0;
   padding: 1.5rem 2rem 7rem;
   display: flex;
   flex-direction: column;
@@ -56,13 +57,15 @@
 
 .sections {
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0,1fr) lets columns shrink below their content's min-content, so a
+     card's inner scroll-row stays inside its column instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.1rem;
   align-items: start;
 }
 @media (min-width: 920px) {
   .sections {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -118,6 +121,7 @@
 
 /* ── Section card shell ──────────────────────────────────────────────────── */
 .card {
+  min-width: 0; /* allow the card (grid item) to shrink so its content can scroll */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -189,6 +193,7 @@
 
 .cardBody {
   padding: 1rem;
+  min-width: 0;
 }
 
 /* Drag handle to resize a card's body height (double-click resets). */
