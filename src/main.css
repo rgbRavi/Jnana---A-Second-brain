@@ -172,3 +172,78 @@ select:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   react-grid-layout theming (its classes are global, not CSS-module-scoped).
+   The Home dashboard uses RGL for movable/resizable widget cards.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Drop placeholder shown while dragging/resizing a card. */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(124, 106, 247, 0.18) !important;
+  border: 1px dashed var(--accent);
+  border-radius: 16px;
+  opacity: 1 !important;
+}
+
+/* Resize handles: replace the default rotated-arrow icon with clean themed
+   grips, and enlarge the edge handles into a comfortable grab zone. */
+.react-resizable-handle {
+  background-image: none !important;
+  transform: none !important;
+  padding: 0 !important;
+}
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  background: var(--border-hover);
+  border-radius: 3px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  height: 56px !important;
+  margin-top: -28px !important;
+}
+.react-resizable-handle-s,
+.react-resizable-handle-n {
+  width: 56px !important;
+  margin-left: -28px !important;
+}
+.react-resizable-handle-e::after {
+  top: 50%;
+  right: 4px;
+  width: 4px;
+  height: 38px;
+  margin-top: -19px;
+}
+.react-resizable-handle-s::after {
+  left: 50%;
+  bottom: 4px;
+  height: 4px;
+  width: 38px;
+  margin-left: -19px;
+}
+.react-resizable-handle-se::after {
+  right: 5px;
+  bottom: 5px;
+  width: 9px;
+  height: 9px;
+  background: transparent;
+  border-right: 2px solid var(--border-hover);
+  border-bottom: 2px solid var(--border-hover);
+  border-radius: 0 0 4px 0;
+}
+.react-grid-item:hover .react-resizable-handle::after {
+  background: var(--accent);
+}
+.react-grid-item:hover .react-resizable-handle-se::after {
+  background: transparent;
+  border-color: var(--accent);
+}
+
+.react-grid-item.react-draggable-dragging,
+.react-grid-item.resizing {
+  z-index: 6;
+  opacity: 0.95;
+}

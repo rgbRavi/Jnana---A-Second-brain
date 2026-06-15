@@ -1,7 +1,11 @@
-import { useState, type Ref } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import GridLayout, { useContainerWidth, type Layout } from 'react-grid-layout'
+// RGL v2's legacy wrapper = the proven v1 API (WidthProvider + flat props), and
+// it's React-19-safe (passes nodeRef, no findDOMNode). The hooks v2 component
+// wasn't wiring drag/resize here.
+import GridLayoutBase, { WidthProvider, type Layout } from 'react-grid-layout/legacy'
 import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
 import type { Note } from '../../../types'
 import { useNotesContext } from '../../../context/NotesContext'
 import { setViewState } from '../../../hooks/useViewState'
@@ -17,11 +21,7 @@ import { CustomizePanel } from './CustomizePanel'
 import { LayoutSwitcher } from './LayoutSwitcher'
 import { COLLAPSED_H, GRID_COLS, GRID_MARGIN, ROW_HEIGHT, type GridItem, type SectionId } from './types'
 
-/** Custom resize handle — a comfortable hit area with a themed grip. The same
- *  element RGL wires the resize to, so there's no tiny/mismatched target. */
-const resizeHandle = (axis: string, ref: Ref<HTMLElement>) => (
-  <span ref={ref as Ref<HTMLSpanElement>} className={`${styles.rgHandle} ${styles[`rgHandle_${axis}`] ?? ''}`} />
-)
+const GridLayout = WidthProvider(GridLayoutBase)
 
 const sameGrid = (a: GridItem[], b: GridItem[]) =>
   a.length === b.length &&
@@ -39,7 +39,6 @@ export function Dashboard() {
   const { update, updateTags } = useNotesContext()
   const [openNote, setOpenNote] = useState<Note | null>(null)
   const [customizing, setCustomizing] = useState(false)
-  const { width, containerRef } = useContainerWidth()
 
   const actions: DashboardActions = {
     openNote: (n) => {
@@ -116,25 +115,26 @@ export function Dashboard() {
 
       <HeroSection data={data} />
 
-      <div ref={containerRef} className={styles.gridWrap}>
-        {width > 0 && (
-          <GridLayout
-            className={styles.grid}
-            width={width}
-            layout={layout}
-            onLayoutChange={onLayoutChange}
-            gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT, margin: GRID_MARGIN, containerPadding: [0, 0] }}
-            dragConfig={{ enabled: true, handle: '.dashboard-drag-handle', threshold: 6 }}
-            resizeConfig={{ enabled: true, handles: ['e', 's', 'se'] as const, handleComponent: resizeHandle }}
-          >
-            {layout.map((item) => (
-              <div key={item.i} className={styles.gridItem}>
-                {renderSection(item.i as SectionId)}
-              </div>
-            ))}
-          </GridLayout>
-        )}
-      </div>
+      <GridLayout
+        className={styles.grid}
+        layout={layout}
+        cols={GRID_COLS}
+        rowHeight={ROW_HEIGHT}
+        margin={GRID_MARGIN}
+        containerPadding={[0, 0]}
+        compactType="vertical"
+        isDraggable
+        isResizable
+        draggableHandle=".dashboard-drag-handle"
+        resizeHandles={['e', 's', 'se']}
+        onLayoutChange={onLayoutChange}
+      >
+        {layout.map((item) => (
+          <div key={item.i} className={styles.gridItem}>
+            {renderSection(item.i as SectionId)}
+          </div>
+        ))}
+      </GridLayout>
 
       {customizing && <CustomizePanel onClose={() => setCustomizing(false)} />}
 

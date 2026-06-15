@@ -179,95 +179,10 @@
 }
 
 /* ── react-grid-layout ───────────────────────────────────────────────────── */
-.gridWrap {
-  width: 100%;
-}
+/* Grid item + resize-handle + placeholder theming lives in main.css (global),
+   since react-grid-layout's classes aren't CSS-module-scoped. */
 .gridItem {
   box-sizing: border-box;
-}
-
-/* Drop placeholder while dragging/resizing. */
-.grid :global(.react-grid-placeholder) {
-  background: rgba(124, 106, 247, 0.18) !important;
-  border: 1px dashed var(--accent);
-  border-radius: 16px;
-  opacity: 1 !important;
-}
-.grid :global(.react-grid-item.react-draggable-dragging),
-.grid :global(.react-grid-item.resizing) {
-  z-index: 6;
-  opacity: 0.95;
-}
-
-/* Resize handles (custom handleComponent) — comfortable hit area + themed grip. */
-.rgHandle {
-  position: absolute;
-  z-index: 5;
-  background: transparent;
-  touch-action: none;
-}
-.rgHandle::after {
-  content: '';
-  position: absolute;
-  background: var(--border-hover);
-  border-radius: 3px;
-  transition: background 0.15s, border-color 0.15s;
-}
-.rgHandle_e {
-  top: 50%;
-  right: 0;
-  width: 14px;
-  height: 54px;
-  margin-top: -27px;
-  cursor: ew-resize;
-}
-.rgHandle_e::after {
-  top: 50%;
-  right: 3px;
-  width: 4px;
-  height: 42px;
-  margin-top: -21px;
-}
-.rgHandle_s {
-  left: 50%;
-  bottom: 0;
-  width: 54px;
-  height: 14px;
-  margin-left: -27px;
-  cursor: ns-resize;
-}
-.rgHandle_s::after {
-  left: 50%;
-  bottom: 3px;
-  height: 4px;
-  width: 42px;
-  margin-left: -21px;
-}
-.rgHandle_se {
-  right: 0;
-  bottom: 0;
-  width: 20px;
-  height: 20px;
-  z-index: 6;
-  cursor: nwse-resize;
-}
-.rgHandle_se::after {
-  right: 4px;
-  bottom: 4px;
-  width: 9px;
-  height: 9px;
-  background: transparent;
-  border-right: 2px solid var(--border-hover);
-  border-bottom: 2px solid var(--border-hover);
-  border-radius: 0 0 4px 0;
-}
-/* Brighten the grip when hovering the card. */
-:global(.react-grid-item:hover) .rgHandle::after {
-  background: var(--accent);
-}
-:global(.react-grid-item:hover) .rgHandle_se::after {
-  background: transparent;
-  border-color: var(--accent);
 }
 
 /* ── Hero stat grid ──────────────────────────────────────────────────────── */
