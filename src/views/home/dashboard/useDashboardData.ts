@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNotesContext } from '../../../context/NotesContext'
 import { useTranscription } from '../../../context/TranscriptionContext'
-import { getAllLinks, listNoteProgress } from '../../../core/notes'
+import { getAllLinks, getFavouriteNoteIds, listNoteProgress } from '../../../core/notes'
 import { recentMedia } from '../../../core/media'
 import { listProjects, listProjectKnowledge } from '../../../core/aiWorkspace'
 import { getIndexStats, getIndexTimes, staleNotes } from '../../../core/ai'
@@ -71,6 +71,7 @@ export interface DashboardData {
   suggestedConnections: number
   clusters: { count: number; largest: number }
   continueLearning: ContinueItem[]
+  favourites: Note[]
   projects: ProjectSummary[]
   recentImports: RecentMedia[]
   tasks: TaskItem[]
@@ -97,6 +98,7 @@ export function useDashboardData(): DashboardData {
   const [staleCount, setStaleCount] = useState(0)
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [imports, setImports] = useState<RecentMedia[]>([])
+  const [favIds, setFavIds] = useState<string[]>([])
   const [loaded, setLoaded] = useState(false)
 
   const notesRef = useRef(notes)
@@ -104,13 +106,14 @@ export function useDashboardData(): DashboardData {
 
   const refresh = useCallback(async () => {
     try {
-      const [allLinks, projs, stats, times, prog, media] = await Promise.all([
+      const [allLinks, projs, stats, times, prog, media, favs] = await Promise.all([
         getAllLinks(),
         listProjects(),
         getIndexStats().catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })),
         getIndexTimes().catch(() => []),
         listNoteProgress().catch(() => []),
         recentMedia(12).catch(() => []),
+        getFavouriteNoteIds().catch(() => []),
       ])
       setLinks(allLinks)
       setProjects(projs)
@@ -118,6 +121,7 @@ export function useDashboardData(): DashboardData {
       setStaleCount(stats.indexedNoteCount > 0 ? staleNotes(notesRef.current, times).length : 0)
       setProgress(Object.fromEntries(prog.map((p) => [p.noteId, p.progress])))
       setImports(media)
+      setFavIds(favs)
       // Per-project note counts (projects are few; N small calls).
       const counts: Record<string, number> = {}
       await Promise.all(
@@ -234,6 +238,8 @@ export function useDashboardData(): DashboardData {
       })
       .filter((x): x is ContinueItem => x !== null)
 
+    const favourites = favIds.map((id) => byId.get(id)).filter((n): n is Note => !!n)
+
     // Projects with note counts + color.
     const projectSummaries: ProjectSummary[] = projects.map((p) => ({
       project: p,
@@ -302,6 +308,7 @@ export function useDashboardData(): DashboardData {
       suggestedConnections: suggestedPairs.size,
       clusters: { count: clusterCount, largest },
       continueLearning,
+      favourites,
       projects: projectSummaries,
       recentImports: imports,
       tasks,
@@ -309,7 +316,7 @@ export function useDashboardData(): DashboardData {
       streak,
       graph: { nodes: snapNodes, links: snapLinks },
     }
-  }, [notes, links, projects, projectCounts, indexedCount, staleCount, progress, imports, jobs, notesLoading, loaded])
+  }, [notes, links, projects, projectCounts, indexedCount, staleCount, progress, imports, favIds, jobs, notesLoading, loaded])
 
   return { ...data, refresh: () => void refresh() }
 }

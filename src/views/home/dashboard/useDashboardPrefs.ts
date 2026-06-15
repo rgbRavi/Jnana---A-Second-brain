@@ -11,6 +11,7 @@ import {
   type DashboardLayout,
   type DashboardPrefs,
   type SectionId,
+  type SectionSize,
 } from './types'
 
 const STORAGE_KEY = 'jnana.dashboard.prefs'
@@ -24,11 +25,16 @@ function normalizeLayout(l: DashboardLayout): DashboardLayout {
   const known = new Set<SectionId>(ALL_SECTIONS)
   const order = l.order.filter((id) => known.has(id))
   for (const id of ALL_SECTIONS) if (!order.includes(id)) order.push(id)
+  const sizes: Partial<Record<SectionId, SectionSize>> = {}
+  for (const [k, v] of Object.entries(l.sizes ?? {})) {
+    if (known.has(k as SectionId) && v) sizes[k as SectionId] = v
+  }
   return {
     ...l,
     order,
     hidden: l.hidden.filter((id) => known.has(id)),
     collapsed: l.collapsed.filter((id) => known.has(id)),
+    sizes,
   }
 }
 
@@ -82,12 +88,25 @@ function mutateActive(fn: (l: DashboardLayout) => DashboardLayout) {
 const toggleInList = (list: SectionId[], id: SectionId) =>
   list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 
+function setSize(l: DashboardLayout, id: SectionId, patch: SectionSize): DashboardLayout {
+  const sizes = { ...(l.sizes ?? {}) }
+  const next: SectionSize = { ...(sizes[id] ?? {}), ...patch }
+  if (next.w === undefined && next.h === undefined) delete sizes[id]
+  else sizes[id] = next
+  return { ...l, sizes }
+}
+
 export interface DashboardPrefsApi {
   active: DashboardLayout
   isHidden: (id: SectionId) => boolean
   isCollapsed: (id: SectionId) => boolean
   toggleHidden: (id: SectionId) => void
   toggleCollapsed: (id: SectionId) => void
+  getSize: (id: SectionId) => SectionSize
+  /** Cycle a section's column span between full (2) and half (1). */
+  toggleWidth: (id: SectionId) => void
+  /** Set a section's body height in px (undefined → auto). */
+  setHeight: (id: SectionId, h: number | undefined) => void
   /** Phase 2 (drag-reorder). */
   setOrder: (order: SectionId[]) => void
   resetLayout: () => void
@@ -102,6 +121,9 @@ export function useDashboardPrefs(): DashboardPrefsApi {
     isCollapsed: (id) => active.collapsed.includes(id),
     toggleHidden: (id) => mutateActive((l) => ({ ...l, hidden: toggleInList(l.hidden, id) })),
     toggleCollapsed: (id) => mutateActive((l) => ({ ...l, collapsed: toggleInList(l.collapsed, id) })),
+    getSize: (id) => active.sizes?.[id] ?? {},
+    toggleWidth: (id) => mutateActive((l) => setSize(l, id, { w: (l.sizes?.[id]?.w ?? 2) === 1 ? 2 : 1 })),
+    setHeight: (id, h) => mutateActive((l) => setSize(l, id, { h })),
     setOrder: (order) => mutateActive((l) => ({ ...l, order })),
     resetLayout: () => mutateActive(() => makeDefaultLayout()),
   }

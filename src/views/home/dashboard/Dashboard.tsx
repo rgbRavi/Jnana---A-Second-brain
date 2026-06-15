@@ -66,6 +66,7 @@ export function Dashboard() {
         {visible.map((id) => {
           const def = SECTIONS[id]
           const Component = def.Component
+          const size = prefs.getSize(id)
           return (
             <DashboardCard
               key={id}
@@ -75,6 +76,10 @@ export function Dashboard() {
               onToggleCollapse={() => prefs.toggleCollapsed(id)}
               onHide={() => prefs.toggleHidden(id)}
               onRefresh={def.refreshable ? data.refresh : undefined}
+              width={size.w ?? 2}
+              onToggleWidth={() => prefs.toggleWidth(id)}
+              height={size.h}
+              onResizeHeight={(h) => prefs.setHeight(id, h)}
             >
               <Component data={data} actions={actions} />
             </DashboardCard>

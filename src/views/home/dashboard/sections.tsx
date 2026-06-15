@@ -1,5 +1,5 @@
 import styles from './Dashboard.module.css'
-import { relativeTime } from './format'
+import { preview, relativeTime } from './format'
 import type { Note } from '../../../types'
 import type { DashboardData } from './useDashboardData'
 import { StatCard } from './components/StatCard'
@@ -104,6 +104,28 @@ export function ContinueLearningSection({ data, actions }: SectionProps) {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ── Favourites ──────────────────────────────────────────
+export function FavouritesSection({ data, actions }: SectionProps) {
+  if (data.loading) return <SkeletonRows rows={2} />
+  if (data.favourites.length === 0)
+    return <p className={styles.empty}>Star a note (☆ in the editor) to pin it here.</p>
+  return (
+    <div className={styles.favGrid}>
+      {data.favourites.map((n) => (
+        <button key={n.id} type="button" className={styles.favCard} onClick={() => actions.openNote(n)}>
+          <span className={styles.favStar} aria-hidden="true">
+            ★
+          </span>
+          <span className={styles.favBody}>
+            <span className={styles.favTitle}>{n.title || 'Untitled'}</span>
+            <span className={styles.favPreview}>{preview(n.content, 64) || 'No content'}</span>
+          </span>
+        </button>
+      ))}
     </div>
   )
 }

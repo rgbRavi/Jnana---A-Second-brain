@@ -6,6 +6,7 @@ export type SectionId =
   | 'quickActions'
   | 'dailySummary'
   | 'continueLearning'
+  | 'favourites'
   | 'insights'
   | 'graphSnapshot'
   | 'projects'
@@ -18,6 +19,7 @@ export const ALL_SECTIONS: SectionId[] = [
   'quickActions',
   'dailySummary',
   'continueLearning',
+  'favourites',
   'insights',
   'graphSnapshot',
   'projects',
@@ -25,6 +27,12 @@ export const ALL_SECTIONS: SectionId[] = [
   'activityHeatmap',
   'backgroundTasks',
 ]
+
+/** Per-section size: column span (1 = half, 2 = full) + optional body height (px). */
+export interface SectionSize {
+  w?: number
+  h?: number
+}
 
 export interface DashboardLayout {
   id: string
@@ -35,6 +43,8 @@ export interface DashboardLayout {
   hidden: SectionId[]
   /** Sections collapsed to their header. */
   collapsed: SectionId[]
+  /** Per-section width span + height (resize). */
+  sizes: Partial<Record<SectionId, SectionSize>>
 }
 
 export interface DashboardPrefs {
@@ -45,5 +55,5 @@ export interface DashboardPrefs {
 export const DEFAULT_LAYOUT_ID = 'default'
 
 export function makeDefaultLayout(): DashboardLayout {
-  return { id: DEFAULT_LAYOUT_ID, name: 'Default', order: [...ALL_SECTIONS], hidden: [], collapsed: [] }
+  return { id: DEFAULT_LAYOUT_ID, name: 'Default', order: [...ALL_SECTIONS], hidden: [], collapsed: [], sizes: {} }
 }
