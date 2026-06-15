@@ -22,8 +22,10 @@ function collides(a: GridItem, b: GridItem): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
 }
 
-/** Vertical compaction: pack items upward, preserving order. The moving item
- *  wins ties so dragging it onto a row places it above the row's occupants. */
+/** Vertical compaction with collision resolution: each item packs upward to
+ *  fill gaps, then is pushed DOWN past anything it still overlaps — so growing
+ *  or moving a card shifts its neighbours out of the way instead of overlapping.
+ *  The moving item wins ties, so dragging it onto a row lands it above the row. */
 function compact(items: GridItem[], movingId?: string): GridItem[] {
   const sorted = [...items].sort(
     (a, b) => a.y - b.y || (a.i === movingId ? -1 : b.i === movingId ? 1 : 0) || a.x - b.x,
@@ -31,7 +33,10 @@ function compact(items: GridItem[], movingId?: string): GridItem[] {
   const out: GridItem[] = []
   for (const it of sorted) {
     const item = { ...it }
+    // Pack up as far as the space above is free.
     while (item.y > 0 && !out.some((p) => collides({ ...item, y: item.y - 1 }, p))) item.y--
+    // Then drop below anything it still overlaps (resolve the collision).
+    while (out.some((p) => collides(item, p))) item.y++
     out.push(item)
   }
   return out
