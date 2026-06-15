@@ -7,7 +7,7 @@ import { useSyncExternalStore } from 'react'
 import {
   ALL_SECTIONS,
   DEFAULT_LAYOUT_ID,
-  makeDefaultLayout,
+  PRESET_LAYOUTS,
   type DashboardLayout,
   type DashboardPrefs,
   type SectionId,
@@ -16,9 +16,8 @@ import {
 
 const STORAGE_KEY = 'jnana.dashboard.prefs'
 
-function defaults(): DashboardPrefs {
-  return { layouts: [makeDefaultLayout()], activeLayoutId: DEFAULT_LAYOUT_ID }
-}
+const newId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `layout-${Date.now()}`
 
 /** Keep a layout's order in sync with ALL_SECTIONS: drop unknown ids, append new ones. */
 function normalizeLayout(l: DashboardLayout): DashboardLayout {
@@ -39,19 +38,26 @@ function normalizeLayout(l: DashboardLayout): DashboardLayout {
 }
 
 function load(): DashboardPrefs {
+  let stored: DashboardPrefs | null = null
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return defaults()
-    const parsed = JSON.parse(raw) as DashboardPrefs
-    if (!parsed.layouts?.length) return defaults()
-    const layouts = parsed.layouts.map(normalizeLayout)
-    const activeLayoutId = layouts.some((l) => l.id === parsed.activeLayoutId)
-      ? parsed.activeLayoutId
-      : layouts[0].id
-    return { layouts, activeLayoutId }
+    if (raw) stored = JSON.parse(raw) as DashboardPrefs
   } catch {
-    return defaults()
+    stored = null
   }
+  // Built-in presets always exist (user edits to them are preserved); custom
+  // layouts follow.
+  const layouts: DashboardLayout[] = PRESET_LAYOUTS.map((p) => {
+    const existing = stored?.layouts?.find((l) => l.id === p.id)
+    return existing ? normalizeLayout({ ...existing, builtin: true }) : { ...p }
+  })
+  for (const l of stored?.layouts ?? []) {
+    if (!PRESET_LAYOUTS.some((p) => p.id === l.id)) layouts.push(normalizeLayout(l))
+  }
+  const activeLayoutId = layouts.some((l) => l.id === stored?.activeLayoutId)
+    ? (stored!.activeLayoutId as string)
+    : DEFAULT_LAYOUT_ID
+  return { layouts, activeLayoutId }
 }
 
 let prefs: DashboardPrefs = load()
@@ -96,8 +102,39 @@ function setSize(l: DashboardLayout, id: SectionId, patch: SectionSize): Dashboa
   return { ...l, sizes }
 }
 
+// ── Layout management (multiple saved layouts) ──
+function switchLayout(id: string) {
+  if (prefs.layouts.some((l) => l.id === id)) commit({ ...prefs, activeLayoutId: id })
+}
+function createLayout(name: string): string {
+  const id = newId()
+  const copy: DashboardLayout = { ...activeLayout(prefs), id, name: name.trim() || 'New layout', builtin: false }
+  commit({ layouts: [...prefs.layouts, copy], activeLayoutId: id })
+  return id
+}
+function renameLayout(id: string, name: string) {
+  const trimmed = name.trim()
+  if (!trimmed) return
+  commit({ ...prefs, layouts: prefs.layouts.map((l) => (l.id === id ? { ...l, name: trimmed } : l)) })
+}
+function deleteLayout(id: string) {
+  const target = prefs.layouts.find((l) => l.id === id)
+  if (!target || target.builtin) return
+  const layouts = prefs.layouts.filter((l) => l.id !== id)
+  const activeLayoutId = prefs.activeLayoutId === id ? DEFAULT_LAYOUT_ID : prefs.activeLayoutId
+  commit({ layouts, activeLayoutId })
+}
+
+export interface LayoutMeta {
+  id: string
+  name: string
+  builtin?: boolean
+}
+
 export interface DashboardPrefsApi {
   active: DashboardLayout
+  layouts: LayoutMeta[]
+  activeId: string
   isHidden: (id: SectionId) => boolean
   isCollapsed: (id: SectionId) => boolean
   toggleHidden: (id: SectionId) => void
@@ -107,9 +144,13 @@ export interface DashboardPrefsApi {
   toggleWidth: (id: SectionId) => void
   /** Set a section's body height in px (undefined → auto). */
   setHeight: (id: SectionId, h: number | undefined) => void
-  /** Phase 2 (drag-reorder). */
   setOrder: (order: SectionId[]) => void
   resetLayout: () => void
+  switchLayout: (id: string) => void
+  /** Save the current layout as a new named layout; returns its id. */
+  createLayout: (name: string) => string
+  renameLayout: (id: string, name: string) => void
+  deleteLayout: (id: string) => void
 }
 
 export function useDashboardPrefs(): DashboardPrefsApi {
@@ -117,6 +158,8 @@ export function useDashboardPrefs(): DashboardPrefsApi {
   const active = normalizeLayout(activeLayout(p))
   return {
     active,
+    layouts: p.layouts.map((l) => ({ id: l.id, name: l.name, builtin: l.builtin })),
+    activeId: active.id,
     isHidden: (id) => active.hidden.includes(id),
     isCollapsed: (id) => active.collapsed.includes(id),
     toggleHidden: (id) => mutateActive((l) => ({ ...l, hidden: toggleInList(l.hidden, id) })),
@@ -125,6 +168,10 @@ export function useDashboardPrefs(): DashboardPrefsApi {
     toggleWidth: (id) => mutateActive((l) => setSize(l, id, { w: (l.sizes?.[id]?.w ?? 2) === 1 ? 2 : 1 })),
     setHeight: (id, h) => mutateActive((l) => setSize(l, id, { h })),
     setOrder: (order) => mutateActive((l) => ({ ...l, order })),
-    resetLayout: () => mutateActive(() => makeDefaultLayout()),
+    resetLayout: () => mutateActive((l) => ({ ...l, order: [...ALL_SECTIONS], hidden: [], collapsed: [], sizes: {} })),
+    switchLayout,
+    createLayout,
+    renameLayout,
+    deleteLayout,
   }
 }

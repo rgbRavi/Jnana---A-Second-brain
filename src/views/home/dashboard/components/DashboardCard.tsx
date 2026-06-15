@@ -16,6 +16,12 @@ interface Props {
   onResizeHeight?: (h: number | undefined) => void
   /** Right-aligned slot in the header. */
   action?: ReactNode
+  /** Drag handle (sortable) rendered at the start of the header. */
+  dragHandle?: ReactNode
+  /** Forwarded to the section element (sortable nodeRef). */
+  nodeRef?: (el: HTMLElement | null) => void
+  /** Extra inline style merged onto the section (sortable transform). */
+  style?: CSSProperties
   children: ReactNode
 }
 
@@ -34,6 +40,9 @@ export function DashboardCard({
   height,
   onResizeHeight,
   action,
+  dragHandle,
+  nodeRef,
+  style,
   children,
 }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -69,34 +78,37 @@ export function DashboardCard({
     window.addEventListener('pointerup', up)
   }
 
-  const sectionStyle: CSSProperties = { gridColumn: `span ${width}` }
+  const sectionStyle: CSSProperties = { gridColumn: `span ${width}`, ...style }
   const bodyStyle: CSSProperties | undefined =
     appliedH != null ? { height: appliedH, overflowY: 'auto' } : undefined
 
   return (
-    <section className={styles.card} style={sectionStyle}>
+    <section className={styles.card} style={sectionStyle} ref={nodeRef}>
       <header className={styles.cardHeader}>
-        <button
-          type="button"
-          className={styles.cardTitle}
-          onClick={onToggleCollapse}
-          disabled={!onToggleCollapse}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          <span
-            className={styles.cardCaret}
-            style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
-            aria-hidden="true"
+        <div className={styles.cardHeaderLeft}>
+          {dragHandle}
+          <button
+            type="button"
+            className={styles.cardTitle}
+            onClick={onToggleCollapse}
+            disabled={!onToggleCollapse}
+            title={collapsed ? 'Expand' : 'Collapse'}
           >
-            ⌄
-          </span>
-          {icon && (
-            <span className={styles.cardIcon} aria-hidden="true">
-              {icon}
+            <span
+              className={styles.cardCaret}
+              style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+              aria-hidden="true"
+            >
+              ⌄
             </span>
-          )}
-          {title}
-        </button>
+            {icon && (
+              <span className={styles.cardIcon} aria-hidden="true">
+                {icon}
+              </span>
+            )}
+            {title}
+          </button>
+        </div>
         <div className={styles.cardActions}>
           {action}
           {onToggleWidth && (

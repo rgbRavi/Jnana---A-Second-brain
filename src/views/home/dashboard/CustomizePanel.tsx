@@ -49,7 +49,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
           <button type="button" className={styles.resetBtn} onClick={() => prefs.resetLayout()}>
             Reset to default
           </button>
-          <span className={styles.customizeNote}>Drag-to-reorder &amp; saved layouts coming soon.</span>
+          <span className={styles.customizeNote}>Drag the ⠿ handle to reorder · save layouts from the top dropdown.</span>
         </div>
       </div>
     </div>

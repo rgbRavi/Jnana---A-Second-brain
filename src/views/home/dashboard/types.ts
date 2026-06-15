@@ -45,6 +45,8 @@ export interface DashboardLayout {
   collapsed: SectionId[]
   /** Per-section width span + height (resize). */
   sizes: Partial<Record<SectionId, SectionSize>>
+  /** Built-in preset (always present, can't be deleted). */
+  builtin?: boolean
 }
 
 export interface DashboardPrefs {
@@ -55,5 +57,28 @@ export interface DashboardPrefs {
 export const DEFAULT_LAYOUT_ID = 'default'
 
 export function makeDefaultLayout(): DashboardLayout {
-  return { id: DEFAULT_LAYOUT_ID, name: 'Default', order: [...ALL_SECTIONS], hidden: [], collapsed: [], sizes: {} }
+  return { id: DEFAULT_LAYOUT_ID, name: 'Default', order: [...ALL_SECTIONS], hidden: [], collapsed: [], sizes: {}, builtin: true }
 }
+
+/** A built-in preset layout that shows only `show` (the rest hidden). */
+function preset(id: string, name: string, show: SectionId[]): DashboardLayout {
+  const shown = new Set(show)
+  return {
+    id,
+    name,
+    builtin: true,
+    order: [...ALL_SECTIONS],
+    hidden: ALL_SECTIONS.filter((s) => !shown.has(s)),
+    collapsed: [],
+    sizes: {},
+  }
+}
+
+/** Built-in layouts for the switcher — different workflows surface different widgets. */
+export const PRESET_LAYOUTS: DashboardLayout[] = [
+  makeDefaultLayout(),
+  preset('student', 'Student', ['quickActions', 'dailySummary', 'continueLearning', 'favourites', 'insights', 'activityHeatmap']),
+  preset('research', 'Research', ['quickActions', 'graphSnapshot', 'insights', 'projects', 'recentImports', 'continueLearning']),
+  preset('writing', 'Writing', ['quickActions', 'continueLearning', 'favourites', 'dailySummary', 'recentImports']),
+  preset('minimal', 'Minimal', ['quickActions', 'dailySummary', 'continueLearning']),
+]

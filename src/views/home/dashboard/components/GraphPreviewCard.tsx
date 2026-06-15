@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph2D from 'react-force-graph-2d'
 import styles from '../Dashboard.module.css'
 import type { SnapshotNode } from '../useDashboardData'
@@ -24,8 +24,14 @@ export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
     return () => ro.disconnect()
   }, [])
 
-  // react-force-graph mutates the objects it's given, so hand it fresh copies.
-  const data: any = { nodes: nodes.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })) }
+  // react-force-graph mutates the objects it's given (adds x/y/vx/vy) and re-runs
+  // its simulation whenever `graphData` is a new reference — so memoize on the
+  // (stable) nodes/links so unrelated re-renders (collapse, resize of other
+  // cards) don't reload the graph.
+  const data = useMemo<any>(
+    () => ({ nodes: nodes.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })) }),
+    [nodes, links],
+  )
 
   return (
     <div className={styles.graphPreview}>

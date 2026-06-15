@@ -34,6 +34,13 @@
   color: var(--text-3);
 }
 
+.dashboardActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 .customizeBtn {
   display: inline-flex;
   align-items: center;
@@ -53,6 +60,122 @@
   border-color: var(--accent);
   color: var(--text-1);
   background: rgba(124, 106, 247, 0.08);
+}
+
+/* ── Layout switcher ─────────────────────────────────────────────────────── */
+.layoutSwitch {
+  position: relative;
+}
+.layoutBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.layoutBtn:hover {
+  border-color: var(--accent);
+}
+.layoutBtnLabel {
+  font-weight: 500;
+}
+.layoutMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 0.3rem;
+  animation: popIn 0.14s ease-out;
+}
+.layoutItem {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.layoutItem:hover {
+  background: var(--surface-2);
+}
+.layoutItemActive {
+  background: rgba(124, 106, 247, 0.1);
+}
+.layoutItemMain {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--text-1);
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.layoutCheck {
+  width: 0.9rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+.layoutTag {
+  margin-left: auto;
+  font-size: 0.58rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.3rem;
+}
+.layoutItemActions {
+  display: flex;
+  gap: 1px;
+  padding-right: 0.2rem;
+}
+.layoutMini {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+}
+.layoutMini:hover {
+  color: var(--text-1);
+  background: var(--surface-3);
+}
+.layoutSaveAs {
+  margin-top: 0.2rem;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 0.5rem;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.layoutSaveAs:hover {
+  background: var(--surface-2);
 }
 
 .sections {
@@ -137,8 +260,37 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.7rem 0.85rem 0.7rem 0.95rem;
+  padding: 0.7rem 0.85rem 0.7rem 0.7rem;
   border-bottom: 1px solid var(--border);
+}
+
+.cardHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: grab;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.25rem 0.3rem;
+  border-radius: var(--radius-sm);
+  touch-action: none;
+  transition: color 0.15s, background 0.15s;
+}
+.dragHandle:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+.dragHandle:active {
+  cursor: grabbing;
 }
 
 .cardTitle {
