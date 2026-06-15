@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./ui/Sidebar";
 import { Toaster } from "./ui/Toaster";
+import { DialogHost } from "./ui/DialogHost";
 import { NotesProvider } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
@@ -15,6 +16,7 @@ function AppInner() {
                 <Outlet />
             </main>
             <Toaster />
+            <DialogHost />
         </div>
     )
 }
