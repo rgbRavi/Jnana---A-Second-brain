@@ -8,9 +8,6 @@ interface Props {
   onToggleCollapse?: () => void
   onHide?: () => void
   onRefresh?: () => void
-  /** Column span (1 = half, 2 = full). */
-  width?: number
-  onToggleWidth?: () => void
   /** Body height in px (undefined = auto). */
   height?: number
   onResizeHeight?: (h: number | undefined) => void
@@ -35,8 +32,6 @@ export function DashboardCard({
   onToggleCollapse,
   onHide,
   onRefresh,
-  width = 2,
-  onToggleWidth,
   height,
   onResizeHeight,
   action,
@@ -78,7 +73,7 @@ export function DashboardCard({
     window.addEventListener('pointerup', up)
   }
 
-  const sectionStyle: CSSProperties = { gridColumn: `span ${width}`, ...style }
+  const sectionStyle: CSSProperties = { ...style }
   const bodyStyle: CSSProperties | undefined =
     appliedH != null ? { height: appliedH, overflowY: 'auto' } : undefined
 
@@ -111,16 +106,6 @@ export function DashboardCard({
         </div>
         <div className={styles.cardActions}>
           {action}
-          {onToggleWidth && (
-            <button
-              type="button"
-              className={styles.cardBtn}
-              onClick={onToggleWidth}
-              title={width === 2 ? 'Make half-width' : 'Make full-width'}
-            >
-              {width === 2 ? '◧' : '▭'}
-            </button>
-          )}
           {onRefresh && (
             <button type="button" className={styles.cardBtn} onClick={onRefresh} title="Refresh">
               ↻

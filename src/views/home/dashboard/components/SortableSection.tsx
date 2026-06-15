@@ -9,13 +9,11 @@ interface Props {
   id: SectionId
   title: string
   icon?: string
-  width: number
   height?: number
   collapsed: boolean
   onToggleCollapse: () => void
   onHide: () => void
   onRefresh?: () => void
-  onToggleWidth: () => void
   onResizeHeight: (h: number | undefined) => void
   children: ReactNode
 }
@@ -52,8 +50,6 @@ export function SortableSection(props: Props) {
       onToggleCollapse={props.onToggleCollapse}
       onHide={props.onHide}
       onRefresh={props.onRefresh}
-      width={props.width}
-      onToggleWidth={props.onToggleWidth}
       height={props.height}
       onResizeHeight={props.onResizeHeight}
       dragHandle={handle}

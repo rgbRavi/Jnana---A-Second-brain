@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import styles from './Dashboard.module.css'
 import { SECTIONS } from './registry'
 import { useDashboardPrefs } from './useDashboardPrefs'
+import { ALL_SECTIONS } from './types'
 
 /** Dashboard preferences panel: show/hide sections (Phase 1). Phase 2 adds
  *  drag-reorder + saved layouts. */
@@ -34,7 +35,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
         <p className={styles.customizeHint}>Choose which sections appear on your Home dashboard.</p>
 
         <div className={styles.customizeList}>
-          {prefs.active.order.map((id) => (
+          {ALL_SECTIONS.map((id) => (
             <label key={id} className={styles.customizeRow}>
               <input type="checkbox" checked={!prefs.isHidden(id)} onChange={() => prefs.toggleHidden(id)} />
               <span className={styles.customizeIcon} aria-hidden="true">
