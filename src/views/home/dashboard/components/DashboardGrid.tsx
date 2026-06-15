@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import styles from '../Dashboard.module.css'
 import type { GridItem } from '../types'
 
@@ -47,7 +47,12 @@ function compact(items: GridItem[], movingId?: string): GridItem[] {
 export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dragHandleSelector, onChange, renderItem }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
-  const [drag, setDrag] = useState<{ items: GridItem[]; movingId: string } | null>(null)
+  const [drag, setDrag] = useState<{
+    items: GridItem[]
+    movingId: string
+    /** Pixel rect of the moving card while it tracks the cursor. */
+    ghost: { left: number; top: number; width: number; height: number }
+  } | null>(null)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -62,6 +67,14 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
   const colW = width > 0 ? (width - mx * (cols - 1)) / cols : 0
   const unitX = colW + mx
   const unitY = rowHeight + my
+
+  // Render each card's content once and reuse the elements — so dragging/resizing
+  // (which only changes positions) never re-renders heavy widgets like the graph.
+  const contents = useMemo(() => {
+    const map: Record<string, ReactNode> = {}
+    for (const it of items) map[it.i] = renderItem(it.i)
+    return map
+  }, [items, renderItem])
 
   const view = drag?.items ?? items
   const rows = view.reduce((m, it) => Math.max(m, it.y + it.h), 0)
@@ -79,15 +92,20 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
     const startY = e.clientY
     const base = items.map((i) => ({ ...i }))
     document.body.style.userSelect = 'none'
+    let lastKey = ''
 
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - startX
       const dy = ev.clientY - startY
-      let candidate: GridItem[]
+      let key: string
+      let target: Partial<GridItem>
+      let ghost: { left: number; top: number; width: number; height: number }
       if (kind === 'drag') {
         const nx = clamp(Math.round((pxLeft(item.x) + dx) / unitX), 0, cols - item.w)
         const ny = Math.max(0, Math.round((pxTop(item.y) + dy) / unitY))
-        candidate = base.map((i) => (i.i === item.i ? { ...i, x: nx, y: ny } : i))
+        key = `${nx},${ny}`
+        target = { x: nx, y: ny }
+        ghost = { left: pxLeft(item.x) + dx, top: pxTop(item.y) + dy, width: pxW(item.w), height: pxH(item.h) }
       } else {
         let w = item.w
         let h = item.h
@@ -97,9 +115,21 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
         if (axis === 's' || axis === 'se') {
           h = Math.max(item.minH ?? 1, Math.round((pxH(item.h) + dy + my) / unitY))
         }
-        candidate = base.map((i) => (i.i === item.i ? { ...i, w, h } : i))
+        key = `${w}x${h}`
+        target = { w, h }
+        const gw = axis === 'e' || axis === 'se' ? pxW(item.w) + dx : pxW(item.w)
+        const gh = axis === 's' || axis === 'se' ? pxH(item.h) + dy : pxH(item.h)
+        ghost = { left: pxLeft(item.x), top: pxTop(item.y), width: Math.max(80, gw), height: Math.max(40, gh) }
       }
-      setDrag({ items: compact(candidate, item.i), movingId: item.i })
+      // The moving card tracks the cursor every frame (ghost); the rest only
+      // re-flow when the target grid cell/size actually changes.
+      const changed = key !== lastKey
+      if (changed) lastKey = key
+      setDrag((prev) => {
+        const itemsNext =
+          changed || !prev ? compact(base.map((i) => (i.i === item.i ? { ...i, ...target } : i)), item.i) : prev.items
+        return { items: itemsNext, movingId: item.i, ghost }
+      })
     }
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
@@ -126,14 +156,18 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
       {colW > 0 && view.map((item) => {
         const moving = drag?.movingId === item.i
         const resizable = isResizable ? isResizable(item.i) : true
+        const rect =
+          moving && drag
+            ? drag.ghost
+            : { left: pxLeft(item.x), top: pxTop(item.y), width: pxW(item.w), height: pxH(item.h) }
         return (
           <div
             key={item.i}
             className={`${styles.gridItem} ${moving ? styles.gridItemMoving : ''}`}
-            style={{ position: 'absolute', left: pxLeft(item.x), top: pxTop(item.y), width: pxW(item.w), height: pxH(item.h) }}
+            style={{ position: 'absolute', ...rect }}
             onPointerDown={(e) => onItemPointerDown(e, item)}
           >
-            {renderItem(item.i)}
+            {contents[item.i]}
             {resizable && (
               <>
                 <span className={`${styles.rgHandle} ${styles.rgHandle_e}`} data-rg-handle="e" aria-hidden="true" />
