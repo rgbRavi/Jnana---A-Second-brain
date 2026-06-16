@@ -10,6 +10,7 @@ import { AsyncVideo } from '../AsyncVideo'
 import { AsyncAudio } from '../AsyncAudio'
 import { AsyncYouTube } from '../AsyncYouTube'
 import { PdfViewer } from '../media/PdfViewer'
+import { WebEmbed } from '../WebEmbed'
 import MdStyles from './MarkdownLite.module.css'
 
 interface Props {
@@ -244,6 +245,8 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
           elements.push(<YouTubeEmbed key={key} url={url} lazy={lazy} />)
         } else if (altText === 'pdf') {
           elements.push(<PdfEmbed key={key} url={url} noteId={noteId} fullscreen={fullscreen} />)
+        } else if (altText === 'webpage') {
+          elements.push(<WebEmbed key={key} url={url} />)
         } else {
           elements.push(<ImageEmbed key={key} url={url} altText={altText} lazy={lazy} fullscreen={fullscreen} />)
         }

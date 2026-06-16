@@ -12,6 +12,34 @@ export interface Link {
   toId: string
 }
 
+/** A named group that organizes notes without a separate vault. Many-to-many:
+ *  a note can belong to several workspaces; removing it only drops the link. */
+export interface Workspace {
+  id: string
+  name: string
+  /** Emoji icon. */
+  icon: string
+  /** Hex color; when absent the UI derives one from the id. */
+  color?: string
+  description: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** A note's membership in a workspace, with the per-workspace pin flag. */
+export interface WorkspaceNote {
+  noteId: string
+  pinned: boolean
+}
+
+/** A lightweight sub-group inside a workspace. */
+export interface Collection {
+  id: string
+  workspaceId: string
+  name: string
+  createdAt: number
+}
+
 /** A persisted AI-chat conversation (history). `messages`/`scope` are JSON strings. */
 export interface StoredConversation {
   id: string

@@ -8,6 +8,8 @@ import { useFavourites } from '../../hooks/useFavourites'
 import { useComposerOptions, getComposerOptions } from '../../hooks/useComposerOptions'
 import { useNotesContext } from '../../context/NotesContext'
 import { eventBus } from '../../lib/eventBus'
+import { getActiveWorkspaceId } from '../../hooks/useActiveWorkspace'
+import { addWorkspaceNote } from '../../core/workspaces'
 import { TagEditor } from '../TagEditor'
 import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { AddContentMenu } from './AddContentMenu'
@@ -155,6 +157,9 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     await flushPendingMedia(saved.id)
     await onUpdate(saved.id, saved.title, saved.content, tags)
     if (saveFavourite) await addToFavourites(saved.id)
+    // When captured from inside a workspace, file the new note there too.
+    const wsId = getActiveWorkspaceId()
+    if (wsId) await addWorkspaceNote(wsId, saved.id).catch(() => {})
     setTitle('')
     setContent('')
     setTags([])

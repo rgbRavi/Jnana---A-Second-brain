@@ -50,14 +50,23 @@ const HUB_DEGREE = 4
 // Display defaults.
 const DEFAULT_DISPLAY = { textFade: 0.4, nodeSize: 1, linkThickness: 1.5 }
 
-// Session-scoped (survive view switches, reset on reload). react-force-graph
-// stores each node's settled position by mutating its object; keeping that cache
-// at module scope — instead of a per-mount useRef — means the layout is preserved
-// when you leave the graph and come back, so it no longer recompacts from scratch.
-const nodeCacheStore = new Map<string, any>()
-// Last viewport (zoom + graph-space center) so we can return the user to where
-// they were looking. In-session only (per the request), reset on reload.
-let savedViewport: { k: number; x: number; y: number } | null = null
+// Session-scoped (survive view switches, reset on reload), keyed per graph
+// instance so the main graph and each workspace's local graph keep their own
+// layout + viewport. react-force-graph stores each node's settled position by
+// mutating its object; keeping that cache at module scope — instead of a per-mount
+// useRef — means the layout is preserved when you leave the graph and come back,
+// so it no longer recompacts from scratch.
+type Viewport = { k: number; x: number; y: number }
+const nodeCaches = new Map<string, Map<string, any>>()
+const savedViewports = new Map<string, Viewport>()
+function nodeCacheFor(key: string): Map<string, any> {
+  let m = nodeCaches.get(key)
+  if (!m) {
+    m = new Map()
+    nodeCaches.set(key, m)
+  }
+  return m
+}
 
 // Obsidian-style quick presets (see the in-panel descriptions).
 const FORCE_PRESETS = {
@@ -114,6 +123,12 @@ interface Props {
   // desynchronised state array alongside App's.
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onRemove: (id: string) => void
+  /** When set, restrict the graph to these note ids (and the links among them) —
+   *  used for a workspace's local graph. */
+  scopeIds?: Set<string>
+  /** Distinguishes this graph's session caches (layout + viewport) from others.
+   *  Defaults to 'main'; a workspace graph passes e.g. `ws:<id>`. */
+  instanceKey?: string
 }
 
 const presetBtnStyle: React.CSSProperties = {
@@ -375,8 +390,18 @@ function JumpToNote({
   )
 }
 
-export function GraphView({ onUpdate, onRemove }: Props) {
+export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }: Props) {
   const { graphData, loading } = useGraph()
+
+  // Per-instance session caches (layout + viewport), so a workspace's local graph
+  // never shares positions/zoom with the main graph.
+  const nodeCacheStore = useMemo(() => nodeCacheFor(instanceKey), [instanceKey])
+
+  // Notes in scope (all notes, or just the workspace's) — for jump-to + empty state.
+  const scopedNodes = useMemo(
+    () => (scopeIds ? graphData.nodes.filter((n) => scopeIds.has(n.id)) : graphData.nodes),
+    [graphData.nodes, scopeIds],
+  )
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
@@ -525,8 +550,12 @@ export function GraphView({ onUpdate, onRemove }: Props) {
       if (!allIds.has(id)) nodeCacheStore.delete(id)
     }
 
+    // Restrict to the workspace's notes when a scope is given (local graph).
+    const inScope = (id: string) => !scopeIds || scopeIds.has(id)
+
     const q = filterText.trim().toLowerCase()
     const passesFilter = (n: (typeof graphData.nodes)[number]) => {
+      if (!inScope(n.id)) return false
       if (orphansOnly && (degrees.get(n.id) ?? 0) !== 0) return false
       if (filterSince && n.updatedAt < filterSince) return false
       if (filterTags.size > 0 && !(n.tags ?? []).some((t) => filterTags.has(t))) return false
@@ -538,7 +567,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     }
 
     // Focus mode shows a node's immediate neighbourhood and overrides filters.
-    // Otherwise the filter set decides what's visible.
+    // Otherwise the filter set decides what's visible. Both stay within scope.
     const visibleNodes = focusNodeId
       ? (() => {
           const neighbors = new Set<string>([focusNodeId])
@@ -546,7 +575,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
             if (e.source === focusNodeId) neighbors.add(e.target)
             if (e.target === focusNodeId) neighbors.add(e.source)
           })
-          return graphData.nodes.filter((n) => neighbors.has(n.id))
+          return graphData.nodes.filter((n) => neighbors.has(n.id) && inScope(n.id))
         })()
       : graphData.nodes.filter(passesFilter)
 
@@ -582,6 +611,8 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     filterSince,
     orphansOnly,
     degrees,
+    scopeIds,
+    nodeCacheStore,
   ])
 
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
@@ -864,18 +895,20 @@ export function GraphView({ onUpdate, onRemove }: Props) {
 
   return (
     <div ref={containerRef} onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {graphData.nodes.length === 0 && (
+      {scopedNodes.length === 0 && (
         <div className="note-empty" style={{ position: 'absolute', width: '100%', zIndex: 10 }}>
-          No notes to graph. Create some notes and link them using [[Title]]!
+          {scopeIds
+            ? 'No notes in this workspace yet. Add or create some, then link them with [[Title]]!'
+            : 'No notes to graph. Create some notes and link them using [[Title]]!'}
         </div>
       )}
 
       {/* Compact jump-to-note search (top-left) */}
       <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 20 }}>
         <JumpToNote
-          nodes={graphData.nodes}
+          nodes={scopedNodes}
           onJump={(id) => {
-            if (graphData.nodes.some((n) => n.id === id)) setFocusNodeId(id)
+            if (scopedNodes.some((n) => n.id === id)) setFocusNodeId(id)
           }}
         />
       </div>
@@ -1016,19 +1049,20 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           if (!fg || !el) return
           try {
             const c = fg.screen2GraphCoords(el.clientWidth / 2, el.clientHeight / 2)
-            savedViewport = { k: fg.zoom(), x: c.x, y: c.y }
+            savedViewports.set(instanceKey, { k: fg.zoom(), x: c.x, y: c.y })
           } catch {
             /* graph not ready yet */
           }
         }}
         onEngineStop={() => {
           // Once the layout settles on (re)mount, jump back to the saved viewport.
-          if (viewportRestored.current || !savedViewport) return
+          const vp = savedViewports.get(instanceKey)
+          if (viewportRestored.current || !vp) return
           viewportRestored.current = true
           const fg = fgRef.current
           if (!fg) return
-          fg.zoom(savedViewport.k, 0)
-          fg.centerAt(savedViewport.x, savedViewport.y, 0)
+          fg.zoom(vp.k, 0)
+          fg.centerAt(vp.x, vp.y, 0)
         }}
         linkColor={() => 'rgba(124, 106, 247, 0.4)'}
         linkWidth={linkThickness}

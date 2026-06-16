@@ -7,12 +7,15 @@ use commands::ai::*;
 use commands::ai_workspace::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::canvas::*;
 use commands::chat::*;
 use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
 use commands::media::*;
 use commands::notes::*;
+use commands::web::*;
+use commands::workspaces::*;
 
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::Mutex;
@@ -209,6 +212,29 @@ fn main() {
             restore_backup,
             import_markdown_dir,
             open_logs_dir,
+            list_workspaces,
+            save_workspace,
+            delete_workspace,
+            list_workspace_counts,
+            list_workspace_notes,
+            add_workspace_note,
+            add_workspace_notes,
+            remove_workspace_note,
+            set_workspace_note_pinned,
+            list_note_workspace_ids,
+            list_collections,
+            save_collection,
+            delete_collection,
+            list_collection_note_ids,
+            add_collection_note,
+            remove_collection_note,
+            get_or_create_workspace_canvas,
+            list_canvases,
+            get_canvas,
+            save_canvas,
+            rename_canvas,
+            delete_canvas,
+            fetch_link_preview,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,

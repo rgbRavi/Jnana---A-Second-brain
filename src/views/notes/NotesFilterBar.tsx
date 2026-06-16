@@ -1,4 +1,4 @@
-import { useNotesViewPrefs, setNotesFilter, resetNotesFilter, activeFilterCount } from './useNotesViewPrefs'
+import { useNotesViewPrefs, setNotesFilter, resetNotesFilter, activeFilterCount, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import type { DatePreset, SizeBucket, StatusFilter } from './filterNotes'
 import Styles from './NotesToolbar.module.css'
 
@@ -24,6 +24,7 @@ const STATUSES: [StatusFilter, string][] = [
   ['videos', 'Has videos'],
   ['audio', 'Has audio'],
   ['docs', 'Has documents'],
+  ['webpages', 'Has web pages'],
   ['linked', 'Linked'],
   ['orphan', 'Orphan'],
 ]
@@ -38,22 +39,24 @@ const fromInput = (s: string) => (s ? new Date(`${s}T00:00:00`).getTime() : unde
 interface Props {
   /** Union of all tags across notes (user + auto), for the include/exclude picker. */
   allTags: string[]
+  /** Which prefs instance to drive (All-Notes vs a workspace). */
+  prefsKey?: string
 }
 
 /** Tag chips cycle: neutral → include → exclude → neutral. */
-export function NotesFilterBar({ allTags }: Props) {
-  const { filters } = useNotesViewPrefs()
+export function NotesFilterBar({ allTags, prefsKey = NOTES_PREFS_KEY }: Props) {
+  const { filters } = useNotesViewPrefs(prefsKey)
 
   const cycleTag = (tag: string) => {
     if (filters.includeTags.includes(tag)) {
-      setNotesFilter({
+      setNotesFilter(prefsKey, {
         includeTags: filters.includeTags.filter((t) => t !== tag),
         excludeTags: [...filters.excludeTags, tag],
       })
     } else if (filters.excludeTags.includes(tag)) {
-      setNotesFilter({ excludeTags: filters.excludeTags.filter((t) => t !== tag) })
+      setNotesFilter(prefsKey, { excludeTags: filters.excludeTags.filter((t) => t !== tag) })
     } else {
-      setNotesFilter({ includeTags: [...filters.includeTags, tag] })
+      setNotesFilter(prefsKey, { includeTags: [...filters.includeTags, tag] })
     }
   }
 
@@ -66,7 +69,7 @@ export function NotesFilterBar({ allTags }: Props) {
             <button
               key={v}
               className={`${Styles.chip} ${filters.datePreset === v ? Styles.chipOn : ''}`}
-              onClick={() => setNotesFilter({ datePreset: v })}
+              onClick={() => setNotesFilter(prefsKey, { datePreset: v })}
             >
               {label}
             </button>
@@ -77,7 +80,7 @@ export function NotesFilterBar({ allTags }: Props) {
                 type="date"
                 className={Styles.dateInput}
                 value={toInput(filters.dateFrom)}
-                onChange={(e) => setNotesFilter({ dateFrom: fromInput(e.target.value) })}
+                onChange={(e) => setNotesFilter(prefsKey, { dateFrom: fromInput(e.target.value) })}
                 aria-label="From date"
               />
               <span className={Styles.dateSep}>–</span>
@@ -85,7 +88,7 @@ export function NotesFilterBar({ allTags }: Props) {
                 type="date"
                 className={Styles.dateInput}
                 value={toInput(filters.dateTo)}
-                onChange={(e) => setNotesFilter({ dateTo: fromInput(e.target.value) })}
+                onChange={(e) => setNotesFilter(prefsKey, { dateTo: fromInput(e.target.value) })}
                 aria-label="To date"
               />
             </span>
@@ -100,7 +103,7 @@ export function NotesFilterBar({ allTags }: Props) {
             <button
               key={v}
               className={`${Styles.chip} ${filters.sizes.includes(v) ? Styles.chipOn : ''}`}
-              onClick={() => setNotesFilter({ sizes: toggle(filters.sizes, v) })}
+              onClick={() => setNotesFilter(prefsKey, { sizes: toggle(filters.sizes, v) })}
             >
               {label}
             </button>
@@ -115,7 +118,7 @@ export function NotesFilterBar({ allTags }: Props) {
             <button
               key={v}
               className={`${Styles.chip} ${filters.status.includes(v) ? Styles.chipOn : ''}`}
-              onClick={() => setNotesFilter({ status: toggle(filters.status, v) })}
+              onClick={() => setNotesFilter(prefsKey, { status: toggle(filters.status, v) })}
             >
               {label}
             </button>
@@ -147,7 +150,7 @@ export function NotesFilterBar({ allTags }: Props) {
       )}
 
       {activeFilterCount(filters) > 0 && (
-        <button className={Styles.clearBtn} onClick={resetNotesFilter}>
+        <button className={Styles.clearBtn} onClick={() => resetNotesFilter(prefsKey)}>
           Clear all
         </button>
       )}

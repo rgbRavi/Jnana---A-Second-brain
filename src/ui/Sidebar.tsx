@@ -2,6 +2,8 @@ import { useState, type ReactNode } from "react"
 import { NavLink, useNavigate } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"
 import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPrefs"
+import { useWorkspaces } from "../hooks/useWorkspaces"
+import { useActiveWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import SidebarStyles from "./Sidebar.module.css"
 
@@ -51,15 +53,8 @@ const ICONS = {
       <path d="M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2 4.8 4.8" />
     </>,
   ),
+  workspaces: nav(<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h2.6l1.4 1.8H15.5A1.5 1.5 0 0 1 17 8.3V14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14Z" />),
 }
-
-const NAV_ITEMS = [
-  { to: "/", label: "Home", icon: ICONS.home, end: true },
-  { to: "/notes", label: "Notes", icon: ICONS.notes },
-  { to: "/search", label: "Search", icon: ICONS.search },
-  { to: "/graph", label: "Graph", icon: ICONS.graph },
-  { to: "/ai", label: "AI", icon: ICONS.ai },
-]
 
 const itemClass =
   (isActive: boolean) => `${SidebarStyles.sidebarNavItem}${isActive ? " " + SidebarStyles.active : ""}`
@@ -67,9 +62,12 @@ const itemClass =
 export function Sidebar() {
   const { jobs } = useTranscription()
   const { collapsed } = useSidebarPrefs()
+  const { workspaces } = useWorkspaces()
+  const { pinnedWorkspaceIds } = useActiveWorkspace()
   const navigate = useNavigate()
   const [trayOpen, setTrayOpen] = useState(false)
   const runningCount = jobs.filter((j) => j.status === "running").length
+  const pinnedWorkspaces = workspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
 
   // One-click capture: land on Notes and open the (app-level) composer expanded.
   const handleQuickNote = () => {
@@ -121,18 +119,40 @@ export function Sidebar() {
           <span className={SidebarStyles.label}>Quick Note</span>
         </button>
 
-        {NAV_ITEMS.filter((item) => item.to !== "/").map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => itemClass(isActive)}
-            title={collapsed ? item.label : undefined}
-          >
-            <span className={SidebarStyles.navIcon}>{item.icon}</span>
-            <span className={SidebarStyles.label}>{item.label}</span>
-          </NavLink>
-        ))}
+        <NavLink to="/notes" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Notes" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.notes}</span>
+          <span className={SidebarStyles.label}>Notes</span>
+        </NavLink>
+
+        <NavLink to="/workspaces" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Workspaces" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.workspaces}</span>
+          <span className={SidebarStyles.label}>Workspaces</span>
+        </NavLink>
+
+        {!collapsed &&
+          pinnedWorkspaces.map((w) => (
+            <NavLink
+              key={w.id}
+              to={`/workspaces/${w.id}`}
+              className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
+            >
+              <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
+              <span className={SidebarStyles.label}>{w.name}</span>
+            </NavLink>
+          ))}
+
+        <NavLink to="/search" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Search" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.search}</span>
+          <span className={SidebarStyles.label}>Search</span>
+        </NavLink>
+        <NavLink to="/graph" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Graph" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.graph}</span>
+          <span className={SidebarStyles.label}>Graph</span>
+        </NavLink>
+        <NavLink to="/ai" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "AI" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.ai}</span>
+          <span className={SidebarStyles.label}>AI</span>
+        </NavLink>
       </nav>
 
       <div className={SidebarStyles.sidebarBottom}>

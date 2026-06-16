@@ -1,7 +1,8 @@
 // Persistent Notes-view preferences: display mode, sort, and active filters.
+// Keyed by an instance id so independent surfaces (the All-Notes view vs. a
+// workspace's notes tab) keep separate prefs instead of bleeding into each other.
 // Module-level store backed by localStorage + useSyncExternalStore — same pattern
-// as useComposerOptions / useSidebarPrefs (the live search box stays in
-// useViewState instead, so it doesn't persist stale across restarts).
+// as useComposerOptions / useSidebarPrefs.
 
 import { useSyncExternalStore } from 'react'
 import {
@@ -19,7 +20,10 @@ export interface NotesViewPrefs {
   filters: NotesFilter
 }
 
-const STORAGE_KEY = 'jnana.notes.viewprefs'
+/** The default instance key — the global All-Notes view. */
+export const NOTES_PREFS_KEY = 'notes'
+
+const STORAGE_PREFIX = 'jnana.notes.viewprefs'
 const DEFAULTS: NotesViewPrefs = {
   displayMode: 'card',
   sortBy: 'updated',
@@ -27,9 +31,14 @@ const DEFAULTS: NotesViewPrefs = {
   filters: { ...EMPTY_FILTER },
 }
 
-function load(): NotesViewPrefs {
+const stores = new Map<string, NotesViewPrefs>()
+const listeners = new Map<string, Set<() => void>>()
+
+const storageKey = (key: string) => `${STORAGE_PREFIX}:${key}`
+
+function load(key: string): NotesViewPrefs {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(storageKey(key))
     if (!raw) return DEFAULTS
     const parsed = JSON.parse(raw) as Partial<NotesViewPrefs>
     return {
@@ -42,42 +51,55 @@ function load(): NotesViewPrefs {
   }
 }
 
-let prefs: NotesViewPrefs = load()
-const listeners = new Set<() => void>()
+function get(key: string): NotesViewPrefs {
+  let cur = stores.get(key)
+  if (!cur) {
+    cur = load(key)
+    stores.set(key, cur)
+  }
+  return cur
+}
 
-function commit(next: NotesViewPrefs) {
-  prefs = next
+function commit(key: string, next: NotesViewPrefs) {
+  stores.set(key, next)
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(storageKey(key), JSON.stringify(next))
   } catch {
-    /* storage unavailable — keep the in-memory value */
+    /* storage unavailable */
   }
-  listeners.forEach((l) => l())
+  listeners.get(key)?.forEach((l) => l())
 }
 
-export function setNotesViewPrefs(patch: Partial<NotesViewPrefs>): void {
-  commit({ ...prefs, ...patch })
+export function setNotesViewPrefs(key: string, patch: Partial<NotesViewPrefs>): void {
+  commit(key, { ...get(key), ...patch })
 }
 
-export function setNotesFilter(patch: Partial<NotesFilter>): void {
-  commit({ ...prefs, filters: { ...prefs.filters, ...patch } })
+export function setNotesFilter(key: string, patch: Partial<NotesFilter>): void {
+  commit(key, { ...get(key), filters: { ...get(key).filters, ...patch } })
 }
 
-export function resetNotesFilter(): void {
-  commit({ ...prefs, filters: { ...EMPTY_FILTER } })
+export function resetNotesFilter(key: string): void {
+  commit(key, { ...get(key), filters: { ...EMPTY_FILTER } })
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
+function subscribe(key: string, listener: () => void): () => void {
+  let set = listeners.get(key)
+  if (!set) {
+    set = new Set()
+    listeners.set(key, set)
+  }
+  set.add(listener)
   return () => {
-    listeners.delete(listener)
+    set!.delete(listener)
   }
 }
 
-const getSnapshot = () => prefs
-
-export function useNotesViewPrefs(): NotesViewPrefs {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+export function useNotesViewPrefs(key: string = NOTES_PREFS_KEY): NotesViewPrefs {
+  return useSyncExternalStore(
+    (l) => subscribe(key, l),
+    () => get(key),
+    () => get(key),
+  )
 }
 
 /** How many filter dimensions are active — for a toolbar badge. */

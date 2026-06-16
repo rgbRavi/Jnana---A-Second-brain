@@ -21,6 +21,13 @@ interface Props {
   variant?: NoteVariant
   isFavourite?: boolean
   onToggleFavourite?: () => void
+  /** Per-workspace pin (separate from the global favourite). */
+  pinned?: boolean
+  onTogglePin?: () => void
+  /** Tooltip/label for the remove (trash) button — e.g. "Remove from workspace". */
+  removeTitle?: string
+  /** Show a "file into workspace" action (All-Notes view). */
+  onAddToWorkspace?: () => void
 }
 
 /** Auto-tag → chip glyph + label, shown on non-default variants. */
@@ -30,6 +37,7 @@ const MEDIA_CHIPS: [string, string, string][] = [
   ['has:audio', '🎧', 'Audio'],
   ['has:pdf', '📄', 'PDF'],
   ['has:docxlink', '📎', 'Document'],
+  ['has:webpage', '🌐', 'Web page'],
 ]
 
 export function NoteItem({
@@ -40,6 +48,10 @@ export function NoteItem({
   variant = 'card',
   isFavourite,
   onToggleFavourite,
+  pinned,
+  onTogglePin,
+  removeTitle = 'Delete note',
+  onAddToWorkspace,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
@@ -174,6 +186,17 @@ export function NoteItem({
       <div className={Styles.noteCardHeader}>
         <span className={Styles.noteCardTitle}>{note.title || 'Untitled'}</span>
         <div className={Styles.noteCardActions} onClick={(e) => e.stopPropagation()}>
+          {onTogglePin && (
+            <button
+              className={`${Styles.noteCardAction} ${pinned ? Styles.noteCardFavOn : ''}`}
+              onClick={onTogglePin}
+              aria-label={pinned ? 'Unpin from workspace' : 'Pin in workspace'}
+              aria-pressed={pinned}
+              title={pinned ? 'Unpin' : 'Pin in workspace'}
+            >
+              {pinned ? '📌' : '📍'}
+            </button>
+          )}
           {onToggleFavourite && (
             <button
               className={`${Styles.noteCardAction} ${isFavourite ? Styles.noteCardFavOn : ''}`}
@@ -183,6 +206,16 @@ export function NoteItem({
               title={isFavourite ? 'Unfavourite' : 'Favourite'}
             >
               {isFavourite ? '★' : '☆'}
+            </button>
+          )}
+          {onAddToWorkspace && (
+            <button
+              className={Styles.noteCardAction}
+              onClick={onAddToWorkspace}
+              aria-label="Add to workspace"
+              title="Add to workspace"
+            >
+              📁
             </button>
           )}
           <button
@@ -196,8 +229,8 @@ export function NoteItem({
           <button
             className={Styles.noteCardDelete}
             onClick={() => onRemove(note.id)}
-            aria-label="Delete note"
-            title="Delete note"
+            aria-label={removeTitle}
+            title={removeTitle}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M1 3.5h12M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M5.5 6.5v4M8.5 6.5v4M2.5 3.5l.75 7.25a.5.5 0 0 0 .5.45h6.5a.5.5 0 0 0 .5-.45L11.5 3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>

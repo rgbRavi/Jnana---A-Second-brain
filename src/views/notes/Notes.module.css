@@ -51,3 +51,21 @@
   padding: 2rem 0;
   font-family: var(--font-mono);
 }
+
+/* Secondary toolbar action (e.g. workspace "Add notes"). */
+.addBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.addBtn:hover {
+  border-color: var(--accent);
+}

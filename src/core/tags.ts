@@ -30,6 +30,7 @@ export async function inferTags(note: Note): Promise<string[]> {
     if (mediaTypes.has('video') || mediaTypes.has('youtube')) tags.push('has:videoOrYt');
 
     // ── Content-based tags (regex on note text) ───────────────────
+    if (/!\[webpage\]\(/.test(content))     tags.push('has:webpage');
     if (/https?:\/\//.test(content))        tags.push('has:link');
     if (/\[\[.*?\]\]/.test(content))        tags.push('has:wikilink');
     if (/\(external:\/\//.test(content)) tags.push('has:docxlink');

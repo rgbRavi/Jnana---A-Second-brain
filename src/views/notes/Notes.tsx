@@ -8,19 +8,21 @@ import { getAllLinks } from '../../core/notes'
 import { isAutoTag } from '../../core/tags'
 import { useViewState } from '../../hooks/useViewState'
 import { useFavourites } from '../../hooks/useFavourites'
-import { useNotesViewPrefs } from './useNotesViewPrefs'
+import { useNotesViewPrefs, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import { applyFilters, sortNotes, buildLinkCounts } from './filterNotes'
 import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
+import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
 
 import NoteStyles from './Notes.module.css'
 
 function Notes() {
   const { notes, loading, error, update, remove, updateTags } = useNotesContext()
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
+  const [workspaceMenuNoteId, setWorkspaceMenuNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
-  const prefs = useNotesViewPrefs()
+  const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
   const [search, setSearch] = useViewState('notes.search', '')
   const [filtersOpen, setFiltersOpen] = useViewState('notes.filtersOpen', false)
 
@@ -119,8 +121,9 @@ function Notes() {
         onSearch={setSearch}
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen((v) => !v)}
+        prefsKey={NOTES_PREFS_KEY}
       />
-      {filtersOpen && <NotesFilterBar allTags={allTags} />}
+      {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
 
       <div className={NoteStyles.notesScroll}>
         {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
@@ -142,6 +145,7 @@ function Notes() {
               onToggleFavourite={() => toggleFavourite(note.id)}
               onUpdate={update}
               onRemove={remove}
+              onAddToWorkspace={() => setWorkspaceMenuNoteId(note.id)}
               onExpand={() => {
                 eventBus.emit('note:opened', note)
                 setExpandedNoteId(note.id)
@@ -150,6 +154,10 @@ function Notes() {
           ))}
         </div>
       </div>
+
+      {workspaceMenuNoteId && (
+        <AddToWorkspaceMenu noteId={workspaceMenuNoteId} onClose={() => setWorkspaceMenuNoteId(null)} />
+      )}
 
       {expandedNote && (
         <NoteModal

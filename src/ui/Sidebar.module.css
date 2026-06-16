@@ -182,6 +182,18 @@
   background: var(--accent);
 }
 
+/* Pinned-workspace sub-items, nested under the Workspaces entry. */
+.subItem {
+  margin-left: 1.2rem;
+  font-size: 0.84rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.subItem .navIcon {
+  font-size: 0.9rem;
+}
+
 .navIcon {
   display: flex;
   align-items: center;

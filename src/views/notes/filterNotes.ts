@@ -18,6 +18,7 @@ export type StatusFilter =
   | 'videos'
   | 'audio'
   | 'docs'
+  | 'webpages'
   | 'linked'
   | 'orphan'
 
@@ -100,6 +101,7 @@ const STATUS_TAG: Partial<Record<StatusFilter, string>> = {
   videos: 'has:videoOrYt',
   audio: 'has:audio',
   docs: 'has:docxlink',
+  webpages: 'has:webpage',
 }
 
 export function applyFilters(

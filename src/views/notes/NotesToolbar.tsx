@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { openComposer } from '../../ui/editor/NoteCreator'
-import { useNotesViewPrefs, setNotesViewPrefs, activeFilterCount } from './useNotesViewPrefs'
+import { useNotesViewPrefs, setNotesViewPrefs, activeFilterCount, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import type { DisplayMode, SortBy } from './filterNotes'
 import Styles from './NotesToolbar.module.css'
 
@@ -25,10 +26,29 @@ interface Props {
   onSearch: (v: string) => void
   filtersOpen: boolean
   onToggleFilters: () => void
+  /** Which prefs instance to drive (All-Notes vs a workspace). */
+  prefsKey?: string
+  /** Optional extra controls rendered before the "New note" button. */
+  extraActions?: ReactNode
+  /** Label for the create button (default "New note"). */
+  newLabel?: string
+  /** Override the create action (default opens the global composer). */
+  onNew?: () => void
 }
 
-export function NotesToolbar({ count, total, search, onSearch, filtersOpen, onToggleFilters }: Props) {
-  const prefs = useNotesViewPrefs()
+export function NotesToolbar({
+  count,
+  total,
+  search,
+  onSearch,
+  filtersOpen,
+  onToggleFilters,
+  prefsKey = NOTES_PREFS_KEY,
+  extraActions,
+  newLabel = '✎ New note',
+  onNew,
+}: Props) {
+  const prefs = useNotesViewPrefs(prefsKey)
   const activeCount = activeFilterCount(prefs.filters)
 
   return (
@@ -57,7 +77,7 @@ export function NotesToolbar({ count, total, search, onSearch, filtersOpen, onTo
         <select
           className={Styles.select}
           value={prefs.sortBy}
-          onChange={(e) => setNotesViewPrefs({ sortBy: e.target.value as SortBy })}
+          onChange={(e) => setNotesViewPrefs(prefsKey, { sortBy: e.target.value as SortBy })}
           aria-label="Sort by"
         >
           {SORT_OPTIONS.map(([v, label]) => (
@@ -68,7 +88,7 @@ export function NotesToolbar({ count, total, search, onSearch, filtersOpen, onTo
         </select>
         <button
           className={Styles.toolBtn}
-          onClick={() => setNotesViewPrefs({ sortOrder: prefs.sortOrder === 'asc' ? 'desc' : 'asc' })}
+          onClick={() => setNotesViewPrefs(prefsKey, { sortOrder: prefs.sortOrder === 'asc' ? 'desc' : 'asc' })}
           title={prefs.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
           aria-label="Toggle sort order"
         >
@@ -81,7 +101,7 @@ export function NotesToolbar({ count, total, search, onSearch, filtersOpen, onTo
           <button
             key={m}
             className={`${Styles.modeBtn} ${prefs.displayMode === m ? Styles.modeBtnActive : ''}`}
-            onClick={() => setNotesViewPrefs({ displayMode: m })}
+            onClick={() => setNotesViewPrefs(prefsKey, { displayMode: m })}
             title={label}
             aria-label={label}
             aria-pressed={prefs.displayMode === m}
@@ -95,8 +115,10 @@ export function NotesToolbar({ count, total, search, onSearch, filtersOpen, onTo
         {count === total ? `${total}` : `${count} / ${total}`} note{total !== 1 ? 's' : ''}
       </span>
 
-      <button className={Styles.newBtn} onClick={openComposer}>
-        ✎ New note
+      {extraActions}
+
+      <button className={Styles.newBtn} onClick={onNew ?? openComposer}>
+        {newLabel}
       </button>
     </div>
   )
