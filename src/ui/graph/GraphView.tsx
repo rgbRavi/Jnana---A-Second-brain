@@ -4,6 +4,7 @@ import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useGraph } from '../../hooks/useGraph'
 import { useViewState } from '../../hooks/useViewState'
+import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
 import { toast } from '../../lib/toast'
@@ -45,10 +46,18 @@ const CONNECT_COLOR = '#3fb950'
 // A note linked to this many or more notes (in + out) counts as a hub.
 const HUB_DEGREE = 4
 
-// Force defaults. These seed the simulation and are tunable from the Forces panel.
-const DEFAULT_FORCES = { center: 0.4, repel: 120, link: 0.5, distance: 60 }
+// Force defaults live in useGraphForces (persisted to localStorage).
 // Display defaults.
 const DEFAULT_DISPLAY = { textFade: 0.4, nodeSize: 1, linkThickness: 1.5 }
+
+// Session-scoped (survive view switches, reset on reload). react-force-graph
+// stores each node's settled position by mutating its object; keeping that cache
+// at module scope — instead of a per-mount useRef — means the layout is preserved
+// when you leave the graph and come back, so it no longer recompacts from scratch.
+const nodeCacheStore = new Map<string, any>()
+// Last viewport (zoom + graph-space center) so we can return the user to where
+// they were looking. In-session only (per the request), reset on reload.
+let savedViewport: { k: number; x: number; y: number } | null = null
 
 // Obsidian-style quick presets (see the in-panel descriptions).
 const FORCE_PRESETS = {
@@ -406,19 +415,21 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   const [nodeSize, setNodeSize] = useViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
   const [linkThickness, setLinkThickness] = useViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
 
-  // Forces.
-  const [centerForce, setCenterForce] = useViewState('graph.centerForce', DEFAULT_FORCES.center)
-  const [repelForce, setRepelForce] = useViewState('graph.repelForce', DEFAULT_FORCES.repel)
-  const [linkForce, setLinkForce] = useViewState('graph.linkForce', DEFAULT_FORCES.link)
-  const [linkDistance, setLinkDistance] = useViewState('graph.linkDistance', DEFAULT_FORCES.distance)
+  // Forces — persisted to localStorage so a user's tuning survives a restart.
+  const forces = useGraphForces()
+  const centerForce = forces.center
+  const repelForce = forces.repel
+  const linkForce = forces.link
+  const linkDistance = forces.distance
+  const setCenterForce = (v: number) => setGraphForces({ center: v })
+  const setRepelForce = (v: number) => setGraphForces({ repel: v })
+  const setLinkForce = (v: number) => setGraphForces({ link: v })
+  const setLinkDistance = (v: number) => setGraphForces({ distance: v })
 
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
-  // Cache node objects by id. react-force-graph stores each node's simulation
-  // position (x/y/vx/vy and any pinned fx/fy) by mutating its object, so we must
-  // hand it the *same* object across rebuilds — otherwise adding an edge (e.g. on
-  // connect) drops every position and the whole graph reflows, losing your place.
-  const nodeCache = useRef<Map<string, any>>(new Map())
+  // Whether the viewport has been restored for this mount (restore only once).
+  const viewportRestored = useRef(false)
   // Mirrors used inside the per-frame canvas callback (avoids stale closures).
   const connectingFromRef = useRef<string | null>(null)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -510,8 +521,8 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   const forceData = useMemo(() => {
     // Drop cached nodes that no longer exist (deleted notes).
     const allIds = new Set(graphData.nodes.map((n) => n.id))
-    for (const id of nodeCache.current.keys()) {
-      if (!allIds.has(id)) nodeCache.current.delete(id)
+    for (const id of nodeCacheStore.keys()) {
+      if (!allIds.has(id)) nodeCacheStore.delete(id)
     }
 
     const q = filterText.trim().toLowerCase()
@@ -542,7 +553,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     const visibleIds = new Set(visibleNodes.map((n) => n.id))
 
     const nodes = visibleNodes.map((n) => {
-      const cached = nodeCache.current.get(n.id)
+      const cached = nodeCacheStore.get(n.id)
       if (cached) {
         // Reuse the object (keeps x/y/fx/fy from the simulation); refresh display fields.
         cached.title = n.title
@@ -552,7 +563,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
         return cached
       }
       const fresh = { ...n, val: 1 }
-      nodeCache.current.set(n.id, fresh)
+      nodeCacheStore.set(n.id, fresh)
       return fresh
     })
 
@@ -716,7 +727,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     setPinOnDrag(next)
     if (!next) {
       // Releasing: clear every pinned position and let the layout relax again.
-      nodeCache.current.forEach((n) => {
+      nodeCacheStore.forEach((n) => {
         n.fx = undefined
         n.fy = undefined
       })
@@ -798,18 +809,11 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   }, [])
 
   const resetForces = useCallback(() => {
-    setCenterForce(DEFAULT_FORCES.center)
-    setRepelForce(DEFAULT_FORCES.repel)
-    setLinkForce(DEFAULT_FORCES.link)
-    setLinkDistance(DEFAULT_FORCES.distance)
+    setGraphForces(DEFAULT_GRAPH_FORCES)
   }, [])
 
   const applyPreset = useCallback((name: keyof typeof FORCE_PRESETS) => {
-    const p = FORCE_PRESETS[name]
-    setCenterForce(p.center)
-    setRepelForce(p.repel)
-    setLinkForce(p.link)
-    setLinkDistance(p.distance)
+    setGraphForces(FORCE_PRESETS[name])
   }, [])
 
   const animate = useCallback(() => {
@@ -942,7 +946,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           // Rubber-band line from the connect source to the cursor.
           const from = connectingFromRef.current
           if (!from) return
-          const src = nodeCache.current.get(from)
+          const src = nodeCacheStore.get(from)
           const p = pointerRef.current
           if (!src || src.x == null || !p) return
           ctx.save()
@@ -1003,6 +1007,29 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           }
         }}
         cooldownTicks={100}
+        onZoomEnd={() => {
+          // Remember where the user is looking (zoom + graph-space center) so we
+          // can restore it after a view switch. Stored in graph coords so it's
+          // robust to the layout re-settling.
+          const fg = fgRef.current
+          const el = containerRef.current
+          if (!fg || !el) return
+          try {
+            const c = fg.screen2GraphCoords(el.clientWidth / 2, el.clientHeight / 2)
+            savedViewport = { k: fg.zoom(), x: c.x, y: c.y }
+          } catch {
+            /* graph not ready yet */
+          }
+        }}
+        onEngineStop={() => {
+          // Once the layout settles on (re)mount, jump back to the saved viewport.
+          if (viewportRestored.current || !savedViewport) return
+          viewportRestored.current = true
+          const fg = fgRef.current
+          if (!fg) return
+          fg.zoom(savedViewport.k, 0)
+          fg.centerAt(savedViewport.x, savedViewport.y, 0)
+        }}
         linkColor={() => 'rgba(124, 106, 247, 0.4)'}
         linkWidth={linkThickness}
         linkDirectionalArrowLength={directed ? 4 : 0}
