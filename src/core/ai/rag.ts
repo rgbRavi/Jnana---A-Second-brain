@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../types'
 import { chunkNote } from './chunk'
 import { getEmbeddingProvider } from './provider'
+import { log } from '../../lib/logger'
 
 /**
  * Embed a note's chunks and persist them to the local vector store.
@@ -108,7 +109,7 @@ export async function indexNotes(
     try {
       await indexNote(note, config)
     } catch (err) {
-      console.error(`[rag] failed to index note ${note.id}:`, err)
+      log.error(`[rag] failed to index note ${note.id}`, err)
     }
     onProgress?.(++done, notes.length)
   }

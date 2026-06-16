@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Note } from '../../types'
 import { useViewState } from '../../hooks/useViewState'
@@ -7,6 +7,7 @@ import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
 import { useComposerOptions, getComposerOptions } from '../../hooks/useComposerOptions'
 import { useNotesContext } from '../../context/NotesContext'
+import { eventBus } from '../../lib/eventBus'
 import { TagEditor } from '../TagEditor'
 import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { AddContentMenu } from './AddContentMenu'
@@ -21,6 +22,18 @@ interface Props {
 type ComposerState = 'collapsed' | 'expanded' | 'fullscreen'
 
 const LAST_STATE_KEY = 'jnana.composer.lastState'
+
+// Latched open intent. The composer is route-gated (mounted only on Home/Notes),
+// so a `composer:open` emitted right after navigating to /notes can fire before
+// this component mounts. We set the latch alongside the event; a freshly-mounted
+// composer reads it so the intent isn't lost. Use openComposer() from anywhere.
+let pendingOpen = false
+
+/** Expand the floating composer and focus it (one-click capture entry point). */
+export function openComposer(): void {
+  pendingOpen = true
+  eventBus.emit('composer:open', null)
+}
 
 /** Seed the open state from localStorage (only when "remember last state" is on). */
 function initialComposerState(): ComposerState {
@@ -52,6 +65,10 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
 
   const pendingNoteId = useRef(crypto.randomUUID())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+  // Latest title, read inside the (stable) composer:open handler without re-subscribing.
+  const titleValRef = useRef(title)
+  titleValRef.current = title
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
   const { notes } = useNotesContext()
 
@@ -79,6 +96,31 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     const t = window.setTimeout(() => textareaRef.current?.focus(), 60)
     return () => window.clearTimeout(t)
   }, [state])
+
+  // Quick-note capture: expand and drop the cursor straight in. Reopens the
+  // in-progress draft rather than resetting it. Focuses the title for a fresh
+  // note, or the body when a draft already has a title.
+  const runOpen = useCallback(() => {
+    setState('expanded')
+    window.setTimeout(() => {
+      const el = titleValRef.current.trim() ? textareaRef.current : titleRef.current
+      el?.focus()
+    }, 70)
+  }, [setState])
+
+  useEffect(() => {
+    const handler = () => {
+      pendingOpen = false
+      runOpen()
+    }
+    eventBus.on('composer:open', handler)
+    // Catch an open intent latched before this (route-gated) composer mounted.
+    if (pendingOpen) {
+      pendingOpen = false
+      runOpen()
+    }
+    return () => eventBus.off('composer:open', handler)
+  }, [runOpen])
 
   // Grow the editor with its content while expanded — the panel is bottom-anchored
   // so it expands upward. CSS min/max-height clamps it (then the editor scrolls).
@@ -189,6 +231,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
         </div>
 
         <input
+          ref={titleRef}
           className={Styles.title}
           type="text"
           placeholder="Title (optional)"

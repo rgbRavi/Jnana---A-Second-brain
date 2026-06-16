@@ -43,6 +43,15 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v7(conn)?;
     }
 
+    let current: i32 = conn
+        .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
+        .unwrap_or(version);
+    if current != version {
+        log::info!("run_migrations: schema migrated v{} → v{}", version, current);
+    } else {
+        log::debug!("run_migrations: schema up to date (v{})", current);
+    }
+
     Ok(())
 }
 

@@ -4,6 +4,7 @@ import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
 import { eventBus } from '../lib/eventBus'
+import { log } from '../lib/logger'
 
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
@@ -19,7 +20,7 @@ export function useNotes() {
       })
       .catch((err) => {
         // Don't leave the list hung on "Loading…" with no signal.
-        console.error('Failed to load notes:', err)
+        log.error('Failed to load notes', err)
         setError('Could not load your notes.')
         setLoading(false)
       })
@@ -46,7 +47,7 @@ export function useNotes() {
   useEffect(() => {
     const handler = (saved: Note) => {
       syncLinksForNote(saved.id, saved.content).catch((err) => {
-        console.error('syncLinksForNote failed:', err)
+        log.error('syncLinksForNote failed', err)
       })
     }
     eventBus.on('note:saved', handler)

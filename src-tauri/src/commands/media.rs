@@ -49,8 +49,10 @@ pub fn import_media(
         .map_err(|e| format!("Failed to create assets dir: {}", e))?;
 
     let dest = dir.join(&filename);
-    std::fs::copy(source, &dest)
-        .map_err(|e| format!("Failed to copy media file: {}", e))?;
+    std::fs::copy(source, &dest).map_err(|e| {
+        log::error!("import_media: failed to copy {} → {}: {}", file_path, dest.display(), e);
+        format!("Failed to copy media file: {}", e)
+    })?;
 
     Ok(filename)
 }
@@ -110,6 +112,7 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     }
 
     if !success || !out_file.exists() {
+        log::error!("convert_to_pdf: no converter (LibreOffice/Pandoc) succeeded for {}", file_path);
         return Err("Failed to convert document to PDF. Ensure LibreOffice or Pandoc+PDFEngine is installed and in your system PATH.".to_string());
     }
 
@@ -125,7 +128,10 @@ pub async fn extract_text(file_path: String) -> Result<String, String> {
         Ok(output) if output.status.success() => {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())
         }
-        _ => Err("Failed to extract text using Pandoc. Make sure Pandoc is installed, or try importing as PDF.".to_string()),
+        _ => {
+            log::error!("extract_text: pandoc failed for {}", file_path);
+            Err("Failed to extract text using Pandoc. Make sure Pandoc is installed, or try importing as PDF.".to_string())
+        }
     }
 }
 

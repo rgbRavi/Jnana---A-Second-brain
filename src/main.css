@@ -11,7 +11,8 @@
   --surface-2:    #1c1c21;
   --surface-3:    #26262e;
   --border:       #2a2a32;
-  --sidebar-width: 232px;
+  --sidebar-width: 210px;
+  --sidebar-collapsed-width: 60px;
   --border-hover: #3d3d4a;
   --accent:       #7c6af7;
   --text-1:       #f0eff5;

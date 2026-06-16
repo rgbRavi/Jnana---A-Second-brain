@@ -9,6 +9,9 @@
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
   flex-shrink: 0;
+  /* Isolate each card's layout/paint so the sidebar's width animation doesn't
+     re-flow the whole list every frame (keeps the collapse smooth). */
+  contain: layout paint;
 }
 
 .noteCard:hover { border-color: var(--border-hover); background: var(--surface-2); }
@@ -89,7 +92,69 @@
   font-size: 0.7rem;
   font-family: var(--font-mono);
   color: var(--text-3);
-  margin-top: 0.15rem;
+  margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.noteCardFavOn {
+  color: var(--accent) !important;
+}
+
+/* ── Meta row (media chips · tags · updated) ─────── */
+.noteCardMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.noteChip {
+  font-size: 0.78rem;
+  line-height: 1;
+  filter: grayscale(0.2);
+}
+
+.noteTag {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+/* ── Density variants ────────────────────────────── */
+/* .card is the default look defined by .noteCard above. */
+.noteCard.compact {
+  padding: 0.55rem 0.9rem;
+  gap: 0.25rem;
+}
+
+.noteCard.compact .noteCardTitle {
+  font-size: 0.85rem;
+}
+
+.noteCard.comfortable {
+  padding: 1.3rem 1.5rem;
+  gap: 0.5rem;
+}
+
+.noteCard.comfortable .noteCardTitle {
+  font-size: 1rem;
+}
+
+.noteCard.comfortable .noteCardBody {
+  font-size: 0.88rem;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
+/* Grid mode: the parent uses CSS columns; keep each card whole. */
+.noteCard.grid {
+  break-inside: avoid;
 }
 
 /* ── Inline edit mode ───────────────────────────── */

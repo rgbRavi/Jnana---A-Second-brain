@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { importMedia, convertToPdf, extractText, registerMediaRef, getAssetPath } from '../core/media'
 import { toast } from '../lib/toast'
 import { showChoiceDialog } from '../lib/dialog'
+import { log } from '../lib/logger'
 
 interface UseDocumentUploadProps {
   noteId: string
@@ -40,7 +41,7 @@ export function useDocumentUpload({
         if (onRegisterPendingMedia) {
           onRegisterPendingMedia(filename, 'pdf')
         } else {
-          registerMediaRef(noteId, 'pdf', filename).catch(console.error)
+          registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
         }
         onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
       } else if (['doc', 'docx', 'odt'].includes(ext)) {
@@ -63,7 +64,7 @@ export function useDocumentUpload({
             if (onRegisterPendingMedia) {
               onRegisterPendingMedia(filename, 'pdf')
             } else {
-              registerMediaRef(noteId, 'pdf', filename).catch(console.error)
+              registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
             }
             onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
           } catch (err) {
@@ -84,7 +85,7 @@ export function useDocumentUpload({
             const originalName = selected.split(/[\\/]/).pop() || 'document'
             const filename = await importMedia(selected, noteId)
             // Register so the file is cleaned up when the note is deleted
-            registerMediaRef(noteId, 'document', filename).catch(console.error)
+            registerMediaRef(noteId, 'document', filename).catch((e) => log.error('registerMediaRef failed', e))
             const assetPath = await getAssetPath(filename)
             onInsertMarkdown(`\n[External: ${originalName}](external://${encodeURIComponent(assetPath)})\n`)
           } catch (err) {

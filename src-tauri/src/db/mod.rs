@@ -60,6 +60,61 @@ pub fn is_within_assets(path: &std::path::Path) -> bool {
     }
 }
 
+/// Swap in a backup staged by `restore_backup`, if one is pending. Runs once at
+/// startup before the DB connection is opened, so we never replace the file under
+/// a live connection (which Windows would lock). Best-effort: the staging dir and
+/// marker are always cleared afterwards so a partial restore can't loop.
+fn apply_pending_restore() {
+    let dir = data_dir();
+    let marker = dir.join(".restore_pending");
+    if !marker.exists() {
+        return;
+    }
+
+    log::info!("apply_pending_restore: restore marker found — applying staged backup");
+    let staging = dir.join("restore_staging");
+    let staged_db = staging.join("jnana.db");
+    if staged_db.exists() {
+        let main_db = dir.join("jnana.db");
+        // Drop the old WAL/SHM side files so the restored db is authoritative.
+        let _ = std::fs::remove_file(dir.join("jnana.db-wal"));
+        let _ = std::fs::remove_file(dir.join("jnana.db-shm"));
+        let db_copied = std::fs::copy(&staged_db, &main_db);
+        match &db_copied {
+            Ok(_) => log::info!("apply_pending_restore: database replaced from backup"),
+            Err(e) => log::error!("apply_pending_restore: failed to replace database: {}", e),
+        }
+        if db_copied.is_ok() {
+            // Replace assets only when the backup carried them.
+            let staged_assets = staging.join("assets");
+            if staged_assets.exists() {
+                let assets = assets_dir();
+                let _ = std::fs::remove_dir_all(&assets);
+                let _ = std::fs::create_dir_all(&assets);
+                let mut restored = 0usize;
+                if let Ok(entries) = std::fs::read_dir(&staged_assets) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_file() {
+                            if let Some(name) = p.file_name() {
+                                if std::fs::copy(&p, assets.join(name)).is_ok() {
+                                    restored += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                log::info!("apply_pending_restore: restored {} asset(s)", restored);
+            }
+        }
+    } else {
+        log::warn!("apply_pending_restore: marker present but no staged database found");
+    }
+
+    let _ = std::fs::remove_dir_all(&staging);
+    let _ = std::fs::remove_file(&marker);
+}
+
 /// Create and initialize the database connection.
 /// Called once at app startup — the returned connection is
 /// shared via Tauri's managed state for the entire lifetime of the app.
@@ -67,6 +122,9 @@ pub fn init_db() -> Result<Connection> {
     let dir = data_dir();
     std::fs::create_dir_all(&dir).ok();
     std::fs::create_dir_all(assets_dir()).ok();
+
+    // Apply a staged backup restore (from restore_backup) before opening the DB.
+    apply_pending_restore();
 
     let conn = Connection::open(dir.join("jnana.db"))?;
 
