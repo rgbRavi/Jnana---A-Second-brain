@@ -217,6 +217,35 @@ write policy — read tools run freely; writes are staged as proposals the user 
 - [ ] **Phase C — MCP server** (expose the vault to Claude Desktop / other agents).
 - [ ] **Phase D — background/scheduled agents** (optional; reuse Phase-A tools headless).
 
+## Workspaces, Canvas & web embeds ✅ DONE
+
+Named groups that organize notes without separate vaults — notes stay **global** and membership is
+many-to-many, so removing a note from a workspace only drops the junction row. Shipped in phases:
+
+- [x] **Core** (migrate_v8: `workspaces`/`workspace_notes`/`collections`/`collection_notes`) —
+      a `/workspaces` manager + `/workspaces/:id` page with **Notes** and **Graph** tabs. Notes tab
+      reuses the toolbar/filters/`NoteItem`/`filterNotes` with a **keyed** `useNotesViewPrefs` so
+      workspace filters don't bleed into All Notes; Graph reuses `GraphView` with new `scopeIds` +
+      `instanceKey` props (own layout/viewport). Add-existing-notes picker, per-workspace pin,
+      export, quick-note capture into the active workspace, add-to-workspace from All Notes, pinned
+      workspaces + sub-items in the sidebar.
+- [x] **Dashboard + Collections** — a scoped dashboard (stat tiles, pinned, recent activity,
+      continue-learning, recent imports) reusing the home dashboard's presentational widgets;
+      Collections as sub-groups that chip-filter the Notes tab.
+- [x] **Command palette + AI scope + Insights** — global Ctrl/⌘-K palette (mounted in AppLayout);
+      a `retrieve()` scope (`setRetrievalScope` + `useAiScope` + shared `ScopeBar`) that points AI
+      chat & Search at one workspace; an Insights tab (orphans / untagged / needs-indexing /
+      suggested links, all derived client-side).
+- [x] **Canvas** (migrate_v9: `canvases`) — a hand-rolled pointer-event freeform board per workspace
+      (pan/zoom, node drag/resize, edge drawing, freehand ink via `perfect-freehand`), with
+      text/note/media/web nodes, a note↔note "Link in graph" action that inserts one `[[wikilink]]`,
+      and multiple named canvases. Stored as a JSON-Canvas-shaped doc; no canvas library (React-19
+      `findDOMNode`), pointer events like DashboardGrid.
+- [x] **Web-page embeds** (migrate_v10: `link_previews`) — `![webpage](url)` renders a preview card
+      from Open-Graph metadata fetched + cached Rust-side (`fetch_link_preview`), with a best-effort
+      Live view iframe (YouTube → `/embed/`); also a canvas web node. `has:webpage` auto-tag + chip +
+      Notes filter.
+
 ## Explicitly deferred (don't do yet)
 
 - Connection pool (`r2d2`/`deadpool`) — unnecessary for a single-user app.

@@ -1,16 +1,23 @@
 # Jnana - Progress Log
 
-## Status: Phase 1 mostly complete, Phase 2 underway, Phase 3 (AI) started
+## Status: Phases 1–3 complete; Workspaces + Canvas + web embeds landed
 
-Last updated: 2026-06-13
+Last updated: 2026-06-16
 
 ---
 
 ## What is Jnana
 
-Jnana is a local-first desktop knowledge app for students. It currently supports plain notes, PDFs, local videos, YouTube embeds, images, and document import in one workspace. Notes connect through wikilinks and a graph view, with full-text search (MiniSearch), auto/user tags, and favourites. The AI layer has landed: a local vector store in SQLite (embeddings per note chunk), pluggable providers (OpenAI-compatible or local Ollama), and a Thread/Day analyzer. A plugin framework exists, but plugin implementations and activation UI are not built yet.
-
-Audio support, theme switching, markdown export, and the remaining AI features (tag/link suggestions, quiz) are still pending.
+Jnana is a local-first desktop knowledge app for students. It supports plain notes, PDFs, local
+video, audio (record + transcribe), YouTube, images, web-page embeds, and document import. Notes
+connect through wikilinks and a graph view, with full-text search (MiniSearch), auto/user tags, and
+favourites. **Workspaces** organize notes into named groups (notes stay global, many-to-many) — each
+with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), Insights, and
+Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
+vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
+local Ollama), a Thread/Day analyzer, tag/link suggestions, a quiz generator, an agent loop, and an
+optional per-workspace retrieval scope. A plugin framework exists, but plugin implementations and
+activation UI are not built yet.
 
 ---
 
@@ -196,19 +203,33 @@ The custom `jnana-asset://` scheme is served by Tauri and supports byte ranges f
 ## Database Schema
 
 ```sql
-notes        -- id, title, content, tags, created_at, updated_at
-links        -- from_id, to_id
-media_refs   -- id, note_id, media_type, path, meta
-annotations  -- id, note_id, media_id, kind, position, content, created_at
-favourites   -- note_id
-embeddings   -- id, note_id, chunk_index, chunk_text, vector, dim, model, created_at
+notes                 -- id, title, content, tags, created_at, updated_at
+links                 -- from_id, to_id
+media_refs            -- id, note_id, media_type, path, meta, created_at
+annotations           -- id, note_id, media_id, kind, position, content, created_at
+favourites            -- note_id
+embeddings            -- id, note_id, chunk_index, chunk_text, vector, dim, model, created_at
+conversations         -- AI chat history (v4); + project_id (v6)
+ai_presets            -- reusable Styles/Skills (v5)
+ai_projects           -- project instructions (v6)
+ai_project_knowledge  -- a project's attached notes/files (v6)
+note_progress         -- per-note reading progress 0..1 (v7)
+workspaces            -- id, name, icon, color, description, created_at, updated_at (v8)
+workspace_notes       -- workspace_id, note_id, pinned, added_at  (junction, v8)
+collections           -- id, workspace_id, name, created_at (v8)
+collection_notes      -- collection_id, note_id, added_at (junction, v8)
+canvases              -- id, workspace_id, title, data (JSON-Canvas doc), created_at, updated_at (v9)
+link_previews         -- url, title, description, image, favicon, site_name, fetched_at (v10)
 ```
 
 Notes:
-- foreign keys are enabled
-- child rows cascade on delete
+- foreign keys are enabled; child + junction rows cascade on delete (removing a note/workspace only
+  drops association rows — notes themselves stay global)
 - WAL mode is enabled
-- schema versioning exists and is currently at v3 (v2 favourites, v3 embeddings)
+- schema versioning is **currently at v10** — migrations: v2 favourites, v3 embeddings, v4
+  conversations, v5 ai_presets, v6 ai_projects(+knowledge, conversations.project_id), v7 note_progress,
+  v8 workspaces/collections, v9 canvases, v10 link_previews. The migration test in
+  `db/schema.rs` asserts this version + expected tables.
 - AI settings (including the API key) live outside the DB in `ai_config.json` in the app data dir, managed by Rust
 
 ---
@@ -272,6 +293,27 @@ Notes:
 | `update_annotation` | Update annotation text |
 | `delete_annotation` | Delete annotation |
 
+### Workspaces & collections
+
+| Command | Description |
+|---|---|
+| `list_workspaces` / `save_workspace` / `delete_workspace` | Workspace CRUD (save = upsert) |
+| `list_workspace_counts` | Per-workspace note counts (manager badges) |
+| `list_workspace_notes` / `add_workspace_note(s)` / `remove_workspace_note` | Membership (many-to-many) |
+| `set_workspace_note_pinned` / `list_note_workspace_ids` | Per-workspace pin; a note's workspaces |
+| `list_collections` / `save_collection` / `delete_collection` | Collection CRUD inside a workspace |
+| `list_collection_note_ids` / `add_collection_note` / `remove_collection_note` | Collection membership |
+
+### Canvas & web
+
+| Command | Description |
+|---|---|
+| `get_or_create_workspace_canvas` | The workspace's first canvas, creating an empty one on first open |
+| `list_canvases` / `get_canvas` | List a workspace's canvases / fetch one fresh by id |
+| `save_canvas` | Upsert a canvas's JSON doc (data only on conflict, so renames aren't clobbered) |
+| `rename_canvas` / `delete_canvas` | Rename / delete a canvas |
+| `fetch_link_preview` | Fetch + cache Open-Graph/title metadata for an embedded web page (`link_previews`) |
+
 ---
 
 ## What's Working
@@ -290,6 +332,23 @@ Notes:
 - [x] Full-screen note modal
 - [x] Inline editing on note cards
 - [x] Image upload and embed
+
+### Workspaces, Canvas & web embeds
+- [x] **Workspaces** — named groups; notes stay global, many-to-many membership (remove ≠ delete)
+- [x] Workspace page tabs: **Dashboard** (scoped stat tiles + pinned/recent/continue/imports),
+      **Notes** (reuses the full filter/sort/view-mode toolbar, keyed prefs), **Graph** (scoped to
+      the workspace's notes + their internal links, own layout/viewport), **Canvas**, **Insights**
+      (orphans / untagged / needs-indexing / suggested links)
+- [x] **Collections** — sub-groups inside a workspace; chip-filter the Notes tab; CRUD + note picker
+- [x] Templates, per-workspace icon+colour, note-count badges, pinned workspaces in the sidebar,
+      quick-note capture into the active workspace, add-to-workspace from All Notes
+- [x] **Command palette** (Ctrl/⌘-K) — minisearch over notes + workspaces + a command registry
+- [x] **Workspace AI/search scope** — point RAG retrieval (AI view) and Search at one workspace
+- [x] **Canvas** — hand-rolled pointer-event board (pan/zoom, drag/resize), text/note/media/web
+      nodes, edges with optional "Link in graph" (inserts one `[[wikilink]]`), freehand ink
+      (`perfect-freehand`), multiple named canvases per workspace, JSON-Canvas storage
+- [x] **Web-page embeds** — `![webpage](url)` preview card (OG metadata cached Rust-side) + Live
+      view iframe (YouTube rewritten to `/embed/`); `has:webpage` auto-tag, chip, and Notes filter
 
 ### Graph
 - [x] Force-directed graph view

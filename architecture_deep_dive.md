@@ -13,11 +13,13 @@
 | **Database** | SQLite (rusqlite 0.31, WAL mode) | Persistent storage with schema migrations |
 | **Frontend** | React 19 + TypeScript | UI framework |
 | **Build** | Vite 7 | Dev server & bundling |
-| **Search** | MiniSearch | Client-side full-text search with fuzzy matching |
-| **Graph** | react-force-graph-2d | Knowledge graph visualization |
+| **Search** | MiniSearch | Client-side full-text search with fuzzy matching (also the Ctrl/⌘-K palette) |
+| **Graph** | react-force-graph-2d | Knowledge graph visualization (scopeable to a workspace) |
+| **Canvas** | Hand-rolled pointer-event board + perfect-freehand | Per-workspace freeform board + ink (no canvas lib — React-19/findDOMNode) |
+| **Web link previews** | reqwest (Rust) + Open-Graph scraping | `![webpage]` embeds, cached in `link_previews` |
 | **Video** | Plyr | Rich video player with custom controls |
 | **PDF** | pdfjs-dist | In-app PDF rendering with annotation overlay |
-| **Styling** | Vanilla CSS with CSS custom properties | Theming system |
+| **Styling** | CSS Modules + CSS custom properties (design tokens) | Theming system |
 
 ---
 
@@ -105,7 +107,11 @@ graph TB
 
 ## Database Schema (ER Diagram)
 
-The SQLite database has 5 tables managed by a versioned migration system:
+The SQLite database is managed by a versioned migration system (**currently v10**). The diagram below
+shows the core note/media tables plus the v8–v10 **workspace / canvas / web** tables. The AI layer
+adds more (`embeddings`, `conversations`, `ai_presets`, `ai_projects`, `ai_project_knowledge`,
+`note_progress`; v3–v7) — see [PROGRESS.md](PROGRESS.md) for the full list and
+[db/schema.rs](src-tauri/src/db/schema.rs) for the source of truth.
 
 ```mermaid
 erDiagram
@@ -145,15 +151,70 @@ erDiagram
         INTEGER created_at
     }
     
+    workspaces {
+        TEXT id PK
+        TEXT name
+        TEXT icon
+        TEXT color
+        TEXT description
+        INTEGER created_at
+        INTEGER updated_at
+    }
+
+    workspace_notes {
+        TEXT workspace_id PK "FK → workspaces.id"
+        TEXT note_id PK "FK → notes.id"
+        INTEGER pinned
+        INTEGER added_at
+    }
+
+    collections {
+        TEXT id PK
+        TEXT workspace_id "FK → workspaces.id"
+        TEXT name
+        INTEGER created_at
+    }
+
+    collection_notes {
+        TEXT collection_id PK "FK → collections.id"
+        TEXT note_id PK "FK → notes.id"
+        INTEGER added_at
+    }
+
+    canvases {
+        TEXT id PK
+        TEXT workspace_id "FK → workspaces.id"
+        TEXT title
+        TEXT data "JSON-Canvas doc (nodes/edges/drawings)"
+        INTEGER created_at
+        INTEGER updated_at
+    }
+
+    link_previews {
+        TEXT url PK
+        TEXT title
+        TEXT description
+        TEXT image
+        TEXT favicon
+        TEXT site_name
+        INTEGER fetched_at
+    }
+
     notes ||--o{ links : "from_id"
     notes ||--o{ links : "to_id"
     notes ||--o{ media_refs : "note_id"
     notes ||--o{ annotations : "note_id"
     media_refs ||--o{ annotations : "media_id"
+    workspaces ||--o{ workspace_notes : "workspace_id"
+    notes ||--o{ workspace_notes : "note_id"
+    workspaces ||--o{ collections : "workspace_id"
+    collections ||--o{ collection_notes : "collection_id"
+    notes ||--o{ collection_notes : "note_id"
+    workspaces ||--o{ canvases : "workspace_id"
 ```
 
 > [!NOTE]
-> All foreign keys use `ON DELETE CASCADE` — deleting a note automatically removes its links, media_refs, and annotations. Tags are stored as a JSON array string in the `notes.tags` column and deserialized on read.
+> All foreign keys use `ON DELETE CASCADE`. Deleting a note removes its links, media_refs, and annotations — and its junction rows in `workspace_notes` / `collection_notes` (so the note leaves any workspace/collection without deleting peers). Deleting a workspace cascades to its `workspace_notes`, `collections`, and `canvases`, but the notes themselves stay global. Tags are stored as a JSON array string in `notes.tags`; a canvas is one JSON-Canvas document in `canvases.data`.
 
 ---
 
@@ -276,7 +337,15 @@ graph LR
 | `annotation:created` | `Annotation` | `core/annotations.ts` | useAnnotations |
 | `annotation:updated` | `{ id, content }` | `core/annotations.ts` | useAnnotations |
 | `annotation:deleted` | `{ id }` | `core/annotations.ts` | useAnnotations |
+| `note:navigate` | `Note` | wikilinks, palette | Notes view (opens modal) |
+| `note:opened` | `Note` | views | useSaveLastOpened |
+| `composer:open` | `null` | `openComposer()` | NoteCreator |
+| `composer:record` / `composer:import` | `null` | dashboard quick-actions | AddContentMenu |
+| `workspace:changed` | `null` | `core/workspaces.ts` (every mutation) | useWorkspaces, useWorkspaceNotes, useCollections |
 | `plugin:registered` | `{ id }` | `PluginRegistry` | — |
+
+> [!NOTE]
+> The bus is stringly-typed — new events (like `workspace:changed`) need no registry change. See [src/lib/eventBus.ts](src/lib/eventBus.ts).
 
 > [!IMPORTANT]
 > **Security guardrail**: Both `PluginBus` (inline) and the worker message handler block plugins from emitting core events (`note:saved`, `note:deleted`, `link:*`, `annotation:*`). This prevents plugins from spoofing state changes.

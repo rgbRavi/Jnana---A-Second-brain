@@ -43,12 +43,35 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Connect mode** — link two notes by clicking them (adds a durable `[[wikilink]]` to the source)
 - Edit or delete a note straight from the graph panel
 
+### Workspaces
+- **Named groups** that organize notes without separate vaults — a note can live in many workspaces,
+  and removing it from one only drops the association (it stays in All Notes)
+- Each workspace has its own **Dashboard** (scoped stats + pinned/recent/continue/imports),
+  **Notes** (the full filter/sort/view-mode toolbar), a **scoped Graph** (just this workspace's
+  notes + the links between them), **Canvas**, and **Insights** (orphans, untagged, needs-indexing,
+  suggested links)
+- **Collections** — lightweight sub-groups inside a workspace that chip-filter its notes
+- Templates (Research / Course / Writing / …), per-workspace icon & colour, note-count badges,
+  pinned workspaces in the sidebar, and quick-note capture straight into the active workspace
+
+### Canvas (freeform board)
+- A pannable / zoomable **spatial board per workspace** — drop **note cards**, text cards,
+  images/media, and **web pages**, and **draw/paint** freehand
+- **Connect cards** by dragging between them; a note↔note line can be promoted to a real
+  `[[wikilink]]` ("Link in graph") so it shows up in the graph and backlinks
+- Multiple named canvases per workspace; stored in the portable [JSON Canvas](https://jsoncanvas.org) shape
+
+### Command palette
+- Global **Ctrl/⌘-K** to fuzzy-jump to any note, switch workspaces, or run a command
+
 ### Media
 - **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations
 - **Local video** — imported and streamed through a custom asset protocol (with range/seek support)
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
 - **YouTube** — privacy-enhanced (`youtube-nocookie`) embeds
+- **Web pages** — `![webpage](url)` embeds a link-preview card (title/description/image/favicon,
+  fetched + cached on the Rust side) with a best-effort in-app **Live view**
 - **Timestamps** — clickable `[V0::HH:MM:SS]` (video), `[A0::HH:MM:SS]` (audio), and `[D1::Page n]`
   (PDF) markers that jump the player/page
 
@@ -79,6 +102,7 @@ through Rust to only the host you configured.
 - **Local vector store** — embeddings live in SQLite; semantic search runs in-process (no vector DB)
 - **Hybrid providers** — chat and embeddings are independent: e.g. embed locally with Ollama while
   chatting through a cloud API
+- **Workspace scope** — point AI chat (and Search) at the whole vault or a single workspace
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 
 ### Export
@@ -95,10 +119,8 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
   exported to GFM pipe tables ([full spec](TABLES.md))
 - **Rich Markdown** — a hybrid remark renderer for headings/bold/lists/code/tables, keeping the
   custom embed + wikilink + timestamp tokens
-- **Graph enhancements** — disconnect links, tag-based coloring/clustering, orphan & hub
-  highlighting, filtering, directed edges, pinned layout
-- **Polish pass** — dark/light theme toggle, a shared modal component, design tokens, and replacing
-  the remaining `window.prompt` dialogs with proper UI
+- **Polish pass** — dark/light theme toggle and a shared modal component (design tokens, in-app
+  dialogs, and the graph enhancements have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, a plugin
   permission model
 
@@ -158,11 +180,12 @@ src/
   context/   React contexts (Notes, Transcription)
   lib/       event bus + plugin scaffolding
   types/     shared frontend types
-  ui/        components (editor, media, graph, ai)
-  views/     routed pages (home, notes, search, graph, ai, settings)
+  ui/        components (editor, media, graph, ai, CommandPalette, WebEmbed)
+  views/     routed pages (home, notes, search, graph, ai, settings, workspaces/[+canvas])
 
 src-tauri/
-  src/commands/  Tauri commands (notes, media, assets, annotations, ai, embeddings, export)
+  src/commands/  Tauri commands (notes, media, assets, annotations, ai, embeddings, export,
+                 workspaces, canvas, web)
   src/db/        SQLite init, schema/migrations, queries
 
 whisper-server/  optional local transcription server (FastAPI + faster-whisper, Docker)
