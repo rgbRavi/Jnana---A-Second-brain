@@ -1,0 +1,255 @@
+/* ── Toolbar (search · filters · sort · display · count · new) ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 2rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 0.6rem;
+  color: var(--text-3);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 0.4rem 0.7rem 0.4rem 1.8rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.toolBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.toolBtn:hover {
+  color: var(--text-1);
+  border-color: var(--border-hover);
+}
+
+.toolBtnActive {
+  color: var(--text-1);
+  border-color: var(--accent);
+  background: rgba(124, 106, 247, 0.16);
+}
+
+.sort {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  outline: none;
+}
+
+.select:focus {
+  border-color: var(--accent);
+}
+
+.modes {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.modeBtn {
+  background: var(--surface-2);
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-3);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.modeBtn:first-child {
+  border-left: none;
+}
+
+.modeBtn:hover {
+  color: var(--text-1);
+}
+
+.modeBtnActive {
+  color: var(--text-1);
+  background: rgba(124, 106, 247, 0.18);
+}
+
+.count {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.newBtn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+
+.newBtn:hover {
+  opacity: 0.9;
+}
+
+.newBtn:active {
+  transform: scale(0.97);
+}
+
+/* ── Filter bar (collapsible) ── */
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.85rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.filterGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  width: 48px;
+  flex-shrink: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.chip:hover {
+  color: var(--text-1);
+  border-color: var(--border-hover);
+}
+
+.chipOn {
+  color: var(--text-1);
+  border-color: var(--accent);
+  background: rgba(124, 106, 247, 0.2);
+}
+
+.chipExcluded {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(224, 82, 82, 0.12);
+  text-decoration: line-through;
+}
+
+.dateRange {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dateInput {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.4rem;
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  outline: none;
+}
+
+.dateSep {
+  color: var(--text-3);
+}
+
+.clearBtn {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.clearBtn:hover {
+  color: var(--danger);
+}

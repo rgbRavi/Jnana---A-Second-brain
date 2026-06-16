@@ -9,14 +9,38 @@ import { isAutoTag } from '../../core/tags'
 import { ComposerToolbar } from './ComposerToolbar'
 import Styles from './NoteItem.module.css'
 
+/** Display density — mirrors DisplayMode in views/notes/filterNotes.ts (kept local
+ *  so this ui/ component doesn't import upward from views/). */
+export type NoteVariant = 'card' | 'compact' | 'grid' | 'comfortable'
+
 interface Props {
   note: Note
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onRemove: (id: string) => void
   onExpand?: () => void
+  variant?: NoteVariant
+  isFavourite?: boolean
+  onToggleFavourite?: () => void
 }
 
-export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
+/** Auto-tag → chip glyph + label, shown on non-default variants. */
+const MEDIA_CHIPS: [string, string, string][] = [
+  ['has:image', '🖼', 'Images'],
+  ['has:videoOrYt', '🎬', 'Video'],
+  ['has:audio', '🎧', 'Audio'],
+  ['has:pdf', '📄', 'PDF'],
+  ['has:docxlink', '📎', 'Document'],
+]
+
+export function NoteItem({
+  note,
+  onUpdate,
+  onRemove,
+  onExpand,
+  variant = 'card',
+  isFavourite,
+  onToggleFavourite,
+}: Props) {
   const [isEditing, setIsEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
@@ -138,11 +162,29 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
     )
   }
 
+  const userTags = note.tags.filter((t) => !isAutoTag(t))
+  const mediaChips = MEDIA_CHIPS.filter(([tag]) => note.tags.includes(tag))
+  const showBody = variant !== 'compact' && !!note.content
+
   return (
-    <div className={Styles.noteCard} onClick={() => { if (!isEditing && onExpand) onExpand() }}>
+    <div
+      className={`${Styles.noteCard} ${Styles[variant]}`}
+      onClick={() => { if (!isEditing && onExpand) onExpand() }}
+    >
       <div className={Styles.noteCardHeader}>
         <span className={Styles.noteCardTitle}>{note.title || 'Untitled'}</span>
         <div className={Styles.noteCardActions} onClick={(e) => e.stopPropagation()}>
+          {onToggleFavourite && (
+            <button
+              className={`${Styles.noteCardAction} ${isFavourite ? Styles.noteCardFavOn : ''}`}
+              onClick={onToggleFavourite}
+              aria-label={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+              aria-pressed={isFavourite}
+              title={isFavourite ? 'Unfavourite' : 'Favourite'}
+            >
+              {isFavourite ? '★' : '☆'}
+            </button>
+          )}
           <button
             className={Styles.noteCardAction}
             onClick={() => setIsEditing(true)}
@@ -163,14 +205,24 @@ export function NoteItem({ note, onUpdate, onRemove, onExpand }: Props) {
           </button>
         </div>
       </div>
-      {note.content && (
+      {showBody && (
         <div className={Styles.noteCardBody}>
           <MarkdownLite content={note.content} noteId={note.id} />
         </div>
       )}
-      <time className={Styles.noteCardTime}>
-        {new Date(note.updatedAt).toLocaleString()}
-      </time>
+      <div className={Styles.noteCardMeta}>
+        {mediaChips.map(([tag, glyph, label]) => (
+          <span key={tag} className={Styles.noteChip} title={label} aria-label={label}>
+            {glyph}
+          </span>
+        ))}
+        {userTags.map((t) => (
+          <span key={t} className={Styles.noteTag}>
+            {t}
+          </span>
+        ))}
+        <time className={Styles.noteCardTime}>{new Date(note.updatedAt).toLocaleDateString()}</time>
+      </div>
     </div>
   )
 }

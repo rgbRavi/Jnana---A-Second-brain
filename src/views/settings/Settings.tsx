@@ -3,13 +3,15 @@ import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
 import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
+import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai' | 'composer'
+type Tab = 'ai' | 'composer' | 'data'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'ai', label: 'AI Providers' },
   { id: 'composer', label: 'Composer' },
+  { id: 'data', label: 'Import / Export' },
 ]
 
 function Settings() {
@@ -51,6 +53,7 @@ function Settings() {
           />
         )}
         {tab === 'composer' && <ComposerSettingsPanel />}
+        {tab === 'data' && <ImportExportPanel />}
       </div>
     </div>
   )

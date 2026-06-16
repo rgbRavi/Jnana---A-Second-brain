@@ -83,8 +83,10 @@ pub fn get_note(state: State<'_, DbState>, id: String) -> Result<Note, String> {
 #[command]
 pub fn save_note(state: State<'_, DbState>, note: Note) -> Result<Note, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    queries::insert_or_update_note(&conn, &note.to_row())
-        .map_err(|e| format!("Failed to save note: {}", e))?;
+    queries::insert_or_update_note(&conn, &note.to_row()).map_err(|e| {
+        log::error!("save_note {} failed: {}", note.id, e);
+        format!("Failed to save note: {}", e)
+    })?;
     Ok(note)
 }
 
@@ -111,8 +113,10 @@ pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<(), String> 
     }
 
     // 3. Delete the note (CASCADE removes links, media_refs, annotations).
-    queries::remove_note(&conn, &id)
-        .map_err(|e| format!("Failed to delete note {}: {}", id, e))?;
+    queries::remove_note(&conn, &id).map_err(|e| {
+        log::error!("delete_note {} failed: {}", id, e);
+        format!("Failed to delete note {}: {}", id, e)
+    })?;
 
     // 4. Clean up physical asset files from disk.
     let dir = assets_dir();

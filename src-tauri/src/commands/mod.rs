@@ -3,6 +3,7 @@ pub mod ai_workspace;
 pub mod annotations;
 pub mod assets;
 pub mod chat;
+pub mod data;
 pub mod embeddings;
 pub mod export;
 pub mod notes;

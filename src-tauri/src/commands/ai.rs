@@ -307,6 +307,16 @@ pub async fn ai_request(
         .await
         .map_err(|e| format!("Failed to read AI response body: {}", e))?;
 
+    if status >= 400 {
+        // Status + a truncated body for diagnosis. The API key lives in headers,
+        // never the body, so this can't leak it.
+        log::warn!(
+            "ai_request: provider returned {} — {}",
+            status,
+            text.chars().take(300).collect::<String>()
+        );
+    }
+
     Ok(AiFetchResponse { status, body: text })
 }
 
@@ -495,6 +505,11 @@ async fn stream_body(
     let status = resp.status();
     if !status.is_success() {
         let text = resp.text().await.unwrap_or_default();
+        log::warn!(
+            "ai_chat_stream: provider returned {} — {}",
+            status.as_u16(),
+            text.chars().take(300).collect::<String>()
+        );
         return Err(format!(
             "AI provider returned {}: {}",
             status.as_u16(),
