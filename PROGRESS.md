@@ -478,9 +478,9 @@ Current theme status:
 - [x] Local RAG foundation: chunking, embeddings in SQLite, semantic retrieval
 - [x] Provider abstraction: OpenAI-compatible (cloud) + Ollama (local)
 - [x] Thread/Day analyzer (topic and time-window modes)
-- [ ] AI tag suggestions
-- [ ] AI link suggestions
-- [ ] Quiz generator
+- [x] AI tag suggestions
+- [x] AI link suggestions
+- [x] Quiz generator
 - [ ] Flashcard plugin
 - [ ] Pomodoro plugin
 
