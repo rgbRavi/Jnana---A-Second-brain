@@ -7,15 +7,20 @@ import { NoteCreator } from "./ui/editor/NoteCreator";
 import { NotesProvider, useNotesContext } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
+import { useViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
 function AppInner() {
     useSaveLastOpened()
     const { pathname } = useLocation()
     const { create, update } = useNotesContext()
+    // The active workspace tab (shared store written by Workspace.tsx) — the
+    // composer is suppressed on the freeform Canvas, which owns its own surface.
+    const [wsTab] = useViewState<string>('workspace.tab', 'dashboard')
     // The floating composer lives on the capture surfaces (Home, Notes, and a
     // workspace page — where new notes auto-add to the active workspace).
-    const showComposer = pathname === "/" || pathname === "/notes" || pathname.startsWith("/workspaces/")
+    const onCanvasTab = pathname.startsWith("/workspaces/") && wsTab === 'canvas'
+    const showComposer = (pathname === "/" || pathname === "/notes" || pathname.startsWith("/workspaces/")) && !onCanvasTab
     return (
         <div className={AppStyles.appShell}>
             <Sidebar />

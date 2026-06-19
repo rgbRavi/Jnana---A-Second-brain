@@ -14,13 +14,16 @@ interface PdfViewerProps {
   noteId: string
   /** Called once so the parent can jump this viewer to a specific page */
   onRegisterPageSetter?: (setter: (page: number) => void) => void
+  /** Render-only: hide the highlight selection overlay (e.g. on the canvas, where
+   *  there is no note to scope annotations to). */
+  readOnly?: boolean
 }
 
 function assetUrl(filename: string): string {
   return `http://jnana-asset.localhost/${filename}`
 }
 
-export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerProps) {
+export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = false }: PdfViewerProps) {
   const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [page, setPage] = useState<pdfjsLib.PDFPageProxy | null>(null)
   const [loading, setLoading] = useState(true)
@@ -301,17 +304,18 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter }: PdfViewerP
         {/* Transparent Overlay for Drawing Bounding Boxes */}
         <div
           ref={overlayRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp} // cancel if dragging out
+          onMouseDown={readOnly ? undefined : handleMouseDown}
+          onMouseMove={readOnly ? undefined : handleMouseMove}
+          onMouseUp={readOnly ? undefined : handleMouseUp}
+          onMouseLeave={readOnly ? undefined : handleMouseUp} // cancel if dragging out
           style={{
             position: 'absolute',
             top: 0,
             left: 0,
             width: '100%',
             height: '100%',
-            cursor: 'crosshair',
+            cursor: readOnly ? 'default' : 'crosshair',
+            pointerEvents: readOnly ? 'none' : 'auto',
             zIndex: 20
           }}
         >

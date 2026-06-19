@@ -35,6 +35,15 @@
   box-shadow: 0 0 0 2px var(--accent), 0 4px 16px rgba(0, 0, 0, 0.28);
 }
 
+/* Text/media/link cards drag from anywhere on the root (no header bar). */
+.node[data-drag] {
+  cursor: grab;
+}
+
+.node[data-drag]:active {
+  cursor: grabbing;
+}
+
 .nodeHeader {
   display: flex;
   align-items: center;
@@ -132,6 +141,13 @@
   object-fit: contain;
 }
 
+.pdfWrap,
+.webWrap {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
 /* ── Node chrome (counter-scaled inline) ── */
 .resizeHandle {
   position: absolute;
@@ -156,8 +172,11 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 0;
-  height: 0;
+  /* Non-zero size: a 0×0 root <svg> is not painted in Chromium/WebView2 even with
+     overflow:visible, which hides freehand ink and edges. overflow:visible lets the
+     world-coordinate paths render outside this 1px viewport. */
+  width: 1px;
+  height: 1px;
   overflow: visible;
   pointer-events: none;
 }
@@ -215,6 +234,108 @@
   color: var(--accent);
 }
 
+/* ── Right-click context menu ── */
+.contextMenu {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.contextItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.contextItem:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.contextItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.contextItemDanger {
+  color: var(--danger);
+}
+
+/* A hairline divider above grouped items. */
+.contextSep {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/* ── Node chrome: pin badge + corner open button ── */
+.pinBadge {
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Pin indicator for label-less (text/media/link) cards, which have no header
+   to host a badge in. */
+.pinBadgeFloating {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  z-index: 3;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.3rem;
+}
+
+.openCorner {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.node:hover .openCorner,
+.nodeSelected .openCorner {
+  opacity: 1;
+}
+
+.openCorner:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
 /* ── Toolbar ── */
 .toolbar {
   position: absolute;
@@ -266,21 +387,21 @@
   background: var(--accent);
 }
 
+.toolBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolBtn:disabled:hover {
+  background: transparent;
+  color: var(--text-2);
+}
+
 .toolSep {
   width: 1px;
   align-self: stretch;
   background: var(--border);
   margin: 0.1rem 0.15rem;
-}
-
-.colorInput {
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  padding: 0;
-  background: none;
-  cursor: pointer;
 }
 
 .zoomLabel {
@@ -289,6 +410,158 @@
   color: var(--text-3);
   min-width: 3ch;
   text-align: center;
+}
+
+/* ── Toolbar popovers (pen size, eraser mode, settings) ── */
+.popoverWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.7rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  font-size: 0.8rem;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.popoverRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.popoverRow input[type='range'] {
+  flex: 1;
+}
+
+.popoverValue {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-3);
+  min-width: 3.4ch;
+  text-align: right;
+}
+
+.popoverSep {
+  height: 1px;
+  background: var(--border);
+  margin: 0.1rem 0;
+}
+
+.popoverLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.popoverBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.popoverBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.popoverBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Color swatches (pen color, node color, background) ── */
+.colorSwatchBtn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-block;
+}
+
+.swatchGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.swatchOn {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.swatchDefault {
+  background: var(--surface-2);
+}
+
+.swatchCustom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  overflow: hidden;
+}
+
+.swatchCustom input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* Per-node color popover (anchored at the context-menu click point). */
+.colorPicker {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Canvas switcher ── */

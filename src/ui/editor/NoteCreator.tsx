@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { CSSProperties, ClipboardEvent as ReactClipboardEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Note } from '../../types'
 import { useViewState } from '../../hooks/useViewState'
 import { useComposer } from '../../hooks/useComposer'
@@ -180,6 +180,17 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     }
   }
 
+  // Pasting an image attaches it inline, same as the ＋ menu's upload — plain
+  // text keeps the browser's native paste.
+  const handleBodyPaste = (e: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    const file = Array.from(e.clipboardData.items)
+      .find((item) => item.type.startsWith('image/'))
+      ?.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    void toolbarProps.onImageUpload(file)
+  }
+
   const pillAlpha = Math.max(0, Math.min(1, (100 - options.transparency) / 100))
   const pillStyle: CSSProperties = {
     background: `rgba(var(--surface-rgb), ${pillAlpha})`,
@@ -269,6 +280,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handleBodyPaste}
         />
 
         <div className={Styles.footer}>

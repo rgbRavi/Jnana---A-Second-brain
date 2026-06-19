@@ -69,6 +69,7 @@ fn main() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         // AI settings (incl. the API key) live Rust-side — see commands/ai.rs.
         .manage(AiState(Mutex::new(load_config_from_disk())))
         // Cancellation flags for in-flight streaming chat requests.
