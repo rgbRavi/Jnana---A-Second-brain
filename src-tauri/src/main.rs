@@ -14,6 +14,7 @@ use commands::embeddings::*;
 use commands::export::*;
 use commands::media::*;
 use commands::notes::*;
+use commands::themes::*;
 use commands::web::*;
 use commands::workspaces::*;
 
@@ -256,6 +257,11 @@ fn main() {
             list_project_knowledge,
             add_project_knowledge,
             remove_project_knowledge,
+            list_themes,
+            save_theme,
+            delete_theme,
+            get_active_theme,
+            set_active_theme,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

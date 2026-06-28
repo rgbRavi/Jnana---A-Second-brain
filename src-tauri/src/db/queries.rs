@@ -5,6 +5,7 @@ use crate::commands::workspaces::{CollectionRow, WorkspaceNoteRow, WorkspaceRow}
 use crate::commands::chat::{ConversationMeta, ConversationRow};
 use crate::commands::media::RecentMediaRow;
 use crate::commands::notes::{NoteProgressRow, NoteRow};
+use crate::commands::themes::ThemeRow;
 use rusqlite::{params, Connection, Result};
 
 // ─── Notes ──────────────────────────────────────────────
@@ -929,6 +930,70 @@ pub fn fetch_index_times(conn: &Connection) -> Result<Vec<(String, i64)>> {
     let mut stmt = conn.prepare("SELECT note_id, MAX(created_at) FROM embeddings GROUP BY note_id")?;
     let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
     rows.collect()
+}
+
+// ─── Themes ──────────────────────────────────────────────
+
+/// Sentinel id for the row holding the currently-active theme — kept out of
+/// the saved/built-in themes list returned by `list_themes`.
+const ACTIVE_THEME_ID: &str = "__active__";
+
+pub fn list_themes(conn: &Connection) -> Result<Vec<ThemeRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, json, is_builtin, created_at FROM themes
+         WHERE id != ?1 ORDER BY is_builtin DESC, name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map(params![ACTIVE_THEME_ID], |row| {
+        Ok(ThemeRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            json: row.get(2)?,
+            is_builtin: row.get::<_, i64>(3)? != 0,
+            created_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_theme(conn: &Connection, t: &ThemeRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO themes (id, name, json, is_builtin, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+           name       = excluded.name,
+           json       = excluded.json,
+           is_builtin = excluded.is_builtin",
+        params![t.id, t.name, t.json, t.is_builtin as i64, t.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_theme(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM themes WHERE id = ?1 AND id != ?2",
+        params![id, ACTIVE_THEME_ID],
+    )?;
+    Ok(())
+}
+
+pub fn get_active_theme(conn: &Connection) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT json FROM themes WHERE id = ?1")?;
+    let mut rows = stmt.query(params![ACTIVE_THEME_ID])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(row.get(0)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn set_active_theme(conn: &Connection, json: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO themes (id, name, json, is_builtin, created_at)
+         VALUES (?1, 'Active', ?2, 0, ?3)
+         ON CONFLICT(id) DO UPDATE SET json = excluded.json",
+        params![ACTIVE_THEME_ID, json, now],
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

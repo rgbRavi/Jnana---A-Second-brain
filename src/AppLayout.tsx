@@ -4,14 +4,20 @@ import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
 import { NoteCreator } from "./ui/editor/NoteCreator";
+import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
 import { NotesProvider, useNotesContext } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
+import { useTheme } from "./hooks/useTheme";
 import { useViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
 function AppInner() {
     useSaveLastOpened()
+    // Reconciles the localStorage boot mirror against the SQLite-stored active
+    // theme (source of truth) and seeds built-in presets on first run — runs
+    // once regardless of whether the user ever opens Settings → Appearance.
+    useTheme()
     const { pathname } = useLocation()
     const { create, update } = useNotesContext()
     // The active workspace tab (shared store written by Workspace.tsx) — the
@@ -31,6 +37,7 @@ function AppInner() {
             <CommandPalette />
             <Toaster />
             <DialogHost />
+            <ThemeStudioOverlay />
         </div>
     )
 }

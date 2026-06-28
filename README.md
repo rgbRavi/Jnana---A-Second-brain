@@ -109,6 +109,18 @@ through Rust to only the host you configured.
 - Export a single note or **all notes** to Markdown; media references are rewritten to a relative
   `assets/` folder (copied alongside) and tables/embeds export portably (Obsidian/VS Code friendly)
 
+### Appearance (Theme Studio)
+- **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
+  individual CSS custom properties (`--accent`, `--surface*`, `--text*`, `--radius-*`, motion) and
+  the whole running app repaints live, with **no React re-render** for the repaint itself
+- **5 built-in presets** (Midnight, Paper, OLED, High Contrast, Reading) plus a library of your own
+  saved custom themes — export/import as JSON, swap dark ⇄ light while keeping your accent/radius
+- **Derived accent** (hover/active/soft/softer), a corner-radius slider, and a live **WCAG contrast
+  guardrail** (AA/AAA/AA Large/Fail) over the 5 critical text/surface pairs
+- Persisted to SQLite (with a localStorage mirror so the right theme applies before first paint —
+  no flash of default); density/motion/reading-scale controls are wired but not yet consumed by any
+  CSS, ahead of a follow-up pass
+
 ---
 
 ## Planned
@@ -119,8 +131,9 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
   exported to GFM pipe tables ([full spec](TABLES.md))
 - **Rich Markdown** — a hybrid remark renderer for headings/bold/lists/code/tables, keeping the
   custom embed + wikilink + timestamp tokens
-- **Polish pass** — dark/light theme toggle and a shared modal component (design tokens, in-app
-  dialogs, and the graph enhancements have already landed)
+- **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
+  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, and now Theme Studio
+  itself have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, a plugin
   permission model
 
@@ -195,6 +208,9 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
 - Strict layering: `ui → hooks → core → Rust commands → SQLite/assets`; UI never imports `core` directly.
 - Cross-module sync runs through an event bus (`note:saved`, `link:created`, `annotation:*`, …).
 - Wikilink syncing is a single Rust command (`sync_links`) that diffs inside SQLite.
+- Theming applies CSS-var overrides straight to `document.documentElement` (`core/themes/apply.ts` →
+  `hooks/useTheme.ts`), persisted to SQLite (`themes` table) with a localStorage mirror for a
+  flash-free boot; `theme:changed` lets the graph re-theme its accent-derived node colors.
 - Local assets are served via a custom `jnana-asset://` protocol; filenames are validated to
   prevent path traversal, and external opens go through a scoped `open_asset` command.
 - AI settings and keys live in a Rust-side config file; provider requests are proxied through Rust

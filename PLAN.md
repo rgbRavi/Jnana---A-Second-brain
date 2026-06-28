@@ -1,6 +1,6 @@
 # Jnana — Forward Plan
 
-Last reorganized: 2026-06-13
+Last reorganized: 2026-06-13 (Theme Studio shipped 2026-06-28 — see Phase C)
 
 ## Working philosophy
 
@@ -76,7 +76,13 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       promise-based choice/prompt/confirm). Also: app-wide `:focus-visible` rings, themed
       `::selection`, `prefers-reduced-motion`, `color-scheme: dark`, tokenized scrollbars, and
       fixes for views that referenced undefined global CSS classes (Search / Graph / headings).
-- [ ] Dark/light theme toggle (pure UI — belongs in this pass; students study at night).
+- [x] Dark/light theme toggle — shipped as **Theme Studio** (Settings → Appearance), token-level
+      theming rather than a plain toggle: 5 built-in presets (incl. dark/light), a saved-themes
+      library, derived accent, base dark⇄light swap, corner radius, a WCAG contrast guardrail, and
+      JSON export/import. Tokens apply live to `document.documentElement` (no React re-render for
+      the repaint) and persist to SQLite (`themes`, migrate_v11) with a localStorage boot mirror.
+      Density/motion/reading-scale controls are wired but not yet consumed by any CSS, and there's
+      no font picker yet — both are a follow-up pass, not blocking.
 - [x] Replace the three `window.prompt` flows with proper modals: document-import choice
       (`useDocumentUpload.ts`), YouTube URL (`ComposerToolbar.tsx`), highlight edit
       (`PdfViewer.tsx`) — all use `showChoiceDialog` / `showPromptDialog` now; the "Open note?"

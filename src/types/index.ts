@@ -349,3 +349,64 @@ export type AppEvent =
   | { type: 'annotation:created';   payload: Annotation }
   | { type: 'annotation:updated';   payload: { id: string; content: string } }
   | { type: 'annotation:deleted';   payload: { id: string } }
+
+// ─── Theme Studio ──────────────────────────────────────────────────────────
+
+/** "dark" | "light" — drives which direction derived tokens lighten/darken. */
+export type ThemeBase = 'dark' | 'light'
+
+export type ThemeDensity = 'compact' | 'cozy' | 'comfortable'
+
+/** Stored CSS custom-property overrides, written onto the root element. */
+export interface ThemeTokens {
+  '--bg': string
+  '--surface': string
+  '--surface-2': string
+  '--surface-3': string
+  '--border': string
+  '--border-hover': string
+  '--accent': string
+  '--text-1': string
+  '--text-2': string
+  '--text-3': string
+  '--danger': string
+  '--radius-sm': string
+  '--radius-md': string
+  '--radius-lg': string
+  '--motion-scale': string
+  '--motion-duration-fast': string
+  '--motion-duration-base': string
+  '--motion-duration-slow': string
+  '--motion-ease': string
+}
+
+/** Font role → font catalog id. Stored for forward-compat; not yet applied. */
+export interface ThemeFonts {
+  body: string
+  mono: string
+  reading: string
+}
+
+/**
+ * The canonical theme object — built-in presets, saved custom themes, and the
+ * active theme all share this shape. `presetId` is cleared (null) the moment
+ * any token is hand-edited, so the UI can tell "this preset" from "custom".
+ */
+export interface Theme {
+  name: string
+  presetId: string | null
+  base: ThemeBase
+  tokens: ThemeTokens
+  fonts: ThemeFonts
+  density: ThemeDensity
+  readingScale: number
+}
+
+/** A saved theme row (built-in preset or user-saved custom theme). */
+export interface SavedTheme {
+  id: string
+  name: string
+  theme: Theme
+  isBuiltin: boolean
+  createdAt: number
+}

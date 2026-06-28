@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; Workspaces + Canvas + web embeds landed
+## Status: Phases 1–3 complete; Workspaces + Canvas + web embeds + Theme Studio landed
 
-Last updated: 2026-06-16
+Last updated: 2026-06-28
 
 ---
 
@@ -16,8 +16,10 @@ with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), In
 Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
 vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
 local Ollama), a Thread/Day analyzer, tag/link suggestions, a quiz generator, an agent loop, and an
-optional per-workspace retrieval scope. A plugin framework exists, but plugin implementations and
-activation UI are not built yet.
+optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearance) gives token-level
+theming — presets, derived accent, base swap, radius, a WCAG contrast guardrail, export/import —
+applied live to the whole app and persisted to SQLite. A plugin framework exists, but plugin
+implementations and activation UI are not built yet.
 
 ---
 
@@ -220,16 +222,20 @@ collections           -- id, workspace_id, name, created_at (v8)
 collection_notes      -- collection_id, note_id, added_at (junction, v8)
 canvases              -- id, workspace_id, title, data (JSON-Canvas doc), created_at, updated_at (v9)
 link_previews         -- url, title, description, image, favicon, site_name, fetched_at (v10)
+themes                -- id, name, json (opaque theme object), is_builtin, created_at (v11)
 ```
 
 Notes:
 - foreign keys are enabled; child + junction rows cascade on delete (removing a note/workspace only
   drops association rows — notes themselves stay global)
 - WAL mode is enabled
-- schema versioning is **currently at v10** — migrations: v2 favourites, v3 embeddings, v4
+- schema versioning is **currently at v11** — migrations: v2 favourites, v3 embeddings, v4
   conversations, v5 ai_presets, v6 ai_projects(+knowledge, conversations.project_id), v7 note_progress,
-  v8 workspaces/collections, v9 canvases, v10 link_previews. The migration test in
+  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes. The migration test in
   `db/schema.rs` asserts this version + expected tables.
+- `themes.json` is an opaque blob the frontend owns (like canvas `data` / conversation `messages`) —
+  Rust never parses it. The active theme lives in a sentinel row (`id = '__active__'`) so it
+  persists without polluting the built-in/saved themes list.
 - AI settings (including the API key) live outside the DB in `ai_config.json` in the app data dir, managed by Rust
 
 ---
@@ -313,6 +319,14 @@ Notes:
 | `save_canvas` | Upsert a canvas's JSON doc (data only on conflict, so renames aren't clobbered) |
 | `rename_canvas` / `delete_canvas` | Rename / delete a canvas |
 | `fetch_link_preview` | Fetch + cache Open-Graph/title metadata for an embedded web page (`link_previews`) |
+
+### Themes
+
+| Command | Description |
+|---|---|
+| `list_themes` | Built-in presets + saved custom themes (excludes the active-theme sentinel row) |
+| `save_theme` / `delete_theme` | Upsert / delete a theme row (`json` is opaque to Rust) |
+| `get_active_theme` / `set_active_theme` | Read/write the currently-active theme (sentinel row) |
 
 ---
 
@@ -439,6 +453,21 @@ Notes:
 - [x] Copy external documents into assets and open via system app
 - [x] Imported files persist even if the original file moves
 
+### Appearance (Theme Studio)
+- [x] **Settings → Appearance** — Presets / Design / Motion / Advanced tabs; tokens apply straight
+      to `document.documentElement`, so the whole running app is the live preview (no separate
+      preview pane, no React re-render for the repaint)
+- [x] 5 built-in presets (Midnight, Paper, OLED, High Contrast, Reading) + a save/load/delete
+      library of custom themes; export-to-clipboard / paste-to-import JSON round-trip
+- [x] Derived accent (hover/active/soft/softer via sRGB `mix`), dark⇄light base swap (keeps
+      accent/radius/motion), corner-radius slider, WCAG contrast guardrail (5 critical pairs,
+      AA/AAA/AA Large/Fail)
+- [x] Persisted to SQLite (`themes`, migrate_v11) with a localStorage mirror applied synchronously
+      in `main.tsx` before first paint (no flash of default); `theme:changed` event re-themes the
+      graph's accent-derived node colors live
+- [ ] Density / motion / reading-scale tokens are written but not yet consumed by any CSS (controls
+      ship ahead of the wiring pass) — no font picker yet either (fonts stay DM Sans / DM Mono)
+
 ### Plugin framework
 - [x] Plugin registry
 - [x] Inline plugin bus
@@ -455,15 +484,6 @@ Notes:
 ---
 
 ## What's Not Done Yet
-
-### Phase 1 remnant
-- [ ] Theme switcher UI
-
-Current theme status:
-- `src/App.css` drives the active app styling
-- `src/themes/default.css` exists as a starter file
-- no theme switcher is wired up
-- no second active theme exists
 
 ### Phase 2 remaining
 - [x] In-memory full-text search (MiniSearch)
@@ -501,7 +521,7 @@ Current theme status:
 - [x] Annotation persistence
 - [x] Plugin framework
 - [x] UI-to-core boundary restored through hooks
-- [ ] Theme switcher UI
+- [x] Theme switcher UI — Theme Studio (Settings → Appearance), see above
 
 ### Phase 2 - Media (in progress)
 - [x] PDF viewer with annotations

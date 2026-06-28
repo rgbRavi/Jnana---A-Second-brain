@@ -193,7 +193,9 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
 
   const pillAlpha = Math.max(0, Math.min(1, (100 - options.transparency) / 100))
   const pillStyle: CSSProperties = {
-    background: `rgba(var(--surface-rgb), ${pillAlpha})`,
+    // color-mix against --surface directly (not the --surface-rgb companion var) so
+    // this can't drift out of sync with whatever Theme Studio currently has applied.
+    background: `color-mix(in srgb, var(--surface) ${Math.round(pillAlpha * 100)}%, transparent)`,
     backdropFilter: options.glass ? 'blur(12px)' : undefined,
     WebkitBackdropFilter: options.glass ? 'blur(12px)' : undefined,
   }

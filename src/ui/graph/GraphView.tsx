@@ -8,6 +8,7 @@ import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hook
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
 import { toast } from '../../lib/toast'
+import { eventBus } from '../../lib/eventBus'
 import type { Note } from '../../types'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -39,9 +40,26 @@ const TAG_PALETTE = [
 
 const DEFAULT_NODE_COLOR = '#55535f'
 const ORPHAN_COLOR = '#e3b341'
-const HUB_COLOR = '#7c6af7'
-const FOCUS_COLOR = '#7c6af7'
 const CONNECT_COLOR = '#3fb950'
+
+// Accent-derived node colors — re-themed live. `nodeCanvasObject` below reads
+// these on every canvas paint (it's called continuously by react-force-graph,
+// not gated on a React re-render), so updating the bindings on `theme:changed`
+// is enough — same "no React re-render for the repaint" approach Theme Studio
+// uses for the rest of the app. Module-scoped (not per-instance) since several
+// GraphView instances (main + per-workspace) can be mounted at once.
+let HUB_COLOR = '#7c6af7'
+let FOCUS_COLOR = '#7c6af7'
+
+function readAccentColor(): void {
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+  if (accent) {
+    HUB_COLOR = accent
+    FOCUS_COLOR = accent
+  }
+}
+readAccentColor()
+eventBus.on('theme:changed', readAccentColor)
 
 // A note linked to this many or more notes (in + out) counts as a hub.
 const HUB_DEGREE = 4

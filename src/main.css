@@ -25,6 +25,15 @@
   --radius-md:    10px;
   --radius-lg:    14px;
   --max-btn: #F0C24C;
+
+  /* Derived accent variants — Theme Studio (apply.ts resolveVars) overwrites
+     these with explicit hex once a theme applies; these color-mix() defaults
+     just keep things sane on first paint / for any consumer that mounts
+     before the active theme loads. */
+  --accent-hover:  color-mix(in srgb, var(--accent) 86%, white 14%);
+  --accent-active: color-mix(in srgb, var(--accent) 88%, black 12%);
+  --accent-soft:   color-mix(in srgb, var(--accent) 18%, var(--bg) 82%);
+  --accent-softer: color-mix(in srgb, var(--accent) 10%, var(--bg) 90%);
 }
 
 html { height: 100%; }

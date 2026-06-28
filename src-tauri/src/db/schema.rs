@@ -55,6 +55,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v10(conn)?;
     }
 
+    if version < 11 {
+        migrate_v11(conn)?;
+    }
+
     let current: i32 = conn
         .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
         .unwrap_or(version);
@@ -373,6 +377,29 @@ fn migrate_v10(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V11: Theme Studio — token-level theming. `json` is the opaque theme object
+/// (tokens/fonts/density/...) the frontend owns; Rust never parses it, the same
+/// treatment as canvas `data` and conversation `messages`. Built-in presets and
+/// the user's saved custom themes are rows with `is_builtin` distinguishing them;
+/// the currently-active theme (which may be a hand-edited, unsaved variant) lives
+/// in a sentinel row keyed by `__active__` so it persists across restarts without
+/// polluting the saved-themes list.
+fn migrate_v11(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS themes (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            json        TEXT NOT NULL,
+            is_builtin  INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL
+        );
+
+        INSERT INTO schema_version (version) VALUES (11);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,11 +411,11 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 10
+        // Verify version is 11
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 10);
+        assert_eq!(version, 11);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -408,6 +435,7 @@ mod tests {
         assert!(tables.contains(&"collection_notes".to_string()));
         assert!(tables.contains(&"canvases".to_string()));
         assert!(tables.contains(&"link_previews".to_string()));
+        assert!(tables.contains(&"themes".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);
