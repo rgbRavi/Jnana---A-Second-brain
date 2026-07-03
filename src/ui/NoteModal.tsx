@@ -4,7 +4,10 @@ import type { Note } from '../types'
 import { TagEditor } from './TagEditor'
 import { isAutoTag } from '../core/tags'
 import { useComposer } from '../hooks/useComposer'
+import { useSidebarPrefs } from '../hooks/useSidebarPrefs'
 import { ComposerToolbar } from './editor/ComposerToolbar'
+import { FormatToolbar } from './editor/FormatToolbar'
+import { LiveEditor, type LiveEditorHandle } from './editor/LiveEditor'
 import NoteModalStyles from './NoteModal.module.css'
 import { FavouriteBtn } from './editor/FavouriteBtn'
 import { exportNotes } from '../core/export'
@@ -23,20 +26,30 @@ interface Props {
 
 export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Props) {
   const [isEditing, setIsEditing] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content || '')
   const [tags, setTags] = useState<string[]>(note.tags)
   const [saving, setSaving] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<LiveEditorHandle>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const maxProgressRef = useRef(0)
   const { notes } = useNotesContext()
+  const { collapsed: sidebarCollapsed } = useSidebarPrefs()
   const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
 
   const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: note.id,
     appendMarkdown: (md) => setContent((prev) => prev + md),
-    focusTextarea: () => textareaRef.current?.focus(),
+    focusTextarea: () => editorRef.current?.focus(),
+  })
+  // A second instance just for the editor's right-click "Import" submenu —
+  // same upload plumbing, but inserts land at the click position instead of
+  // always appending to the end.
+  const { toolbarProps: contextMenuImportProps } = useComposer({
+    noteId: note.id,
+    appendMarkdown: (md) => editorRef.current?.insertAtCursor(md),
+    focusTextarea: () => editorRef.current?.focus(),
   })
 
   useEffect(() => {
@@ -44,6 +57,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     setContent(note.content || '')
     setTags(note.tags)
     setIsEditing(false)
+    setExpanded(false)
   }, [note])
 
   // Track reading progress (max scroll fraction reached) and persist it on close
@@ -70,14 +84,6 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     if (frac > maxProgressRef.current) maxProgressRef.current = Math.min(1, frac)
   }
 
-  useEffect(() => {
-    if (isEditing && textareaRef.current) {
-      textareaRef.current.style.height = 'inherit'
-      const capped = Math.min(textareaRef.current.scrollHeight, 320)
-      textareaRef.current.style.height = `${Math.max(capped, 120)}px`
-    }
-  }, [isEditing, content])
-
   const handleSave = async () => {
     if (!onUpdate || saving) return
     setSaving(true)
@@ -92,22 +98,36 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
     }
   }
 
+  const handleCancel = () => {
+    setTitle(note.title)
+    setContent(note.content || '')
+    setTags(note.tags)
+    setIsEditing(false)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') {
-      setTitle(note.title)
-      setContent(note.content || '')
-      setTags(note.tags)
-      setIsEditing(false)
-    }
+    if (e.key === 'Escape') handleCancel()
   }
 
   if (!isOpen) return null
 
   return (
     <div className={NoteModalStyles.noteModalOverlay} onClick={onClose}>
-      <div className={NoteModalStyles.noteModalContainer} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`${NoteModalStyles.noteModalContainer}${expanded ? ' ' + NoteModalStyles.expanded : ''}`}
+        style={expanded ? { left: `var(${sidebarCollapsed ? '--sidebar-collapsed-width' : '--sidebar-width'})` } : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <FavouriteBtn noteId={note.id} />
+        <button
+          className={NoteModalStyles.noteModalExpand}
+          onClick={() => setExpanded((e) => !e)}
+          aria-label={expanded ? 'Restore' : 'Expand to full screen'}
+          title={expanded ? 'Restore' : 'Expand to full screen'}
+        >
+          {expanded ? '⤡' : '⤢'}
+        </button>
         <button className={NoteModalStyles.noteModalClose} onClick={onClose} aria-label="Close">
           ✕
         </button>
@@ -136,27 +156,28 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
               }}
             />
-            <textarea
-              ref={textareaRef}
-              className={NoteModalStyles.noteModalTextarea}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
+            <LiveEditor
+              ref={editorRef}
+              className={NoteModalStyles.noteModalTextareaEditor}
               placeholder="Note content..."
-              onKeyDown={handleKeyDown}
+              value={content}
+              onChange={setContent}
+              onSubmit={() => void handleSave()}
+              onCancel={handleCancel}
+              notes={notes}
+              noteId={note.id}
+              allowNavigate
+              importHandlers={contextMenuImportProps}
             />
             <div className={NoteModalStyles.noteModalActions}>
               <div className={NoteModalStyles.noteModalToolbar}>
                 <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
+                <FormatToolbar editorRef={editorRef} disabled={saving || uploading} />
               </div>
               <div className={NoteModalStyles.noteModalSaveRow}>
                 <button
                   className={`${NoteModalStyles.noteModalBtn} ${NoteModalStyles.noteModalBtnCancel}`}
-                  onClick={() => {
-                    setTitle(note.title)
-                    setContent(note.content || '')
-                    setTags(note.tags)
-                    setIsEditing(false)
-                  }}
+                  onClick={handleCancel}
                   disabled={saving || uploading}
                 >
                   Cancel

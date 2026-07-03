@@ -9,6 +9,7 @@ pub mod embeddings;
 pub mod export;
 pub mod notes;
 pub mod media;
+pub mod media_layout;
 pub mod themes;
 pub mod web;
 pub mod workspaces;

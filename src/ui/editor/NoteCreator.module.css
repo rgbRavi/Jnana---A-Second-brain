@@ -209,6 +209,42 @@
   color: var(--text-3);
 }
 
+/* ── Body (LiveEditor) — same sizing model as .body above, but CM6 owns its
+   own internal scroller (.cm-scroller) instead of a single resizable
+   textarea, so the cap/scroll is expressed as nested flex with min-height:0
+   rather than a JS-measured inline height. ── */
+.bodyEditor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.bodyEditor :global(.cm-editor) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bodyEditor :global(.cm-scroller) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.85rem 1rem 1rem;
+  line-height: 1.7;
+}
+
+.expanded .bodyEditor {
+  flex: 0 0 auto;
+  min-height: 16vh;
+  max-height: 52vh;
+}
+
+.fullscreen .bodyEditor {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* ── Footer ── */
 .footer {
   display: flex;

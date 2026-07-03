@@ -31,7 +31,16 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 
 ### Notes & organization
 - Note create / edit / delete with instant (optimistic) updates and SQLite persistence
-- Lightweight markdown rendering with custom embeds, plus a full-screen note view and inline editing
+- **Real markdown rendering** (GFM: headings, bold/italic, lists, blockquotes, code, tables,
+  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp tokens
+- **Live editor** (Obsidian/Typora-style) — syntax markers hidden while you type; bold appears
+  bold, headings are styled, media embeds render inline; raw markdown revealed near the cursor for
+  quick edits; used in all three composers (new note, card edit, note modal)
+- A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
+  lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
+  import-at-cursor from the right-click menu
+- **Full-screen note view** — expand the note modal to fill the content area (⤢/⤡ toggle);
+  editing in fullscreen works the same way
 - **Wikilinks** (`[[Title]]`) that become graph edges, kept in sync efficiently on the Rust side
 - **Full-text search** (MiniSearch) across titles, tags, and content, with sensible boosting
 - **Tags** — your own tags plus automatic ones (`has:image`, `has:pdf`, `long-form`, …)
@@ -65,15 +74,21 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - Global **Ctrl/⌘-K** to fuzzy-jump to any note, switch workspaces, or run a command
 
 ### Media
-- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations
+- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations; compact
+  **thumbnail preview** in note cards (click to open the full viewer)
 - **Local video** — imported and streamed through a custom asset protocol (with range/seek support)
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
 - **YouTube** — privacy-enhanced (`youtube-nocookie`) embeds
 - **Web pages** — `![webpage](url)` embeds a link-preview card (title/description/image/favicon,
   fetched + cached on the Rust side) with a best-effort in-app **Live view**
-- **Timestamps** — clickable `[V0::HH:MM:SS]` (video), `[A0::HH:MM:SS]` (audio), and `[D1::Page n]`
-  (PDF) markers that jump the player/page
+- **Timestamps** — clickable `[V0::HH:MM:SS]` (video) and `[A0::HH:MM:SS]` (audio) markers that
+  seek the matching player, indexed in document order
+- **Resize & align media** — hover any embedded image, video, audio, or YouTube in the live editor
+  to reveal a resize handle (drag to size) and alignment buttons (left/center/right); multiple
+  narrow embeds share the same row automatically; sizes persist without touching your markdown
+- **Reorder media** — ▲/▼ buttons in the hover toolbar move a media block up or down past the
+  adjacent paragraph (order lives in markdown; layout metadata follows independently)
 
 ### Documents
 - Import PDFs directly, convert `doc`/`docx`/`odt` → PDF (LibreOffice/Pandoc), or extract text
@@ -128,12 +143,13 @@ through Rust to only the host you configured.
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
 - **Tables** — a CSV-backed `table` block with a grid editor and paste-from-spreadsheet support,
-  exported to GFM pipe tables ([full spec](TABLES.md))
-- **Rich Markdown** — a hybrid remark renderer for headings/bold/lists/code/tables, keeping the
-  custom embed + wikilink + timestamp tokens
+  exported to GFM pipe tables ([full spec](TABLES.md)); composes with the GFM pipe tables the
+  renderer already supports
+- **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
+  highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
 - **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
-  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, and now Theme Studio
-  itself have already landed)
+  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
+  markdown renderer rewrite have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, a plugin
   permission model
 
@@ -208,6 +224,10 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
 - Strict layering: `ui → hooks → core → Rust commands → SQLite/assets`; UI never imports `core` directly.
 - Cross-module sync runs through an event bus (`note:saved`, `link:created`, `annotation:*`, …).
 - Wikilink syncing is a single Rust command (`sync_links`) that diffs inside SQLite.
+- Notes render through `react-markdown` + `remark-gfm` + a custom plugin
+  (`core/markdown/remarkJnana.ts`) that turns `[[wikilinks]]` and `[V0::…]`/`[A0::…]` timestamps into
+  custom AST nodes (and assigns document-order indices to `![video]`/`![audio]` embeds) without
+  touching code fences; a `components` map renders those nodes into the existing embed components.
 - Theming applies CSS-var overrides straight to `document.documentElement` (`core/themes/apply.ts` →
   `hooks/useTheme.ts`), persisted to SQLite (`themes` table) with a localStorage mirror for a
   flash-free boot; `theme:changed` lets the graph re-theme its accent-derived node colors.

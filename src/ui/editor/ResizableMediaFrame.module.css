@@ -1,0 +1,78 @@
+.frame {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.toolbar {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+  z-index: 5;
+}
+
+.frame:hover .toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.alignBtn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.alignBtn:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.alignBtnActive {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.toolbarSep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 0.1rem;
+  align-self: center;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  opacity: 0;
+  cursor: nwse-resize;
+  transition: opacity 0.1s;
+  z-index: 5;
+}
+
+.frame:hover .resizeHandle {
+  opacity: 1;
+}

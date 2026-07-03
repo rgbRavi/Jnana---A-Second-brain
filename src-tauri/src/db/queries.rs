@@ -6,6 +6,7 @@ use crate::commands::chat::{ConversationMeta, ConversationRow};
 use crate::commands::media::RecentMediaRow;
 use crate::commands::notes::{NoteProgressRow, NoteRow};
 use crate::commands::themes::ThemeRow;
+use crate::commands::media_layout::MediaLayoutRow;
 use rusqlite::{params, Connection, Result};
 
 // ─── Notes ──────────────────────────────────────────────
@@ -992,6 +993,31 @@ pub fn set_active_theme(conn: &Connection, json: &str, now: i64) -> Result<()> {
          VALUES (?1, 'Active', ?2, 0, ?3)
          ON CONFLICT(id) DO UPDATE SET json = excluded.json",
         params![ACTIVE_THEME_ID, json, now],
+    )?;
+    Ok(())
+}
+
+// ─── Note media layout ──────────────────────────────────
+
+pub fn get_media_layout(conn: &Connection, note_id: &str) -> Result<Vec<MediaLayoutRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT media_key, json FROM note_media_layout WHERE note_id = ?1",
+    )?;
+    let rows = stmt.query_map(params![note_id], |row| {
+        Ok(MediaLayoutRow {
+            media_key: row.get(0)?,
+            json: row.get(1)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn set_media_layout(conn: &Connection, note_id: &str, media_key: &str, json: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO note_media_layout (note_id, media_key, json)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(note_id, media_key) DO UPDATE SET json = excluded.json",
+        params![note_id, media_key, json],
     )?;
     Ok(())
 }

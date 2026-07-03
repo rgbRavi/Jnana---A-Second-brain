@@ -59,6 +59,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v11(conn)?;
     }
 
+    if version < 12 {
+        migrate_v12(conn)?;
+    }
+
     let current: i32 = conn
         .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
         .unwrap_or(version);
@@ -400,6 +404,30 @@ fn migrate_v11(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V12: Per-note media layout — presentation metadata (width/alignment/caption)
+/// for media embeds, kept OUT of the note's markdown (which stays the portable,
+/// presentation-free source of truth). Keyed by `media_key` (asset URL + document-
+/// order occurrence ordinal, computed by remarkJnana / the CM6 decoration walk) so
+/// duplicate embeds of the same file get independent layout. `json` is opaque to
+/// Rust — same treatment as canvas `data` / themes `json`. Its own table (not a
+/// notes column) so resizing never touches `notes.updated_at` or triggers the
+/// note-saved cascade (search re-index, link sync, etc.).
+fn migrate_v12(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS note_media_layout (
+            note_id     TEXT NOT NULL,
+            media_key   TEXT NOT NULL,
+            json        TEXT NOT NULL,
+            PRIMARY KEY (note_id, media_key),
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (12);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -411,11 +439,11 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 11
+        // Verify version is 12
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 11);
+        assert_eq!(version, 12);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -436,6 +464,7 @@ mod tests {
         assert!(tables.contains(&"canvases".to_string()));
         assert!(tables.contains(&"link_previews".to_string()));
         assert!(tables.contains(&"themes".to_string()));
+        assert!(tables.contains(&"note_media_layout".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);

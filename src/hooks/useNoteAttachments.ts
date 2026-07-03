@@ -38,7 +38,7 @@ export function useNoteAttachments({
         registerMediaRef(noteId, 'image', filename).catch(console.error)
       }
 
-      onInsertMarkdown(`\n![${file.name}](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n![${file.name}](jnana-asset://${filename})`)
 
     } catch (err) {
       console.error('Failed to upload image:', err)
@@ -68,7 +68,7 @@ export function useNoteAttachments({
         registerMediaRef(noteId, 'video', filename).catch(console.error)
       }
 
-      onInsertMarkdown(`\n![video](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n![video](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to upload video:', err)
       toast.error('Failed to upload video: ' + String(err))
@@ -92,7 +92,7 @@ export function useNoteAttachments({
         registerMediaRef(noteId, 'audio', filename).catch(console.error)
       }
 
-      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n![audio](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to save recording:', err)
       toast.error('Failed to save recording: ' + String(err))
@@ -120,7 +120,7 @@ export function useNoteAttachments({
         registerMediaRef(noteId, 'audio', filename).catch(console.error)
       }
 
-      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n![audio](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to upload audio:', err)
       toast.error('Failed to upload audio: ' + String(err))

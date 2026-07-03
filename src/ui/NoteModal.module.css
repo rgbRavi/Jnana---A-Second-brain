@@ -47,6 +47,23 @@
   }
 }
 
+/* Fills the main-content area (excludes the sidebar — `left` is set inline
+   from --sidebar-width/--sidebar-collapsed-width since it depends on the
+   sidebar's current collapse state). Snaps rather than animates: interpolating
+   between a centered flex child and fixed viewport coordinates isn't something
+   CSS transitions can express cleanly. */
+.noteModalContainer.expanded {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  animation: none;
+}
+
 .noteModalClose {
   position: absolute;
   top: 1rem;
@@ -68,6 +85,31 @@
 }
 
 .noteModalClose:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.noteModalExpand {
+  position: absolute;
+  top: 1rem;
+  right: 3.5rem;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+  z-index: 1001;
+}
+
+.noteModalExpand:hover {
   background: var(--surface-2);
   color: var(--text-1);
 }
@@ -180,6 +222,7 @@
   flex-direction: column;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
   padding: 2rem;
   padding-right: 3rem;
   gap: 1rem;
@@ -220,6 +263,43 @@
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+}
+
+/* LiveEditor variant — grows to fill remaining modal height (flex:1 in the
+   noteModalEditMode column), with a floor so it never collapses completely.
+   CM6 owns its own internal scroller (.cm-scroller) so we don't cap the
+   height here; the modal container's max-height:90vh is the outer bound. */
+.noteModalTextareaEditor {
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  flex: 1;
+  min-height: 200px;
+}
+
+.noteModalTextareaEditor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+}
+
+.noteModalTextareaEditor :global(.cm-editor) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.noteModalTextareaEditor :global(.cm-scroller) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .noteModalActions {

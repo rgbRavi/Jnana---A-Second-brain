@@ -1,0 +1,85 @@
+/* Host container — CM6 injects its own .cm-editor inside this. */
+.host {
+  width: 100%;
+}
+
+.host :global(.cm-editor) {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--text-1);
+  background: transparent;
+}
+
+.host :global(.cm-content) {
+  padding: 0;
+  caret-color: var(--accent);
+}
+
+.host :global(.cm-line) {
+  padding: 0;
+  line-height: 1.6;
+}
+
+.host :global(.cm-focused) {
+  outline: none;
+}
+
+.host :global(.cm-placeholder) {
+  color: var(--text-3);
+  font-style: normal;
+}
+
+.host :global(.cm-selectionBackground) {
+  background: var(--accent-soft) !important;
+}
+
+/* ── Live-preview decoration classes (applied via Decoration.mark) ───────── */
+
+.cmStrong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.cmEmphasis {
+  font-style: italic;
+}
+
+.cmStrikethrough {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+.cmInlineCode {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent);
+}
+
+.cmHeading1 { font-weight: 600; font-size: 1.4em; color: var(--text-1); }
+.cmHeading2 { font-weight: 600; font-size: 1.2em; color: var(--text-1); }
+.cmHeading3 { font-weight: 600; font-size: 1.05em; color: var(--text-1); }
+.cmHeading4,
+.cmHeading5,
+.cmHeading6 { font-weight: 600; color: var(--text-1); }
+
+.cmQuote {
+  color: var(--text-2);
+  border-left: 3px solid var(--accent);
+  padding-left: 0.6rem;
+}
+
+.cmListMarker {
+  color: var(--accent);
+}
+
+/* Markers (the `**`, `#`, `> `, etc.) that get hidden via Decoration.replace
+ * unless the cursor is in range — no class needed for the hide itself, but
+ * this is here for when they're revealed (cursor in range): dim them slightly
+ * so the styled content still reads as primary. */
+.cmMarkerRevealed {
+  color: var(--text-3);
+}

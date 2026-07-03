@@ -1,6 +1,8 @@
 # Jnana — Forward Plan
 
-Last reorganized: 2026-06-13 (Theme Studio shipped 2026-06-28 — see Phase C)
+Last reorganized: 2026-06-13 (Theme Studio shipped 2026-06-28; hybrid markdown renderer +
+format toolbar shipped 2026-06-28 — see Phase C; live editor + media layout + context menu +
+NoteModal fullscreen + performance improvements shipped 2026-07-03 — see Phase C)
 
 ## Working philosophy
 
@@ -90,20 +92,49 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       remain).
 - [ ] CSP runtime check: confirm the `script-src 'self'` tightening holds in `tauri dev`;
       revisit `style-src 'unsafe-inline'` (needs nonces) only if worth it.
-- [ ] **Hybrid markdown AST renderer (remark) — only if pursuing rich formatting.** NOT a perf
-      fix: editing uses a `<textarea>`, so MarkdownLite only parses on *view*, not per keystroke
-      (the "typing latency" claim doesn't apply). If many note cards re-parse on save, memoize
-      parsed segments by content string first — cheap, no dependency. Adopt remark *only* to
-      unlock real markdown (headings/bold/lists/code/**tables**). If so: do it as a hybrid —
-      remark + remark-gfm for standard syntax, custom micromark/remark extensions for the
-      app's tokens (`[[wikilink]]`, `![audio|video|youtube|pdf]`, `[V/A/D::…]`), rendering the
-      AST to the **existing** embed components. Hardest part: preserve document-order media
-      indexing (`data-video-index`/`data-audio-index`) for timestamp seeking. Adds ~100 KB+ to
-      the bundle. Sequence after the polish items above.
+- [x] **Hybrid markdown AST renderer (remark)** ✅ DONE — `MarkdownLite` rewritten on
+      `react-markdown` + `remark-gfm` (headings/bold/lists/blockquotes/code/**tables**/
+      strikethrough/task-lists), with a custom plugin
+      ([core/markdown/remarkJnana.ts](src/core/markdown/remarkJnana.ts)) preserving the app's
+      tokens: `[[wikilink]]` and `[V/A::HH:MM:SS]`/`[MM:SS]` become custom AST nodes (via
+      `mdast-util-find-and-replace`, which only walks literal text nodes — code fences are
+      untouched for free); `![video]`/`![audio]` get document-order `data-video-index`/
+      `data-audio-index` assigned in the plugin (parse-time, StrictMode-safe) instead of a
+      render-time counter. A custom `urlTransform` keeps `jnana-asset://`/`external://` alive
+      (react-markdown's default sanitizer otherwise strips them to `""`). `[D1::Page n]` PDF
+      page-jumps were found to be dead code (declared in docs, never wired to a renderer) and
+      were **not** resurrected. Standard CommonMark newline semantics now apply (single newlines
+      collapse; existing notes that relied on `pre-wrap` line breaks will reflow). Code
+      highlighting is a deferred seam ([core/markdown/highlight.ts](src/core/markdown/highlight.ts))
+      — no highlighter dependency added yet. Bundle grew ~160 KB (remark/unist ecosystem).
+      **Also shipped (expanded scope): a composer `FormatToolbar`**
+      ([core/markdown/format.ts](src/core/markdown/format.ts) +
+      [ui/editor/FormatToolbar.tsx](src/ui/editor/FormatToolbar.tsx)) — bold/italic/strike/
+      inline-code/H1/H2/bullet/numbered/quote/link/code-block buttons that wrap or prefix the
+      textarea's current selection, wired into NoteCreator, NoteItem's edit mode, and NoteModal's
+      edit mode.
+- [x] **Live editor (CodeMirror 6)** ✅ DONE — `LiveEditor.tsx` + `LiveEditor.decorations.tsx`:
+      Obsidian/Typora WYSIWYG edit mode — syntax hidden, bold/headings styled, media/wikilink/
+      timestamp tokens rendered as interactive React widgets; reveals raw markdown near the cursor.
+      Used in all three composers (NoteCreator, NoteItem, NoteModal). Right-click **context menu**
+      (`ContextMenu.tsx` reusable) with formatting submenu, import submenu (inserts at click
+      position), cut/copy/paste/paste-as-plain-text, "Add table" placeholder.
+- [x] **Media resize + alignment + PDF thumbnail** ✅ DONE — `note_media_layout` table (v12); media
+      widgets in the live editor get a `ResizableMediaFrame` with a hover toolbar (L/C/R align,
+      ▲/▼ reorder) + corner resize handle (pointer-capture, same pattern as canvas). Sizes persist
+      off the note-save path. Read-mode (cards + modal) renders saved sizes — `inline-block` for
+      row-sharing when alignment is unset. PDF embeds replaced by a `PdfThumbnail` (~216×192 px,
+      first page only; click opens full viewer). `moveMediaBlock` in `core/markdown/format.ts` is a
+      pure string function that swaps paragraph blocks by position.
+- [x] **NoteModal fullscreen expand** ✅ DONE — ⤢/⤡ toggle fills the content area (excluding
+      sidebar); edit mode inherits the expanded container automatically.
+- [x] **Performance** ✅ DONE — `NoteItem` memoized; `useNotes()` return value memoized;
+      `content-visibility: auto` on cards; favourites refetch only on new notes; pinned workspace
+      links stay mounted through sidebar collapse.
 - [ ] **Tables** — full spec in [TABLES.md](TABLES.md). Fenced `table` block holding CSV,
       rendered by a `TableEmbed` and authored via a hand-rolled grid `TableEditor` (add/remove
-      row+col, **paste TSV from spreadsheets**), exported to a GFM pipe table. Ships on the
-      current renderer; composes with remark-gfm later.
+      row+col, **paste TSV from spreadsheets**), exported to a GFM pipe table. `remark-gfm` (GFM
+      pipe tables) is now wired into the renderer — this block composes with that for display.
 
 ---
 
@@ -111,8 +142,10 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 
 - [ ] Metadata-only `get_all_notes` (defer content to note open) — only once list/graph load is
       measurably slow.
-- [ ] `MarkdownLite` render cost: memoize parsed segments per note/line first; AST rewrite only
-      if memoization isn't enough.
+- [ ] `MarkdownLite` render cost: now a `react-markdown` AST parse per render (same "parses on
+      view, not per keystroke" property as before — editing is a `<textarea>`). Revisit only if
+      note-card-heavy views (e.g. a long Notes list) show measurable lag; memoize per note content
+      string first, cheap and no new dependency.
 - [ ] Embedding search scans all chunks per query — fine at personal scale; revisit only if
       retrieval latency becomes noticeable (>10k chunks).
 - [ ] Grow test coverage alongside features (component tests via testing-library now available).

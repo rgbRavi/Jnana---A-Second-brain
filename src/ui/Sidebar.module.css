@@ -120,6 +120,10 @@
   padding: 0.62rem 0;
 }
 
+.collapsed .subItem {
+  margin-left: 0;
+}
+
 .collapsed .sidebarBottom {
   padding: 0.5rem 0.4rem 0;
 }

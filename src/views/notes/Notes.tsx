@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import type { Note } from '../../types'
 import { NoteItem } from '../../ui/editor/NoteItem'
@@ -40,8 +40,13 @@ function Notes() {
     return () => eventBus.off('note:navigate', handler)
   }, [])
 
-  // Favourites — one bulk fetch, refreshed when a note is saved (the composer can
-  // favourite on save). Toggling from a card updates the set optimistically.
+  // Favourites — one bulk fetch. Toggling from a card updates the set
+  // optimistically, so the only case still needing a refetch is the composer's
+  // "favourite on save" for a *new* note — re-fetching on every save of an
+  // existing note (by far the common case) would be pure waste. `notesRef`
+  // lets the handler tell create from update without re-subscribing per render.
+  const notesRef = useRef(notes)
+  notesRef.current = notes
   useEffect(() => {
     let active = true
     const refresh = () =>
@@ -49,10 +54,13 @@ function Notes() {
         .then((ids) => { if (active) setFavSet(new Set(ids)) })
         .catch(() => {})
     refresh()
-    eventBus.on('note:saved', refresh)
+    const handleSaved = (saved: Note) => {
+      if (!notesRef.current.some((n) => n.id === saved.id)) refresh()
+    }
+    eventBus.on('note:saved', handleSaved)
     return () => {
       active = false
-      eventBus.off('note:saved', refresh)
+      eventBus.off('note:saved', handleSaved)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -94,6 +102,14 @@ function Notes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   )
+
+  // Stable (id-based) handlers passed to every card — required for
+  // React.memo(NoteItem) to actually skip re-rendering unrelated cards on save.
+  const handleExpand = useCallback((note: Note) => {
+    eventBus.emit('note:opened', note)
+    setExpandedNoteId(note.id)
+  }, [])
+  const handleAddToWorkspace = useCallback((id: string) => setWorkspaceMenuNoteId(id), [])
 
   // All tags across notes (user tags first, then auto-tags), for the tag picker.
   const allTags = useMemo(() => {
@@ -142,14 +158,11 @@ function Notes() {
               note={note}
               variant={prefs.displayMode}
               isFavourite={favSet.has(note.id)}
-              onToggleFavourite={() => toggleFavourite(note.id)}
+              onToggleFavourite={toggleFavourite}
               onUpdate={update}
               onRemove={remove}
-              onAddToWorkspace={() => setWorkspaceMenuNoteId(note.id)}
-              onExpand={() => {
-                eventBus.emit('note:opened', note)
-                setExpandedNoteId(note.id)
-              }}
+              onAddToWorkspace={handleAddToWorkspace}
+              onExpand={handleExpand}
             />
           ))}
         </div>

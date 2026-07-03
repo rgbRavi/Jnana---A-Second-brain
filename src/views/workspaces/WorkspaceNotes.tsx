@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
+import type { Note } from '../../types'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
@@ -95,6 +96,12 @@ export function WorkspaceNotes({ workspaceId, onNewNote }: Props) {
     [],
   )
 
+  // Stable (id-based) handler for React.memo(NoteItem) to actually bite.
+  const handleExpand = useCallback((note: Note) => {
+    eventBus.emit('note:opened', note)
+    setExpandedNoteId(note.id)
+  }, [])
+
   const allTags = useMemo(() => {
     const set = new Set<string>()
     for (const n of notes) for (const t of n.tags) set.add(t)
@@ -166,16 +173,13 @@ export function WorkspaceNotes({ workspaceId, onNewNote }: Props) {
               note={note}
               variant={prefs.displayMode}
               isFavourite={favSet.has(note.id)}
-              onToggleFavourite={() => toggleFavourite(note.id)}
+              onToggleFavourite={toggleFavourite}
               pinned={pinnedIds.has(note.id)}
-              onTogglePin={() => togglePin(note.id)}
+              onTogglePin={togglePin}
               onUpdate={update}
-              onRemove={(id) => removeNote(id)}
+              onRemove={removeNote}
               removeTitle="Remove from workspace"
-              onExpand={() => {
-                eventBus.emit('note:opened', note)
-                setExpandedNoteId(note.id)
-              }}
+              onExpand={handleExpand}
             />
           ))}
         </div>

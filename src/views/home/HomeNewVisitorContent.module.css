@@ -7,7 +7,7 @@
   flex-direction: column;
 }
 
-h1{
+.contentContainer h1 {
     text-align: center;
     font-size: 2em;
     margin-bottom: 0.5em;

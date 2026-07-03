@@ -1,5 +1,5 @@
 // src/hooks/useNotes.ts
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
@@ -126,5 +126,14 @@ export function useNotes() {
     if (saved) await saveNote(saved)
   }, [])
 
-  return { notes, loading, error, create, update, updateTags, remove }
+  // Memoized so NotesContext's value only changes identity when one of these
+  // fields actually does — `create`/`update`/`remove`/`updateTags` are already
+  // stable (empty-dep useCallback above), so this mainly guards against a
+  // fresh object on renders where only `loading`/`error` would otherwise force
+  // every useNotesContext() consumer to re-render for no reason. `notes` itself
+  // still changes (by design) whenever a note is actually created/updated/removed.
+  return useMemo(
+    () => ({ notes, loading, error, create, update, updateTags, remove }),
+    [notes, loading, error, create, update, updateTags, remove],
+  )
 }

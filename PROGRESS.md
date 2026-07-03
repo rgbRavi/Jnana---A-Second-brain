@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; Workspaces + Canvas + web embeds + Theme Studio landed
+## Status: Phases 1–3 complete; live editor, media layout, context menu, NoteModal fullscreen, and performance improvements landed
 
-Last updated: 2026-06-28
+Last updated: 2026-07-03
 
 ---
 
@@ -18,7 +18,10 @@ vector store in SQLite (embeddings per note chunk) with pluggable providers (Ope
 local Ollama), a Thread/Day analyzer, tag/link suggestions, a quiz generator, an agent loop, and an
 optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearance) gives token-level
 theming — presets, derived accent, base swap, radius, a WCAG contrast guardrail, export/import —
-applied live to the whole app and persisted to SQLite. A plugin framework exists, but plugin
+applied live to the whole app and persisted to SQLite. Notes render through a **hybrid markdown
+renderer** (`react-markdown` + `remark-gfm` + a custom plugin) — real headings/bold/lists/code/
+tables alongside the app's own wikilink/timestamp/media tokens — with a composer **format
+toolbar** for applying markdown without typing syntax. A plugin framework exists, but plugin
 implementations and activation UI are not built yet.
 
 ---
@@ -37,6 +40,7 @@ implementations and activation UI are not built yet.
 | PDF renderer | pdfjs-dist 5 | Canvas PDF rendering |
 | Document conversion/extraction | LibreOffice + Pandoc | PDF conversion and plain-text extraction |
 | Graph view | react-force-graph-2d | Note graph visualization |
+| Markdown rendering | react-markdown + remark-gfm | AST renderer; custom `remarkJnana` plugin layers in the app's own tokens |
 
 ---
 
@@ -223,19 +227,23 @@ collection_notes      -- collection_id, note_id, added_at (junction, v8)
 canvases              -- id, workspace_id, title, data (JSON-Canvas doc), created_at, updated_at (v9)
 link_previews         -- url, title, description, image, favicon, site_name, fetched_at (v10)
 themes                -- id, name, json (opaque theme object), is_builtin, created_at (v11)
+note_media_layout     -- note_id, media_key, json (width/alignment/caption), PRIMARY KEY(note_id, media_key) (v12)
 ```
 
 Notes:
 - foreign keys are enabled; child + junction rows cascade on delete (removing a note/workspace only
   drops association rows — notes themselves stay global)
 - WAL mode is enabled
-- schema versioning is **currently at v11** — migrations: v2 favourites, v3 embeddings, v4
+- schema versioning is **currently at v12** — migrations: v2 favourites, v3 embeddings, v4
   conversations, v5 ai_presets, v6 ai_projects(+knowledge, conversations.project_id), v7 note_progress,
-  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes. The migration test in
-  `db/schema.rs` asserts this version + expected tables.
+  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes, v12 note_media_layout. The
+  migration test in `db/schema.rs` asserts this version + expected tables.
 - `themes.json` is an opaque blob the frontend owns (like canvas `data` / conversation `messages`) —
   Rust never parses it. The active theme lives in a sentinel row (`id = '__active__'`) so it
   persists without polluting the built-in/saved themes list.
+- `note_media_layout.json` is also opaque to Rust (`{ width?, alignment?, caption? }`); keyed by
+  `media_key = "${url}#${ordinal}"` (document-order occurrence of each asset URL) — stays off the
+  note-save path so resizing never triggers a note:saved cascade.
 - AI settings (including the API key) live outside the DB in `ai_config.json` in the app data dir, managed by Rust
 
 ---
@@ -320,6 +328,13 @@ Notes:
 | `rename_canvas` / `delete_canvas` | Rename / delete a canvas |
 | `fetch_link_preview` | Fetch + cache Open-Graph/title metadata for an embedded web page (`link_previews`) |
 
+### Media layout
+
+| Command | Description |
+|---|---|
+| `get_media_layout` | Fetch all `(media_key, json)` rows for a note as a list |
+| `set_media_layout` | Upsert one row (ON CONFLICT DO UPDATE) — separate from note save, so resizing never triggers `note:saved` |
+
 ### Themes
 
 | Command | Description |
@@ -346,6 +361,59 @@ Notes:
 - [x] Full-screen note modal
 - [x] Inline editing on note cards
 - [x] Image upload and embed
+
+### Markdown rendering & composer
+- [x] **Hybrid markdown AST renderer** — `MarkdownLite` on `react-markdown` + `remark-gfm`: real
+      headings/bold/italic/lists/blockquotes/code/tables/strikethrough/task-lists
+- [x] Custom `remarkJnana` plugin preserves the app's tokens — `[[wikilinks]]`, `[V0::…]`/
+      `[A0::…]`/`[MM:SS]` timestamps, document-order `data-video-index`/`data-audio-index` for
+      `![video]`/`![audio]`, and stable **`data-media-key`** (`${url}#${ordinal}`) for every media
+      node (used to apply saved layout sizes without touching markdown text)
+- [x] Custom `urlTransform` keeps `jnana-asset://` and `external://` embeds working
+- [x] **`FormatToolbar`** (bold/italic/strike/inline-code/H1/H2/bullet/numbered/quote/link/
+      code-block) wired into NoteCreator, NoteItem's edit mode, and NoteModal's edit mode
+- [x] Code-highlighting seam (`core/markdown/highlight.ts`) — fenced code renders as plain styled
+      monospace; ready for a lazy-loaded highlighter later
+- [x] **Live editor (CodeMirror 6)** — `LiveEditor.tsx` + `LiveEditor.decorations.tsx` — Obsidian/
+      Typora-style WYSIWYG: syntax markers hidden, bold/italic/headings styled, media/wikilink/
+      timestamp tokens rendered as interactive React widgets (same components as read-mode); reveals
+      raw markdown near the cursor for editing. Used in NoteCreator, NoteItem edit mode, and NoteModal
+      edit mode
+- [x] **Right-click context menu in LiveEditor** — formatting submenu, import submenu (image/video/
+      audio/document/YouTube/webpage inserts at click position), cut/copy/paste/paste-as-plain-text,
+      "Add table" placeholder toast. Menu rendered inside `LiveEditor` itself — all three composers
+      get it automatically. `ContextMenu.tsx` is generic and reusable
+- [x] **Media resize + alignment in live editor** — `ResizableMediaFrame` wrap on every media widget:
+      hover toolbar (align L/C/R, move ▲/▼) + corner resize handle (pointer-capture gesture). Sizes
+      persisted to `note_media_layout` (v12) off the note-save path; read-mode (cards + modal) renders
+      saved sizes. Multiple images can share a row when `alignment` is unset and `width` is narrow
+- [x] **Media block reordering (▲/▼)** — move a media paragraph block up or down past the adjacent
+      block via a CM6 text transaction (`moveMediaBlock` in `core/markdown/format.ts`); markdown is
+      the source of truth for order; layout metadata follows independently
+- [x] **PDF thumbnail** — `PdfThumbnail.tsx` renders the first page at ~216×192 px (no controls).
+      `PdfEmbed` always shows the thumbnail in cards and modal read view; clicking opens the full
+      `PdfViewer` in a portal. Prevents PDFs from dominating card height
+- [x] **`MemoizedMarkdown` + `notesRef` pattern** — inner `memo()` component decouples full
+      re-parse from `notes` identity changes; `notesRef` keeps `notes` out of `components` deps
+- [ ] Standard CommonMark newlines apply — accepted behavior change from old `pre-wrap` renderer
+- [ ] `[D1::Page n]` PDF page-jump markers were dead code; not implemented
+
+### Performance
+- [x] **`NoteItem` is memoized** (`React.memo`) with stable, id-based callbacks — editing one card
+      no longer re-renders all visible cards
+- [x] **`useNotes()` return value is memoized** (`useMemo`) — fixes context object identity defeating
+      `React.memo` across all `useNotesContext()` consumers
+- [x] **`content-visibility: auto`** on `.noteCard` — browser skips offscreen card layout/paint
+      with no library, works with the existing `column-width` grid
+- [x] **Favourites refetch only on newly-created notes** (not on every save) — drops the fan-out
+      cascade that re-rendered the whole list on every keystroke-save
+- [x] **Sidebar collapse smoothness** — pinned workspace links stay mounted (label hidden via CSS,
+      not unmounted/remounted); `.notesScroll` `contain: layout paint` isolates the card grid from
+      the sidebar width animation
+
+### NoteModal
+- [x] **Fullscreen expand** — ⤢/⤡ toggle fills the content area (excluding sidebar); respects
+      collapsed sidebar width via `useSidebarPrefs`; both view and edit mode fill automatically
 
 ### Workspaces, Canvas & web embeds
 - [x] **Workspaces** — named groups; notes stay global, many-to-many membership (remove ≠ delete)
@@ -444,7 +512,6 @@ Notes:
 - [x] Drag highlight selection
 - [x] Annotation persistence in SQLite
 - [x] Edit annotation note text
-- [x] Page jump markers like `[D1::Page 4]`
 
 ### Documents
 - [x] Import PDF directly
@@ -477,8 +544,11 @@ Notes:
 - [ ] Plugin management UI
 
 ### Verification
-- [x] Unit tests exist for `eventBus`
-- [ ] Build/typecheck not re-verified in this log update
+- [x] Unit tests: **137 passing** across 15 test files (`npm test`) — covers `eventBus`, `applyFormat`,
+      `moveMediaBlock`, `remarkJnana` (wikilinks/timestamps/media-keys), `MarkdownLite`, `LiveEditor`,
+      `mediaLayout` round-trip, and more
+- [x] TypeScript: `strict` + `noUnusedLocals` + `noUnusedParameters` — `npx tsc --noEmit` clean
+- [x] Rust: `cargo test` (7 tests) + `cargo build` pass including v12 migration test
 - [ ] End-to-end test coverage not present
 
 ---

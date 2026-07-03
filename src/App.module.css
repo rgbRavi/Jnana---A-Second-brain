@@ -13,4 +13,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* No `contain: layout` here deliberately — it would make this the containing
+     block for `position: fixed` descendants (NoteModal's overlay, etc.), breaking
+     their full-viewport coverage. Per-view scroll containers (e.g. Notes.module.css
+     .notesScroll) already carry their own `contain: layout paint` instead. */
 }

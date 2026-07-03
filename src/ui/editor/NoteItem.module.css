@@ -12,6 +12,12 @@
   /* Isolate each card's layout/paint so the sidebar's width animation doesn't
      re-flow the whole list every frame (keeps the collapse smooth). */
   contain: layout paint;
+  /* Skip layout/paint entirely for cards scrolled out of view — cheap
+     pseudo-virtualization with no library. `auto 250px` lets the browser
+     remember each card's real size after first layout, falling back to the
+     250px estimate only before that (avoids scrollbar/column-height jumps). */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
 }
 
 .noteCard:hover { border-color: var(--border-hover); background: var(--surface-2); }
@@ -200,6 +206,21 @@
 }
 
 .composerBodyBorderless::placeholder { color: var(--text-3); }
+
+/* LiveEditor variant — grows naturally with content like the textarea above
+   (no max-height/scroll cap here, just a floor), CM6 owns the scroller. */
+.composerBodyBorderlessEditor {
+  width: 100%;
+}
+
+.composerBodyBorderlessEditor :global(.cm-editor) {
+  min-height: 80px;
+}
+
+.composerBodyBorderlessEditor :global(.cm-scroller) {
+  padding: 1rem 1.25rem;
+  line-height: 1.7;
+}
 
 .composerFooterBorderlessFooter {
   display: flex;

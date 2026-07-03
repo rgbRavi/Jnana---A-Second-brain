@@ -13,6 +13,7 @@ use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
 use commands::media::*;
+use commands::media_layout::*;
 use commands::notes::*;
 use commands::themes::*;
 use commands::web::*;
@@ -262,6 +263,8 @@ fn main() {
             delete_theme,
             get_active_theme,
             set_active_theme,
+            get_media_layout,
+            set_media_layout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

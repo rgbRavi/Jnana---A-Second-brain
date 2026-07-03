@@ -129,17 +129,19 @@ export function Sidebar() {
           <span className={SidebarStyles.label}>Workspaces</span>
         </NavLink>
 
-        {!collapsed &&
-          pinnedWorkspaces.map((w) => (
-            <NavLink
-              key={w.id}
-              to={`/workspaces/${w.id}`}
-              className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
-            >
-              <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
-              <span className={SidebarStyles.label}>{w.name}</span>
-            </NavLink>
-          ))}
+        {/* Kept mounted (label hidden via CSS when collapsed, not unmounted) so
+            toggling the sidebar doesn't also mount/unmount this list mid-animation. */}
+        {pinnedWorkspaces.map((w) => (
+          <NavLink
+            key={w.id}
+            to={`/workspaces/${w.id}`}
+            className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
+            title={collapsed ? w.name : undefined}
+          >
+            <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
+            <span className={SidebarStyles.label}>{w.name}</span>
+          </NavLink>
+        ))}
 
         <NavLink to="/search" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Search" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.search}</span>
