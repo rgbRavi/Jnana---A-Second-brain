@@ -85,10 +85,13 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Timestamps** — clickable `[V0::HH:MM:SS]` (video) and `[A0::HH:MM:SS]` (audio) markers that
   seek the matching player, indexed in document order
 - **Resize & align media** — hover any embedded image, video, audio, or YouTube in the live editor
-  to reveal a resize handle (drag to size) and alignment buttons (left/center/right); multiple
-  narrow embeds share the same row automatically; sizes persist without touching your markdown
-- **Reorder media** — ▲/▼ buttons in the hover toolbar move a media block up or down past the
-  adjacent paragraph (order lives in markdown; layout metadata follows independently)
+  to reveal a resize handle (drag to size) and alignment buttons (left/center/right); alignment
+  justifies the whole row, so it never knocks a side-by-side pair apart; sizes persist without
+  touching your markdown
+- **Drag to arrange media** — grab a media's grip (⠿) and drag it onto another embed: drop on its
+  left/right edge to place them **side by side**, or top/bottom to **stack** them; a guide shows
+  where it'll land. ▲/▼ buttons still nudge a block up or down (order lives in markdown; layout
+  metadata follows independently)
 
 ### Documents
 - Import PDFs directly, convert `doc`/`docx`/`odt` → PDF (LibreOffice/Pandoc), or extract text

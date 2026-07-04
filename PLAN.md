@@ -119,13 +119,16 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       Used in all three composers (NoteCreator, NoteItem, NoteModal). Right-click **context menu**
       (`ContextMenu.tsx` reusable) with formatting submenu, import submenu (inserts at click
       position), cut/copy/paste/paste-as-plain-text, "Add table" placeholder.
-- [x] **Media resize + alignment + PDF thumbnail** ✅ DONE — `note_media_layout` table (v12); media
-      widgets in the live editor get a `ResizableMediaFrame` with a hover toolbar (L/C/R align,
-      ▲/▼ reorder) + corner resize handle (pointer-capture, same pattern as canvas). Sizes persist
-      off the note-save path. Read-mode (cards + modal) renders saved sizes — `inline-block` for
-      row-sharing when alignment is unset. PDF embeds replaced by a `PdfThumbnail` (~216×192 px,
-      first page only; click opens full viewer). `moveMediaBlock` in `core/markdown/format.ts` is a
-      pure string function that swaps paragraph blocks by position.
+- [x] **Media resize + alignment + drag-rearrange + PDF thumbnail** ✅ DONE — `note_media_layout`
+      table (v12); media widgets in the live editor get a `ResizableMediaFrame` with a hover toolbar
+      (drag grip ⠿, L/C/R align, ▲/▼ reorder) + corner resize handle (pointer-capture, same pattern
+      as canvas). Sizes persist off the note-save path. Embeds are always `inline-block`, so
+      consecutive ones on a line form a **side-by-side row**; **alignment is applied as `text-align`
+      on the container** (CM6 line / read-mode `<p>`), so aligning justifies the whole row instead of
+      breaking it out. **Drag the grip** onto another embed — left/right edge = same row, top/bottom =
+      stacked — a fixed `dropBar` previews the landing spot. PDF embeds replaced by a `PdfThumbnail`
+      (~216×192 px, first page only; click opens full viewer). `core/markdown/format.ts` holds the
+      pure transforms: `moveMediaBlock` (▲/▼ swap) and `rearrangeMedia` (drag → new document string).
 - [x] **NoteModal fullscreen expand** ✅ DONE — ⤢/⤡ toggle fills the content area (excluding
       sidebar); edit mode inherits the expanded container automatically.
 - [x] **Performance** ✅ DONE — `NoteItem` memoized; `useNotes()` return value memoized;

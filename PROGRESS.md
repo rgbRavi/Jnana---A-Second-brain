@@ -384,12 +384,18 @@ Notes:
       "Add table" placeholder toast. Menu rendered inside `LiveEditor` itself — all three composers
       get it automatically. `ContextMenu.tsx` is generic and reusable
 - [x] **Media resize + alignment in live editor** — `ResizableMediaFrame` wrap on every media widget:
-      hover toolbar (align L/C/R, move ▲/▼) + corner resize handle (pointer-capture gesture). Sizes
-      persisted to `note_media_layout` (v12) off the note-save path; read-mode (cards + modal) renders
-      saved sizes. Multiple images can share a row when `alignment` is unset and `width` is narrow
-- [x] **Media block reordering (▲/▼)** — move a media paragraph block up or down past the adjacent
-      block via a CM6 text transaction (`moveMediaBlock` in `core/markdown/format.ts`); markdown is
-      the source of truth for order; layout metadata follows independently
+      hover toolbar (drag grip ⠿, align L/C/R, move ▲/▼) + corner resize handle (pointer-capture
+      gesture). Sizes persisted to `note_media_layout` (v12) off the note-save path; read-mode (cards
+      + modal) renders saved sizes. Embeds are always `inline-block`, so consecutive ones on a line
+      share a row; **alignment is a `text-align` on the container** (CM6 line / read-mode `<p>`), so
+      it justifies the row instead of forcing the embed onto its own line (`onLayoutChange` nudges the
+      editor to rebuild the line decoration on align)
+- [x] **Media drag-to-rearrange + reorder (▲/▼)** — drag a widget's grip onto another embed:
+      left/right edge = same row (side by side), top/bottom = stacked; a fixed `dropBar` previews the
+      target. ▲/▼ still swap a block up/down. Pure transforms in `core/markdown/format.ts`
+      (`rearrangeMedia` returns the whole new document string; `moveMediaBlock` swaps blocks); markdown
+      is the source of truth for order, layout metadata follows independently. New media inserts as its
+      own blank-line-separated block so it stacks identically in the editor and read-mode
 - [x] **PDF thumbnail** — `PdfThumbnail.tsx` renders the first page at ~216×192 px (no controls).
       `PdfEmbed` always shows the thumbnail in cards and modal read view; clicking opens the full
       `PdfViewer` in a portal. Prevents PDFs from dominating card height
