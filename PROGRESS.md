@@ -383,6 +383,16 @@ Notes:
       audio/document/YouTube/webpage inserts at click position), cut/copy/paste/paste-as-plain-text,
       "Add table" placeholder toast. Menu rendered inside `LiveEditor` itself — all three composers
       get it automatically. `ContextMenu.tsx` is generic and reusable
+- [x] **Slash (`/`) command menu** — inline, filterable palette in `LiveEditor` (`SlashMenu.tsx` +
+      `core/markdown/slashCommands.ts`, pure detector + declarative `SlashAction` registry): format
+      (headings/lists/quote/code/bold/italic/inline-code), insert (divider, link-to-note), and media/
+      embed imports. `/query` is real doc text; capture-phase keydown owns Arrow/Enter/Tab/Escape
+      before CM6. All three composers inherit it
+- [x] **`[[` wikilink autocomplete** — `WikilinkMenu.tsx` + `core/markdown/wikilinks.ts`: type `[[`
+      for a live, searchable note picker; a **Create "…"** row for an unresolved title links a note that
+      doesn't exist yet. Opens only on a doc change (not when the caret lands in an existing `[[Foo]]`);
+      completion consumes a trailing `]]`. Clicking a missing `[[wikilink]]` (emits `wikilink:create`)
+      or its faded graph pseudo-node materializes the note
 - [x] **Media resize + alignment in live editor** — `ResizableMediaFrame` wrap on every media widget:
       hover toolbar (drag grip ⠿, align L/C/R, move ▲/▼) + corner resize handle (pointer-capture
       gesture). Sizes persisted to `note_media_layout` (v12) off the note-save path; read-mode (cards
@@ -446,6 +456,10 @@ Notes:
 - [x] Graph stays in sync through events
 - [x] Node right-click menu — connect / disconnect-all / delete
 - [x] Connect to a note via rubber-band line + click (appends `[[title]]`)
+- [x] **Pseudo-nodes** for unresolved `[[wikilinks]]` — faded, dashed nodes derived from note content
+      on the frontend (no link row exists server-side); click one to create the note, then referencing
+      notes are re-synced (`useGraph().syncNoteLinks`) so their inbound edges resolve immediately.
+      Own position cache; excluded from right-click / degree / hub-orphan logic
 - [x] Disconnect all links (strips the `[[wikilink]]` from both sides)
 - [x] Native Tauri confirm for delete (WebView `window.confirm` ignored Cancel)
 - [x] Collapsible settings panel (Filters / Groups / Display / Forces)

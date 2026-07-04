@@ -39,6 +39,10 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
   lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
   import-at-cursor from the right-click menu
+- A **slash (`/`) command menu** — type `/` for an inline, filterable palette to insert media/embeds/
+  divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
+- **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the
+  title doesn't exist yet, choose **Create** to link a new note (materialized on first click)
 - **Full-screen note view** — expand the note modal to fill the content area (⤢/⤡ toggle);
   editing in fullscreen works the same way
 - **Wikilinks** (`[[Title]]`) that become graph edges, kept in sync efficiently on the Rust side
@@ -50,6 +54,8 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - Interactive force-directed graph of your notes and their links
 - Focus a node to see just its neighbourhood; search and jump to any node
 - **Connect mode** — link two notes by clicking them (adds a durable `[[wikilink]]` to the source)
+- **Pseudo-nodes** — unresolved `[[wikilinks]]` appear as faded, dashed nodes; click one to create
+  that note (referencing links resolve immediately)
 - Edit or delete a note straight from the graph panel
 
 ### Workspaces
