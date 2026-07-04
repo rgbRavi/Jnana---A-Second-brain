@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fetchLinkPreview, domainOf, type LinkPreview } from '../core/linkPreview'
+import { useInView } from '../hooks/useInView'
 import { toast } from '../lib/toast'
 import styles from './WebEmbed.module.css'
 
@@ -8,6 +9,9 @@ interface Props {
   url: string
   /** Compact layout for dense contexts (canvas nodes). */
   compact?: boolean
+  /** Defer the Open-Graph preview fetch until the card scrolls into view.
+   *  On in note cards, off (default) in always-visible contexts like the canvas. */
+  lazy?: boolean
 }
 
 /**
@@ -26,13 +30,17 @@ function liveSrc(url: string): string {
  * sandboxed iframe (many sites block framing — hence the open-in-browser action).
  * Shared by the `![webpage](url)` note embed and canvas link nodes.
  */
-export function WebEmbed({ url, compact = false }: Props) {
+export function WebEmbed({ url, compact = false, lazy = false }: Props) {
   const [preview, setPreview] = useState<LinkPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [live, setLive] = useState(false)
   const domain = domainOf(url)
+  // Every `![webpage]` fires a Rust preview fetch (network on cache-miss); on a
+  // Notes page full of embeds that's a fetch storm on load. Defer until visible.
+  const [ref, inView] = useInView<HTMLDivElement>(lazy)
 
   useEffect(() => {
+    if (!inView) return
     let active = true
     setLoading(true)
     fetchLinkPreview(url)
@@ -40,7 +48,7 @@ export function WebEmbed({ url, compact = false }: Props) {
       .catch(() => {})
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [url])
+  }, [url, inView])
 
   const open = () => { openUrl(url).catch((e) => toast.error('Could not open link: ' + String(e))) }
 
@@ -70,7 +78,7 @@ export function WebEmbed({ url, compact = false }: Props) {
   const title = preview?.title?.trim() || url
 
   return (
-    <div className={`${styles.card} ${compact ? styles.compact : ''}`} onClick={(e) => e.stopPropagation()}>
+    <div ref={ref} className={`${styles.card} ${compact ? styles.compact : ''}`} onClick={(e) => e.stopPropagation()}>
       {preview?.image && !compact && (
         <div className={styles.thumb}>
           <img src={preview.image} alt="" loading="lazy" referrerPolicy="no-referrer" />

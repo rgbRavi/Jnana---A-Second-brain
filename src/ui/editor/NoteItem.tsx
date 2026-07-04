@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './MarkdownLite'
+import { truncateMarkdown } from '../../core/markdown/preview'
 import type { Note } from '../../types'
 import { useComposer } from '../../hooks/useComposer'
 import { useNotesContext } from '../../context/NotesContext'
@@ -199,6 +200,10 @@ function NoteItemImpl({
   const userTags = note.tags.filter((t) => !isAutoTag(t))
   const mediaChips = MEDIA_CHIPS.filter(([tag]) => note.tags.includes(tag))
   const showBody = variant !== 'compact' && !!note.content
+  // A card is a preview, not the full note (that's the modal) — cap the body so
+  // long notes don't each parse their entire content through react-markdown.
+  // Deterministic, so MarkdownLite's memoized parse still holds across renders.
+  const previewBody = truncateMarkdown(note.content)
 
   return (
     <div
@@ -262,7 +267,7 @@ function NoteItemImpl({
       </div>
       {showBody && (
         <div className={Styles.noteCardBody}>
-          <MarkdownLite content={note.content} noteId={note.id} />
+          <MarkdownLite content={previewBody} noteId={note.id} />
         </div>
       )}
       <div className={Styles.noteCardMeta}>

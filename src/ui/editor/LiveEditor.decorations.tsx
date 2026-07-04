@@ -194,7 +194,7 @@ class YouTubeWidget extends ReactWidget<{
 
 class PdfWidget extends ReactWidget<{ url: string; noteId: string }> {
   renderWidget() {
-    return <PdfEmbed url={this.props.url} noteId={this.props.noteId} />
+    return <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} />
   }
 }
 

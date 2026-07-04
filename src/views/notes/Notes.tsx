@@ -16,6 +16,11 @@ import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
 
 import NoteStyles from './Notes.module.css'
 
+// The list renders every visible card at once and each parses its markdown, so a
+// large vault means a big synchronous burst on load. Render a page at a time and
+// reveal more as the user scrolls to the bottom.
+const PAGE = 24
+
 function Notes() {
   const { notes, loading, error, update, remove, updateTags } = useNotesContext()
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
@@ -128,6 +133,32 @@ function Notes() {
     return sortNotes(filtered, prefs.sortBy, prefs.sortOrder, linkCounts)
   }, [notes, prefs.filters, prefs.sortBy, prefs.sortOrder, search, favSet, linkCounts])
 
+  // Incremental rendering. Reset the window when the *filter criteria* change —
+  // not when `visible` merely gets a new identity from a note save, which would
+  // otherwise snap a scrolled-down user back to the top on every autosave.
+  const [limit, setLimit] = useState(PAGE)
+  useEffect(() => {
+    setLimit(PAGE)
+  }, [search, prefs.filters, prefs.sortBy, prefs.sortOrder])
+  const shown = visible.slice(0, limit)
+
+  // Grow the window when a sentinel below the last card nears the viewport.
+  // Re-observing on each limit/length change re-checks intersection, so a short
+  // page that leaves the sentinel visible keeps filling until it scrolls off.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setLimit((l) => Math.min(l + PAGE, visible.length))
+      },
+      { rootMargin: '600px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible.length, limit])
+
   return (
     <div className={NoteStyles.notesContainer}>
       <NotesToolbar
@@ -152,7 +183,7 @@ function Notes() {
         )}
 
         <div className={`${NoteStyles.list} ${NoteStyles[prefs.displayMode]}`}>
-          {visible.map((note) => (
+          {shown.map((note) => (
             <NoteItem
               key={note.id}
               note={note}
@@ -166,6 +197,7 @@ function Notes() {
             />
           ))}
         </div>
+        {limit < visible.length && <div ref={sentinelRef} aria-hidden="true" />}
       </div>
 
       {workspaceMenuNoteId && (

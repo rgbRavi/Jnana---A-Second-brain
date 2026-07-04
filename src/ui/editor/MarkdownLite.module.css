@@ -158,6 +158,22 @@
   width: 100%;
 }
 
+/* Off-screen placeholder for a not-yet-rendered PDF thumbnail. Matches the
+   thumbnail's footprint (216x192) so revealing it causes no layout shift. */
+.notePdfPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 216px;
+  height: 192px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-3);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+}
+
 /* External Document Link */
 .noteExternalDoc {
   display: flex;

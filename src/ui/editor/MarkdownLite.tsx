@@ -57,15 +57,23 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
 
   // Saved media sizes/alignment — loaded once per note (resize affordances
   // only exist in the live editor, so this never needs to update mid-view).
+  // `layoutMap` is a dependency of the `components` memo below, so *replacing*
+  // its identity forces react-markdown to re-parse. Two guards keep that
+  // re-parse off the common path: (1) skip the fetch entirely for notes with no
+  // media token (the majority), and (2) only swap the map when the note actually
+  // has saved layout rows — a note with media but no custom sizes stays on the
+  // stable initial map and parses exactly once. Without these, every card fired
+  // one IPC call and re-parsed a second time on load, media or not.
+  const hasMedia = useMemo(() => content.includes('!['), [content])
   const [layoutMap, setLayoutMap] = useState<Map<string, MediaLayout>>(new Map())
   useEffect(() => {
-    if (!noteId) return
+    if (!noteId || !hasMedia) return
     let active = true
     getMediaLayout(noteId)
-      .then((map) => { if (active) setLayoutMap(map) })
+      .then((map) => { if (active && map.size > 0) setLayoutMap(map) })
       .catch(() => {})
     return () => { active = false }
-  }, [noteId])
+  }, [noteId, hasMedia])
 
   const seek = (kind: 'video' | 'audio', index: number, seconds: number) => {
     if (!containerRef.current) return
@@ -93,8 +101,8 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} />
       }
       if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} />
-      if (alt === 'webpage') return <WebEmbed url={url} />
+      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} />
+      if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} />
       return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
     }
 

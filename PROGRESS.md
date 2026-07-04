@@ -2,7 +2,7 @@
 
 ## Status: Phases 1–3 complete; live editor, media layout, context menu, NoteModal fullscreen, and performance improvements landed
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 ---
 
@@ -407,8 +407,9 @@ Notes:
       is the source of truth for order, layout metadata follows independently. New media inserts as its
       own blank-line-separated block so it stacks identically in the editor and read-mode
 - [x] **PDF thumbnail** — `PdfThumbnail.tsx` renders the first page at ~216×192 px (no controls).
-      `PdfEmbed` always shows the thumbnail in cards and modal read view; clicking opens the full
-      `PdfViewer` in a portal. Prevents PDFs from dominating card height
+      `PdfEmbed` shows the thumbnail in cards and modal read view (viewport-lazy — pdf.js only runs
+      once the embed scrolls into view); clicking opens the full `PdfViewer` in a portal. Prevents
+      PDFs from dominating card height
 - [x] **`MemoizedMarkdown` + `notesRef` pattern** — inner `memo()` component decouples full
       re-parse from `notes` identity changes; `notesRef` keeps `notes` out of `components` deps
 - [ ] Standard CommonMark newlines apply — accepted behavior change from old `pre-wrap` renderer
@@ -426,6 +427,20 @@ Notes:
 - [x] **Sidebar collapse smoothness** — pinned workspace links stay mounted (label hidden via CSS,
       not unmounted/remounted); `.notesScroll` `contain: layout paint` isolates the card grid from
       the sidebar width animation
+- [x] **Notes-view load pass** (4 fixes to the per-card render burst — the list mounts every visible
+      card and each does a full `react-markdown` parse):
+  - **No more media-layout double-parse** — `MarkdownLite`'s `getMediaLayout(noteId)` effect now
+    skips the IPC call for notes with no media token and only swaps `layoutMap` when there are saved
+    rows; text notes parse once instead of twice (`layoutMap` is a `components`-memo dep, so a new
+    map identity was forcing a re-parse of every card, media or not)
+  - **Card body is a preview** — cards render `truncateMarkdown(note.content, 600)`
+    (`core/markdown/preview.ts`; boundary-safe cut + re-closes a dangling code fence) rather than the
+    whole note; the modal still renders full content. New `preview.test.ts` (6 cases)
+  - **Lazy PDF + web embeds** — new `hooks/useInView.ts` (one-shot `IntersectionObserver` gate);
+    `PdfEmbed` defers pdf.js and `WebEmbed` defers its `fetchLinkPreview` until on-screen. Live editor
+    PDF widget stays eager (`lazy={false}`). Global IO mock added to `setupTests.ts` for jsdom
+  - **Incremental list rendering** — `Notes.tsx` renders `PAGE = 24` cards, grows via a sentinel
+    `IntersectionObserver`; window resets on filter/search/sort change, not on note save
 
 ### NoteModal
 - [x] **Fullscreen expand** — ⤢/⤡ toggle fills the content area (excluding sidebar); respects

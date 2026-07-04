@@ -7,6 +7,7 @@ import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { invoke } from '@tauri-apps/api/core'
 import type { Note } from '../../types'
+import { useInView } from '../../hooks/useInView'
 import { useNotesContext } from '../../context/NotesContext'
 import { useTranscription } from '../../context/TranscriptionContext'
 import { eventBus } from '../../lib/eventBus'
@@ -112,13 +113,18 @@ export function YouTubeEmbed({ url, lazy, layout }: { url: string; lazy: boolean
  *  — a full multi-page viewer is too tall for a preview); click opens the
  *  full PdfViewer in a fullscreen overlay. Not part of the resizable-media
  *  layout system — its thumbnail size is intentionally fixed. */
-export function PdfEmbed({ url, noteId }: { url: string; noteId: string }) {
+export function PdfEmbed({ url, noteId, lazy = true }: { url: string; noteId: string; lazy?: boolean }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const filename = url.replace('jnana-asset://', '')
+  // pdf.js (getDocument + canvas render of page 1) is heavy; don't spin it up
+  // for every off-screen card. The thumbnail mounts only once in view.
+  const [ref, inView] = useInView<HTMLSpanElement>(lazy)
   return (
     <>
-      <span className={MdStyles.notePdfWrapper} onClick={(e) => e.stopPropagation()}>
-        <PdfThumbnail filename={filename} onClick={() => setIsFullscreen(true)} />
+      <span ref={ref} className={MdStyles.notePdfWrapper} onClick={(e) => e.stopPropagation()}>
+        {inView
+          ? <PdfThumbnail filename={filename} onClick={() => setIsFullscreen(true)} />
+          : <span className={MdStyles.notePdfPlaceholder}>📄 PDF</span>}
       </span>
       {isFullscreen && createPortal(
         <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
