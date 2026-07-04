@@ -7,6 +7,7 @@ import { useViewState } from '../../hooks/useViewState'
 import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
+import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/markdown/wikilinks'
 import { toast } from '../../lib/toast'
 import { eventBus } from '../../lib/eventBus'
 import type { Note } from '../../types'
@@ -41,6 +42,8 @@ const TAG_PALETTE = [
 const DEFAULT_NODE_COLOR = '#55535f'
 const ORPHAN_COLOR = '#e3b341'
 const CONNECT_COLOR = '#3fb950'
+// Faded outline for a pseudo-node (an unresolved `[[wikilink]]` target).
+const PSEUDO_COLOR = '#8b8794'
 
 // Accent-derived node colors — re-themed live. `nodeCanvasObject` below reads
 // these on every canvas paint (it's called continuously by react-force-graph,
@@ -82,6 +85,19 @@ function nodeCacheFor(key: string): Map<string, any> {
   if (!m) {
     m = new Map()
     nodeCaches.set(key, m)
+  }
+  return m
+}
+
+// Separate position cache for derived pseudo-nodes, so they hold their layout
+// across recomputes (the real-node cache is pruned to existing note ids, which
+// would otherwise evict them every pass).
+const pseudoCaches = new Map<string, Map<string, any>>()
+function pseudoCacheFor(key: string): Map<string, any> {
+  let m = pseudoCaches.get(key)
+  if (!m) {
+    m = new Map()
+    pseudoCaches.set(key, m)
   }
   return m
 }
@@ -141,6 +157,8 @@ interface Props {
   // desynchronised state array alongside App's.
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onRemove: (id: string) => void
+  /** Create a note (used to materialize a pseudo-node's `[[title]]` on click). */
+  onCreate: (title: string, content: string) => Promise<Note>
   /** When set, restrict the graph to these note ids (and the links among them) —
    *  used for a workspace's local graph. */
   scopeIds?: Set<string>
@@ -408,12 +426,13 @@ function JumpToNote({
   )
 }
 
-export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }: Props) {
-  const { graphData, loading } = useGraph()
+export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, instanceKey = 'main' }: Props) {
+  const { graphData, loading, syncNoteLinks } = useGraph()
 
   // Per-instance session caches (layout + viewport), so a workspace's local graph
   // never shares positions/zoom with the main graph.
   const nodeCacheStore = useMemo(() => nodeCacheFor(instanceKey), [instanceKey])
+  const pseudoCacheStore = useMemo(() => pseudoCacheFor(instanceKey), [instanceKey])
 
   // Notes in scope (all notes, or just the workspace's) — for jump-to + empty state.
   const scopedNodes = useMemo(
@@ -614,12 +633,46 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
       return fresh
     })
 
-    return {
-      nodes,
-      links: graphData.edges
-        .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
-        .map((e) => ({ source: e.source, target: e.target })),
+    // Real edges among visible notes.
+    const links = graphData.edges
+      .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target }))
+
+    // Overlay: derive a faded pseudo-node for every `[[wikilink]]` that doesn't
+    // resolve to an existing note (edges to unresolved titles aren't stored
+    // server-side, so this is content-derived on the fly). Clicking one creates
+    // the note. Only sourced from visible notes so filters/scope still apply.
+    const titleToId = new Map<string, string>()
+    for (const n of graphData.nodes) {
+      const key = normalizeTitle(n.title)
+      if (key) titleToId.set(key, n.id)
     }
+    const pseudoNodes = new Map<string, any>()
+    for (const n of visibleNodes) {
+      for (const title of extractWikilinkTitles(n.content)) {
+        const key = normalizeTitle(title)
+        if (!key || titleToId.has(key)) continue
+        const pid = pseudoNodeId(title)
+        if (!pseudoNodes.has(pid)) {
+          const cached = pseudoCacheStore.get(pid)
+          if (cached) {
+            cached.title = title
+            pseudoNodes.set(pid, cached)
+          } else {
+            const fresh = { id: pid, title, isPseudo: true, val: 1 }
+            pseudoCacheStore.set(pid, fresh)
+            pseudoNodes.set(pid, fresh)
+          }
+        }
+        links.push({ source: n.id, target: pid })
+      }
+    }
+    // Evict pseudo positions no longer referenced.
+    for (const pid of pseudoCacheStore.keys()) {
+      if (!pseudoNodes.has(pid)) pseudoCacheStore.delete(pid)
+    }
+
+    return { nodes: [...nodes, ...pseudoNodes.values()], links }
   }, [
     graphData.nodes,
     graphData.edges,
@@ -631,6 +684,7 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
     degrees,
     scopeIds,
     nodeCacheStore,
+    pseudoCacheStore,
   ])
 
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
@@ -725,8 +779,39 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
     [graphData.nodes, graphData.edges, onUpdate],
   )
 
+  // Materialize a pseudo-node: create the note for its title, then re-sync the
+  // notes that already reference it so their edges resolve immediately (the
+  // links table gains no rows until each referencing note is synced).
+  const createFromPseudo = useCallback(
+    async (title: string) => {
+      const name = title.trim()
+      if (!name) return
+      const ok = await ask(`Create note “${name}”?`, { title: 'Create note', kind: 'info' })
+      if (!ok) return
+      const key = normalizeTitle(name)
+      const referencing = graphData.nodes.filter((n) =>
+        extractWikilinkTitles(n.content).some((t) => normalizeTitle(t) === key),
+      )
+      try {
+        const created = await onCreate(name, '')
+        await Promise.all(referencing.map((n) => syncNoteLinks(n.id, n.content)))
+        setFocusNodeId(created.id)
+      } catch (err) {
+        console.error('Failed to create note from pseudo-node:', err)
+        toast.error('Could not create the note.')
+      }
+    },
+    [graphData.nodes, onCreate, syncNoteLinks],
+  )
+
   const handleNodeClick = useCallback(
     (node: any) => {
+      // A faded pseudo-node → offer to create the real note.
+      if (node.isPseudo) {
+        void createFromPseudo(node.title)
+        return
+      }
+
       // Completing a connection started from the context menu.
       if (connectingFrom) {
         if (node.id !== connectingFrom) connect(connectingFrom, node.id)
@@ -744,11 +829,13 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
         }
       }
     },
-    [connectingFrom, connect, focusNodeId],
+    [connectingFrom, connect, focusNodeId, createFromPseudo],
   )
 
   const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
     event.preventDefault?.()
+    // Pseudo-nodes aren't real notes — no connect/disconnect/delete menu.
+    if (node.isPseudo) return
     setConnectingFrom(null)
     // Clamp so the menu stays on screen.
     const menuW = 210
@@ -971,6 +1058,10 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
         ref={fgRef}
         graphData={forceData}
         nodeLabel={(n: any) => {
+          if (n.isPseudo) {
+            const title = escapeHtml(n.title ?? '')
+            return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px dashed var(--border);color:var(--text-2);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${title}</strong><br/><span style="color:var(--text-3)">Click to create this note</span></div>`
+          }
           const preview =
             n.content.substring(0, 100).replace(/\n/g, ' ') + (n.content.length > 100 ? '…' : '')
           // nodeLabel is rendered as raw HTML — escape note-derived text to
@@ -1014,6 +1105,33 @@ export function GraphView({ onUpdate, onRemove, scopeIds, instanceKey = 'main' }
           const label = node.title || 'Untitled'
           const fontSize = 12 / globalScale
           ctx.font = `${fontSize}px var(--font-body), Sans-Serif`
+
+          // Pseudo-node (unresolved wikilink): a faded, dashed-outline dot with
+          // a muted label, standing in for a note that doesn't exist yet.
+          if (node.isPseudo) {
+            const radius = 5 * nodeSize
+            ctx.save()
+            ctx.globalAlpha = hoverNodeId === node.id ? 0.7 : 0.4
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
+            ctx.fillStyle = 'rgba(139, 135, 148, 0.25)'
+            ctx.fill()
+            ctx.setLineDash([3 / globalScale, 2 / globalScale])
+            ctx.lineWidth = 1 / globalScale
+            ctx.strokeStyle = PSEUDO_COLOR
+            ctx.stroke()
+            ctx.setLineDash([])
+            const labelAlpha = Math.max(0, Math.min(1, (globalScale - textFade) * 2.5))
+            if (labelAlpha > 0.01) {
+              ctx.globalAlpha = labelAlpha * (hoverNodeId === node.id ? 0.9 : 0.55)
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'top'
+              ctx.fillStyle = PSEUDO_COLOR
+              ctx.fillText(label, node.x, node.y + radius + 3)
+            }
+            ctx.restore()
+            return
+          }
 
           const deg = degrees.get(node.id) ?? 0
           const isHub = highlightStructure && deg >= HUB_DEGREE

@@ -1,6 +1,6 @@
 // src/hooks/useGraph.ts
 import { useState, useEffect, useCallback } from 'react'
-import { getAllNotes, getAllLinks, createLink, removeLink } from '../core/notes'
+import { getAllNotes, getAllLinks, createLink, removeLink, syncLinksForNote } from '../core/notes'
 import { eventBus } from '../lib/eventBus'
 import type { Note } from '../types'
 
@@ -113,9 +113,18 @@ export function useGraph() {
     // eventBus.emit('link:removed') is called inside removeLink in core/notes.ts.
   }, [])
 
+  // Re-derive a note's outbound links from its content. Used after a pseudo-note
+  // is created so notes that already reference its title get their edges (the
+  // links table only stores edges between existing notes, so those inbound links
+  // don't exist until each referencing note is re-synced). Emits link:created,
+  // which the edge listener above folds in.
+  const syncNoteLinks = useCallback(async (noteId: string, content: string) => {
+    await syncLinksForNote(noteId, content)
+  }, [])
+
   const graphData: GraphData = { nodes, edges }
 
-  return { graphData, loading, refresh, addLink, dropLink }
+  return { graphData, loading, refresh, addLink, dropLink, syncNoteLinks }
 }
 
 // ─── Helpers ─────────────────────────────────────────────

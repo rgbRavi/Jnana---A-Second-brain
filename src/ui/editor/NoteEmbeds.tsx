@@ -3,7 +3,7 @@
 // (LiveEditor.decorations.tsx) — one home so the two surfaces never drift
 // visually. Behavior is otherwise unchanged from the original MarkdownLite.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { invoke } from '@tauri-apps/api/core'
 import type { Note } from '../../types'
@@ -225,17 +225,30 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
  *  an unsaved draft in NoteCreator. */
 export function WikilinkButton({ title, notes, allowNavigate }: { title: string; notes: Note[]; allowNavigate: boolean }) {
   const foundNote = notes.find((n) => n.title.toLowerCase() === title.toLowerCase())
+  const onClick = !allowNavigate
+    ? undefined
+    : foundNote
+      ? async (e: ReactMouseEvent) => {
+          e.stopPropagation()
+          if (await showConfirmDialog({ title: 'Open linked note?', message: `Open “${foundNote.title}”?`, confirmLabel: 'Open note' })) {
+            eventBus.emit('note:navigate', foundNote)
+          }
+        }
+      : async (e: React.MouseEvent) => {
+          // Missing target → offer to materialize the pseudo-note.
+          e.stopPropagation()
+          const name = title.trim()
+          if (!name) return
+          if (await showConfirmDialog({ title: 'Create note?', message: `“${name}” doesn’t exist yet. Create it?`, confirmLabel: 'Create note' })) {
+            eventBus.emit('wikilink:create', { title: name })
+          }
+        }
   return (
     <button
       className={foundNote ? MdStyles.wikilinkBtn : MdStyles.wikilinkBtnMissing}
-      onClick={foundNote && allowNavigate ? async (e) => {
-        e.stopPropagation()
-        if (await showConfirmDialog({ title: 'Open linked note?', message: `Open “${foundNote.title}”?`, confirmLabel: 'Open note' })) {
-          eventBus.emit('note:navigate', foundNote)
-        }
-      } : undefined}
+      onClick={onClick}
       style={foundNote && !allowNavigate ? { cursor: 'default' } : undefined}
-      title={foundNote ? foundNote.title : `Note not found: ${title}`}
+      title={foundNote ? foundNote.title : allowNavigate ? `Create note: ${title}` : `Note not found: ${title}`}
     >
       {title}
     </button>

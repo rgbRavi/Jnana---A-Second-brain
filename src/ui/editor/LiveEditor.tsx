@@ -25,8 +25,30 @@ import type { ComposerToolbarProps } from '../../hooks/useComposer'
 import { showPromptDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { SlashMenu } from './SlashMenu'
+import { WikilinkMenu, buildWikilinkItems, type WikilinkItem } from './WikilinkMenu'
+import { detectSlashContext, filterSlashCommands, type SlashCommand } from '../../core/markdown/slashCommands'
+import { detectWikilinkContext } from '../../core/markdown/wikilinks'
 import { liveDecorations, forceRebuildMediaLayout, type LiveContext } from './LiveEditor.decorations'
 import styles from './LiveEditor.module.css'
+
+/** Open-menu state for the `/` command popup. `from` is the `/`'s doc offset. */
+interface SlashState {
+  from: number
+  query: string
+  coords: { x: number; y: number }
+  index: number
+}
+
+/** Open-menu state for the `[[` note-picker. `contentStart` is the offset just
+ *  after the `[[`; `hasClose` records a `]]` already sitting after the cursor. */
+interface WikilinkState {
+  contentStart: number
+  query: string
+  hasClose: boolean
+  coords: { x: number; y: number }
+  index: number
+}
 
 export interface LiveEditorHandle {
   focus(): void
@@ -117,6 +139,18 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   const viewRef = useRef<EditorView | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [menuState, setMenuState] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
+  const [slash, setSlash] = useState<SlashState | null>(null)
+  const [wl, setWl] = useState<WikilinkState | null>(null)
+  // Read by the mount-once updateListener / capture keydown handlers, which
+  // can't close over fresh render state.
+  const slashRef = useRef<SlashState | null>(slash)
+  slashRef.current = slash
+  const wlRef = useRef<WikilinkState | null>(wl)
+  wlRef.current = wl
+  const updateSlashRef = useRef((_state: EditorState, _head: number) => {})
+  const runSlashRef = useRef((_item: SlashCommand) => {})
+  const updateWikilinkRef = useRef((_state: EditorState, _head: number, _docChanged: boolean) => {})
+  const runWikilinkRef = useRef((_item: WikilinkItem) => {})
 
   // Stable callback refs — read by extensions created once at mount.
   const onChangeRef = useRef(onChange)
@@ -261,6 +295,76 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     viewRef.current?.dispatch({ effects: forceRebuildMediaLayout.of() })
   }, [mediaLayout])
 
+  // While the slash menu is open, own the nav keys in the capture phase — before
+  // CM6's own bubble-phase keydown handlers — so Arrow/Enter/Tab drive the menu
+  // and Escape closes it without triggering the composer's Cmd+Enter save or
+  // Escape cancel. Character keys fall through to CM6, extend the doc, and the
+  // updateListener re-filters.
+  const slashOpen = slash != null
+  useEffect(() => {
+    if (!slashOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      const s = slashRef.current
+      if (!s) return
+      const items = filterSlashCommands(s.query)
+      if (items.length === 0) return
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault(); e.stopPropagation()
+          setSlash((cur) => (cur ? { ...cur, index: (cur.index + 1) % items.length } : cur))
+          break
+        case 'ArrowUp':
+          e.preventDefault(); e.stopPropagation()
+          setSlash((cur) => (cur ? { ...cur, index: (cur.index - 1 + items.length) % items.length } : cur))
+          break
+        case 'Enter':
+        case 'Tab':
+          e.preventDefault(); e.stopPropagation()
+          runSlashRef.current(items[s.index] ?? items[0])
+          break
+        case 'Escape':
+          e.preventDefault(); e.stopPropagation()
+          setSlash(null)
+          break
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [slashOpen])
+
+  // Same capture-phase nav ownership for the `[[` note picker.
+  const wlOpen = wl != null
+  useEffect(() => {
+    if (!wlOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      const s = wlRef.current
+      if (!s) return
+      const items = buildWikilinkItems(s.query, contextRef.current.notes)
+      if (items.length === 0) return
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault(); e.stopPropagation()
+          setWl((cur) => (cur ? { ...cur, index: (cur.index + 1) % items.length } : cur))
+          break
+        case 'ArrowUp':
+          e.preventDefault(); e.stopPropagation()
+          setWl((cur) => (cur ? { ...cur, index: (cur.index - 1 + items.length) % items.length } : cur))
+          break
+        case 'Enter':
+        case 'Tab':
+          e.preventDefault(); e.stopPropagation()
+          runWikilinkRef.current(items[s.index] ?? items[0])
+          break
+        case 'Escape':
+          e.preventDefault(); e.stopPropagation()
+          setWl(null)
+          break
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [wlOpen])
+
   const applyFormatAtSelection = (kind: FormatKind) => {
     const view = viewRef.current
     if (!view) return
@@ -339,6 +443,120 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     const url = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`
     insertAtCursor(`\n\n![webpage](${url})`)
   }
+
+  // --- Slash (`/`) command menu ---------------------------------------------
+  // Recompute the open/closed state from the current doc + caret. Runs from the
+  // updateListener on every doc/selection change. The `/query` is real document
+  // text, so this is pure inspection — detection never mutates the doc.
+  const updateSlash = (state: EditorState, head: number) => {
+    const view = viewRef.current
+    const sel = state.selection.main
+    if (!view || !sel.empty) {
+      setSlash((prev) => (prev ? null : prev))
+      return
+    }
+    const ctx = detectSlashContext(state.doc.toString(), head)
+    const coords = ctx ? view.coordsAtPos(ctx.from) : null
+    if (!ctx || !coords || filterSlashCommands(ctx.query).length === 0) {
+      setSlash((prev) => (prev ? null : prev))
+      return
+    }
+    const filteredLen = filterSlashCommands(ctx.query).length
+    setSlash((prev) => ({
+      from: ctx.from,
+      query: ctx.query,
+      coords: { x: coords.left, y: coords.top },
+      // Keep the highlight while narrowing the same query; else reset to the top.
+      index: prev && prev.query === ctx.query ? Math.min(prev.index, filteredLen - 1) : 0,
+    }))
+  }
+  updateSlashRef.current = updateSlash
+
+  // Delete the typed `/query`, then run the command against the helpers this
+  // component already owns (format / insert / the shared import handlers).
+  const runSlashCommand = (item: SlashCommand) => {
+    const view = viewRef.current
+    const s = slashRef.current
+    if (!view || !s) return
+    const cursor = view.state.selection.main.head
+    view.dispatch({ changes: { from: s.from, to: cursor, insert: '' }, selection: { anchor: s.from } })
+    setSlash(null)
+    view.focus()
+    const action = item.action
+    if (action.kind === 'format') {
+      applyFormatAtSelection(action.format)
+    } else if (action.kind === 'insert') {
+      insertAtCursor(action.markdown)
+    } else if (action.kind === 'wikilink') {
+      // Insert `[[]]` and drop the caret between the brackets — the `[[`
+      // detector then opens the note picker automatically.
+      const pos = view.state.selection.main.head
+      view.dispatch({ changes: { from: pos, to: pos, insert: '[[]]' }, selection: { anchor: pos + 2 } })
+      view.focus()
+    } else {
+      switch (action.which) {
+        case 'image': imageInputRef.current?.click(); break
+        case 'video': importHandlers?.onVideoUpload(); break
+        case 'audio': importHandlers?.onAudioUpload(); break
+        case 'document': importHandlers?.onDocumentUpload(); break
+        case 'youtube': void handleYouTubeImport(); break
+        case 'webpage': void handleWebpageImport(); break
+      }
+    }
+  }
+  runSlashRef.current = runSlashCommand
+
+  // --- Wikilink (`[[`) note picker ------------------------------------------
+  // Same real-document-text model as the slash menu: `[[` and the query are
+  // literal text, so this is pure inspection. `contextRef.current.notes` gives
+  // the always-fresh note list without adding it to any closure deps.
+  const updateWikilink = (state: EditorState, head: number, docChanged: boolean) => {
+    const view = viewRef.current
+    const sel = state.selection.main
+    if (!view || !sel.empty) {
+      setWl((prev) => (prev ? null : prev))
+      return
+    }
+    const ctx = detectWikilinkContext(state.doc.toString(), head)
+    const coords = ctx ? view.coordsAtPos(ctx.contentStart) : null
+    if (!ctx || !coords || buildWikilinkItems(ctx.query, contextRef.current.notes).length === 0) {
+      setWl((prev) => (prev ? null : prev))
+      return
+    }
+    // Only *open* on a doc change (typing `[[…` or the slash "Link to note"
+    // insert) — never spontaneously when the caret merely lands inside an
+    // existing `[[Foo]]`. Once open, keep tracking so navigating out closes it.
+    if (!docChanged && !wlRef.current) return
+    const len = buildWikilinkItems(ctx.query, contextRef.current.notes).length
+    setWl((prev) => ({
+      contentStart: ctx.contentStart,
+      query: ctx.query,
+      hasClose: ctx.hasClose,
+      coords: { x: coords.left, y: coords.top },
+      index: prev && prev.query === ctx.query ? Math.min(prev.index, len - 1) : 0,
+    }))
+  }
+  updateWikilinkRef.current = updateWikilink
+
+  // Complete the `[[…` to `[[Title]]` — replacing the typed query and consuming
+  // an existing `]]` so it isn't duplicated. A 'create' pick inserts the typed
+  // title verbatim; the note itself is materialized later (clicking the missing
+  // wikilink, or its faded pseudo-node in the graph).
+  const completeWikilink = (item: WikilinkItem) => {
+    const view = viewRef.current
+    const s = wlRef.current
+    if (!view || !s) return
+    const cursor = view.state.selection.main.head
+    const to = s.hasClose ? cursor + 2 : cursor
+    const insert = `${item.title}]]`
+    view.dispatch({
+      changes: { from: s.contentStart, to, insert },
+      selection: { anchor: s.contentStart + insert.length },
+    })
+    setWl(null)
+    view.focus()
+  }
+  runWikilinkRef.current = completeWikilink
 
   const buildMenuItems = (hasSelection: boolean): MenuItem[] => {
     const items: MenuItem[] = [
@@ -436,6 +654,11 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
         }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString())
+          if (update.docChanged || update.selectionSet) {
+            const head = update.state.selection.main.head
+            updateSlashRef.current(update.state, head)
+            updateWikilinkRef.current(update.state, head, update.docChanged)
+          }
         }),
         jnanaTheme,
       ],
@@ -487,6 +710,26 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
           })
         }}
       />
+      {slash && (
+        <SlashMenu
+          items={filterSlashCommands(slash.query)}
+          activeIndex={slash.index}
+          coords={slash.coords}
+          onPick={(item) => runSlashCommand(item)}
+          onHover={(i) => setSlash((cur) => (cur ? { ...cur, index: i } : cur))}
+          onClose={() => setSlash(null)}
+        />
+      )}
+      {wl && (
+        <WikilinkMenu
+          items={buildWikilinkItems(wl.query, notes)}
+          activeIndex={wl.index}
+          coords={wl.coords}
+          onPick={(item) => completeWikilink(item)}
+          onHover={(i) => setWl((cur) => (cur ? { ...cur, index: i } : cur))}
+          onClose={() => setWl(null)}
+        />
+      )}
       {menuState && (
         <ContextMenu
           x={menuState.x}

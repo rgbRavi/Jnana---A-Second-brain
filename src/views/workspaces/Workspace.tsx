@@ -28,7 +28,7 @@ function Workspace() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const { workspaces } = useWorkspaces()
-  const { update, remove } = useNotesContext()
+  const { create, update, remove } = useNotesContext()
   const { notes: wsNotes } = useWorkspaceNotes(id)
   const { pinnedWorkspaceIds } = useActiveWorkspace()
   const [tab, setTab] = useViewState<Tab>('workspace.tab', 'dashboard')
@@ -137,7 +137,7 @@ function Workspace() {
         {tab === 'dashboard' && <WorkspaceDashboard workspaceId={id} onGotoNotes={() => setTab('notes')} />}
         {tab === 'notes' && <WorkspaceNotes workspaceId={id} onNewNote={openComposer} />}
         {tab === 'graph' && (
-          <GraphView onUpdate={update} onRemove={remove} scopeIds={scopeIds} instanceKey={`ws:${id}`} />
+          <GraphView onCreate={create} onUpdate={update} onRemove={remove} scopeIds={scopeIds} instanceKey={`ws:${id}`} />
         )}
         {tab === 'canvas' && <CanvasBoard workspaceId={id} />}
         {tab === 'insights' && <WorkspaceInsights workspaceId={id} />}

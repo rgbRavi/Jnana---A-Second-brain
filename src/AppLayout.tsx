@@ -1,4 +1,7 @@
+import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { eventBus } from "./lib/eventBus";
+import { toast } from "./lib/toast";
 import { Sidebar } from "./ui/Sidebar";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
@@ -20,6 +23,21 @@ function AppInner() {
     useTheme()
     const { pathname } = useLocation()
     const { create, update } = useNotesContext()
+    // Materialize a pseudo-note when a missing `[[wikilink]]` is clicked (read/
+    // edit mode). The graph handles its own pseudo-node clicks locally.
+    useEffect(() => {
+        const handler = async ({ title }: { title: string }) => {
+            try {
+                const created = await create(title, '')
+                toast.success(`Created “${created.title}”`)
+                eventBus.emit('note:navigate', created)
+            } catch {
+                toast.error('Could not create the note.')
+            }
+        }
+        eventBus.on('wikilink:create', handler)
+        return () => eventBus.off('wikilink:create', handler)
+    }, [create])
     // The active workspace tab (shared store written by Workspace.tsx) — the
     // composer is suppressed on the freeform Canvas, which owns its own surface.
     const [wsTab] = useViewState<string>('workspace.tab', 'dashboard')

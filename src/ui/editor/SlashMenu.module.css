@@ -1,0 +1,65 @@
+/* The `/` command popup — mirrors ui/ContextMenu.module.css so it matches the
+   editor's right-click menu, with an added active-row highlight for keyboard nav. */
+.menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.groupHeader {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  padding: 0.4rem 0.6rem 0.2rem;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.item:hover {
+  background: var(--surface-2);
+}
+
+.itemActive,
+.itemActive:hover {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
