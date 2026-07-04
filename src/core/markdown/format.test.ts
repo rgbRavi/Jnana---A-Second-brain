@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyFormat, moveMediaBlock } from './format'
+import { applyFormat, moveMediaBlock, rearrangeMedia, findMediaTokenPos } from './format'
 
 describe('applyFormat', () => {
   describe('inline kinds', () => {
@@ -165,5 +165,63 @@ describe('moveMediaBlock', () => {
     expect(result).not.toBeNull()
     const out = threeBlank.slice(0, result!.from) + result!.insert + threeBlank.slice(result!.to)
     expect(out).toBe('B\n\n\nA\n\n\nC')
+  })
+})
+
+describe('rearrangeMedia', () => {
+  // Two stacked images (blank-line separated paragraphs). Keys are url#ordinal.
+  const stacked = '![a](x.png)\n\n![b](y.png)'
+
+  it('places the source to the right of the target on the same line (row)', () => {
+    const out = rearrangeMedia(stacked, 'x.png#0', 'y.png#0', 'right')
+    expect(out).toBe('![b](y.png)![a](x.png)')
+  })
+
+  it('places the source to the left of the target on the same line (row)', () => {
+    const out = rearrangeMedia(stacked, 'x.png#0', 'y.png#0', 'left')
+    expect(out).toBe('![a](x.png)![b](y.png)')
+  })
+
+  it('stacks the source below the target as its own paragraph', () => {
+    const out = rearrangeMedia(stacked, 'x.png#0', 'y.png#0', 'below')
+    expect(out).toBe('![b](y.png)\n\n![a](x.png)')
+  })
+
+  it('stacks the source above the target as its own paragraph', () => {
+    // Move b above a → b first, then a.
+    const out = rearrangeMedia(stacked, 'y.png#0', 'x.png#0', 'above')
+    expect(out).toBe('![b](y.png)\n\n![a](x.png)')
+  })
+
+  it('breaks a side-by-side row back into a stack via "below"', () => {
+    const row = '![a](x.png)![b](y.png)'
+    const out = rearrangeMedia(row, 'a-notused', 'x.png#0', 'below')
+    // a-notused key is missing → no-op returns null; use the real key instead.
+    expect(out).toBeNull()
+    const out2 = rearrangeMedia(row, 'y.png#0', 'x.png#0', 'below')
+    expect(out2).toBe('![a](x.png)\n\n![b](y.png)')
+  })
+
+  it('moves media out of a row of three, preserving the rest', () => {
+    const row = '![a](x.png)![b](y.png)![c](z.png)'
+    // Drag the middle (b) below the last (c).
+    const out = rearrangeMedia(row, 'y.png#0', 'z.png#0', 'below')
+    expect(out).toBe('![a](x.png)![c](z.png)\n\n![b](y.png)')
+  })
+
+  it('keeps surrounding text intact when reordering', () => {
+    const doc = 'Intro\n\n![a](x.png)\n\n![b](y.png)\n\nOutro'
+    const out = rearrangeMedia(doc, 'x.png#0', 'y.png#0', 'below')
+    expect(out).toBe('Intro\n\n![b](y.png)\n\n![a](x.png)\n\nOutro')
+  })
+
+  it('returns null for a no-op (same token) or a missing key', () => {
+    expect(rearrangeMedia(stacked, 'x.png#0', 'x.png#0', 'left')).toBeNull()
+    expect(rearrangeMedia(stacked, 'missing#0', 'y.png#0', 'left')).toBeNull()
+  })
+
+  it('findMediaTokenPos locates a token by media_key', () => {
+    expect(findMediaTokenPos(stacked, 'y.png#0')).toBe('![a](x.png)\n\n'.length)
+    expect(findMediaTokenPos(stacked, 'nope#0')).toBeNull()
   })
 })

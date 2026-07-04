@@ -10,6 +10,7 @@
 // the parent doesn't reset cursor/undo history.
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -17,7 +18,7 @@ import { commonmarkLanguage, markdown } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Note } from '../../types'
-import { applyFormat, escapeMarkdownText, moveMediaBlock, type FormatKind } from '../../core/markdown/format'
+import { applyFormat, escapeMarkdownText, moveMediaBlock, rearrangeMedia, type FormatKind, type MediaPlacement } from '../../core/markdown/format'
 import { lezerJnana } from '../../core/markdown/lezerJnana'
 import { getMediaLayout, type MediaLayout } from '../../core/mediaLayout'
 import type { ComposerToolbarProps } from '../../hooks/useComposer'
@@ -147,11 +148,101 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     view.focus()
   }, [])
 
+  // Pointer-driven drag to rearrange media: grab a frame's grip and drop it
+  // onto another embed — left/right edge = same-row (side by side), top/bottom
+  // edge = stacked. LiveEditor owns this (not the widget) because it needs the
+  // EditorView + DOM to hit-test drop targets. A fixed-position bar previews
+  // where the embed will land.
+  const dragRef = useRef<{ sourceKey: string; target: { key: string; placement: MediaPlacement } | null } | null>(null)
+  const [dropBar, setDropBar] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  const onMediaDragStart = useCallback((mediaKey: string, e: ReactPointerEvent) => {
+    const view = viewRef.current
+    const host = hostRef.current
+    if (!view || !host) return
+    dragRef.current = { sourceKey: mediaKey, target: null }
+
+    const BAR = 3
+    const computeTarget = (clientX: number, clientY: number) => {
+      const frames = Array.from(host.querySelectorAll<HTMLElement>('[data-media-key]'))
+      let best: { key: string; rect: DOMRect; dist: number } | null = null
+      for (const el of frames) {
+        const key = el.getAttribute('data-media-key')
+        if (!key || key === mediaKey) continue
+        const rect = el.getBoundingClientRect()
+        if (rect.width === 0 && rect.height === 0) continue
+        const cx = rect.left + rect.width / 2
+        const cy = rect.top + rect.height / 2
+        const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+        const dist = inside ? -1 : Math.hypot(clientX - cx, clientY - cy)
+        if (!best || dist < best.dist) best = { key, rect, dist }
+      }
+      if (!best) {
+        if (dragRef.current) dragRef.current.target = null
+        setDropBar(null)
+        return
+      }
+      const { rect } = best
+      const dxN = (clientX - (rect.left + rect.width / 2)) / (rect.width / 2 || 1)
+      const dyN = (clientY - (rect.top + rect.height / 2)) / (rect.height / 2 || 1)
+      let placement: MediaPlacement
+      let bar: { x: number; y: number; w: number; h: number }
+      if (Math.abs(dxN) >= Math.abs(dyN)) {
+        placement = dxN < 0 ? 'left' : 'right'
+        bar = { x: (placement === 'left' ? rect.left : rect.right) - BAR / 2, y: rect.top, w: BAR, h: rect.height }
+      } else {
+        placement = dyN < 0 ? 'above' : 'below'
+        bar = { x: rect.left, y: (placement === 'above' ? rect.top : rect.bottom) - BAR / 2, w: rect.width, h: BAR }
+      }
+      if (dragRef.current) dragRef.current.target = { key: best.key, placement }
+      setDropBar(bar)
+    }
+
+    const onMove = (ev: PointerEvent) => {
+      ev.preventDefault()
+      computeTarget(ev.clientX, ev.clientY)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.classList.remove('jnanaMediaDragging')
+      const drag = dragRef.current
+      dragRef.current = null
+      setDropBar(null)
+      if (drag?.target) {
+        const doc = view.state.doc.toString()
+        const next = rearrangeMedia(doc, drag.sourceKey, drag.target.key, drag.target.placement)
+        if (next != null && next !== doc) {
+          view.dispatch({ changes: { from: 0, to: doc.length, insert: next } })
+        }
+      }
+      view.focus()
+    }
+
+    document.body.classList.add('jnanaMediaDragging')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    computeTarget(e.clientX, e.clientY)
+  }, [])
+
   // Live context for the decorations plugin — same ref-read pattern, since
   // `notes`/`allowNavigate` can change without the doc/selection changing.
   const [mediaLayout, setMediaLayout] = useState<Map<string, MediaLayout>>(new Map())
-  const contextRef = useRef<LiveContext>({ notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia })
-  contextRef.current = { notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia }
+
+  // Fold an align change from a media frame back into the layout map so the
+  // decoration plugin rebuilds (via the forceRebuildMediaLayout effect below)
+  // and re-derives the line-level text-align. Other entries keep their object
+  // identity, so only the changed embed's widget can fail eq() / remount.
+  const onLayoutChange = useCallback((mediaKey: string, layout: MediaLayout) => {
+    setMediaLayout((prev) => {
+      const nextMap = new Map(prev)
+      nextMap.set(mediaKey, layout)
+      return nextMap
+    })
+  }, [])
+
+  const contextRef = useRef<LiveContext>({ notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange })
+  contextRef.current = { notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange }
 
   // Loaded async (a local SQLite query, but still after first paint) — nudge
   // the decoration plugin to rebuild once it lands, since loading it doesn't
@@ -234,7 +325,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       toast.error('Could not extract a YouTube video ID from that URL.')
       return
     }
-    insertAtCursor(`\n![youtube](https://youtube.com/watch?v=${videoId})`)
+    insertAtCursor(`\n\n![youtube](https://youtube.com/watch?v=${videoId})`)
   }
 
   const handleWebpageImport = async () => {
@@ -246,7 +337,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     })
     if (!raw) return
     const url = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`
-    insertAtCursor(`\n![webpage](${url})`)
+    insertAtCursor(`\n\n![webpage](${url})`)
   }
 
   const buildMenuItems = (hasSelection: boolean): MenuItem[] => {
@@ -379,6 +470,12 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   return (
     <>
       <div ref={hostRef} className={`${styles.host} ${className ?? ''}`} />
+      {dropBar && (
+        <div
+          className={styles.dropBar}
+          style={{ position: 'fixed', left: dropBar.x, top: dropBar.y, width: dropBar.w, height: dropBar.h }}
+        />
+      )}
       <input
         ref={imageInputRef}
         type="file"

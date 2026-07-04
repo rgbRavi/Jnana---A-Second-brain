@@ -34,6 +34,11 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const editorRef = useRef<LiveEditorHandle>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const maxProgressRef = useRef(0)
+  // Guards the click-to-close: only close when the press *started* on the
+  // backdrop. A text-selection drag that begins in the editor and releases
+  // over the backdrop fires a `click` on the overlay (the common ancestor of
+  // the down/up targets) — without this it would wrongly close mid-selection.
+  const overlayPressRef = useRef(false)
   const { notes } = useNotesContext()
   const { collapsed: sidebarCollapsed } = useSidebarPrefs()
   const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
@@ -113,11 +118,17 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   if (!isOpen) return null
 
   return (
-    <div className={NoteModalStyles.noteModalOverlay} onClick={onClose}>
+    <div
+      className={NoteModalStyles.noteModalOverlay}
+      onMouseDown={(e) => { overlayPressRef.current = e.target === e.currentTarget }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && overlayPressRef.current) onClose()
+        overlayPressRef.current = false
+      }}
+    >
       <div
         className={`${NoteModalStyles.noteModalContainer}${expanded ? ' ' + NoteModalStyles.expanded : ''}`}
         style={expanded ? { left: `var(${sidebarCollapsed ? '--sidebar-collapsed-width' : '--sidebar-width'})` } : undefined}
-        onClick={(e) => e.stopPropagation()}
       >
         <FavouriteBtn noteId={note.id} />
         <button

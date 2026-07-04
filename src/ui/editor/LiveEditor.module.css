@@ -83,3 +83,21 @@
 .cmMarkerRevealed {
   color: var(--text-3);
 }
+
+/* Media-drag drop preview — a fixed-position bar at the edge of the target
+ * embed showing where the dragged media will land (left/right = same row,
+ * top/bottom = stacked). Positioned inline from viewport coords. */
+.dropBar {
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 6px var(--accent);
+  pointer-events: none;
+  z-index: 1002;
+}
+
+/* While a media drag is in progress, suppress text selection and show the
+ * grabbing cursor everywhere so the gesture reads clearly. */
+:global(body.jnanaMediaDragging) {
+  cursor: grabbing !important;
+  user-select: none !important;
+}

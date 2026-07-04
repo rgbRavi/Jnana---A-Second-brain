@@ -14,9 +14,9 @@
 // list markers (`-`/`1.`) are left visible too, matching most live-preview
 // editors. Both can be added later without touching anything else here.
 
-import type { ReactElement } from 'react'
+import type { ReactElement, PointerEvent as ReactPointerEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { RangeSetBuilder, StateEffect } from '@codemirror/state'
+import { StateEffect, type Range } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
 import type { SyntaxNode } from '@lezer/common'
@@ -52,6 +52,15 @@ export interface LiveContext {
   /** Swaps the media line identified by `mediaKey` with the adjacent block above/below.
    *  Stable reference (useCallback []) so widget eq() checks don't recreate on re-renders. */
   moveMedia: (mediaKey: string, direction: 'up' | 'down') => void
+  /** Begins a pointer drag to reorder / row-up the media identified by `mediaKey`.
+   *  Owned by LiveEditor (it has the EditorView for hit-testing). Stable ref so
+   *  widget eq() checks don't recreate the React root on rebuilds. */
+  onMediaDragStart: (mediaKey: string, event: ReactPointerEvent) => void
+  /** Notifies LiveEditor that an embed's saved layout changed (align in
+   *  particular), so it can refresh `mediaLayout` and rebuild — the line-level
+   *  `text-align` decoration is derived from `mediaLayout`, not the widget's own
+   *  local state, so it wouldn't otherwise update until reload. Stable ref. */
+  onLayoutChange: (mediaKey: string, layout: MediaLayout) => void
 }
 
 /** Dispatched once `mediaLayout` finishes its (async) load, so decorations
@@ -106,6 +115,8 @@ class VideoWidget extends ReactWidget<{
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
 }> {
   renderWidget() {
     return (
@@ -115,6 +126,8 @@ class VideoWidget extends ReactWidget<{
         layout={this.props.layout}
         onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
         onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
       >
         {(layout) => <VideoEmbed url={this.props.url} videoIndex={this.props.index} lazy={this.props.lazy} layout={layout} />}
       </ResizableMediaFrame>
@@ -130,6 +143,8 @@ class AudioWidget extends ReactWidget<{
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
 }> {
   renderWidget() {
     return (
@@ -139,6 +154,8 @@ class AudioWidget extends ReactWidget<{
         layout={this.props.layout}
         onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
         onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
       >
         {(layout) => (
           <AudioEmbed url={this.props.url} audioIndex={this.props.index} noteId={this.props.noteId} lazy={this.props.lazy} layout={layout} />
@@ -155,6 +172,8 @@ class YouTubeWidget extends ReactWidget<{
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
 }> {
   renderWidget() {
     return (
@@ -164,6 +183,8 @@ class YouTubeWidget extends ReactWidget<{
         layout={this.props.layout}
         onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
         onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
       >
         {(layout) => <YouTubeEmbed url={this.props.url} lazy={this.props.lazy} layout={layout} />}
       </ResizableMediaFrame>
@@ -185,6 +206,8 @@ class ImageWidget extends ReactWidget<{
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
 }> {
   renderWidget() {
     return (
@@ -194,6 +217,8 @@ class ImageWidget extends ReactWidget<{
         layout={this.props.layout}
         onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
         onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
       >
         {(layout) => <ImageEmbed url={this.props.url} altText={this.props.alt} lazy={this.props.lazy} fullscreen={false} layout={layout} />}
       </ResizableMediaFrame>
@@ -255,10 +280,27 @@ function seekInView(view: EditorView, kind: 'video' | 'audio', index: number, se
 }
 
 function buildDecorations(view: EditorView, context: LiveContext): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>()
+  // A plain array (sorted at the end via Decoration.set) rather than a
+  // RangeSetBuilder: line-level `text-align` decorations for aligned media sit
+  // at their line's start — a position *before* the inline widget that
+  // triggered them — so we can't add strictly left-to-right as the builder
+  // requires. `add` keeps the existing call sites unchanged.
+  const ranges: Range<Decoration>[] = []
+  const builder = {
+    add: (from: number, to: number, deco: Decoration) => ranges.push(deco.range(from, to)),
+  }
   const state = view.state
   const text = state.doc.toString()
   const selection = state.selection
+  // Lines that already carry a media `text-align` decoration — one per line, so
+  // a row of several aligned embeds justifies together instead of fighting.
+  const alignedLines = new Set<number>()
+  const alignLine = (pos: number, alignment: string) => {
+    const line = state.doc.lineAt(pos)
+    if (alignedLines.has(line.number)) return
+    alignedLines.add(line.number)
+    ranges.push(Decoration.line({ attributes: { style: `text-align:${alignment}` } }).range(line.from))
+  }
 
   // Strict overlap — NOT `<=`/`>=` — so a collapsed cursor merely touching a
   // construct's boundary (notably position 0 against a construct that starts
@@ -361,24 +403,32 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
         const mediaKey = nextMediaKey(url)
         const layout = context.mediaLayout.get(mediaKey)
 
+        // Justify the whole line (row) for a saved alignment instead of forcing
+        // the embed onto its own line — only while it's rendered as a widget.
+        const applyAlign = () => { if (layout?.alignment) alignLine(from, layout.alignment) }
+        const drag = context.onMediaDragStart
+
         if (alt === 'video') {
           const idx = videoIndex++
           if (!revealed(from, to)) {
+            applyAlign()
             builder.add(from, to, Decoration.replace({
-              widget: new VideoWidget({ url, index: idx, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia }),
+              widget: new VideoWidget({ url, index: idx, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
             }))
           }
         } else if (alt === 'audio') {
           const idx = audioIndex++
           if (!revealed(from, to)) {
+            applyAlign()
             builder.add(from, to, Decoration.replace({
-              widget: new AudioWidget({ url, index: idx, noteId: context.noteId, lazy: context.lazy, mediaKey, layout, moveMedia: context.moveMedia }),
+              widget: new AudioWidget({ url, index: idx, noteId: context.noteId, lazy: context.lazy, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
             }))
           }
         } else if (alt === 'youtube') {
           if (!revealed(from, to)) {
+            applyAlign()
             builder.add(from, to, Decoration.replace({
-              widget: new YouTubeWidget({ url, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia }),
+              widget: new YouTubeWidget({ url, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
             }))
           }
         } else if (alt === 'pdf') {
@@ -390,8 +440,9 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
             builder.add(from, to, Decoration.replace({ widget: new WebpageWidget({ url }) }))
           }
         } else if (!revealed(from, to)) {
+          applyAlign()
           builder.add(from, to, Decoration.replace({
-            widget: new ImageWidget({ url, alt, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia }),
+            widget: new ImageWidget({ url, alt, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
           }))
         }
         return false
@@ -456,7 +507,7 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
     },
   })
 
-  return builder.finish()
+  return Decoration.set(ranges, true)
 }
 
 export function liveDecorations(contextRef: { current: LiveContext }) {

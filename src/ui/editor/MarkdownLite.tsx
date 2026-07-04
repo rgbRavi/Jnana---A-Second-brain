@@ -6,7 +6,7 @@ import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
-import { getMediaLayout, type MediaLayout } from '../../core/mediaLayout'
+import { getMediaLayout, alignmentTextAlign, type MediaLayout } from '../../core/mediaLayout'
 import {
   AudioEmbed,
   CodeBlock,
@@ -98,6 +98,22 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
     }
 
+    // Justify a paragraph when its media has a saved alignment — the read-mode
+    // counterpart to the live editor's per-line text-align. Embeds are
+    // inline-block (mediaLayoutStyle), so this shifts the whole row without
+    // breaking a side-by-side arrangement.
+    const p: Components['p'] = ({ node, children }) => {
+      let textAlign: ReturnType<typeof alignmentTextAlign>
+      for (const child of node?.children ?? []) {
+        if (child.type === 'element' && child.tagName === 'img') {
+          const key = String((child.properties ?? {})['data-media-key'] ?? '')
+          const aligned = alignmentTextAlign(layoutMap.get(key)?.alignment)
+          if (aligned) { textAlign = aligned; break }
+        }
+      }
+      return <p style={textAlign ? { textAlign } : undefined}>{children}</p>
+    }
+
     const a: Components['a'] = ({ href = '', children }) => {
       if (href.startsWith('external://')) {
         const name = typeof children === 'string' ? children : String(children ?? '')
@@ -147,7 +163,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       return <TimestampButton kind={kind} index={index} time={time} onSeek={seek} />
     }
 
-    return { img, a, pre, code, 'jnana-wikilink': wikilink, 'jnana-timestamp': timestamp } as Components
+    return { img, a, p, pre, code, 'jnana-wikilink': wikilink, 'jnana-timestamp': timestamp } as Components
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lazy, fullscreen, noteId, layoutMap])
 

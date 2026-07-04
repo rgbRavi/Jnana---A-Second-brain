@@ -17,11 +17,18 @@ interface Props {
   children: (layout: MediaLayout | undefined) => ReactNode
   onMoveUp?: () => void
   onMoveDown?: () => void
+  /** Begins a pointer drag to reorder / row-up this embed. Owned by LiveEditor
+   *  (which has the EditorView needed to hit-test the drop target). */
+  onDragStart?: (e: React.PointerEvent) => void
+  /** Reports a layout change back to the editor. Alignment needs this because
+   *  it's rendered as the container's text-align (a line decoration derived
+   *  from the editor's layout map), not the embed's own style. */
+  onLayoutChange?: (mediaKey: string, layout: MediaLayout) => void
 }
 
 const MIN_WIDTH = 80
 
-export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMoveUp, onMoveDown }: Props) {
+export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMoveUp, onMoveDown, onDragStart, onLayoutChange }: Props) {
   const frameRef = useRef<HTMLSpanElement>(null)
   const gestureRef = useRef<{ startX: number; startWidth: number } | null>(null)
   // Once the user resizes/aligns this session, that takes precedence over the
@@ -62,20 +69,35 @@ export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMove
   const setAlignment = (e: React.MouseEvent, alignment: MediaAlignment) => {
     e.preventDefault()
     e.stopPropagation()
-    if (effective?.alignment === alignment) {
-      persist({ ...effective, alignment: undefined }, true)
-    } else {
-      // block + margin-auto centering requires an explicit width; grab the
-      // current rendered width when the user hasn't resized yet so the
-      // alignment is actually visible.
-      const width = effective?.width ?? Math.round(frameRef.current?.getBoundingClientRect().width ?? 320)
-      persist({ ...effective, alignment, width }, true)
-    }
+    // Alignment justifies the embed's row/paragraph via the container's
+    // text-align (see mediaLayoutStyle) — no width needed, and it never breaks
+    // a side-by-side row. Click the active alignment again to clear it.
+    const nextAlignment = effective?.alignment === alignment ? undefined : alignment
+    const nextLayout = { ...effective, alignment: nextAlignment }
+    persist(nextLayout, true)
+    // The container's text-align is derived from the editor's layout map, so it
+    // must be told about the change to rebuild — otherwise align wouldn't show
+    // until reload (resize needs no such nudge; it styles the embed directly).
+    onLayoutChange?.(mediaKey, nextLayout)
   }
 
   return (
-    <span className={styles.frame} ref={frameRef} onClick={(e) => e.stopPropagation()}>
+    <span className={styles.frame} ref={frameRef} data-media-key={mediaKey} onClick={(e) => e.stopPropagation()}>
       <span className={styles.toolbar}>
+        {onDragStart && (
+          <>
+            <button
+              type="button"
+              className={styles.dragHandle}
+              title="Drag to move — drop beside another to place them side by side"
+              aria-label="Drag to move media"
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onDragStart(e) }}
+            >
+              ⠿
+            </button>
+            <span className={styles.toolbarSep} />
+          </>
+        )}
         <button
           type="button"
           className={`${styles.alignBtn} ${effective?.alignment === 'left' ? styles.alignBtnActive : ''}`}

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const invokeMock = vi.fn()
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invokeMock(...args) }))
 
-import { getMediaLayout, setMediaLayout, mediaLayoutStyle } from './mediaLayout'
+import { getMediaLayout, setMediaLayout, mediaLayoutStyle, alignmentTextAlign } from './mediaLayout'
 
 describe('core/mediaLayout', () => {
   beforeEach(() => {
@@ -43,20 +43,31 @@ describe('mediaLayoutStyle', () => {
   })
 
   it('sizes as inline-block when only a width is set, so embeds can share a row', () => {
-    expect(mediaLayoutStyle({ width: 240 })).toEqual({ width: 240, display: 'inline-block', verticalAlign: 'top' })
+    expect(mediaLayoutStyle({ width: 240 })).toEqual({ width: 240, display: 'inline-block', verticalAlign: 'top', maxWidth: '100%' })
   })
 
-  it('forces block + margin positioning once an alignment is set', () => {
+  it('stays inline-block when aligned (alignment is applied to the container, not the embed)', () => {
+    // Alignment must NOT force display:block — that's what used to break a
+    // side-by-side row. It's applied as the container's text-align instead.
     expect(mediaLayoutStyle({ width: 240, alignment: 'right' })).toEqual({
       width: 240,
-      display: 'block',
-      marginLeft: 'auto',
+      display: 'inline-block',
+      verticalAlign: 'top',
+      maxWidth: '100%',
     })
     expect(mediaLayoutStyle({ alignment: 'center' })).toEqual({
-      display: 'block',
-      marginLeft: 'auto',
-      marginRight: 'auto',
+      display: 'inline-block',
+      verticalAlign: 'top',
+      maxWidth: '100%',
     })
-    expect(mediaLayoutStyle({ alignment: 'left' })).toEqual({ display: 'block', marginRight: 'auto' })
+  })
+})
+
+describe('alignmentTextAlign', () => {
+  it('maps a saved alignment to the container text-align value', () => {
+    expect(alignmentTextAlign('left')).toBe('left')
+    expect(alignmentTextAlign('center')).toBe('center')
+    expect(alignmentTextAlign('right')).toBe('right')
+    expect(alignmentTextAlign(undefined)).toBeUndefined()
   })
 })

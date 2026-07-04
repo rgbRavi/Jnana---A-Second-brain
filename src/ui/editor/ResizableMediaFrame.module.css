@@ -40,6 +40,31 @@
   cursor: pointer;
 }
 
+.dragHandle {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
 .alignBtn:hover {
   background: var(--surface-2);
   color: var(--text-1);

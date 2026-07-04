@@ -43,7 +43,7 @@ export function useDocumentUpload({
         } else {
           registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
         }
-        onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
+        onInsertMarkdown(`\n\n![pdf](jnana-asset://${filename})`)
       } else if (['doc', 'docx', 'odt'].includes(ext)) {
         // Ask how to handle the document via an in-app modal.
         const choice = await showChoiceDialog({
@@ -66,7 +66,7 @@ export function useDocumentUpload({
             } else {
               registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
             }
-            onInsertMarkdown(`\n![pdf](jnana-asset://${filename})\n`)
+            onInsertMarkdown(`\n\n![pdf](jnana-asset://${filename})`)
           } catch (err) {
             toast.error(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
           }

@@ -166,3 +166,105 @@ export function moveMediaBlock(
     }
   }
 }
+
+// ── Drag-to-rearrange for media embeds ──────────────────────────────────────
+// `media_key` = `${url}#${ordinal}` (document-order occurrence per URL) — the
+// same identity remarkJnana and the live-editor decoration walk compute, so a
+// drag references the exact embed the user grabbed regardless of position.
+
+export type MediaPlacement = 'left' | 'right' | 'above' | 'below'
+
+interface MediaToken {
+  from: number
+  to: number
+  key: string
+}
+
+/** Every `![alt](url)` token with its range and stable media_key. */
+function scanMediaTokens(text: string): MediaToken[] {
+  const re = /!\[[^\]]*\]\(([^)]+)\)/g
+  const ordinals = new Map<string, number>()
+  const out: MediaToken[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const url = m[1]
+    const ord = ordinals.get(url) ?? 0
+    ordinals.set(url, ord + 1)
+    out.push({ from: m.index, to: m.index + m[0].length, key: `${url}#${ord}` })
+  }
+  return out
+}
+
+/** Document position of the media token whose media_key is `key` (or null). */
+export function findMediaTokenPos(text: string, key: string): number | null {
+  const tok = scanMediaTokens(text).find((t) => t.key === key)
+  return tok ? tok.from : null
+}
+
+/**
+ * Move the media embed identified by `sourceKey` next to the embed identified
+ * by `targetKey`. `left`/`right` place it on the **same markdown line** (a
+ * side-by-side row); `above`/`below` place it in its **own blank-line-separated
+ * paragraph** (stacked). Both forms render identically in read-mode and the
+ * live editor. Pure — returns the whole new document string, or null for a
+ * no-op (same token, or either key missing).
+ */
+export function rearrangeMedia(
+  text: string,
+  sourceKey: string,
+  targetKey: string,
+  placement: MediaPlacement,
+): string | null {
+  if (sourceKey === targetKey) return null
+  const tokens = scanMediaTokens(text)
+  const src = tokens.find((t) => t.key === sourceKey)
+  const tgt = tokens.find((t) => t.key === targetKey)
+  if (!src || !tgt) return null
+  const srcTok = text.slice(src.from, src.to)
+
+  // Removal range for the source. When it's alone on its line, take the whole
+  // line plus one adjacent newline so no blank line is left behind.
+  const srcLineStart = text.lastIndexOf('\n', src.from - 1) + 1
+  const srcLineEndRaw = text.indexOf('\n', src.to)
+  const srcLineEnd = srcLineEndRaw === -1 ? text.length : srcLineEndRaw
+  let remFrom = src.from
+  let remTo = src.to
+  if (text.slice(srcLineStart, srcLineEnd).trim() === srcTok) {
+    remFrom = srcLineStart
+    remTo = srcLineEnd
+    if (text[remTo] === '\n') remTo += 1
+    else if (remFrom > 0 && text[remFrom - 1] === '\n') remFrom -= 1
+  }
+
+  // Insertion point + text, computed against the original offsets.
+  let insPos: number
+  let insText: string
+  if (placement === 'left') {
+    insPos = tgt.from
+    insText = srcTok
+  } else if (placement === 'right') {
+    insPos = tgt.to
+    insText = srcTok
+  } else if (placement === 'above') {
+    insPos = text.lastIndexOf('\n', tgt.from - 1) + 1
+    insText = `${srcTok}\n\n`
+  } else {
+    const tgtLineEndRaw = text.indexOf('\n', tgt.to)
+    insPos = tgtLineEndRaw === -1 ? text.length : tgtLineEndRaw
+    insText = `\n\n${srcTok}`
+  }
+
+  // Apply delete + insert on the original text, highest `from` first so the
+  // earlier edit doesn't shift the later one's offsets. On a tie, the deletion
+  // (wider range) runs first.
+  const edits = [
+    { from: remFrom, to: remTo, insert: '' },
+    { from: insPos, to: insPos, insert: insText },
+  ].sort((a, b) => b.from - a.from || (b.to - b.from) - (a.to - a.from))
+  let out = text
+  for (const e of edits) out = out.slice(0, e.from) + e.insert + out.slice(e.to)
+  // Collapse any 3+ newline run a move can create down to a single blank line,
+  // and drop any leading/trailing blank lines the removal left behind (removing
+  // a solo media line consumes only one of its two separator newlines).
+  return out.replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '').replace(/\n+$/, '')
+}
