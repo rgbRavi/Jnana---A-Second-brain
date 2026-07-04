@@ -6,9 +6,12 @@ import { useWorkspaces } from '../hooks/useWorkspaces'
 import { eventBus } from '../lib/eventBus'
 import { openComposer } from './editor/NoteCreator'
 import { workspaceColor } from '../core/workspaces'
-import { NoteModal } from './NoteModal'
-import type { Note } from '../types'
+import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWorkingLayout'
 import styles from './CommandPalette.module.css'
+
+// Intuitive, non-intrusive: ⇧ + the palette-style modifier + E ("Editor desk").
+const IS_MAC = typeof navigator !== 'undefined' && /mac/i.test(navigator.platform)
+export const WORKING_NOTES_SHORTCUT = IS_MAC ? '⇧⌘E' : 'Ctrl+⇧+E'
 
 interface IndexedNote {
   id: string
@@ -35,13 +38,12 @@ interface Item {
  */
 export function CommandPalette() {
   const navigate = useNavigate()
-  const { notes, update, updateTags } = useNotesContext()
+  const { notes } = useNotesContext()
   const { workspaces } = useWorkspaces()
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
-  const [openNote, setOpenNote] = useState<Note | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Global shortcut (idempotent listener).
@@ -92,7 +94,8 @@ export function CommandPalette() {
     const n = notes.find((x) => x.id === id)
     if (!n) return
     eventBus.emit('note:opened', n)
-    setOpenNote(n)
+    openNoteInWorking(id)
+    navigate('/notes')
     close()
   }
 
@@ -100,7 +103,8 @@ export function CommandPalette() {
     () => [
       { key: 'cmd:new-note', icon: '✏️', label: 'New note', hint: 'Create', run: () => { openComposer(); close() } },
       { key: 'cmd:home', icon: '🏠', label: 'Go to Home', run: () => goto('/') },
-      { key: 'cmd:notes', icon: '📝', label: 'Go to All Notes', run: () => goto('/notes') },
+      { key: 'cmd:notes', icon: '📝', label: 'Go to All Notes', run: () => { setNotesSubView('gallery'); goto('/notes') } },
+      { key: 'cmd:working', icon: '🗂️', label: 'Open Working Notes', hint: WORKING_NOTES_SHORTCUT, run: () => { setNotesSubView('working'); goto('/notes') } },
       { key: 'cmd:workspaces', icon: '📁', label: 'Go to Workspaces', run: () => goto('/workspaces') },
       { key: 'cmd:graph', icon: '🕸️', label: 'Open Graph', run: () => goto('/graph') },
       { key: 'cmd:search', icon: '🔍', label: 'Open Search', run: () => goto('/search') },
@@ -222,16 +226,6 @@ export function CommandPalette() {
             </div>
           </div>
         </div>
-      )}
-
-      {openNote && (
-        <NoteModal
-          note={openNote}
-          isOpen={!!openNote}
-          onClose={() => setOpenNote(null)}
-          onUpdate={update}
-          onUpdateTags={updateTags}
-        />
       )}
     </>
   )

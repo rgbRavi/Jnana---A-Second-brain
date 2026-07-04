@@ -1,0 +1,263 @@
+/* Working Notes — tabbed, splittable editor surface. */
+
+.surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---- split layout ---- */
+
+.splitRow,
+.splitCol {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.splitRow {
+  flex-direction: row;
+}
+.splitCol {
+  flex-direction: column;
+}
+
+.splitChild {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  /* overflow visible so the divider, which overhangs the trailing edge by a few
+     px for an easier grab, isn't clipped; the inner group clips its own content. */
+  overflow: visible;
+}
+
+/* Dividers sit on the trailing edge of a child and overlap slightly for an
+   easy grab target. Hand-rolled pointer resize (see SplitContainer). */
+.dividerV,
+.dividerH {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  transition: background 0.12s;
+}
+.dividerV {
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+}
+.dividerH {
+  left: 0;
+  bottom: -3px;
+  height: 7px;
+  width: 100%;
+  cursor: row-resize;
+}
+.dividerV:hover,
+.dividerH:hover {
+  background: var(--accent-soft, rgba(124, 106, 247, 0.25));
+}
+
+/* ---- group ---- */
+
+.group {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0.35rem;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.groupActive {
+  border-color: var(--accent);
+}
+
+/* Pane under the pointer during a tab drag. */
+.groupDropTarget {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent-soft, rgba(124, 106, 247, 0.4));
+}
+
+/* Floating tab-drag ghost (portaled to <body>). */
+.ghost {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-1);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* ---- tab strip ---- */
+
+.tabStrip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  min-height: 38px;
+}
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 200px;
+  padding: 0 0.35rem 0 0.7rem;
+  border-right: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 0.82rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tab:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.tabActive {
+  background: var(--surface);
+  color: var(--text-1);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.tabLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.tabClose {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 0.75rem;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tabClose:hover {
+  background: var(--surface-2);
+  color: var(--danger);
+}
+
+.tabDropEnd {
+  flex: 1;
+  min-width: 24px;
+}
+
+.tabActions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.4rem;
+  flex-shrink: 0;
+}
+
+.tabActionBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.95rem;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tabActionBtn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+/* ---- empty states ---- */
+
+.emptyGroup {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--text-3);
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.emptyGroupTitle {
+  font-size: 0.95rem;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.emptyHint {
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+
+.empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.emptyInner {
+  max-width: 420px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0 0 0.5rem;
+}
+
+.emptySub {
+  font-size: 0.9rem;
+  color: var(--text-3);
+  line-height: 1.6;
+  margin: 0;
+}

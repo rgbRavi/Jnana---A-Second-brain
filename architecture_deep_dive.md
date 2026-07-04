@@ -337,7 +337,7 @@ graph LR
 | `annotation:created` | `Annotation` | `core/annotations.ts` | useAnnotations |
 | `annotation:updated` | `{ id, content }` | `core/annotations.ts` | useAnnotations |
 | `annotation:deleted` | `{ id }` | `core/annotations.ts` | useAnnotations |
-| `note:navigate` | `Note` | wikilinks, palette | Notes view (opens modal) |
+| `note:navigate` | `Note` | wikilinks, peek modal's "Edit in Working Notes" | AppLayout global handler → opens the note as a tab in Working Notes (routes to /notes) |
 | `note:opened` | `Note` | views | useSaveLastOpened |
 | `composer:open` | `null` | `openComposer()` | NoteCreator |
 | `composer:record` / `composer:import` | `null` | dashboard quick-actions | AddContentMenu |
@@ -699,7 +699,7 @@ Jnana---A-Second-brain/
 │   │   ├── AsyncImage.tsx        # Lazy-loaded image via custom protocol
 │   │   ├── AsyncVideo.tsx        # Simple lazy video element
 │   │   ├── AsyncYouTube.tsx      # YouTube iframe embed (offline-aware)
-│   │   ├── NoteModal.tsx         # Full-screen note viewer/editor
+│   │   ├── NoteModal.tsx         # Read-focused peek (Edit → Working Notes); expandable
 │   │   ├── SearchDocs.tsx        # Search UI with result cards
 │   │   └── TagEditor.tsx         # Tag input (auto vs user tag chips)
 │   └── themes/

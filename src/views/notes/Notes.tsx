@@ -35,16 +35,6 @@ function Notes() {
   const [favSet, setFavSet] = useState<Set<string>>(new Set())
   const [linkCounts, setLinkCounts] = useState<Map<string, number>>(new Map())
 
-  // Open a note in the modal when a wikilink navigates here.
-  useEffect(() => {
-    const handler = (note: Note) => {
-      eventBus.emit('note:opened', note)
-      setExpandedNoteId(note.id)
-    }
-    eventBus.on('note:navigate', handler)
-    return () => eventBus.off('note:navigate', handler)
-  }, [])
-
   // Favourites — one bulk fetch. Toggling from a card updates the set
   // optimistically, so the only case still needing a refetch is the composer's
   // "favourite on save" for a *new* note — re-fetching on every save of an
@@ -110,6 +100,8 @@ function Notes() {
 
   // Stable (id-based) handlers passed to every card — required for
   // React.memo(NoteItem) to actually skip re-rendering unrelated cards on save.
+  // Clicking a card opens the read-focused peek modal; its "Edit in Working
+  // Notes" button routes into the tabbed editor.
   const handleExpand = useCallback((note: Note) => {
     eventBus.emit('note:opened', note)
     setExpandedNoteId(note.id)

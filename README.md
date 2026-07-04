@@ -35,7 +35,7 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   strikethrough, task lists) alongside the app's own embed/wikilink/timestamp tokens
 - **Live editor** (Obsidian/Typora-style) — syntax markers hidden while you type; bold appears
   bold, headings are styled, media embeds render inline; raw markdown revealed near the cursor for
-  quick edits; used in all three composers (new note, card edit, note modal)
+  quick edits; used everywhere you write (new note, card edit, and the Working Notes editor)
 - A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
   lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
   import-at-cursor from the right-click menu
@@ -43,8 +43,12 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
 - **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the
   title doesn't exist yet, choose **Create** to link a new note (materialized on first click)
-- **Full-screen note view** — expand the note modal to fill the content area (⤢/⤡ toggle);
-  editing in fullscreen works the same way
+- **Working Notes** — a tabbed, splittable editor "desk" under **Notes → Working Notes** (or
+  **Ctrl/⌘+Shift+E**): open notes as tabs, split panes and drag notes between them, edit two notes
+  side by side, and autosave as you type. Tabs and the split layout are restored on relaunch.
+- **Peek modal** — clicking a note anywhere else (Home, Search, AI, Canvas, workspaces) opens a
+  quick read view; **Edit in Working Notes ↗** jumps it to the desk. Expand it to fill the content
+  area with the ⤢/⤡ toggle.
 - **Wikilinks** (`[[Title]]`) that become graph edges, kept in sync efficiently on the Rust side
 - **Full-text search** (MiniSearch) across titles, tags, and content, with sensible boosting
 - **Tags** — your own tags plus automatic ones (`has:image`, `has:pdf`, `long-form`, …)
@@ -78,6 +82,9 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 
 ### Command palette
 - Global **Ctrl/⌘-K** to fuzzy-jump to any note, switch workspaces, or run a command
+  (including **Open Working Notes**)
+- **Ctrl/⌘+Shift+E** — jump to the Working Notes desk from anywhere (toggles back to the gallery
+  when you're already there)
 
 ### Media
 - **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations; compact

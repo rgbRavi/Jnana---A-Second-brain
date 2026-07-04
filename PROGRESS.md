@@ -1,6 +1,6 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, NoteModal fullscreen, and performance improvements landed
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, and performance improvements landed
 
 Last updated: 2026-07-04
 
@@ -442,9 +442,30 @@ Notes:
   - **Incremental list rendering** — `Notes.tsx` renders `PAGE = 24` cards, grows via a sentinel
     `IntersectionObserver`; window resets on filter/search/sort change, not on note save
 
-### NoteModal
+### Working Notes (tabbed / split editor)
+- [x] **Segmented Notes route** — `NotesView.tsx` toggles the **Notes** gallery and **Working Notes**
+      desk; sub-view persists (`jnana.notes.subview.v1`). Shortcut **Ctrl/⌘+Shift+E** (also a
+      command-palette entry + a segment tooltip) jumps to / toggles the desk.
+- [x] **Layout is a pure recursive tree** — `working/layout.ts` (`group` = tab stack, `split` =
+      row/col children + flex sizes); pure ops (`openNote`/`closeTab`/`splitGroup`/`closeGroup`/
+      `moveTab`/`reconcile`) with 20 unit tests. Module store `useWorkingLayout` persists the tree to
+      localStorage → **tabs + splits restore on launch** (reconciled against live notes).
+- [x] **EditorPane** — the edit surface lifted out of NoteModal, with **debounced 800 ms autosave**
+      (scoped to the desk), a read/edit toggle, and reading-progress. Only the active tab per group
+      mounts a CM6 editor. A note opens once (re-open focuses the existing tab).
+- [x] **Splits + tabs** — split-right/down move the active note into the new pane; resizable pointer
+      dividers; close-pane auto-rebalances siblings; **pointer-event tab drag** (not HTML5 DnD, which
+      the Tauri webview swallows) with a drag ghost + drop-target highlight; drop into any pane incl.
+      empty ones. *Not yet:* edge-drop-to-split.
+- [x] **Last-route restore** — `AppLayout` persists the route (`jnana.lastRoute.v1`) and restores it
+      on launch, so quitting in Working Notes reopens there.
+
+### NoteModal (read-focused peek)
+- [x] **Peek view** — used from Home / Search / AI / Canvas / workspaces; read-only render + tag
+      edit + suggestions, with **Edit in Working Notes ↗** (emits `note:navigate`). The gallery card
+      click opens it too. Editing itself moved to the Working Notes desk.
 - [x] **Fullscreen expand** — ⤢/⤡ toggle fills the content area (excluding sidebar); respects
-      collapsed sidebar width via `useSidebarPrefs`; both view and edit mode fill automatically
+      collapsed sidebar width via `useSidebarPrefs`
 
 ### Workspaces, Canvas & web embeds
 - [x] **Workspaces** — named groups; notes stay global, many-to-many membership (remove ≠ delete)

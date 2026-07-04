@@ -1,6 +1,6 @@
 import {HashRouter, Routes, Route} from "react-router-dom";
 import AppLayout from "./AppLayout";
-import Notes from './views/notes/Notes'
+import NotesView from './views/notes/NotesView'
 import Graph from "./views/graph/Graph";
 import Search from "./views/search/Search";
 import Home from "./views/home/Home"
@@ -17,7 +17,7 @@ function App() {
                     <Routes>
                         <Route element= {<AppLayout />}>
                                 <Route path = "/" element = {<Home />} />
-                                <Route path = "/notes" element = {<Notes />} />
+                                <Route path = "/notes" element = {<NotesView />} />
                                 <Route path = "/graph" element = {<Graph />}/>
                                 <Route path = "/search" element = {<Search />}/>
                                 <Route path = "/ai" element = {<Ai />}/>
