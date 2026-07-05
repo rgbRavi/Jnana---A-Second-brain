@@ -1,18 +1,30 @@
 import { useNotesContext } from "../../context/NotesContext";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SearchDocs } from "../../ui/SearchDocs";
+import { ScopeBar } from "../../ui/ScopeBar";
 import { NoteModal } from "../../ui/NoteModal";
+import { useScopedNoteIds } from "../../hooks/useScopedNoteIds";
 
 function Search(){
     const { notes, update, updateTags } = useNotesContext()
+    const { noteIds } = useScopedNoteIds()
     const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
     const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
+    // Narrow the searchable set to the chosen workspace scope (or the whole vault).
+    const scopedNotes = useMemo(
+        () => (noteIds ? notes.filter((n) => noteIds.has(n.id)) : notes),
+        [notes, noteIds],
+    )
+
     return(
         <div className="search-view">
-          <p className="section-label">Search</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+            <p className="section-label">Search</p>
+            <ScopeBar />
+          </div>
           <SearchDocs
-            notes={notes}
+            notes={scopedNotes}
             onOpenNote={(noteId) => setExpandedNoteId(noteId)}
           />
           {expandedNote && (

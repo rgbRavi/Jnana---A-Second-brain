@@ -1,7 +1,139 @@
-/* Root container — preserve newlines from plain-text content */
+/* Root container — real markdown now controls block layout (no more pre-wrap). */
 .root {
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── Standard markdown elements ──────────────────────────────────────────── */
+
+.root p {
+  margin: 0 0 0.75rem 0;
+}
+
+.root p:last-child {
+  margin-bottom: 0;
+}
+
+.root h1,
+.root h2,
+.root h3,
+.root h4,
+.root h5,
+.root h6 {
+  margin: 1.1rem 0 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-1);
+}
+
+.root h1:first-child,
+.root h2:first-child,
+.root h3:first-child {
+  margin-top: 0;
+}
+
+.root h1 { font-size: 1.4rem; }
+.root h2 { font-size: 1.2rem; }
+.root h3 { font-size: 1.05rem; }
+.root h4,
+.root h5,
+.root h6 { font-size: 1rem; }
+
+.root ul,
+.root ol {
+  margin: 0 0 0.75rem 0;
+  padding-left: 1.4rem;
+}
+
+.root li {
+  margin: 0.2rem 0;
+}
+
+.root blockquote {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.9rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-2);
+}
+
+.root blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+.root hr {
+  margin: 1.25rem 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.root table {
+  margin: 0.75rem 0;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.root th,
+.root td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.root th {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.root strong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.root em {
+  font-style: italic;
+}
+
+.root del {
+  color: var(--text-3);
+}
+
+.link {
+  color: var(--accent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pre {
+  margin: 0.75rem 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.pre .code,
+.code {
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  color: var(--text-1);
+}
+
+.inlineCode {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent);
 }
 
 /* Image Attachment */
@@ -24,6 +156,22 @@
   display: block;
   margin: 0.75rem 0;
   width: 100%;
+}
+
+/* Off-screen placeholder for a not-yet-rendered PDF thumbnail. Matches the
+   thumbnail's footprint (216x192) so revealing it causes no layout shift. */
+.notePdfPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 216px;
+  height: 192px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-3);
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
 }
 
 /* External Document Link */
@@ -253,29 +401,6 @@
 
 .fullscreenClose:hover {
   background: rgba(0, 0, 0, 0.85);
-}
-
-/* PDF expand button (shown above PDF in modal context) */
-.pdfExpandBtn {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-left: auto;
-  margin-bottom: 0.5rem;
-  background: var(--surface-3, #2a2a35);
-  color: var(--text-2, #9896a4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.3rem 0.75rem;
-  font-size: 0.78rem;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.pdfExpandBtn:hover {
-  color: var(--text-1, #f0eff5);
-  border-color: var(--border-hover);
 }
 
 /* YouTube Embed Styles */

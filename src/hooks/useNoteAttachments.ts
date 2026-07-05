@@ -3,6 +3,13 @@ import { importMedia, registerMediaRef } from '../core/media'
 import { uploadAsset } from '../core/notes'
 import { toast } from '../lib/toast'
 
+/** A failed media_refs insert silently drops the note's has:* auto-tags — make
+ *  it visible instead of swallowing it with a bare console.error. */
+const registerFailed = (err: unknown) => {
+  console.error('registerMediaRef failed:', err)
+  toast.error(`Couldn't tag attached media: ${String(err)}`)
+}
+
 interface UseNoteAttachmentsProps {
   noteId: string
   onUploadStart: () => void
@@ -35,10 +42,10 @@ export function useNoteAttachments({
       if (onRegisterPendingMedia) {
         onRegisterPendingMedia(filename, 'image')
       } else {
-        registerMediaRef(noteId, 'image', filename).catch(console.error)
+        registerMediaRef(noteId, 'image', filename).catch(registerFailed)
       }
 
-      onInsertMarkdown(`\n![${file.name}](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n\n![${file.name}](jnana-asset://${filename})`)
 
     } catch (err) {
       console.error('Failed to upload image:', err)
@@ -65,10 +72,10 @@ export function useNoteAttachments({
       if (onRegisterPendingMedia) {
         onRegisterPendingMedia(filename, 'video')
       } else {
-        registerMediaRef(noteId, 'video', filename).catch(console.error)
+        registerMediaRef(noteId, 'video', filename).catch(registerFailed)
       }
 
-      onInsertMarkdown(`\n![video](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n\n![video](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to upload video:', err)
       toast.error('Failed to upload video: ' + String(err))
@@ -89,10 +96,10 @@ export function useNoteAttachments({
       if (onRegisterPendingMedia) {
         onRegisterPendingMedia(filename, 'audio')
       } else {
-        registerMediaRef(noteId, 'audio', filename).catch(console.error)
+        registerMediaRef(noteId, 'audio', filename).catch(registerFailed)
       }
 
-      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n\n![audio](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to save recording:', err)
       toast.error('Failed to save recording: ' + String(err))
@@ -117,10 +124,10 @@ export function useNoteAttachments({
       if (onRegisterPendingMedia) {
         onRegisterPendingMedia(filename, 'audio')
       } else {
-        registerMediaRef(noteId, 'audio', filename).catch(console.error)
+        registerMediaRef(noteId, 'audio', filename).catch(registerFailed)
       }
 
-      onInsertMarkdown(`\n![audio](jnana-asset://${filename})\n`)
+      onInsertMarkdown(`\n\n![audio](jnana-asset://${filename})`)
     } catch (err) {
       console.error('Failed to upload audio:', err)
       toast.error('Failed to upload audio: ' + String(err))

@@ -31,7 +31,24 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 
 ### Notes & organization
 - Note create / edit / delete with instant (optimistic) updates and SQLite persistence
-- Lightweight markdown rendering with custom embeds, plus a full-screen note view and inline editing
+- **Real markdown rendering** (GFM: headings, bold/italic, lists, blockquotes, code, tables,
+  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp tokens
+- **Live editor** (Obsidian/Typora-style) — syntax markers hidden while you type; bold appears
+  bold, headings are styled, media embeds render inline; raw markdown revealed near the cursor for
+  quick edits; used everywhere you write (new note, card edit, and the Working Notes editor)
+- A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
+  lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
+  import-at-cursor from the right-click menu
+- A **slash (`/`) command menu** — type `/` for an inline, filterable palette to insert media/embeds/
+  divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
+- **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the
+  title doesn't exist yet, choose **Create** to link a new note (materialized on first click)
+- **Working Notes** — a tabbed, splittable editor "desk" under **Notes → Working Notes** (or
+  **Ctrl/⌘+Shift+E**): open notes as tabs, split panes and drag notes between them, edit two notes
+  side by side, and autosave as you type. Tabs and the split layout are restored on relaunch.
+- **Peek modal** — clicking a note anywhere else (Home, Search, AI, Canvas, workspaces) opens a
+  quick read view; **Edit in Working Notes ↗** jumps it to the desk. Expand it to fill the content
+  area with the ⤢/⤡ toggle.
 - **Wikilinks** (`[[Title]]`) that become graph edges, kept in sync efficiently on the Rust side
 - **Full-text search** (MiniSearch) across titles, tags, and content, with sensible boosting
 - **Tags** — your own tags plus automatic ones (`has:image`, `has:pdf`, `long-form`, …)
@@ -41,16 +58,53 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - Interactive force-directed graph of your notes and their links
 - Focus a node to see just its neighbourhood; search and jump to any node
 - **Connect mode** — link two notes by clicking them (adds a durable `[[wikilink]]` to the source)
+- **Pseudo-nodes** — unresolved `[[wikilinks]]` appear as faded, dashed nodes; click one to create
+  that note (referencing links resolve immediately)
 - Edit or delete a note straight from the graph panel
 
+### Workspaces
+- **Named groups** that organize notes without separate vaults — a note can live in many workspaces,
+  and removing it from one only drops the association (it stays in All Notes)
+- Each workspace has its own **Dashboard** (scoped stats + pinned/recent/continue/imports),
+  **Notes** (the full filter/sort/view-mode toolbar), a **scoped Graph** (just this workspace's
+  notes + the links between them), **Canvas**, and **Insights** (orphans, untagged, needs-indexing,
+  suggested links)
+- **Collections** — lightweight sub-groups inside a workspace that chip-filter its notes
+- Templates (Research / Course / Writing / …), per-workspace icon & colour, note-count badges,
+  pinned workspaces in the sidebar, and quick-note capture straight into the active workspace
+
+### Canvas (freeform board)
+- A pannable / zoomable **spatial board per workspace** — drop **note cards**, text cards,
+  images/media, and **web pages**, and **draw/paint** freehand
+- **Connect cards** by dragging between them; a note↔note line can be promoted to a real
+  `[[wikilink]]` ("Link in graph") so it shows up in the graph and backlinks
+- Multiple named canvases per workspace; stored in the portable [JSON Canvas](https://jsoncanvas.org) shape
+
+### Command palette
+- Global **Ctrl/⌘-K** to fuzzy-jump to any note, switch workspaces, or run a command
+  (including **Open Working Notes**)
+- **Ctrl/⌘+Shift+E** — jump to the Working Notes desk from anywhere (toggles back to the gallery
+  when you're already there)
+
 ### Media
-- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations
+- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations; compact
+  **thumbnail preview** in note cards (click to open the full viewer)
 - **Local video** — imported and streamed through a custom asset protocol (with range/seek support)
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
 - **YouTube** — privacy-enhanced (`youtube-nocookie`) embeds
-- **Timestamps** — clickable `[V0::HH:MM:SS]` (video), `[A0::HH:MM:SS]` (audio), and `[D1::Page n]`
-  (PDF) markers that jump the player/page
+- **Web pages** — `![webpage](url)` embeds a link-preview card (title/description/image/favicon,
+  fetched + cached on the Rust side) with a best-effort in-app **Live view**
+- **Timestamps** — clickable `[V0::HH:MM:SS]` (video) and `[A0::HH:MM:SS]` (audio) markers that
+  seek the matching player, indexed in document order
+- **Resize & align media** — hover any embedded image, video, audio, or YouTube in the live editor
+  to reveal a resize handle (drag to size) and alignment buttons (left/center/right); alignment
+  justifies the whole row, so it never knocks a side-by-side pair apart; sizes persist without
+  touching your markdown
+- **Drag to arrange media** — grab a media's grip (⠿) and drag it onto another embed: drop on its
+  left/right edge to place them **side by side**, or top/bottom to **stack** them; a guide shows
+  where it'll land. ▲/▼ buttons still nudge a block up or down (order lives in markdown; layout
+  metadata follows independently)
 
 ### Documents
 - Import PDFs directly, convert `doc`/`docx`/`odt` → PDF (LibreOffice/Pandoc), or extract text
@@ -79,11 +133,24 @@ through Rust to only the host you configured.
 - **Local vector store** — embeddings live in SQLite; semantic search runs in-process (no vector DB)
 - **Hybrid providers** — chat and embeddings are independent: e.g. embed locally with Ollama while
   chatting through a cloud API
+- **Workspace scope** — point AI chat (and Search) at the whole vault or a single workspace
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 
 ### Export
 - Export a single note or **all notes** to Markdown; media references are rewritten to a relative
   `assets/` folder (copied alongside) and tables/embeds export portably (Obsidian/VS Code friendly)
+
+### Appearance (Theme Studio)
+- **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
+  individual CSS custom properties (`--accent`, `--surface*`, `--text*`, `--radius-*`, motion) and
+  the whole running app repaints live, with **no React re-render** for the repaint itself
+- **5 built-in presets** (Midnight, Paper, OLED, High Contrast, Reading) plus a library of your own
+  saved custom themes — export/import as JSON, swap dark ⇄ light while keeping your accent/radius
+- **Derived accent** (hover/active/soft/softer), a corner-radius slider, and a live **WCAG contrast
+  guardrail** (AA/AAA/AA Large/Fail) over the 5 critical text/surface pairs
+- Persisted to SQLite (with a localStorage mirror so the right theme applies before first paint —
+  no flash of default); density/motion/reading-scale controls are wired but not yet consumed by any
+  CSS, ahead of a follow-up pass
 
 ---
 
@@ -92,13 +159,13 @@ through Rust to only the host you configured.
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
 - **Tables** — a CSV-backed `table` block with a grid editor and paste-from-spreadsheet support,
-  exported to GFM pipe tables ([full spec](TABLES.md))
-- **Rich Markdown** — a hybrid remark renderer for headings/bold/lists/code/tables, keeping the
-  custom embed + wikilink + timestamp tokens
-- **Graph enhancements** — disconnect links, tag-based coloring/clustering, orphan & hub
-  highlighting, filtering, directed edges, pinned layout
-- **Polish pass** — dark/light theme toggle, a shared modal component, design tokens, and replacing
-  the remaining `window.prompt` dialogs with proper UI
+  exported to GFM pipe tables ([full spec](TABLES.md)); composes with the GFM pipe tables the
+  renderer already supports
+- **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
+  highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
+- **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
+  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
+  markdown renderer rewrite have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, a plugin
   permission model
 
@@ -158,11 +225,12 @@ src/
   context/   React contexts (Notes, Transcription)
   lib/       event bus + plugin scaffolding
   types/     shared frontend types
-  ui/        components (editor, media, graph, ai)
-  views/     routed pages (home, notes, search, graph, ai, settings)
+  ui/        components (editor, media, graph, ai, CommandPalette, WebEmbed)
+  views/     routed pages (home, notes, search, graph, ai, settings, workspaces/[+canvas])
 
 src-tauri/
-  src/commands/  Tauri commands (notes, media, assets, annotations, ai, embeddings, export)
+  src/commands/  Tauri commands (notes, media, assets, annotations, ai, embeddings, export,
+                 workspaces, canvas, web)
   src/db/        SQLite init, schema/migrations, queries
 
 whisper-server/  optional local transcription server (FastAPI + faster-whisper, Docker)
@@ -172,6 +240,13 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
 - Strict layering: `ui → hooks → core → Rust commands → SQLite/assets`; UI never imports `core` directly.
 - Cross-module sync runs through an event bus (`note:saved`, `link:created`, `annotation:*`, …).
 - Wikilink syncing is a single Rust command (`sync_links`) that diffs inside SQLite.
+- Notes render through `react-markdown` + `remark-gfm` + a custom plugin
+  (`core/markdown/remarkJnana.ts`) that turns `[[wikilinks]]` and `[V0::…]`/`[A0::…]` timestamps into
+  custom AST nodes (and assigns document-order indices to `![video]`/`![audio]` embeds) without
+  touching code fences; a `components` map renders those nodes into the existing embed components.
+- Theming applies CSS-var overrides straight to `document.documentElement` (`core/themes/apply.ts` →
+  `hooks/useTheme.ts`), persisted to SQLite (`themes` table) with a localStorage mirror for a
+  flash-free boot; `theme:changed` lets the graph re-theme its accent-derived node colors.
 - Local assets are served via a custom `jnana-asset://` protocol; filenames are validated to
   prevent path traversal, and external opens go through a scoped `open_asset` command.
 - AI settings and keys live in a Rust-side config file; provider requests are proxied through Rust

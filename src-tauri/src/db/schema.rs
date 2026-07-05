@@ -43,6 +43,35 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         migrate_v7(conn)?;
     }
 
+    if version < 8 {
+        migrate_v8(conn)?;
+    }
+
+    if version < 9 {
+        migrate_v9(conn)?;
+    }
+
+    if version < 10 {
+        migrate_v10(conn)?;
+    }
+
+    if version < 11 {
+        migrate_v11(conn)?;
+    }
+
+    if version < 12 {
+        migrate_v12(conn)?;
+    }
+
+    let current: i32 = conn
+        .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
+        .unwrap_or(version);
+    if current != version {
+        log::info!("run_migrations: schema migrated v{} → v{}", version, current);
+    } else {
+        log::debug!("run_migrations: schema up to date (v{})", current);
+    }
+
     Ok(())
 }
 
@@ -252,6 +281,153 @@ fn migrate_v7(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V8: Workspaces — named groups that organize notes without separate vaults.
+/// Notes stay global; membership is many-to-many (a note can be in several
+/// workspaces). Collections are lightweight sub-groups inside a workspace. All
+/// junctions cascade on note/workspace/collection delete, so removing a note from
+/// a workspace only drops the association — it never deletes the note.
+fn migrate_v8(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS workspaces (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            icon        TEXT NOT NULL DEFAULT '',
+            color       TEXT,
+            description TEXT NOT NULL DEFAULT '',
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS workspace_notes (
+            workspace_id TEXT NOT NULL,
+            note_id      TEXT NOT NULL,
+            pinned       INTEGER NOT NULL DEFAULT 0,
+            added_at     INTEGER NOT NULL,
+            PRIMARY KEY (workspace_id, note_id),
+            FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+            FOREIGN KEY (note_id)      REFERENCES notes(id)      ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS collections (
+            id           TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            name         TEXT NOT NULL,
+            created_at   INTEGER NOT NULL,
+            FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS collection_notes (
+            collection_id TEXT NOT NULL,
+            note_id       TEXT NOT NULL,
+            added_at      INTEGER NOT NULL,
+            PRIMARY KEY (collection_id, note_id),
+            FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+            FOREIGN KEY (note_id)       REFERENCES notes(id)       ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_workspace_notes_note ON workspace_notes(note_id);
+        CREATE INDEX IF NOT EXISTS idx_collections_workspace ON collections(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_collection_notes_note ON collection_notes(note_id);
+
+        INSERT INTO schema_version (version) VALUES (8);
+        ",
+    )
+}
+
+/// V9: Workspace canvases — a freeform, spatial board per workspace. The whole
+/// board (nodes / edges / freehand drawings) is stored as one JSON document
+/// (JSON-Canvas-compatible shape) in `data`. Multi-canvas-ready (a workspace can
+/// hold several); cascades on workspace delete so a removed workspace drops its
+/// canvases while its notes stay global.
+fn migrate_v9(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS canvases (
+            id           TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            title        TEXT NOT NULL DEFAULT 'Canvas',
+            data         TEXT NOT NULL DEFAULT '{\"nodes\":[],\"edges\":[],\"drawings\":[]}',
+            created_at   INTEGER NOT NULL,
+            updated_at   INTEGER NOT NULL,
+            FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_canvases_workspace ON canvases(workspace_id);
+
+        INSERT INTO schema_version (version) VALUES (9);
+        ",
+    )
+}
+
+/// V10: Link-preview cache — Open-Graph metadata for embedded web pages (the
+/// `![webpage](url)` note embed + canvas link nodes), keyed by URL so a page's
+/// card isn't re-fetched on every render.
+fn migrate_v10(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS link_previews (
+            url         TEXT PRIMARY KEY,
+            title       TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            image       TEXT NOT NULL DEFAULT '',
+            favicon     TEXT NOT NULL DEFAULT '',
+            site_name   TEXT NOT NULL DEFAULT '',
+            fetched_at  INTEGER NOT NULL
+        );
+
+        INSERT INTO schema_version (version) VALUES (10);
+        ",
+    )
+}
+
+/// V11: Theme Studio — token-level theming. `json` is the opaque theme object
+/// (tokens/fonts/density/...) the frontend owns; Rust never parses it, the same
+/// treatment as canvas `data` and conversation `messages`. Built-in presets and
+/// the user's saved custom themes are rows with `is_builtin` distinguishing them;
+/// the currently-active theme (which may be a hand-edited, unsaved variant) lives
+/// in a sentinel row keyed by `__active__` so it persists across restarts without
+/// polluting the saved-themes list.
+fn migrate_v11(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS themes (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            json        TEXT NOT NULL,
+            is_builtin  INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL
+        );
+
+        INSERT INTO schema_version (version) VALUES (11);
+        ",
+    )
+}
+
+/// V12: Per-note media layout — presentation metadata (width/alignment/caption)
+/// for media embeds, kept OUT of the note's markdown (which stays the portable,
+/// presentation-free source of truth). Keyed by `media_key` (asset URL + document-
+/// order occurrence ordinal, computed by remarkJnana / the CM6 decoration walk) so
+/// duplicate embeds of the same file get independent layout. `json` is opaque to
+/// Rust — same treatment as canvas `data` / themes `json`. Its own table (not a
+/// notes column) so resizing never touches `notes.updated_at` or triggers the
+/// note-saved cascade (search re-index, link sync, etc.).
+fn migrate_v12(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS note_media_layout (
+            note_id     TEXT NOT NULL,
+            media_key   TEXT NOT NULL,
+            json        TEXT NOT NULL,
+            PRIMARY KEY (note_id, media_key),
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (12);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,11 +439,11 @@ mod tests {
         let result = run_migrations(&conn);
         assert!(result.is_ok());
 
-        // Verify version is 7
+        // Verify version is 12
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 7);
+        assert_eq!(version, 12);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -281,6 +457,14 @@ mod tests {
         assert!(tables.contains(&"ai_projects".to_string()));
         assert!(tables.contains(&"ai_project_knowledge".to_string()));
         assert!(tables.contains(&"note_progress".to_string()));
+        assert!(tables.contains(&"workspaces".to_string()));
+        assert!(tables.contains(&"workspace_notes".to_string()));
+        assert!(tables.contains(&"collections".to_string()));
+        assert!(tables.contains(&"collection_notes".to_string()));
+        assert!(tables.contains(&"canvases".to_string()));
+        assert!(tables.contains(&"link_previews".to_string()));
+        assert!(tables.contains(&"themes".to_string()));
+        assert!(tables.contains(&"note_media_layout".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&conn);

@@ -1,0 +1,70 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.segBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.segBtn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.segBtn:hover:not(:disabled) {
+  color: var(--text-1);
+}
+
+.segBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.segOn {
+  background: var(--accent);
+  color: #fff;
+}
+
+.segOn:hover {
+  color: #fff;
+}
+
+.select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+  outline: none;
+  max-width: 180px;
+}
+
+.select:focus {
+  border-color: var(--accent);
+}

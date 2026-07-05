@@ -1,0 +1,174 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  max-width: 480px;
+  margin: 0.6rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.card.compact {
+  margin: 0;
+  height: 100%;
+  max-width: none;
+}
+
+.thumb {
+  width: 100%;
+  max-height: 180px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  display: block;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.6rem 0.75rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.site {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.favicon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.siteName {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.desc {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+
+.actionBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.74rem;
+  font-family: var(--font-body);
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.actionBtn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+/* ── Live view ── */
+.liveWrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.liveBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.liveDomain {
+  font-size: 0.74rem;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.liveActions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.barBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+}
+
+.barBtn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+  min-height: 200px;
+}
+
+.liveNote {
+  font-size: 0.68rem;
+  color: var(--text-3);
+  padding: 0.25rem 0.5rem;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}

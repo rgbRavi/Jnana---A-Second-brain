@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
 import { eventBus } from '../lib/eventBus'
+import { log } from '../lib/logger'
 import {
   defaultConfig,
   loadAiConfig,
@@ -33,7 +34,7 @@ export function useRag() {
   useEffect(() => {
     loadAiConfig()
       .then(setConfig)
-      .catch((err) => console.error('[useRag] failed to load AI config:', err))
+      .catch((err) => log.error('[useRag] failed to load AI config', err))
   }, [])
 
   // Keep a ref so event handlers always see the latest config without resubscribing.
@@ -61,7 +62,7 @@ export function useRag() {
       }
     })
     void saveAiConfig(next).catch((err) =>
-      console.error('[useRag] failed to save AI config:', err),
+      log.error('[useRag] failed to save AI config', err),
     )
   }, [])
 
@@ -69,7 +70,7 @@ export function useRag() {
     try {
       setStats(await getIndexStats())
     } catch (err) {
-      console.error('[useRag] failed to load index stats:', err)
+      log.error('[useRag] failed to load index stats', err)
     }
   }, [])
 
@@ -86,7 +87,7 @@ export function useRag() {
     try {
       setStale(staleNotes(notes, await getIndexTimes()))
     } catch (err) {
-      console.error('[useRag] staleness check failed:', err)
+      log.error('[useRag] staleness check failed', err)
     }
   }, [])
 
@@ -97,13 +98,13 @@ export function useRag() {
       if (!cfg.enabled || !cfg.autoIndex) return
       void indexNote(note, cfg)
         .then(refreshStats)
-        .catch((err) => console.error('[useRag] auto-index failed:', err))
+        .catch((err) => log.error('[useRag] auto-index failed', err))
     }
 
     const handleDeleted = ({ id }: { id: string }) => {
       void removeNoteFromIndex(id)
         .then(refreshStats)
-        .catch((err) => console.error('[useRag] failed to de-index deleted note:', err))
+        .catch((err) => log.error('[useRag] failed to de-index deleted note', err))
     }
 
     eventBus.on('note:saved', handleSaved)

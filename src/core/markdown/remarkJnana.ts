@@ -1,0 +1,85 @@
+// Remark plugin for Jnana's custom note tokens, run alongside remark-gfm.
+//
+// Handles:
+//  - Document-order indexing of `![video]` / `![audio]` embeds, so timestamp
+//    tokens know which player to seek (`data-video-index` / `data-audio-index`
+//    end up on the rendered <img> element's hast properties).
+//  - Wikilinks `[[Title]]`, indexed timestamps `[V0::HH:MM:SS]` / `[A0::HH:MM:SS]`,
+//    and bare timestamps `[MM:SS]` — turned into custom inline nodes
+//    (`data.hName`/`hProperties`) that the `components` map in MarkdownLite
+//    renders as buttons.
+//
+// `findAndReplace` only ever visits literal `text` mdast nodes, so tokens
+// inside inline code or fenced code blocks are left untouched for free.
+
+import { visit } from 'unist-util-visit'
+import { findAndReplace } from 'mdast-util-find-and-replace'
+import type { PhrasingContent, Root } from 'mdast'
+import { audioTimestampRegex, simpleTimestampRegex, videoTimestampRegex, wikilinkRegex } from './tokenPatterns'
+
+/** mdast-util-to-hast's `data.hProperties` convention isn't in `@types/mdast`. */
+interface HData {
+  hName?: string
+  hProperties?: Record<string, unknown>
+}
+
+/** Build a custom mdast node that mdast-util-to-hast renders as `<hName ...hProperties>`. */
+function customNode(hName: string, hProperties: Record<string, unknown>): PhrasingContent {
+  return { type: hName, data: { hName, hProperties } } as unknown as PhrasingContent
+}
+
+export function remarkJnana() {
+  return (tree: Root): void => {
+    let videoIndex = 0
+    let audioIndex = 0
+    const mediaKeyOrdinals = new Map<string, number>()
+
+    // Media indexing — must run before the text-token pass below makes no
+    // difference here since images aren't text nodes, but keep it first for
+    // readability (it establishes the indices timestamp tokens reference).
+    //
+    // Every media node also gets a stable `data-media-key` (url + document-
+    // order occurrence ordinal) so duplicate embeds of the same file get
+    // independent layout in note_media_layout — the CM6 decoration walk
+    // (LiveEditor.decorations.tsx) computes the same key the same way, so
+    // both renderers agree on which saved size/alignment applies to which embed.
+    visit(tree, 'image', (node) => {
+      const data = (node.data ?? {}) as HData
+      const url = node.url ?? ''
+      const ordinal = mediaKeyOrdinals.get(url) ?? 0
+      mediaKeyOrdinals.set(url, ordinal + 1)
+      const hProperties: Record<string, unknown> = { ...data.hProperties, 'data-media-key': `${url}#${ordinal}` }
+      if (node.alt === 'video') hProperties['data-video-index'] = videoIndex++
+      else if (node.alt === 'audio') hProperties['data-audio-index'] = audioIndex++
+      node.data = { ...data, hProperties } as typeof node.data
+    })
+
+    // Order matters: findAndReplace runs one full tree pass per pattern, in
+    // list order. Wikilinks must come before the bare-timestamp pattern, or
+    // the `00:05` inside `[[00:05]]` would be claimed by the generic pattern
+    // first (mirrors the old renderer's leftmost-match-wins behavior).
+    findAndReplace(tree, [
+      [
+        wikilinkRegex(),
+        (_match: string, title: string) => {
+          const trimmed = title.trim()
+          return trimmed ? customNode('jnana-wikilink', { title: trimmed }) : false
+        },
+      ],
+      [
+        videoTimestampRegex(),
+        (_match: string, index: string, time: string) =>
+          customNode('jnana-timestamp', { kind: 'video', index: Number(index), time }),
+      ],
+      [
+        audioTimestampRegex(),
+        (_match: string, index: string, time: string) =>
+          customNode('jnana-timestamp', { kind: 'audio', index: Number(index), time }),
+      ],
+      [
+        simpleTimestampRegex(),
+        (_match: string, time: string) => customNode('jnana-timestamp', { kind: 'video', index: 0, time }),
+      ],
+    ])
+  }
+}

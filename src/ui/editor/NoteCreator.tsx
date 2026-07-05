@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Note } from '../../types'
 import { useViewState } from '../../hooks/useViewState'
@@ -7,9 +7,14 @@ import { usePendingMedia } from '../../hooks/usePendingMedia'
 import { useFavourites } from '../../hooks/useFavourites'
 import { useComposerOptions, getComposerOptions } from '../../hooks/useComposerOptions'
 import { useNotesContext } from '../../context/NotesContext'
+import { eventBus } from '../../lib/eventBus'
+import { getActiveWorkspaceId } from '../../hooks/useActiveWorkspace'
+import { addWorkspaceNote } from '../../core/workspaces'
 import { TagEditor } from '../TagEditor'
 import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { AddContentMenu } from './AddContentMenu'
+import { FormatToolbar } from './FormatToolbar'
+import { LiveEditor, type LiveEditorHandle } from './LiveEditor'
 import Styles from './NoteCreator.module.css'
 import FavStyles from './FavouriteBtn.module.css'
 
@@ -21,6 +26,18 @@ interface Props {
 type ComposerState = 'collapsed' | 'expanded' | 'fullscreen'
 
 const LAST_STATE_KEY = 'jnana.composer.lastState'
+
+// Latched open intent. The composer is route-gated (mounted only on Home/Notes),
+// so a `composer:open` emitted right after navigating to /notes can fire before
+// this component mounts. We set the latch alongside the event; a freshly-mounted
+// composer reads it so the intent isn't lost. Use openComposer() from anywhere.
+let pendingOpen = false
+
+/** Expand the floating composer and focus it (one-click capture entry point). */
+export function openComposer(): void {
+  pendingOpen = true
+  eventBus.emit('composer:open', null)
+}
 
 /** Seed the open state from localStorage (only when "remember last state" is on). */
 function initialComposerState(): ComposerState {
@@ -51,14 +68,27 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const { addToFavourites } = useFavourites()
 
   const pendingNoteId = useRef(crypto.randomUUID())
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<LiveEditorHandle>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+  // Latest title, read inside the (stable) composer:open handler without re-subscribing.
+  const titleValRef = useRef(title)
+  titleValRef.current = title
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
   const { notes } = useNotesContext()
 
   const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: pendingNoteId.current,
     appendMarkdown: (md) => setContent((prev) => prev + md),
-    focusTextarea: () => textareaRef.current?.focus(),
+    focusTextarea: () => editorRef.current?.focus(),
+    onRegisterPendingMedia: addPendingMedia,
+  })
+  // A second instance just for the editor's right-click "Import" submenu —
+  // same upload plumbing, but inserts land at the click position instead of
+  // always appending to the end.
+  const { toolbarProps: contextMenuImportProps } = useComposer({
+    noteId: pendingNoteId.current,
+    appendMarkdown: (md) => editorRef.current?.insertAtCursor(md),
+    focusTextarea: () => editorRef.current?.focus(),
     onRegisterPendingMedia: addPendingMedia,
   })
 
@@ -76,23 +106,34 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   // Focus the editor when the composer opens.
   useEffect(() => {
     if (state === 'collapsed') return
-    const t = window.setTimeout(() => textareaRef.current?.focus(), 60)
+    const t = window.setTimeout(() => editorRef.current?.focus(), 60)
     return () => window.clearTimeout(t)
   }, [state])
 
-  // Grow the editor with its content while expanded — the panel is bottom-anchored
-  // so it expands upward. CSS min/max-height clamps it (then the editor scrolls).
-  // In fullscreen/collapsed the height is flex-driven, so clear the inline height.
+  // Quick-note capture: expand and drop the cursor straight in. Reopens the
+  // in-progress draft rather than resetting it. Focuses the title for a fresh
+  // note, or the body when a draft already has a title.
+  const runOpen = useCallback(() => {
+    setState('expanded')
+    window.setTimeout(() => {
+      if (titleValRef.current.trim()) editorRef.current?.focus()
+      else titleRef.current?.focus()
+    }, 70)
+  }, [setState])
+
   useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    if (state !== 'expanded') {
-      el.style.height = ''
-      return
+    const handler = () => {
+      pendingOpen = false
+      runOpen()
     }
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }, [content, state])
+    eventBus.on('composer:open', handler)
+    // Catch an open intent latched before this (route-gated) composer mounted.
+    if (pendingOpen) {
+      pendingOpen = false
+      runOpen()
+    }
+    return () => eventBus.off('composer:open', handler)
+  }, [runOpen])
 
   // Remember collapsed/expanded across reloads (fullscreen is transient).
   useEffect(() => {
@@ -113,6 +154,9 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     await flushPendingMedia(saved.id)
     await onUpdate(saved.id, saved.title, saved.content, tags)
     if (saveFavourite) await addToFavourites(saved.id)
+    // When captured from inside a workspace, file the new note there too.
+    const wsId = getActiveWorkspaceId()
+    if (wsId) await addWorkspaceNote(wsId, saved.id).catch(() => {})
     setTitle('')
     setContent('')
     setTags([])
@@ -121,21 +165,36 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     resetPendingMedia()
     setDraftKey((k) => k + 1)
     setSaving(false)
-    textareaRef.current?.focus()
+    editorRef.current?.focus()
   }
+
+  const handleCancel = () => setState((s) => (s === 'fullscreen' ? 'expanded' : 'collapsed'))
 
   const handleKeyDown = (e: ReactKeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       void handleSave()
     } else if (e.key === 'Escape') {
-      setState((s) => (s === 'fullscreen' ? 'expanded' : 'collapsed'))
+      handleCancel()
     }
+  }
+
+  // Pasting an image attaches it inline, same as the ＋ menu's upload — plain
+  // text keeps the browser's native paste.
+  const handleBodyPaste = (e: ClipboardEvent) => {
+    const file = Array.from(e.clipboardData?.items ?? [])
+      .find((item) => item.type.startsWith('image/'))
+      ?.getAsFile()
+    if (!file) return
+    e.preventDefault()
+    void toolbarProps.onImageUpload(file)
   }
 
   const pillAlpha = Math.max(0, Math.min(1, (100 - options.transparency) / 100))
   const pillStyle: CSSProperties = {
-    background: `rgba(var(--surface-rgb), ${pillAlpha})`,
+    // color-mix against --surface directly (not the --surface-rgb companion var) so
+    // this can't drift out of sync with whatever Theme Studio currently has applied.
+    background: `color-mix(in srgb, var(--surface) ${Math.round(pillAlpha * 100)}%, transparent)`,
     backdropFilter: options.glass ? 'blur(12px)' : undefined,
     WebkitBackdropFilter: options.glass ? 'blur(12px)' : undefined,
   }
@@ -189,6 +248,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
         </div>
 
         <input
+          ref={titleRef}
           className={Styles.title}
           type="text"
           placeholder="Title (optional)"
@@ -214,17 +274,24 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
           />
         </div>
 
-        <textarea
-          ref={textareaRef}
-          className={Styles.body}
+        <LiveEditor
+          ref={editorRef}
+          className={Styles.bodyEditor}
           placeholder="What do you want to remember?"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onChange={setContent}
+          onSubmit={() => void handleSave()}
+          onCancel={handleCancel}
+          onPaste={handleBodyPaste}
+          notes={notes}
+          noteId={pendingNoteId.current}
+          allowNavigate={false}
+          importHandlers={contextMenuImportProps}
         />
 
         <div className={Styles.footer}>
           <AddContentMenu {...toolbarProps} disabled={saving || uploading} />
+          <FormatToolbar editorRef={editorRef} disabled={saving || uploading} />
           <span className={Styles.hint}>⌘ enter to save</span>
           <span
             className={Styles.saveWrap}

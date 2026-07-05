@@ -57,3 +57,8 @@ export function useComposer({ noteId, appendMarkdown, focusTextarea, onRegisterP
 
   return { uploading, isRecording, toolbarProps }
 }
+
+/** The shape of `toolbarProps` — reused by the editor's right-click "Import"
+ *  submenu, which is wired from a second `useComposer` instance whose inserts
+ *  route to the click position instead of appending. */
+export type ComposerToolbarProps = ReturnType<typeof useComposer>['toolbarProps']

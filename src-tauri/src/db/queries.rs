@@ -1,7 +1,12 @@
 use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
+use crate::commands::canvas::CanvasRow;
+use crate::commands::web::LinkPreview;
+use crate::commands::workspaces::{CollectionRow, WorkspaceNoteRow, WorkspaceRow};
 use crate::commands::chat::{ConversationMeta, ConversationRow};
 use crate::commands::media::RecentMediaRow;
 use crate::commands::notes::{NoteProgressRow, NoteRow};
+use crate::commands::themes::ThemeRow;
+use crate::commands::media_layout::MediaLayoutRow;
 use rusqlite::{params, Connection, Result};
 
 // ─── Notes ──────────────────────────────────────────────
@@ -366,6 +371,269 @@ pub fn delete_project_knowledge(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
+// ─── Workspaces ─────────────────────────────────────────
+
+pub fn list_workspaces(conn: &Connection) -> Result<Vec<WorkspaceRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, icon, color, description, created_at, updated_at
+         FROM workspaces ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(WorkspaceRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            icon: row.get(2)?,
+            color: row.get(3)?,
+            description: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_workspace(conn: &Connection, w: &WorkspaceRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO workspaces (id, name, icon, color, description, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           name        = excluded.name,
+           icon        = excluded.icon,
+           color       = excluded.color,
+           description = excluded.description,
+           updated_at  = excluded.updated_at",
+        params![w.id, w.name, w.icon, w.color, w.description, w.created_at, w.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_workspace(conn: &Connection, id: &str) -> Result<()> {
+    // Junctions (workspace_notes) and collections cascade; notes are untouched.
+    conn.execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn list_workspace_notes(conn: &Connection, workspace_id: &str) -> Result<Vec<WorkspaceNoteRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT note_id, pinned FROM workspace_notes
+         WHERE workspace_id = ?1 ORDER BY added_at DESC",
+    )?;
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(WorkspaceNoteRow {
+            note_id: row.get(0)?,
+            pinned: row.get::<_, i64>(1)? != 0,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn add_workspace_note(conn: &Connection, workspace_id: &str, note_id: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO workspace_notes (workspace_id, note_id, pinned, added_at)
+         VALUES (?1, ?2, 0, ?3)",
+        params![workspace_id, note_id, now],
+    )?;
+    Ok(())
+}
+
+pub fn remove_workspace_note(conn: &Connection, workspace_id: &str, note_id: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM workspace_notes WHERE workspace_id = ?1 AND note_id = ?2",
+        params![workspace_id, note_id],
+    )?;
+    Ok(())
+}
+
+pub fn set_workspace_note_pinned(
+    conn: &Connection,
+    workspace_id: &str,
+    note_id: &str,
+    pinned: bool,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE workspace_notes SET pinned = ?3 WHERE workspace_id = ?1 AND note_id = ?2",
+        params![workspace_id, note_id, pinned as i64],
+    )?;
+    Ok(())
+}
+
+pub fn list_note_workspace_ids(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT workspace_id FROM workspace_notes WHERE note_id = ?1")?;
+    let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn workspace_note_counts(conn: &Connection) -> Result<Vec<(String, i64)>> {
+    let mut stmt =
+        conn.prepare("SELECT workspace_id, COUNT(*) FROM workspace_notes GROUP BY workspace_id")?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
+// ─── Collections ────────────────────────────────────────
+
+pub fn list_collections(conn: &Connection, workspace_id: &str) -> Result<Vec<CollectionRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, name, created_at
+         FROM collections WHERE workspace_id = ?1 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(CollectionRow {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            name: row.get(2)?,
+            created_at: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_collection(conn: &Connection, c: &CollectionRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO collections (id, workspace_id, name, created_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name",
+        params![c.id, c.workspace_id, c.name, c.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_collection(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM collections WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn list_collection_note_ids(conn: &Connection, collection_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT note_id FROM collection_notes WHERE collection_id = ?1 ORDER BY added_at DESC",
+    )?;
+    let rows = stmt.query_map(params![collection_id], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn add_collection_note(conn: &Connection, collection_id: &str, note_id: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO collection_notes (collection_id, note_id, added_at) VALUES (?1, ?2, ?3)",
+        params![collection_id, note_id, now],
+    )?;
+    Ok(())
+}
+
+pub fn remove_collection_note(conn: &Connection, collection_id: &str, note_id: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM collection_notes WHERE collection_id = ?1 AND note_id = ?2",
+        params![collection_id, note_id],
+    )?;
+    Ok(())
+}
+
+// ─── Canvases ───────────────────────────────────────────
+
+pub fn list_canvases(conn: &Connection, workspace_id: &str) -> Result<Vec<CanvasRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, title, data, created_at, updated_at
+         FROM canvases WHERE workspace_id = ?1 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(CanvasRow {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            title: row.get(2)?,
+            data: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn get_canvas(conn: &Connection, id: &str) -> Result<Option<CanvasRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, title, data, created_at, updated_at FROM canvases WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query(params![id])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(CanvasRow {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            title: row.get(2)?,
+            data: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Insert a new canvas or update an existing one's **data** only — the title is
+/// owned by `rename_canvas`, so frequent doc autosaves never clobber a rename.
+pub fn upsert_canvas(conn: &Connection, c: &CanvasRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO canvases (id, workspace_id, title, data, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+           data       = excluded.data,
+           updated_at = excluded.updated_at",
+        params![c.id, c.workspace_id, c.title, c.data, c.created_at, c.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn rename_canvas(conn: &Connection, id: &str, title: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE canvases SET title = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, title, now],
+    )?;
+    Ok(())
+}
+
+pub fn delete_canvas(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM canvases WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+// ─── Link previews ──────────────────────────────────────
+
+pub fn get_link_preview(conn: &Connection, url: &str) -> Result<Option<(LinkPreview, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT url, title, description, image, favicon, site_name, fetched_at
+         FROM link_previews WHERE url = ?1",
+    )?;
+    let mut rows = stmt.query(params![url])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some((
+            LinkPreview {
+                url: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                image: row.get(3)?,
+                favicon: row.get(4)?,
+                site_name: row.get(5)?,
+            },
+            row.get(6)?,
+        )))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn upsert_link_preview(conn: &Connection, p: &LinkPreview, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO link_previews (url, title, description, image, favicon, site_name, fetched_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(url) DO UPDATE SET
+           title       = excluded.title,
+           description = excluded.description,
+           image       = excluded.image,
+           favicon     = excluded.favicon,
+           site_name   = excluded.site_name,
+           fetched_at  = excluded.fetched_at",
+        params![p.url, p.title, p.description, p.image, p.favicon, p.site_name, now],
+    )?;
+    Ok(())
+}
+
 // ─── Media Refs ─────────────────────────────────────────
 
 pub fn insert_media_ref(
@@ -663,6 +931,95 @@ pub fn fetch_index_times(conn: &Connection) -> Result<Vec<(String, i64)>> {
     let mut stmt = conn.prepare("SELECT note_id, MAX(created_at) FROM embeddings GROUP BY note_id")?;
     let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
     rows.collect()
+}
+
+// ─── Themes ──────────────────────────────────────────────
+
+/// Sentinel id for the row holding the currently-active theme — kept out of
+/// the saved/built-in themes list returned by `list_themes`.
+const ACTIVE_THEME_ID: &str = "__active__";
+
+pub fn list_themes(conn: &Connection) -> Result<Vec<ThemeRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, json, is_builtin, created_at FROM themes
+         WHERE id != ?1 ORDER BY is_builtin DESC, name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map(params![ACTIVE_THEME_ID], |row| {
+        Ok(ThemeRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            json: row.get(2)?,
+            is_builtin: row.get::<_, i64>(3)? != 0,
+            created_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_theme(conn: &Connection, t: &ThemeRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO themes (id, name, json, is_builtin, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+           name       = excluded.name,
+           json       = excluded.json,
+           is_builtin = excluded.is_builtin",
+        params![t.id, t.name, t.json, t.is_builtin as i64, t.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_theme(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM themes WHERE id = ?1 AND id != ?2",
+        params![id, ACTIVE_THEME_ID],
+    )?;
+    Ok(())
+}
+
+pub fn get_active_theme(conn: &Connection) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT json FROM themes WHERE id = ?1")?;
+    let mut rows = stmt.query(params![ACTIVE_THEME_ID])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(row.get(0)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn set_active_theme(conn: &Connection, json: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO themes (id, name, json, is_builtin, created_at)
+         VALUES (?1, 'Active', ?2, 0, ?3)
+         ON CONFLICT(id) DO UPDATE SET json = excluded.json",
+        params![ACTIVE_THEME_ID, json, now],
+    )?;
+    Ok(())
+}
+
+// ─── Note media layout ──────────────────────────────────
+
+pub fn get_media_layout(conn: &Connection, note_id: &str) -> Result<Vec<MediaLayoutRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT media_key, json FROM note_media_layout WHERE note_id = ?1",
+    )?;
+    let rows = stmt.query_map(params![note_id], |row| {
+        Ok(MediaLayoutRow {
+            media_key: row.get(0)?,
+            json: row.get(1)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn set_media_layout(conn: &Connection, note_id: &str, media_key: &str, json: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO note_media_layout (note_id, media_key, json)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(note_id, media_key) DO UPDATE SET json = excluded.json",
+        params![note_id, media_key, json],
+    )?;
+    Ok(())
 }
 
 #[cfg(test)]

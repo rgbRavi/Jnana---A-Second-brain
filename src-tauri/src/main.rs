@@ -7,14 +7,23 @@ use commands::ai::*;
 use commands::ai_workspace::*;
 use commands::annotations::*;
 use commands::assets::*;
+use commands::canvas::*;
 use commands::chat::*;
+use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
 use commands::media::*;
+use commands::media_layout::*;
 use commands::notes::*;
+use commands::themes::*;
+use commands::web::*;
+use commands::workspaces::*;
 
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::Mutex;
+
+use tauri::Manager;
+use tauri_plugin_log::{Target, TargetKind};
 
 fn mime_from_ext(ext: &str) -> &'static str {
     match ext {
@@ -41,18 +50,40 @@ fn mime_from_ext(ext: &str) -> &'static str {
 }
 
 fn main() {
-    // Initialize database ONCE at startup.
-    let conn = db::init_db().expect("Failed to initialize database");
-
     tauri::Builder::default()
+        // Logging first so the database init/migrations below are captured. Writes
+        // to stdout, a rotating file in the OS log dir, and the devtools console.
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: Some("jnana".into()) }),
+                    Target::new(TargetKind::Webview),
+                ])
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
+                .max_file_size(5_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        // Share the single connection with all commands via managed state.
-        .manage(Mutex::new(conn))
+        .plugin(tauri_plugin_clipboard_manager::init())
         // AI settings (incl. the API key) live Rust-side — see commands/ai.rs.
         .manage(AiState(Mutex::new(load_config_from_disk())))
         // Cancellation flags for in-flight streaming chat requests.
         .manage(StreamCancels::default())
+        // Initialize the database after the logger is installed so migrations and
+        // any staged restore-swap are logged. Shared with all commands via state.
+        .setup(|app| {
+            log::info!("Jnana starting — v{}", env!("CARGO_PKG_VERSION"));
+            let conn = db::init_db().expect("Failed to initialize database");
+            app.manage(Mutex::new(conn));
+            Ok(())
+        })
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
@@ -178,6 +209,35 @@ fn main() {
             transcribe_audio,
             import_file,
             export_notes,
+            export_assets,
+            get_storage_stats,
+            create_backup,
+            restore_backup,
+            import_markdown_dir,
+            open_logs_dir,
+            list_workspaces,
+            save_workspace,
+            delete_workspace,
+            list_workspace_counts,
+            list_workspace_notes,
+            add_workspace_note,
+            add_workspace_notes,
+            remove_workspace_note,
+            set_workspace_note_pinned,
+            list_note_workspace_ids,
+            list_collections,
+            save_collection,
+            delete_collection,
+            list_collection_note_ids,
+            add_collection_note,
+            remove_collection_note,
+            get_or_create_workspace_canvas,
+            list_canvases,
+            get_canvas,
+            save_canvas,
+            rename_canvas,
+            delete_canvas,
+            fetch_link_preview,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,
@@ -198,6 +258,13 @@ fn main() {
             list_project_knowledge,
             add_project_knowledge,
             remove_project_knowledge,
+            list_themes,
+            save_theme,
+            delete_theme,
+            get_active_theme,
+            set_active_theme,
+            get_media_layout,
+            set_media_layout,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../types'
 import { chunkNote } from './chunk'
 import { getEmbeddingProvider } from './provider'
+import { log } from '../../lib/logger'
 
 /**
  * Embed a note's chunks and persist them to the local vector store.
@@ -39,9 +40,27 @@ export async function removeNoteFromIndex(noteId: string): Promise<void> {
 }
 
 /**
+ * Optional retrieval scope: when set, every `retrieve()` is restricted to these
+ * note ids. Used by the workspace AI scope (set while the AI view is mounted,
+ * cleared on unmount). A module global so callers deep in the agent loop honor
+ * it without threading a parameter through every call site.
+ */
+let retrievalScope: Set<string> | null = null
+
+/** Restrict (or, with null, unrestrict) all subsequent retrievals to these note ids. */
+export function setRetrievalScope(ids: Set<string> | null): void {
+  retrievalScope = ids && ids.size > 0 ? ids : null
+}
+
+export function getRetrievalScope(): Set<string> | null {
+  return retrievalScope
+}
+
+/**
  * Semantic retrieval: embed the query and return the closest chunks.
  * This is the shared primitive every RAG feature (analyzer, link suggester,
- * quiz) builds on.
+ * quiz) builds on. When a retrieval scope is active, over-fetches and filters
+ * to the scoped note ids (Rust search is global), then trims to `topK`.
  */
 export async function retrieve(
   query: string,
@@ -52,10 +71,13 @@ export async function retrieve(
   const [queryVector] = await getEmbeddingProvider(config).embed([query])
   if (!queryVector) return []
 
-  return invoke<RetrievalHit[]>('search_embeddings', {
+  const scope = retrievalScope
+  const hits = await invoke<RetrievalHit[]>('search_embeddings', {
     queryVector,
-    topK,
+    topK: scope ? Math.max(topK * 6, 48) : topK,
   })
+  if (!scope) return hits
+  return hits.filter((h) => scope.has(h.noteId)).slice(0, topK)
 }
 
 export async function getIndexedNoteIds(): Promise<string[]> {
@@ -108,7 +130,7 @@ export async function indexNotes(
     try {
       await indexNote(note, config)
     } catch (err) {
-      console.error(`[rag] failed to index note ${note.id}:`, err)
+      log.error(`[rag] failed to index note ${note.id}`, err)
     }
     onProgress?.(++done, notes.length)
   }

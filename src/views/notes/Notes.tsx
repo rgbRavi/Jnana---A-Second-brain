@@ -1,75 +1,201 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import type { Note } from '../../types'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
-import { exportNotes } from '../../core/export'
-import { toast } from '../../lib/toast'
+import { getAllLinks } from '../../core/notes'
+import { isAutoTag } from '../../core/tags'
+import { useViewState } from '../../hooks/useViewState'
+import { useFavourites } from '../../hooks/useFavourites'
+import { useNotesViewPrefs, NOTES_PREFS_KEY } from './useNotesViewPrefs'
+import { applyFilters, sortNotes, buildLinkCounts } from './filterNotes'
+import { NotesToolbar } from './NotesToolbar'
+import { NotesFilterBar } from './NotesFilterBar'
+import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
 
 import NoteStyles from './Notes.module.css'
+
+// The list renders every visible card at once and each parses its markdown, so a
+// large vault means a big synchronous burst on load. Render a page at a time and
+// reveal more as the user scrolls to the bottom.
+const PAGE = 24
 
 function Notes() {
   const { notes, loading, error, update, remove, updateTags } = useNotesContext()
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
+  const [workspaceMenuNoteId, setWorkspaceMenuNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
+  const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
+  const [search, setSearch] = useViewState('notes.search', '')
+  const [filtersOpen, setFiltersOpen] = useViewState('notes.filtersOpen', false)
+
+  const { fetchFavourites, addToFavourites, removeFromFavourites } = useFavourites()
+  const [favSet, setFavSet] = useState<Set<string>>(new Set())
+  const [linkCounts, setLinkCounts] = useState<Map<string, number>>(new Map())
+
+  // Favourites — one bulk fetch. Toggling from a card updates the set
+  // optimistically, so the only case still needing a refetch is the composer's
+  // "favourite on save" for a *new* note — re-fetching on every save of an
+  // existing note (by far the common case) would be pure waste. `notesRef`
+  // lets the handler tell create from update without re-subscribing per render.
+  const notesRef = useRef(notes)
+  notesRef.current = notes
   useEffect(() => {
-    const handler = (note: Note) => {
-      eventBus.emit('note:opened', note)
-      setExpandedNoteId(note.id)
+    let active = true
+    const refresh = () =>
+      fetchFavourites()
+        .then((ids) => { if (active) setFavSet(new Set(ids)) })
+        .catch(() => {})
+    refresh()
+    const handleSaved = (saved: Note) => {
+      if (!notesRef.current.some((n) => n.id === saved.id)) refresh()
     }
-    eventBus.on('note:navigate', handler)
-    return () => eventBus.off('note:navigate', handler)
+    eventBus.on('note:saved', handleSaved)
+    return () => {
+      active = false
+      eventBus.off('note:saved', handleSaved)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleExportAll = async () => {
-    try {
-      const n = await exportNotes(notes)
-      if (n) toast.success(`Exported ${n} note${n !== 1 ? 's' : ''} as Markdown.`)
-    } catch (err) {
-      toast.error('Export failed: ' + String(err))
+  // Link graph (for orphan/linked filters + link-count sort) — bulk-loaded once,
+  // refreshed on link/delete events.
+  useEffect(() => {
+    let active = true
+    const refresh = () =>
+      getAllLinks()
+        .then((edges) => { if (active) setLinkCounts(buildLinkCounts(edges)) })
+        .catch(() => {})
+    refresh()
+    eventBus.on('link:created', refresh)
+    eventBus.on('link:removed', refresh)
+    eventBus.on('note:deleted', refresh)
+    return () => {
+      active = false
+      eventBus.off('link:created', refresh)
+      eventBus.off('link:removed', refresh)
+      eventBus.off('note:deleted', refresh)
     }
-  }
+  }, [])
+
+  const toggleFavourite = useCallback(
+    (id: string) => {
+      setFavSet((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) {
+          next.delete(id)
+          removeFromFavourites(id).catch(() => {})
+        } else {
+          next.add(id)
+          addToFavourites(id).catch(() => {})
+        }
+        return next
+      })
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
+  // Stable (id-based) handlers passed to every card — required for
+  // React.memo(NoteItem) to actually skip re-rendering unrelated cards on save.
+  // Clicking a card opens the read-focused peek modal; its "Edit in Working
+  // Notes" button routes into the tabbed editor.
+  const handleExpand = useCallback((note: Note) => {
+    eventBus.emit('note:opened', note)
+    setExpandedNoteId(note.id)
+  }, [])
+  const handleAddToWorkspace = useCallback((id: string) => setWorkspaceMenuNoteId(id), [])
+
+  // All tags across notes (user tags first, then auto-tags), for the tag picker.
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const n of notes) for (const t of n.tags) set.add(t)
+    return [...set].sort((a, b) => {
+      const aAuto = isAutoTag(a)
+      const bAuto = isAutoTag(b)
+      if (aAuto !== bAuto) return aAuto ? 1 : -1
+      return a.localeCompare(b)
+    })
+  }, [notes])
+
+  const visible = useMemo(() => {
+    const filtered = applyFilters(notes, prefs.filters, search, favSet, linkCounts)
+    return sortNotes(filtered, prefs.sortBy, prefs.sortOrder, linkCounts)
+  }, [notes, prefs.filters, prefs.sortBy, prefs.sortOrder, search, favSet, linkCounts])
+
+  // Incremental rendering. Reset the window when the *filter criteria* change —
+  // not when `visible` merely gets a new identity from a note save, which would
+  // otherwise snap a scrolled-down user back to the top on every autosave.
+  const [limit, setLimit] = useState(PAGE)
+  useEffect(() => {
+    setLimit(PAGE)
+  }, [search, prefs.filters, prefs.sortBy, prefs.sortOrder])
+  const shown = visible.slice(0, limit)
+
+  // Grow the window when a sentinel below the last card nears the viewport.
+  // Re-observing on each limit/length change re-checks intersection, so a short
+  // page that leaves the sentinel visible keeps filling until it scrolls off.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setLimit((l) => Math.min(l + PAGE, visible.length))
+      },
+      { rootMargin: '600px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible.length, limit])
 
   return (
     <div className={NoteStyles.notesContainer}>
+      <NotesToolbar
+        count={visible.length}
+        total={notes.length}
+        search={search}
+        onSearch={setSearch}
+        filtersOpen={filtersOpen}
+        onToggleFilters={() => setFiltersOpen((v) => !v)}
+        prefsKey={NOTES_PREFS_KEY}
+      />
+      {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
 
-      {/* The note composer floats at the bottom (mounted app-level in AppLayout). */}
-
-      {/* Shows the number of notes */}
-      <div className={NoteStyles.notesWrapper}>
-        {notes.length > 0 && (
-          <div className={NoteStyles.notesHeader}>
-            <p className={NoteStyles.sectionLabel}>
-              {notes.length} note{notes.length !== 1 ? 's' : ''}
-            </p>
-            <button className={NoteStyles.exportAllBtn} onClick={handleExportAll}>
-              ⤓ Export all
-            </button>
-          </div>
-        )}
-
-        
-
-        {/* This is the list of notes currently available */}
+      <div className={NoteStyles.notesScroll}>
         {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
         {!loading && error && <p className={NoteStyles.noteEmpty}>{error}</p>}
         {!loading && !error && notes.length === 0 && (
           <p className={NoteStyles.noteEmpty}>No notes yet.</p>
         )}
-        {notes.map((note) => (
-          <NoteItem
-            key={note.id}
-            note={note}
-            onUpdate={update}
-            onRemove={remove}
-            onExpand={() => { eventBus.emit('note:opened', note); setExpandedNoteId(note.id) }}
-          />
-        ))}
+        {!loading && !error && notes.length > 0 && visible.length === 0 && (
+          <p className={NoteStyles.noteEmpty}>No notes match your filters.</p>
+        )}
+
+        <div className={`${NoteStyles.list} ${NoteStyles[prefs.displayMode]}`}>
+          {shown.map((note) => (
+            <NoteItem
+              key={note.id}
+              note={note}
+              variant={prefs.displayMode}
+              isFavourite={favSet.has(note.id)}
+              onToggleFavourite={toggleFavourite}
+              onUpdate={update}
+              onRemove={remove}
+              onAddToWorkspace={handleAddToWorkspace}
+              onExpand={handleExpand}
+            />
+          ))}
+        </div>
+        {limit < visible.length && <div ref={sentinelRef} aria-hidden="true" />}
       </div>
-      
-      {/* This sections displays the expanded note when clicked from the notes list as a modal */}
+
+      {workspaceMenuNoteId && (
+        <AddToWorkspaceMenu noteId={workspaceMenuNoteId} onClose={() => setWorkspaceMenuNoteId(null)} />
+      )}
+
       {expandedNote && (
         <NoteModal
           note={expandedNote}

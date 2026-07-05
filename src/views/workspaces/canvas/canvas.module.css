@@ -1,0 +1,722 @@
+.board {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle, var(--border) 1px, transparent 1px) 0 0 / 22px 22px;
+  background-color: var(--surface-2);
+  touch-action: none;
+  user-select: none;
+}
+
+.world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Node ── */
+.node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.nodeSelected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 16px rgba(0, 0, 0, 0.28);
+}
+
+/* Text/media/link cards drag from anywhere on the root (no header bar). */
+.node[data-drag] {
+  cursor: grab;
+}
+
+.node[data-drag]:active {
+  cursor: grabbing;
+}
+
+.nodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.nodeHeader:active {
+  cursor: grabbing;
+}
+
+.nodeIcon {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.nodeTitle {
+  flex: 1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nodeBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+}
+
+.nodeText {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.notePreview {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.noteTitleBig {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 0.3rem;
+}
+
+.openBtn {
+  align-self: flex-start;
+  margin-top: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.openBtn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.mediaWrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.mediaWrap img,
+.mediaWrap video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pdfWrap,
+.webWrap {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+/* ── Node chrome (counter-scaled inline) ── */
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 2px 0 0 0;
+  cursor: nwse-resize;
+}
+
+.sideHandle {
+  position: absolute;
+  background: var(--accent);
+  border: 1px solid var(--surface);
+  border-radius: 50%;
+  cursor: crosshair;
+  z-index: 2;
+}
+
+/* ── Edges ── */
+.edgeSvg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* Non-zero size: a 0×0 root <svg> is not painted in Chromium/WebView2 even with
+     overflow:visible, which hides freehand ink and edges. overflow:visible lets the
+     world-coordinate paths render outside this 1px viewport. */
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edgePath {
+  fill: none;
+}
+
+.edgeHit {
+  fill: none;
+  stroke: transparent;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.edgeLabel {
+  font-size: 11px;
+  fill: var(--text-2);
+  paint-order: stroke;
+  stroke: var(--surface-2);
+  stroke-width: 3px;
+}
+
+/* ── Edge menu ── */
+.edgeMenu {
+  position: absolute;
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.35rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+
+.edgeMenuBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.74rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.edgeMenuBtn:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+
+.edgeMenuBtnOn {
+  color: var(--accent);
+}
+
+/* ── Right-click context menu ── */
+.contextMenu {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+.contextItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.contextItem:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.contextItem:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.contextItemDanger {
+  color: var(--danger);
+}
+
+/* A hairline divider above grouped items. */
+.contextSep {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+/* ── Node chrome: pin badge + corner open button ── */
+.pinBadge {
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Pin indicator for label-less (text/media/link) cards, which have no header
+   to host a badge in. */
+.pinBadgeFloating {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  z-index: 3;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.1rem 0.3rem;
+}
+
+.openCorner {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.node:hover .openCorner,
+.nodeSelected .openCorner {
+  opacity: 1;
+}
+
+.openCorner:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: absolute;
+  top: 0.7rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.3rem 0.5rem;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  z-index: 15;
+  flex-wrap: wrap;
+  max-width: calc(100% - 1.4rem);
+}
+
+.toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolBtn:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+
+.toolBtnOn {
+  color: #fff;
+  background: var(--accent);
+}
+
+.toolBtnOn:hover {
+  color: #fff;
+  background: var(--accent);
+}
+
+.toolBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolBtn:disabled:hover {
+  background: transparent;
+  color: var(--text-2);
+}
+
+.toolSep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0.1rem 0.15rem;
+}
+
+.zoomLabel {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  min-width: 3ch;
+  text-align: center;
+}
+
+/* ── Toolbar popovers (pen size, eraser mode, settings) ── */
+.popoverWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.7rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  font-size: 0.8rem;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.popoverRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.popoverRow input[type='range'] {
+  flex: 1;
+}
+
+.popoverValue {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-3);
+  min-width: 3.4ch;
+  text-align: right;
+}
+
+.popoverSep {
+  height: 1px;
+  background: var(--border);
+  margin: 0.1rem 0;
+}
+
+.popoverLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.popoverBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.popoverBtn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.popoverBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Color swatches (pen color, node color, background) ── */
+.colorSwatchBtn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: inline-block;
+}
+
+.swatchGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.swatchOn {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.swatchDefault {
+  background: var(--surface-2);
+}
+
+.swatchCustom {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  overflow: hidden;
+}
+
+.swatchCustom input[type='color'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* Per-node color popover (anchored at the context-menu click point). */
+.colorPicker {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-width: 168px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Canvas switcher ── */
+.switcher {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.25rem 0.35rem;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.3);
+  z-index: 15;
+}
+
+.switchSelect {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  padding: 0.25rem 0.4rem;
+  max-width: 150px;
+  outline: none;
+  cursor: pointer;
+}
+
+.switchBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.78rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.switchBtn:hover:not(:disabled) {
+  color: var(--text-1);
+  background: var(--surface-2);
+}
+
+.switchBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Misc ── */
+.hint {
+  position: absolute;
+  bottom: 0.8rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.74rem;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.loading {
+  color: var(--text-3);
+  font-size: 0.9rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* ── Note picker ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 1rem;
+}
+
+.modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  padding: 1.1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.modalTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+}
+
+.search {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.88rem;
+  font-family: var(--font-body);
+  outline: none;
+}
+
+.search:focus {
+  border-color: var(--accent);
+}
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-1);
+  text-align: left;
+  background: transparent;
+  border: none;
+}
+
+.pickRow:hover {
+  background: var(--surface-2);
+}
+
+.empty {
+  color: var(--text-3);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1.5rem 0;
+}

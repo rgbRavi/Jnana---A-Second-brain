@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
 import { useViewState } from '../../hooks/useViewState'
+import { useScopedNoteIds } from '../../hooks/useScopedNoteIds'
+import { setRetrievalScope } from '../../core/ai'
 import { AiChat } from '../../ui/ai/AiChat'
 import { FreeChat } from '../../ui/ai/FreeChat'
 import { ChatHistory } from '../../ui/ai/ChatHistory'
+import { ScopeBar } from '../../ui/ScopeBar'
 import { NoteModal } from '../../ui/NoteModal'
 import styles from '../../ui/ai/Ai.module.css'
 
@@ -17,6 +20,13 @@ function Ai() {
   const [mode, setMode] = useViewState<AiMode>('ai.mode', 'focused')
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const openNote = notes.find((n) => n.id === openNoteId)
+
+  // Restrict RAG retrieval to the chosen scope while the AI view is mounted.
+  const { noteIds } = useScopedNoteIds()
+  useEffect(() => {
+    setRetrievalScope(noteIds)
+    return () => setRetrievalScope(null)
+  }, [noteIds])
 
   return (
     <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -31,21 +41,24 @@ function Ai() {
           borderBottom: '1px solid var(--border)',
         }}
       >
-        <div className={styles.scopeChips}>
-          <button
-            className={`${styles.btn} ${mode === 'focused' ? styles.btnActive : ''}`}
-            onClick={() => setMode('focused')}
-            title="Grounded analysis over your notes (topic / time / note scopes)"
-          >
-            Focused AI Assist
-          </button>
-          <button
-            className={`${styles.btn} ${mode === 'chat' ? styles.btnActive : ''}`}
-            onClick={() => setMode('chat')}
-            title="A normal chatbot — multi-turn, file/media upload, thinking toggle"
-          >
-            AI Chat
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+          <div className={styles.scopeChips}>
+            <button
+              className={`${styles.btn} ${mode === 'focused' ? styles.btnActive : ''}`}
+              onClick={() => setMode('focused')}
+              title="Grounded analysis over your notes (topic / time / note scopes)"
+            >
+              Focused AI Assist
+            </button>
+            <button
+              className={`${styles.btn} ${mode === 'chat' ? styles.btnActive : ''}`}
+              onClick={() => setMode('chat')}
+              title="A normal chatbot — multi-turn, file/media upload, thinking toggle"
+            >
+              AI Chat
+            </button>
+          </div>
+          <ScopeBar />
         </div>
         <NavLink to="/settings" className={styles.settingsBtn}>
           <span className={`${styles.statusDot} ${config.enabled ? styles.statusOn : ''}`}>

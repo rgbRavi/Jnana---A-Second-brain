@@ -1,0 +1,163 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  max-width: 560px;
+}
+
+.intro {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.sectionTitle {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  font-weight: 500;
+  margin: 0;
+}
+
+/* ── Storage stats ── */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.9rem;
+  min-width: 84px;
+}
+
+.statValue {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.statLabel {
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+}
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btn,
+.btnPrimary,
+.btnDanger {
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, opacity 0.15s;
+}
+
+.btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btnPrimary {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  align-self: flex-start;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btnDanger {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: rgba(224, 82, 82, 0.12);
+}
+
+.btn:disabled,
+.btnPrimary:disabled,
+.btnDanger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Selected-notes picker ── */
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.8rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.84rem;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.pickRow input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pickTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hint {
+  font-size: 0.76rem;
+  color: var(--text-3);
+  line-height: 1.4;
+}

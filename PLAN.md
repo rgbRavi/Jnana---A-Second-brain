@@ -1,6 +1,8 @@
 # Jnana — Forward Plan
 
-Last reorganized: 2026-06-13
+Last reorganized: 2026-06-13 (Theme Studio shipped 2026-06-28; hybrid markdown renderer +
+format toolbar shipped 2026-06-28 — see Phase C; live editor + media layout + context menu +
+NoteModal fullscreen + performance improvements shipped 2026-07-03 — see Phase C)
 
 ## Working philosophy
 
@@ -76,7 +78,13 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       promise-based choice/prompt/confirm). Also: app-wide `:focus-visible` rings, themed
       `::selection`, `prefers-reduced-motion`, `color-scheme: dark`, tokenized scrollbars, and
       fixes for views that referenced undefined global CSS classes (Search / Graph / headings).
-- [ ] Dark/light theme toggle (pure UI — belongs in this pass; students study at night).
+- [x] Dark/light theme toggle — shipped as **Theme Studio** (Settings → Appearance), token-level
+      theming rather than a plain toggle: 5 built-in presets (incl. dark/light), a saved-themes
+      library, derived accent, base dark⇄light swap, corner radius, a WCAG contrast guardrail, and
+      JSON export/import. Tokens apply live to `document.documentElement` (no React re-render for
+      the repaint) and persist to SQLite (`themes`, migrate_v11) with a localStorage boot mirror.
+      Density/motion/reading-scale controls are wired but not yet consumed by any CSS, and there's
+      no font picker yet — both are a follow-up pass, not blocking.
 - [x] Replace the three `window.prompt` flows with proper modals: document-import choice
       (`useDocumentUpload.ts`), YouTube URL (`ComposerToolbar.tsx`), highlight edit
       (`PdfViewer.tsx`) — all use `showChoiceDialog` / `showPromptDialog` now; the "Open note?"
@@ -84,20 +92,52 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
       remain).
 - [ ] CSP runtime check: confirm the `script-src 'self'` tightening holds in `tauri dev`;
       revisit `style-src 'unsafe-inline'` (needs nonces) only if worth it.
-- [ ] **Hybrid markdown AST renderer (remark) — only if pursuing rich formatting.** NOT a perf
-      fix: editing uses a `<textarea>`, so MarkdownLite only parses on *view*, not per keystroke
-      (the "typing latency" claim doesn't apply). If many note cards re-parse on save, memoize
-      parsed segments by content string first — cheap, no dependency. Adopt remark *only* to
-      unlock real markdown (headings/bold/lists/code/**tables**). If so: do it as a hybrid —
-      remark + remark-gfm for standard syntax, custom micromark/remark extensions for the
-      app's tokens (`[[wikilink]]`, `![audio|video|youtube|pdf]`, `[V/A/D::…]`), rendering the
-      AST to the **existing** embed components. Hardest part: preserve document-order media
-      indexing (`data-video-index`/`data-audio-index`) for timestamp seeking. Adds ~100 KB+ to
-      the bundle. Sequence after the polish items above.
+- [x] **Hybrid markdown AST renderer (remark)** ✅ DONE — `MarkdownLite` rewritten on
+      `react-markdown` + `remark-gfm` (headings/bold/lists/blockquotes/code/**tables**/
+      strikethrough/task-lists), with a custom plugin
+      ([core/markdown/remarkJnana.ts](src/core/markdown/remarkJnana.ts)) preserving the app's
+      tokens: `[[wikilink]]` and `[V/A::HH:MM:SS]`/`[MM:SS]` become custom AST nodes (via
+      `mdast-util-find-and-replace`, which only walks literal text nodes — code fences are
+      untouched for free); `![video]`/`![audio]` get document-order `data-video-index`/
+      `data-audio-index` assigned in the plugin (parse-time, StrictMode-safe) instead of a
+      render-time counter. A custom `urlTransform` keeps `jnana-asset://`/`external://` alive
+      (react-markdown's default sanitizer otherwise strips them to `""`). `[D1::Page n]` PDF
+      page-jumps were found to be dead code (declared in docs, never wired to a renderer) and
+      were **not** resurrected. Standard CommonMark newline semantics now apply (single newlines
+      collapse; existing notes that relied on `pre-wrap` line breaks will reflow). Code
+      highlighting is a deferred seam ([core/markdown/highlight.ts](src/core/markdown/highlight.ts))
+      — no highlighter dependency added yet. Bundle grew ~160 KB (remark/unist ecosystem).
+      **Also shipped (expanded scope): a composer `FormatToolbar`**
+      ([core/markdown/format.ts](src/core/markdown/format.ts) +
+      [ui/editor/FormatToolbar.tsx](src/ui/editor/FormatToolbar.tsx)) — bold/italic/strike/
+      inline-code/H1/H2/bullet/numbered/quote/link/code-block buttons that wrap or prefix the
+      textarea's current selection, wired into NoteCreator, NoteItem's edit mode, and NoteModal's
+      edit mode.
+- [x] **Live editor (CodeMirror 6)** ✅ DONE — `LiveEditor.tsx` + `LiveEditor.decorations.tsx`:
+      Obsidian/Typora WYSIWYG edit mode — syntax hidden, bold/headings styled, media/wikilink/
+      timestamp tokens rendered as interactive React widgets; reveals raw markdown near the cursor.
+      Used in all three composers (NoteCreator, NoteItem, NoteModal). Right-click **context menu**
+      (`ContextMenu.tsx` reusable) with formatting submenu, import submenu (inserts at click
+      position), cut/copy/paste/paste-as-plain-text, "Add table" placeholder.
+- [x] **Media resize + alignment + drag-rearrange + PDF thumbnail** ✅ DONE — `note_media_layout`
+      table (v12); media widgets in the live editor get a `ResizableMediaFrame` with a hover toolbar
+      (drag grip ⠿, L/C/R align, ▲/▼ reorder) + corner resize handle (pointer-capture, same pattern
+      as canvas). Sizes persist off the note-save path. Embeds are always `inline-block`, so
+      consecutive ones on a line form a **side-by-side row**; **alignment is applied as `text-align`
+      on the container** (CM6 line / read-mode `<p>`), so aligning justifies the whole row instead of
+      breaking it out. **Drag the grip** onto another embed — left/right edge = same row, top/bottom =
+      stacked — a fixed `dropBar` previews the landing spot. PDF embeds replaced by a `PdfThumbnail`
+      (~216×192 px, first page only; click opens full viewer). `core/markdown/format.ts` holds the
+      pure transforms: `moveMediaBlock` (▲/▼ swap) and `rearrangeMedia` (drag → new document string).
+- [x] **NoteModal fullscreen expand** ✅ DONE — ⤢/⤡ toggle fills the content area (excluding
+      sidebar); edit mode inherits the expanded container automatically.
+- [x] **Performance** ✅ DONE — `NoteItem` memoized; `useNotes()` return value memoized;
+      `content-visibility: auto` on cards; favourites refetch only on new notes; pinned workspace
+      links stay mounted through sidebar collapse.
 - [ ] **Tables** — full spec in [TABLES.md](TABLES.md). Fenced `table` block holding CSV,
       rendered by a `TableEmbed` and authored via a hand-rolled grid `TableEditor` (add/remove
-      row+col, **paste TSV from spreadsheets**), exported to a GFM pipe table. Ships on the
-      current renderer; composes with remark-gfm later.
+      row+col, **paste TSV from spreadsheets**), exported to a GFM pipe table. `remark-gfm` (GFM
+      pipe tables) is now wired into the renderer — this block composes with that for display.
 
 ---
 
@@ -105,8 +145,10 @@ Goal: every remaining core feature exists and is usable end-to-end. Thin UI; def
 
 - [ ] Metadata-only `get_all_notes` (defer content to note open) — only once list/graph load is
       measurably slow.
-- [ ] `MarkdownLite` render cost: memoize parsed segments per note/line first; AST rewrite only
-      if memoization isn't enough.
+- [ ] `MarkdownLite` render cost: now a `react-markdown` AST parse per render (same "parses on
+      view, not per keystroke" property as before — editing is a `<textarea>`). Revisit only if
+      note-card-heavy views (e.g. a long Notes list) show measurable lag; memoize per note content
+      string first, cheap and no new dependency.
 - [ ] Embedding search scans all chunks per query — fine at personal scale; revisit only if
       retrieval latency becomes noticeable (>10k chunks).
 - [ ] Grow test coverage alongside features (component tests via testing-library now available).
@@ -216,6 +258,35 @@ write policy — read tools run freely; writes are staged as proposals the user 
 - [ ] **Phase B — MCP client** (agent uses external MCP servers via `rmcp`, Rust-side transport).
 - [ ] **Phase C — MCP server** (expose the vault to Claude Desktop / other agents).
 - [ ] **Phase D — background/scheduled agents** (optional; reuse Phase-A tools headless).
+
+## Workspaces, Canvas & web embeds ✅ DONE
+
+Named groups that organize notes without separate vaults — notes stay **global** and membership is
+many-to-many, so removing a note from a workspace only drops the junction row. Shipped in phases:
+
+- [x] **Core** (migrate_v8: `workspaces`/`workspace_notes`/`collections`/`collection_notes`) —
+      a `/workspaces` manager + `/workspaces/:id` page with **Notes** and **Graph** tabs. Notes tab
+      reuses the toolbar/filters/`NoteItem`/`filterNotes` with a **keyed** `useNotesViewPrefs` so
+      workspace filters don't bleed into All Notes; Graph reuses `GraphView` with new `scopeIds` +
+      `instanceKey` props (own layout/viewport). Add-existing-notes picker, per-workspace pin,
+      export, quick-note capture into the active workspace, add-to-workspace from All Notes, pinned
+      workspaces + sub-items in the sidebar.
+- [x] **Dashboard + Collections** — a scoped dashboard (stat tiles, pinned, recent activity,
+      continue-learning, recent imports) reusing the home dashboard's presentational widgets;
+      Collections as sub-groups that chip-filter the Notes tab.
+- [x] **Command palette + AI scope + Insights** — global Ctrl/⌘-K palette (mounted in AppLayout);
+      a `retrieve()` scope (`setRetrievalScope` + `useAiScope` + shared `ScopeBar`) that points AI
+      chat & Search at one workspace; an Insights tab (orphans / untagged / needs-indexing /
+      suggested links, all derived client-side).
+- [x] **Canvas** (migrate_v9: `canvases`) — a hand-rolled pointer-event freeform board per workspace
+      (pan/zoom, node drag/resize, edge drawing, freehand ink via `perfect-freehand`), with
+      text/note/media/web nodes, a note↔note "Link in graph" action that inserts one `[[wikilink]]`,
+      and multiple named canvases. Stored as a JSON-Canvas-shaped doc; no canvas library (React-19
+      `findDOMNode`), pointer events like DashboardGrid.
+- [x] **Web-page embeds** (migrate_v10: `link_previews`) — `![webpage](url)` renders a preview card
+      from Open-Graph metadata fetched + cached Rust-side (`fetch_link_preview`), with a best-effort
+      Live view iframe (YouTube → `/embed/`); also a canvas web node. `has:webpage` auto-tag + chip +
+      Notes filter.
 
 ## Explicitly deferred (don't do yet)
 

@@ -1,6 +1,10 @@
 import { useState, type ReactNode } from "react"
-import { NavLink } from "react-router-dom"
+import { NavLink, useNavigate } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"
+import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPrefs"
+import { useWorkspaces } from "../hooks/useWorkspaces"
+import { useActiveWorkspace } from "../hooks/useActiveWorkspace"
+import { openComposer } from "./editor/NoteCreator"
 import SidebarStyles from "./Sidebar.module.css"
 
 const nav = (path: ReactNode) => (
@@ -11,6 +15,12 @@ const nav = (path: ReactNode) => (
 
 const ICONS = {
   home: nav(<path d="M3 9.5 10 3.5l7 6V16a1.5 1.5 0 0 1-1.5 1.5H12.5V12h-5v5.5H4.5A1.5 1.5 0 0 1 3 16Z" />),
+  quickNote: nav(
+    <>
+      <path d="M12.5 3.5 16.5 7.5 8 16H4v-4z" />
+      <path d="M11 5 15 9" />
+    </>,
+  ),
   notes: nav(
     <>
       <rect x="4.5" y="3" width="11" height="14" rx="2" />
@@ -43,46 +53,108 @@ const ICONS = {
       <path d="M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2 4.8 4.8" />
     </>,
   ),
+  workspaces: nav(<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h2.6l1.4 1.8H15.5A1.5 1.5 0 0 1 17 8.3V14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14Z" />),
 }
-
-const NAV_ITEMS = [
-  { to: "/", label: "Home", icon: ICONS.home, end: true },
-  { to: "/notes", label: "Notes", icon: ICONS.notes },
-  { to: "/search", label: "Search", icon: ICONS.search },
-  { to: "/graph", label: "Graph", icon: ICONS.graph },
-  { to: "/ai", label: "AI", icon: ICONS.ai },
-]
 
 const itemClass =
   (isActive: boolean) => `${SidebarStyles.sidebarNavItem}${isActive ? " " + SidebarStyles.active : ""}`
 
 export function Sidebar() {
   const { jobs } = useTranscription()
+  const { collapsed } = useSidebarPrefs()
+  const { workspaces } = useWorkspaces()
+  const { pinnedWorkspaceIds } = useActiveWorkspace()
+  const navigate = useNavigate()
   const [trayOpen, setTrayOpen] = useState(false)
   const runningCount = jobs.filter((j) => j.status === "running").length
+  const pinnedWorkspaces = workspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
+
+  // One-click capture: land on Notes and open the (app-level) composer expanded.
+  const handleQuickNote = () => {
+    navigate("/notes")
+    openComposer()
+  }
 
   return (
-    <aside className={SidebarStyles.sidebar}>
+    <aside className={`${SidebarStyles.sidebar}${collapsed ? " " + SidebarStyles.collapsed : ""}`}>
       <div className={SidebarStyles.sidebarLogo}>
         <div className={SidebarStyles.logoRow}>
-          <h1>Jnana</h1>
-          <span className={SidebarStyles.logoMark} aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9.5 4.5A2.5 2.5 0 0 0 7 7a2.5 2.5 0 0 0-1.5 2.3c0 .6.2 1.1.6 1.5A2.5 2.5 0 0 0 6 13c0 1 .6 1.9 1.5 2.3A2 2 0 0 0 9.5 18 2 2 0 0 0 12 16V6a2 2 0 0 0-2.5-1.5Z" />
-              <path d="M14.5 4.5A2.5 2.5 0 0 1 17 7a2.5 2.5 0 0 1 1.5 2.3c0 .6-.2 1.1-.6 1.5A2.5 2.5 0 0 1 18 13c0 1-.6 1.9-1.5 2.3A2 2 0 0 1 14.5 18 2 2 0 0 1 12 16" />
-            </svg>
+          <span className={SidebarStyles.logoBrand}>
+            <span className={SidebarStyles.logoMark} aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.5 4.5A2.5 2.5 0 0 0 7 7a2.5 2.5 0 0 0-1.5 2.3c0 .6.2 1.1.6 1.5A2.5 2.5 0 0 0 6 13c0 1 .6 1.9 1.5 2.3A2 2 0 0 0 9.5 18 2 2 0 0 0 12 16V6a2 2 0 0 0-2.5-1.5Z" />
+                <path d="M14.5 4.5A2.5 2.5 0 0 1 17 7a2.5 2.5 0 0 1 1.5 2.3c0 .6-.2 1.1-.6 1.5A2.5 2.5 0 0 1 18 13c0 1-.6 1.9-1.5 2.3A2 2 0 0 1 14.5 18 2 2 0 0 1 12 16" />
+              </svg>
+            </span>
+            <span className={SidebarStyles.wordmark}>
+              <h1>Jnana</h1>
+              <span className={SidebarStyles.tagline}>Second Brain</span>
+            </span>
           </span>
+          <button
+            type="button"
+            className={SidebarStyles.collapseToggle}
+            onClick={toggleSidebarCollapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? "»" : "«"}
+          </button>
         </div>
-        <span className={SidebarStyles.tagline}>Second Brain</span>
       </div>
 
       <nav className={SidebarStyles.sidebarNav}>
-        {NAV_ITEMS.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => itemClass(isActive)}>
-            <span className={SidebarStyles.navIcon}>{item.icon}</span>
-            {item.label}
+        <NavLink to="/" end className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Home" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.home}</span>
+          <span className={SidebarStyles.label}>Home</span>
+        </NavLink>
+
+        <button
+          type="button"
+          className={SidebarStyles.sidebarNavItem}
+          onClick={handleQuickNote}
+          title={collapsed ? "Quick Note" : undefined}
+        >
+          <span className={SidebarStyles.navIcon}>{ICONS.quickNote}</span>
+          <span className={SidebarStyles.label}>Quick Note</span>
+        </button>
+
+        <NavLink to="/notes" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Notes" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.notes}</span>
+          <span className={SidebarStyles.label}>Notes</span>
+        </NavLink>
+
+        <NavLink to="/workspaces" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Workspaces" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.workspaces}</span>
+          <span className={SidebarStyles.label}>Workspaces</span>
+        </NavLink>
+
+        {/* Kept mounted (label hidden via CSS when collapsed, not unmounted) so
+            toggling the sidebar doesn't also mount/unmount this list mid-animation. */}
+        {pinnedWorkspaces.map((w) => (
+          <NavLink
+            key={w.id}
+            to={`/workspaces/${w.id}`}
+            className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
+            title={collapsed ? w.name : undefined}
+          >
+            <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
+            <span className={SidebarStyles.label}>{w.name}</span>
           </NavLink>
         ))}
+
+        <NavLink to="/search" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Search" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.search}</span>
+          <span className={SidebarStyles.label}>Search</span>
+        </NavLink>
+        <NavLink to="/graph" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Graph" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.graph}</span>
+          <span className={SidebarStyles.label}>Graph</span>
+        </NavLink>
+        <NavLink to="/ai" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "AI" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.ai}</span>
+          <span className={SidebarStyles.label}>AI</span>
+        </NavLink>
       </nav>
 
       <div className={SidebarStyles.sidebarBottom}>
@@ -105,17 +177,21 @@ export function Sidebar() {
                 ))}
               </div>
             )}
-            <button className={SidebarStyles.transcribeToggle} onClick={() => setTrayOpen((o) => !o)} title="Transcription jobs">
+            <button
+              className={SidebarStyles.transcribeToggle}
+              onClick={() => setTrayOpen((o) => !o)}
+              title="Transcription jobs"
+            >
               {runningCount > 0 && <span className={SidebarStyles.transcribeDot} />}
-              <span>Transcribing{runningCount > 0 ? ` (${runningCount})` : ""}</span>
-              <span className={SidebarStyles.transcribeChevron}>{trayOpen ? "⌄" : "⌃"}</span>
+              <span className={SidebarStyles.label}>Transcribing{runningCount > 0 ? ` (${runningCount})` : ""}</span>
+              {!collapsed && <span className={SidebarStyles.transcribeChevron}>{trayOpen ? "⌄" : "⌃"}</span>}
             </button>
           </div>
         )}
 
-        <NavLink to="/settings" className={({ isActive }) => itemClass(isActive)}>
+        <NavLink to="/settings" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Settings" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.settings}</span>
-          Settings
+          <span className={SidebarStyles.label}>Settings</span>
         </NavLink>
       </div>
     </aside>

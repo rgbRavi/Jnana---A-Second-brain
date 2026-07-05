@@ -1,9 +1,10 @@
 // src/hooks/useNotes.ts
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
 import { eventBus } from '../lib/eventBus'
+import { log } from '../lib/logger'
 
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
@@ -19,7 +20,7 @@ export function useNotes() {
       })
       .catch((err) => {
         // Don't leave the list hung on "Loading…" with no signal.
-        console.error('Failed to load notes:', err)
+        log.error('Failed to load notes', err)
         setError('Could not load your notes.')
         setLoading(false)
       })
@@ -46,7 +47,7 @@ export function useNotes() {
   useEffect(() => {
     const handler = (saved: Note) => {
       syncLinksForNote(saved.id, saved.content).catch((err) => {
-        console.error('syncLinksForNote failed:', err)
+        log.error('syncLinksForNote failed', err)
       })
     }
     eventBus.on('note:saved', handler)
@@ -125,5 +126,14 @@ export function useNotes() {
     if (saved) await saveNote(saved)
   }, [])
 
-  return { notes, loading, error, create, update, updateTags, remove }
+  // Memoized so NotesContext's value only changes identity when one of these
+  // fields actually does — `create`/`update`/`remove`/`updateTags` are already
+  // stable (empty-dep useCallback above), so this mainly guards against a
+  // fresh object on renders where only `loading`/`error` would otherwise force
+  // every useNotesContext() consumer to re-render for no reason. `notes` itself
+  // still changes (by design) whenever a note is actually created/updated/removed.
+  return useMemo(
+    () => ({ notes, loading, error, create, update, updateTags, remove }),
+    [notes, loading, error, create, update, updateTags, remove],
+  )
 }

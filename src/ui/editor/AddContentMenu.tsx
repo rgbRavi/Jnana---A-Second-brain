@@ -89,6 +89,18 @@ export function AddContentMenu({
     onInsertMarkdown(`\n![youtube](https://youtube.com/watch?v=${videoId})\n`)
   }
 
+  const handleWebpage = async () => {
+    const raw = await showPromptDialog({
+      title: 'Embed web page',
+      message: 'Paste a link to embed it as a preview card in your note.',
+      placeholder: 'https://example.com/article',
+      confirmLabel: 'Embed',
+    })
+    if (!raw) return
+    const url = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`
+    onInsertMarkdown(`\n![webpage](${url})\n`)
+  }
+
   const items: MenuItem[] = [
     { icon: '📷', label: 'Image', run: () => fileInputRef.current?.click() },
     { icon: '🎬', label: 'Video', run: onVideoUpload },
@@ -96,6 +108,7 @@ export function AddContentMenu({
     { icon: '🎙️', label: 'Voice recording', run: () => recorderRef.current?.start() },
     { icon: '📄', label: 'Document / File', run: onDocumentUpload },
     { icon: '▶️', label: 'YouTube embed', run: () => void handleYouTube() },
+    { icon: '🌐', label: 'Web page', run: () => void handleWebpage() },
   ]
 
   return (

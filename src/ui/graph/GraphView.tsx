@@ -4,9 +4,12 @@ import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useGraph } from '../../hooks/useGraph'
 import { useViewState } from '../../hooks/useViewState'
+import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
+import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/markdown/wikilinks'
 import { toast } from '../../lib/toast'
+import { eventBus } from '../../lib/eventBus'
 import type { Note } from '../../types'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -38,17 +41,66 @@ const TAG_PALETTE = [
 
 const DEFAULT_NODE_COLOR = '#55535f'
 const ORPHAN_COLOR = '#e3b341'
-const HUB_COLOR = '#7c6af7'
-const FOCUS_COLOR = '#7c6af7'
 const CONNECT_COLOR = '#3fb950'
+// Faded outline for a pseudo-node (an unresolved `[[wikilink]]` target).
+const PSEUDO_COLOR = '#8b8794'
+
+// Accent-derived node colors — re-themed live. `nodeCanvasObject` below reads
+// these on every canvas paint (it's called continuously by react-force-graph,
+// not gated on a React re-render), so updating the bindings on `theme:changed`
+// is enough — same "no React re-render for the repaint" approach Theme Studio
+// uses for the rest of the app. Module-scoped (not per-instance) since several
+// GraphView instances (main + per-workspace) can be mounted at once.
+let HUB_COLOR = '#7c6af7'
+let FOCUS_COLOR = '#7c6af7'
+
+function readAccentColor(): void {
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+  if (accent) {
+    HUB_COLOR = accent
+    FOCUS_COLOR = accent
+  }
+}
+readAccentColor()
+eventBus.on('theme:changed', readAccentColor)
 
 // A note linked to this many or more notes (in + out) counts as a hub.
 const HUB_DEGREE = 4
 
-// Force defaults. These seed the simulation and are tunable from the Forces panel.
-const DEFAULT_FORCES = { center: 0.4, repel: 120, link: 0.5, distance: 60 }
+// Force defaults live in useGraphForces (persisted to localStorage).
 // Display defaults.
 const DEFAULT_DISPLAY = { textFade: 0.4, nodeSize: 1, linkThickness: 1.5 }
+
+// Session-scoped (survive view switches, reset on reload), keyed per graph
+// instance so the main graph and each workspace's local graph keep their own
+// layout + viewport. react-force-graph stores each node's settled position by
+// mutating its object; keeping that cache at module scope — instead of a per-mount
+// useRef — means the layout is preserved when you leave the graph and come back,
+// so it no longer recompacts from scratch.
+type Viewport = { k: number; x: number; y: number }
+const nodeCaches = new Map<string, Map<string, any>>()
+const savedViewports = new Map<string, Viewport>()
+function nodeCacheFor(key: string): Map<string, any> {
+  let m = nodeCaches.get(key)
+  if (!m) {
+    m = new Map()
+    nodeCaches.set(key, m)
+  }
+  return m
+}
+
+// Separate position cache for derived pseudo-nodes, so they hold their layout
+// across recomputes (the real-node cache is pruned to existing note ids, which
+// would otherwise evict them every pass).
+const pseudoCaches = new Map<string, Map<string, any>>()
+function pseudoCacheFor(key: string): Map<string, any> {
+  let m = pseudoCaches.get(key)
+  if (!m) {
+    m = new Map()
+    pseudoCaches.set(key, m)
+  }
+  return m
+}
 
 // Obsidian-style quick presets (see the in-panel descriptions).
 const FORCE_PRESETS = {
@@ -105,6 +157,14 @@ interface Props {
   // desynchronised state array alongside App's.
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onRemove: (id: string) => void
+  /** Create a note (used to materialize a pseudo-node's `[[title]]` on click). */
+  onCreate: (title: string, content: string) => Promise<Note>
+  /** When set, restrict the graph to these note ids (and the links among them) —
+   *  used for a workspace's local graph. */
+  scopeIds?: Set<string>
+  /** Distinguishes this graph's session caches (layout + viewport) from others.
+   *  Defaults to 'main'; a workspace graph passes e.g. `ws:<id>`. */
+  instanceKey?: string
 }
 
 const presetBtnStyle: React.CSSProperties = {
@@ -366,8 +426,19 @@ function JumpToNote({
   )
 }
 
-export function GraphView({ onUpdate, onRemove }: Props) {
-  const { graphData, loading } = useGraph()
+export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, instanceKey = 'main' }: Props) {
+  const { graphData, loading, syncNoteLinks } = useGraph()
+
+  // Per-instance session caches (layout + viewport), so a workspace's local graph
+  // never shares positions/zoom with the main graph.
+  const nodeCacheStore = useMemo(() => nodeCacheFor(instanceKey), [instanceKey])
+  const pseudoCacheStore = useMemo(() => pseudoCacheFor(instanceKey), [instanceKey])
+
+  // Notes in scope (all notes, or just the workspace's) — for jump-to + empty state.
+  const scopedNodes = useMemo(
+    () => (scopeIds ? graphData.nodes.filter((n) => scopeIds.has(n.id)) : graphData.nodes),
+    [graphData.nodes, scopeIds],
+  )
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
@@ -406,19 +477,21 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   const [nodeSize, setNodeSize] = useViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
   const [linkThickness, setLinkThickness] = useViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
 
-  // Forces.
-  const [centerForce, setCenterForce] = useViewState('graph.centerForce', DEFAULT_FORCES.center)
-  const [repelForce, setRepelForce] = useViewState('graph.repelForce', DEFAULT_FORCES.repel)
-  const [linkForce, setLinkForce] = useViewState('graph.linkForce', DEFAULT_FORCES.link)
-  const [linkDistance, setLinkDistance] = useViewState('graph.linkDistance', DEFAULT_FORCES.distance)
+  // Forces — persisted to localStorage so a user's tuning survives a restart.
+  const forces = useGraphForces()
+  const centerForce = forces.center
+  const repelForce = forces.repel
+  const linkForce = forces.link
+  const linkDistance = forces.distance
+  const setCenterForce = (v: number) => setGraphForces({ center: v })
+  const setRepelForce = (v: number) => setGraphForces({ repel: v })
+  const setLinkForce = (v: number) => setGraphForces({ link: v })
+  const setLinkDistance = (v: number) => setGraphForces({ distance: v })
 
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
-  // Cache node objects by id. react-force-graph stores each node's simulation
-  // position (x/y/vx/vy and any pinned fx/fy) by mutating its object, so we must
-  // hand it the *same* object across rebuilds — otherwise adding an edge (e.g. on
-  // connect) drops every position and the whole graph reflows, losing your place.
-  const nodeCache = useRef<Map<string, any>>(new Map())
+  // Whether the viewport has been restored for this mount (restore only once).
+  const viewportRestored = useRef(false)
   // Mirrors used inside the per-frame canvas callback (avoids stale closures).
   const connectingFromRef = useRef<string | null>(null)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -510,12 +583,16 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   const forceData = useMemo(() => {
     // Drop cached nodes that no longer exist (deleted notes).
     const allIds = new Set(graphData.nodes.map((n) => n.id))
-    for (const id of nodeCache.current.keys()) {
-      if (!allIds.has(id)) nodeCache.current.delete(id)
+    for (const id of nodeCacheStore.keys()) {
+      if (!allIds.has(id)) nodeCacheStore.delete(id)
     }
+
+    // Restrict to the workspace's notes when a scope is given (local graph).
+    const inScope = (id: string) => !scopeIds || scopeIds.has(id)
 
     const q = filterText.trim().toLowerCase()
     const passesFilter = (n: (typeof graphData.nodes)[number]) => {
+      if (!inScope(n.id)) return false
       if (orphansOnly && (degrees.get(n.id) ?? 0) !== 0) return false
       if (filterSince && n.updatedAt < filterSince) return false
       if (filterTags.size > 0 && !(n.tags ?? []).some((t) => filterTags.has(t))) return false
@@ -527,7 +604,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     }
 
     // Focus mode shows a node's immediate neighbourhood and overrides filters.
-    // Otherwise the filter set decides what's visible.
+    // Otherwise the filter set decides what's visible. Both stay within scope.
     const visibleNodes = focusNodeId
       ? (() => {
           const neighbors = new Set<string>([focusNodeId])
@@ -535,14 +612,14 @@ export function GraphView({ onUpdate, onRemove }: Props) {
             if (e.source === focusNodeId) neighbors.add(e.target)
             if (e.target === focusNodeId) neighbors.add(e.source)
           })
-          return graphData.nodes.filter((n) => neighbors.has(n.id))
+          return graphData.nodes.filter((n) => neighbors.has(n.id) && inScope(n.id))
         })()
       : graphData.nodes.filter(passesFilter)
 
     const visibleIds = new Set(visibleNodes.map((n) => n.id))
 
     const nodes = visibleNodes.map((n) => {
-      const cached = nodeCache.current.get(n.id)
+      const cached = nodeCacheStore.get(n.id)
       if (cached) {
         // Reuse the object (keeps x/y/fx/fy from the simulation); refresh display fields.
         cached.title = n.title
@@ -552,16 +629,50 @@ export function GraphView({ onUpdate, onRemove }: Props) {
         return cached
       }
       const fresh = { ...n, val: 1 }
-      nodeCache.current.set(n.id, fresh)
+      nodeCacheStore.set(n.id, fresh)
       return fresh
     })
 
-    return {
-      nodes,
-      links: graphData.edges
-        .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
-        .map((e) => ({ source: e.source, target: e.target })),
+    // Real edges among visible notes.
+    const links = graphData.edges
+      .filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target }))
+
+    // Overlay: derive a faded pseudo-node for every `[[wikilink]]` that doesn't
+    // resolve to an existing note (edges to unresolved titles aren't stored
+    // server-side, so this is content-derived on the fly). Clicking one creates
+    // the note. Only sourced from visible notes so filters/scope still apply.
+    const titleToId = new Map<string, string>()
+    for (const n of graphData.nodes) {
+      const key = normalizeTitle(n.title)
+      if (key) titleToId.set(key, n.id)
     }
+    const pseudoNodes = new Map<string, any>()
+    for (const n of visibleNodes) {
+      for (const title of extractWikilinkTitles(n.content)) {
+        const key = normalizeTitle(title)
+        if (!key || titleToId.has(key)) continue
+        const pid = pseudoNodeId(title)
+        if (!pseudoNodes.has(pid)) {
+          const cached = pseudoCacheStore.get(pid)
+          if (cached) {
+            cached.title = title
+            pseudoNodes.set(pid, cached)
+          } else {
+            const fresh = { id: pid, title, isPseudo: true, val: 1 }
+            pseudoCacheStore.set(pid, fresh)
+            pseudoNodes.set(pid, fresh)
+          }
+        }
+        links.push({ source: n.id, target: pid })
+      }
+    }
+    // Evict pseudo positions no longer referenced.
+    for (const pid of pseudoCacheStore.keys()) {
+      if (!pseudoNodes.has(pid)) pseudoCacheStore.delete(pid)
+    }
+
+    return { nodes: [...nodes, ...pseudoNodes.values()], links }
   }, [
     graphData.nodes,
     graphData.edges,
@@ -571,6 +682,9 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     filterSince,
     orphansOnly,
     degrees,
+    scopeIds,
+    nodeCacheStore,
+    pseudoCacheStore,
   ])
 
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
@@ -665,8 +779,39 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     [graphData.nodes, graphData.edges, onUpdate],
   )
 
+  // Materialize a pseudo-node: create the note for its title, then re-sync the
+  // notes that already reference it so their edges resolve immediately (the
+  // links table gains no rows until each referencing note is synced).
+  const createFromPseudo = useCallback(
+    async (title: string) => {
+      const name = title.trim()
+      if (!name) return
+      const ok = await ask(`Create note “${name}”?`, { title: 'Create note', kind: 'info' })
+      if (!ok) return
+      const key = normalizeTitle(name)
+      const referencing = graphData.nodes.filter((n) =>
+        extractWikilinkTitles(n.content).some((t) => normalizeTitle(t) === key),
+      )
+      try {
+        const created = await onCreate(name, '')
+        await Promise.all(referencing.map((n) => syncNoteLinks(n.id, n.content)))
+        setFocusNodeId(created.id)
+      } catch (err) {
+        console.error('Failed to create note from pseudo-node:', err)
+        toast.error('Could not create the note.')
+      }
+    },
+    [graphData.nodes, onCreate, syncNoteLinks],
+  )
+
   const handleNodeClick = useCallback(
     (node: any) => {
+      // A faded pseudo-node → offer to create the real note.
+      if (node.isPseudo) {
+        void createFromPseudo(node.title)
+        return
+      }
+
       // Completing a connection started from the context menu.
       if (connectingFrom) {
         if (node.id !== connectingFrom) connect(connectingFrom, node.id)
@@ -684,11 +829,13 @@ export function GraphView({ onUpdate, onRemove }: Props) {
         }
       }
     },
-    [connectingFrom, connect, focusNodeId],
+    [connectingFrom, connect, focusNodeId, createFromPseudo],
   )
 
   const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
     event.preventDefault?.()
+    // Pseudo-nodes aren't real notes — no connect/disconnect/delete menu.
+    if (node.isPseudo) return
     setConnectingFrom(null)
     // Clamp so the menu stays on screen.
     const menuW = 210
@@ -716,7 +863,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
     setPinOnDrag(next)
     if (!next) {
       // Releasing: clear every pinned position and let the layout relax again.
-      nodeCache.current.forEach((n) => {
+      nodeCacheStore.forEach((n) => {
         n.fx = undefined
         n.fy = undefined
       })
@@ -798,18 +945,11 @@ export function GraphView({ onUpdate, onRemove }: Props) {
   }, [])
 
   const resetForces = useCallback(() => {
-    setCenterForce(DEFAULT_FORCES.center)
-    setRepelForce(DEFAULT_FORCES.repel)
-    setLinkForce(DEFAULT_FORCES.link)
-    setLinkDistance(DEFAULT_FORCES.distance)
+    setGraphForces(DEFAULT_GRAPH_FORCES)
   }, [])
 
   const applyPreset = useCallback((name: keyof typeof FORCE_PRESETS) => {
-    const p = FORCE_PRESETS[name]
-    setCenterForce(p.center)
-    setRepelForce(p.repel)
-    setLinkForce(p.link)
-    setLinkDistance(p.distance)
+    setGraphForces(FORCE_PRESETS[name])
   }, [])
 
   const animate = useCallback(() => {
@@ -860,18 +1000,20 @@ export function GraphView({ onUpdate, onRemove }: Props) {
 
   return (
     <div ref={containerRef} onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {graphData.nodes.length === 0 && (
+      {scopedNodes.length === 0 && (
         <div className="note-empty" style={{ position: 'absolute', width: '100%', zIndex: 10 }}>
-          No notes to graph. Create some notes and link them using [[Title]]!
+          {scopeIds
+            ? 'No notes in this workspace yet. Add or create some, then link them with [[Title]]!'
+            : 'No notes to graph. Create some notes and link them using [[Title]]!'}
         </div>
       )}
 
       {/* Compact jump-to-note search (top-left) */}
       <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 20 }}>
         <JumpToNote
-          nodes={graphData.nodes}
+          nodes={scopedNodes}
           onJump={(id) => {
-            if (graphData.nodes.some((n) => n.id === id)) setFocusNodeId(id)
+            if (scopedNodes.some((n) => n.id === id)) setFocusNodeId(id)
           }}
         />
       </div>
@@ -916,6 +1058,10 @@ export function GraphView({ onUpdate, onRemove }: Props) {
         ref={fgRef}
         graphData={forceData}
         nodeLabel={(n: any) => {
+          if (n.isPseudo) {
+            const title = escapeHtml(n.title ?? '')
+            return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px dashed var(--border);color:var(--text-2);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${title}</strong><br/><span style="color:var(--text-3)">Click to create this note</span></div>`
+          }
           const preview =
             n.content.substring(0, 100).replace(/\n/g, ' ') + (n.content.length > 100 ? '…' : '')
           // nodeLabel is rendered as raw HTML — escape note-derived text to
@@ -942,7 +1088,7 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           // Rubber-band line from the connect source to the cursor.
           const from = connectingFromRef.current
           if (!from) return
-          const src = nodeCache.current.get(from)
+          const src = nodeCacheStore.get(from)
           const p = pointerRef.current
           if (!src || src.x == null || !p) return
           ctx.save()
@@ -959,6 +1105,33 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           const label = node.title || 'Untitled'
           const fontSize = 12 / globalScale
           ctx.font = `${fontSize}px var(--font-body), Sans-Serif`
+
+          // Pseudo-node (unresolved wikilink): a faded, dashed-outline dot with
+          // a muted label, standing in for a note that doesn't exist yet.
+          if (node.isPseudo) {
+            const radius = 5 * nodeSize
+            ctx.save()
+            ctx.globalAlpha = hoverNodeId === node.id ? 0.7 : 0.4
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
+            ctx.fillStyle = 'rgba(139, 135, 148, 0.25)'
+            ctx.fill()
+            ctx.setLineDash([3 / globalScale, 2 / globalScale])
+            ctx.lineWidth = 1 / globalScale
+            ctx.strokeStyle = PSEUDO_COLOR
+            ctx.stroke()
+            ctx.setLineDash([])
+            const labelAlpha = Math.max(0, Math.min(1, (globalScale - textFade) * 2.5))
+            if (labelAlpha > 0.01) {
+              ctx.globalAlpha = labelAlpha * (hoverNodeId === node.id ? 0.9 : 0.55)
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'top'
+              ctx.fillStyle = PSEUDO_COLOR
+              ctx.fillText(label, node.x, node.y + radius + 3)
+            }
+            ctx.restore()
+            return
+          }
 
           const deg = degrees.get(node.id) ?? 0
           const isHub = highlightStructure && deg >= HUB_DEGREE
@@ -1003,6 +1176,30 @@ export function GraphView({ onUpdate, onRemove }: Props) {
           }
         }}
         cooldownTicks={100}
+        onZoomEnd={() => {
+          // Remember where the user is looking (zoom + graph-space center) so we
+          // can restore it after a view switch. Stored in graph coords so it's
+          // robust to the layout re-settling.
+          const fg = fgRef.current
+          const el = containerRef.current
+          if (!fg || !el) return
+          try {
+            const c = fg.screen2GraphCoords(el.clientWidth / 2, el.clientHeight / 2)
+            savedViewports.set(instanceKey, { k: fg.zoom(), x: c.x, y: c.y })
+          } catch {
+            /* graph not ready yet */
+          }
+        }}
+        onEngineStop={() => {
+          // Once the layout settles on (re)mount, jump back to the saved viewport.
+          const vp = savedViewports.get(instanceKey)
+          if (viewportRestored.current || !vp) return
+          viewportRestored.current = true
+          const fg = fgRef.current
+          if (!fg) return
+          fg.zoom(vp.k, 0)
+          fg.centerAt(vp.x, vp.y, 0)
+        }}
         linkColor={() => 'rgba(124, 106, 247, 0.4)'}
         linkWidth={linkThickness}
         linkDirectionalArrowLength={directed ? 4 : 0}

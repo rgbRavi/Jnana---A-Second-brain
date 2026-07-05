@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
 import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
+import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
+import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai' | 'composer'
+type Tab = 'ai' | 'appearance' | 'composer' | 'data'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'ai', label: 'AI Providers' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'composer', label: 'Composer' },
+  { id: 'data', label: 'Import / Export' },
 ]
 
 function Settings() {
@@ -50,7 +54,9 @@ function Settings() {
             onReindex={reindexAll}
           />
         )}
+        {tab === 'appearance' && <AppearancePanel />}
         {tab === 'composer' && <ComposerSettingsPanel />}
+        {tab === 'data' && <ImportExportPanel />}
       </div>
     </div>
   )
