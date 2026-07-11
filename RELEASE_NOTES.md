@@ -48,6 +48,20 @@ Jnana is a local-first desktop knowledge app for students and researchers, built
 - Built-in presets plus saved custom themes persisted to SQLite.
 - No flash boot experience via localStorage mirror and immediate theme apply.
 
+#### Security & Reliability
+- AI provider keys are stored Rust-side (outside the WebView and the SQLite DB) and never
+  serialized back to the frontend; provider requests are proxied through Rust and pinned to the
+  configured host.
+- Web-page preview fetching is guarded against SSRF: requests to loopback, private, link-local,
+  unique-local, CGNAT, and cloud-metadata addresses are refused, and every redirect hop is
+  re-validated.
+- Local assets are served through the `jnana-asset://` protocol with path-traversal validation on
+  every resolve path; external opens are limited to the managed assets directory.
+- Database migrations run each step in its own transaction, so an interrupted upgrade rolls back
+  cleanly instead of leaving a half-applied schema.
+- An app-wide error boundary keeps a single failing view from blanking the whole window, and a
+  consistent-snapshot backup/restore is available in Settings → Import / Export.
+
 ### Platform & Technology
 - Tauri v2 desktop shell for Windows.
 - React 19 + TypeScript frontend.
@@ -67,3 +81,13 @@ Jnana is a local-first desktop knowledge app for students and researchers, built
 - Code syntax highlighting is currently a rendering seam and not fully styled.
 - Theme Studio density/motion/reading-scale tokens are configured but not fully wired into CSS yet.
 - Plugin activation UI and plugin implementations are not yet available.
+
+---
+
+## License
+- Jnana is licensed under the **GNU Affero General Public License, version 3 (AGPL-3.0)** — see
+  [LICENSE](LICENSE). Modifications that are distributed or served over a network must publish their
+  source under the same license; commercial use is permitted.
+- **Plugins** that interface only through Jnana's documented plugin API are exempt and may be
+  released under any terms, including proprietary — see [LICENSE-EXCEPTION.md](LICENSE-EXCEPTION.md).
+- The license notice and a link to the corresponding source are shown in **Settings → About**.
