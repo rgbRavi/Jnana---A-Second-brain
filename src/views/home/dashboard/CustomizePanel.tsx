@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect } from 'react'
 import styles from './Dashboard.module.css'
 import { SECTIONS } from './registry'

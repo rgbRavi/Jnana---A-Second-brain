@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Rust-calling service for per-note media layout — presentation metadata
 // (width/alignment/caption) for media embeds, kept out of the note's markdown
 // in its own table. Mirrors the invoke pattern in core/themes.ts; `json` is

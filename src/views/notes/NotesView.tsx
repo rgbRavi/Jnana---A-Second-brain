@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import Notes from './Notes'
 import { WorkingNotes } from './working/WorkingNotes'
 import { useNotesSubView, setNotesSubView, useWorkingLayout } from './working/useWorkingLayout'

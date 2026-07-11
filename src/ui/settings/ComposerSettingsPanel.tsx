@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useComposerOptions } from '../../hooks/useComposerOptions'
 import styles from './ComposerSettingsPanel.module.css'
 

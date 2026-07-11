@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Truncate a note's markdown to a short preview for card rendering, so a card
 // parses (and lays out) only the first screenful instead of the whole note.
 // The Notes list renders every visible card at once, and react-markdown parses

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Per-note media layout — presentation metadata (width/alignment/caption) for
 // media embeds, kept in its own table out of the note's markdown. Mirrors the
 // themes.rs command structure: thin commands delegating to db::queries.

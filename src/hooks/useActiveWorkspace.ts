@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Active-workspace preferences: which workspace is "current" (drives quick-note
 // capture + AI scope) and which workspaces are pinned in the sidebar. Persisted
 // module store (localStorage + useSyncExternalStore), same pattern as

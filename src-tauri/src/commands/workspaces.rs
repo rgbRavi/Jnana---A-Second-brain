@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Workspaces — named groups that organize notes without separate vaults. Notes
 // stay global; membership is many-to-many. Collections are sub-groups inside a
 // workspace. Mirrors the AI-projects command/query structure (ai_workspace.rs).

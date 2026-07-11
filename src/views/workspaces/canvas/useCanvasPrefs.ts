@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Persistent canvas preferences (pen, eraser, interaction-while-drawing). A
 // module-level store backed by localStorage so it survives reloads — mirrors
 // useComposerOptions.ts.

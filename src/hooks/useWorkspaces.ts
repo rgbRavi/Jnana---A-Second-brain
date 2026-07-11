@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useCallback, useEffect, useState } from 'react'
 import { listWorkspaces } from '../core/workspaces'
 import { eventBus } from '../lib/eventBus'

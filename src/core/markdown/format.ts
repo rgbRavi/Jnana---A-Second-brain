@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Pure selection-aware markdown formatting for the composer's FormatToolbar.
 // Takes the textarea's current text + selection, returns the new text plus
 // where the selection should land afterward (so the caret/highlight stays

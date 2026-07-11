@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../types'
 import { chunkNote } from './chunk'

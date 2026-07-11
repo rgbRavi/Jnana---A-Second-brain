@@ -253,3 +253,23 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
   and constrained to the configured host (chat / embedding / transcription each independent).
 
 More detail: [PROGRESS.md](PROGRESS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [PLAN.md](PLAN.md)
+
+---
+
+## License
+
+Jnana is free software licensed under the **GNU Affero General Public License,
+version 3 (AGPL-3.0)** — see [LICENSE](LICENSE). In short: if you modify Jnana and
+distribute it, or run a modified version that users interact with over a network,
+you must make your modified source available under the same license. You may use
+and sell Jnana commercially — the requirement is that the source stays open, not
+that it be free of charge. The in-app **Settings → About** tab shows this notice
+and links to the corresponding source.
+
+**Plugins are exempt.** A plugin that interfaces with Jnana solely through its
+documented plugin API may be released under any terms you like, including
+proprietary and commercial ones — see the [plugin exception](LICENSE-EXCEPTION.md)
+(an additional permission under AGPL §7). Forks or modifications of Jnana's own
+source do **not** qualify as plugins and remain under the AGPL.
+
+Copyright © 2026 Jnana Project.

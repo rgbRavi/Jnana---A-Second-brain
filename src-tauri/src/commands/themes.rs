@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Theme Studio persistence — built-in presets, user-saved custom themes, and
 // the currently-active theme. Mirrors the workspaces/ai_workspace command
 // structure: thin commands delegating to db::queries.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useMemo, useState } from 'react'
 import type { ChatAttachment } from '../../core/ai'
 import type { Note } from '../../types'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Pure filtering / sorting helpers for the Notes view. No React, no IO — every
 // input (notes, favourites, link counts) is supplied by the caller so this stays
 // trivially testable. All filter dimensions are derived from data already loaded

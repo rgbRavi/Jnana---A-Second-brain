@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // AI / search scope: whether retrieval ranges over the entire vault or a single
 // workspace. Persisted module store (localStorage + useSyncExternalStore), same
 // pattern as useActiveWorkspace. Consumed by the AI view (sets the RAG retrieval

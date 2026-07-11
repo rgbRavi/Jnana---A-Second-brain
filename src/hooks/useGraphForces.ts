@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Persistent graph force settings (center / repel / link / distance). Module-level
 // store backed by localStorage + useSyncExternalStore — same pattern as
 // useComposerOptions / useSidebarPrefs — so a user's tuned forces survive an app

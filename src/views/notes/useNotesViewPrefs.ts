@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Persistent Notes-view preferences: display mode, sort, and active filters.
 // Keyed by an instance id so independent surfaces (the All-Notes view vs. a
 // workspace's notes tab) keep separate prefs instead of bleeding into each other.

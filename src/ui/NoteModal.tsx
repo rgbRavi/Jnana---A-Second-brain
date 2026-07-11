@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './editor/MarkdownLite'
 import type { Note } from '../types'

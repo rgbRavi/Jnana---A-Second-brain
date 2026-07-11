@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 import type { Note, NoteProgress } from '../types'
 import { eventBus } from '../lib/eventBus'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useNotes.ts
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Note } from '../types/index'

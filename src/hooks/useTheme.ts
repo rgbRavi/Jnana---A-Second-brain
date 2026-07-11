@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Theme Studio's active-theme store. Module-level state + useSyncExternalStore
 // (same pattern as useComposerOptions/useDashboardPrefs), but the source of
 // truth is SQLite (via core/themes.ts) rather than localStorage alone — the

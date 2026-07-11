@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // One-shot viewport gate: returns a ref to attach to a placeholder element and a
 // flag that flips true (and stays true) the first time it scrolls into view.
 // Lets an expensive embed defer its work — pdf.js rendering, a link-preview

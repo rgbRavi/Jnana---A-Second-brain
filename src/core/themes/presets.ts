@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Built-in theme presets — ported from design_handoff_theme_studio/studio-presets.jsx.
 
 import type { Theme, ThemeBase, ThemeTokens } from '../../types'

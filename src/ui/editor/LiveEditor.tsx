@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // A live, Obsidian/Typora-style markdown editor: a thin React wrapper around
 // a vanilla CodeMirror 6 EditorView. The stored value is always the literal
 // markdown string — CM6 decorations (see LiveEditor.decorations.tsx) are a

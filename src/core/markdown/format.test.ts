@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { describe, it, expect } from 'vitest'
 import { applyFormat, moveMediaBlock, rearrangeMedia, findMediaTokenPos } from './format'
 

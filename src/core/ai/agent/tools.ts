@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/ai/agent/tools.ts
 //
 // Native agent tools over the vault. Read tools run immediately and feed results

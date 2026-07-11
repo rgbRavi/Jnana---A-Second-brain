@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { SlashCommand } from '../../core/markdown/slashCommands'
 import styles from './SlashMenu.module.css'

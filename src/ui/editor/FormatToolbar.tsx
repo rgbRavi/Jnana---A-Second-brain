@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import type { CSSProperties, RefObject } from 'react'
 import type { FormatKind } from '../../core/markdown/format'
 import type { LiveEditorHandle } from './LiveEditor'

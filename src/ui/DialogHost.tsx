@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { subscribeDialog, getDialog, resolveDialog, type ActiveDialog } from '../lib/dialog'
 import styles from './DialogHost.module.css'

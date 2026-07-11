@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // @lezer/markdown extension for Jnana's custom note tokens, for the live
 // editor's incremental parser. Mirrors remarkJnana.ts's recognition rules —
 // both import the same regex sources from tokenPatterns.ts — but is a

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 use crate::db::{assets_dir, is_within_assets, safe_asset_file};
 use std::fs;
 use std::path::PathBuf;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 use crate::db::{queries, queries::EmbeddingRow, DbState};
 use serde::{Deserialize, Serialize};
 use tauri::{command, State};

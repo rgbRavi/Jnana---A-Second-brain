@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Workspaces & collections — invoke wrappers over the Rust workspace commands.
 // Mirrors core/aiWorkspace.ts. Mutations emit `workspace:changed` so any open
 // view (sidebar, manager, workspace page) refreshes.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useRef } from 'react'
 import { registerMediaRef } from '../core/media'
 import { toast } from '../lib/toast'

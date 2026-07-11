@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/aiWorkspace.ts
 // Styles & Skills ("presets") — reusable instructions that augment the system
 // prompt. Backed by the Rust ai_presets table.

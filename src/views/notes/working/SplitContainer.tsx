@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useRef, useState, type ReactNode } from 'react'
 import type { SplitNode, PaneNode } from './layout'
 import { setWorkingSplitSizes } from './useWorkingLayout'

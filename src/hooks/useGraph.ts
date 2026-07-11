@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useGraph.ts
 import { useState, useEffect, useCallback } from 'react'
 import { getAllNotes, getAllLinks, createLink, removeLink, syncLinksForNote } from '../core/notes'

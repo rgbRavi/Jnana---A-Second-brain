@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Tab drag state — a module store (useSyncExternalStore) driving a pointer-event
 // drag, NOT HTML5 drag-and-drop. The Tauri webview swallows native `draggable`/
 // `onDrop`, so the whole app (Canvas, DashboardGrid, media) uses pointer events;

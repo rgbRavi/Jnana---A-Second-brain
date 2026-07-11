@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Dashboard configuration model. The Home page renders widgets from this config
 // via react-grid-layout: each widget has a grid position+size (x,y,w,h) the user
 // can drag to move and drag any edge/corner to resize; the grid auto-compacts.

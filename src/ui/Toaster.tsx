@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useSyncExternalStore } from 'react'
 import { subscribeToasts, getToasts, dismissToast, type ToastVariant } from '../lib/toast'
 import styles from './Toaster.module.css'

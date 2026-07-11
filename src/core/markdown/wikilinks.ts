@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Shared, pure helpers for `[[wikilink]]` resolution + autocomplete detection.
 // No CM6/React deps so they're unit-testable and reusable by the editor
 // (autocomplete), the graph (pseudo-nodes), and the wikilink widget.

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useState, useRef, KeyboardEvent } from 'react'
 import { isAutoTag } from '../core/tags'
 import TagStyles from './TagEditor.module.css'

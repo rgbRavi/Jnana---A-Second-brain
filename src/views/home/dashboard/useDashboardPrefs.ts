@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Persistent dashboard preferences (localStorage module store + useSyncExternalStore,
 // same pattern as useComposerOptions). Phase 1 uses a single layout; the model
 // already carries order + multiple layouts so Phase 2 (drag-reorder + saved

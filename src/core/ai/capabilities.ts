@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/ai/capabilities.ts
 //
 // Best-effort model capability detection from the model id. There's no portable
