@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Jnana---A-Second-brain",
+  "productName": "Jnana",
   "version": "0.1.0",
   "identifier": "com.jnana.desktop",
   "build": {

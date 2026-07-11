@@ -43,9 +43,18 @@ pub fn import_media(
         return Err(format!("File does not exist: {}", file_path));
     }
 
-    let ext = source.extension().and_then(|s| s.to_str()).unwrap_or("bin");
+    // Sanitise the extension before interpolating it into the filename — the same
+    // way save_asset/import_file do. Not currently exploitable (the name is a UUID),
+    // but kept consistent as defense in depth against a value like "../../evil".
+    let ext: String = source
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
     let uuid = uuid::Uuid::new_v4().to_string();
-    let filename = format!("{}.{}", uuid, ext);
+    let filename = if ext.is_empty() { uuid } else { format!("{}.{}", uuid, ext) };
 
     let dir = assets_dir();
     std::fs::create_dir_all(&dir)
@@ -68,7 +77,12 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     }
 
     let out_dir = std::env::temp_dir();
-    let out_file = out_dir.join(source_path.with_extension("pdf").file_name().unwrap());
+    let out_name = source_path
+        .with_extension("pdf")
+        .file_name()
+        .map(|n| n.to_os_string())
+        .ok_or_else(|| "Invalid source file name".to_string())?;
+    let out_file = out_dir.join(out_name);
     let mut success = false;
 
     // 1. Try LibreOffice — check PATH first, then common Windows install locations.
@@ -81,14 +95,14 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
 
     for candidate in soffice_candidates {
         let mut cmd = Command::new(candidate);
-        cmd.args([
-            "--headless",
-            "--convert-to",
-            "pdf",
-            &file_path,
-            "--outdir",
-            out_dir.to_str().unwrap(),
-        ]);
+        // Pass paths as OsStr via .arg() rather than to_str().unwrap() so a
+        // non-UTF-8 temp path can't panic the converter.
+        cmd.arg("--headless")
+            .arg("--convert-to")
+            .arg("pdf")
+            .arg(&file_path)
+            .arg("--outdir")
+            .arg(&out_dir);
         if let Ok(status) = cmd.status() {
             if status.success() {
                 success = true;
@@ -101,12 +115,11 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     //    Pandoc never falls through to pdflatex/MikTeX which prompts for package installs.
     if !success || !out_file.exists() {
         let mut pdf_cmd = Command::new("pandoc");
-        pdf_cmd.args([
-            &file_path,
-            "-o",
-            out_file.to_str().unwrap(),
-            "--pdf-engine=libreoffice",
-        ]);
+        pdf_cmd
+            .arg(&file_path)
+            .arg("-o")
+            .arg(&out_file)
+            .arg("--pdf-engine=libreoffice");
         if let Ok(status) = pdf_cmd.status() {
             if status.success() {
                 success = true;

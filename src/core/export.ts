@@ -40,6 +40,36 @@ export function toExportMarkdown(content: string): { markdown: string; assets: s
   return { markdown, assets: [...assets] }
 }
 
+/** Quote + escape a string as a double-quoted YAML scalar (safe for any value). */
+function yamlString(s: string): string {
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/**
+ * YAML frontmatter carrying the note metadata that isn't recoverable from the
+ * markdown body (tags, timestamps, id). Obsidian/VS Code read this block, so an
+ * exported note keeps its tags instead of dropping them. Presentation-only state
+ * that lives outside the note text — PDF highlights, canvas, workspace membership,
+ * media layout — is still not exported (see the scope note in the UI/README).
+ */
+function buildFrontmatter(n: Note): string {
+  const lines = ['---']
+  lines.push(`title: ${yamlString(n.title?.trim() || 'Untitled')}`)
+  if (Number.isFinite(n.createdAt)) lines.push(`created: ${new Date(n.createdAt).toISOString()}`)
+  if (Number.isFinite(n.updatedAt)) lines.push(`updated: ${new Date(n.updatedAt).toISOString()}`)
+  if (n.tags && n.tags.length) lines.push(`tags: [${n.tags.map(yamlString).join(', ')}]`)
+  lines.push(`id: ${yamlString(n.id)}`)
+  lines.push('---')
+  return lines.join('\n')
+}
+
+/** Assemble one exported note: frontmatter + `# Title` + portable markdown. */
+export function exportNoteContent(n: Note): { content: string; assets: string[] } {
+  const { markdown, assets } = toExportMarkdown(n.content || '')
+  const content = `${buildFrontmatter(n)}\n\n# ${n.title?.trim() || 'Untitled'}\n\n${markdown}\n`
+  return { content, assets }
+}
+
 /** Filesystem-safe base name from a note title. */
 function safeName(title: string): string {
   return (
@@ -56,7 +86,7 @@ function buildFiles(notes: Note[]): { files: ExportFile[]; assets: string[] } {
   const allAssets = new Set<string>()
 
   const files = notes.map((n) => {
-    const { markdown, assets } = toExportMarkdown(n.content || '')
+    const { content, assets } = exportNoteContent(n)
     assets.forEach((a) => allAssets.add(a))
 
     const base = safeName(n.title)
@@ -64,8 +94,7 @@ function buildFiles(notes: Note[]): { files: ExportFile[]; assets: string[] } {
     seen.set(base, count + 1)
     const name = count === 0 ? `${base}.md` : `${base} (${count}).md`
 
-    const body = `# ${n.title?.trim() || 'Untitled'}\n\n${markdown}\n`
-    return { name, content: body }
+    return { name, content }
   })
 
   return { files, assets: [...allAssets] }

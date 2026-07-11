@@ -23,7 +23,8 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   source notes they used, and never invent facts. You bring your own key — or run everything
   locally (Ollama for chat/embeddings, a local Whisper server for transcription). Chat and
   embeddings are configured **independently**, so you can embed locally and chat in the cloud.
-- **Yours to take with you.** Export any note (or all of them) to portable Markdown with assets.
+- **Yours to take with you.** Export any note (or all of them) to portable Markdown — text, media,
+  tags and timestamps (as YAML frontmatter) — or take a full, restorable `.zip` backup of everything.
 
 ---
 
@@ -137,8 +138,13 @@ through Rust to only the host you configured.
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 
 ### Export
-- Export a single note or **all notes** to Markdown; media references are rewritten to a relative
-  `assets/` folder (copied alongside) and tables/embeds export portably (Obsidian/VS Code friendly)
+- Export a single note or **all notes** to Markdown; each file carries YAML frontmatter (title, tags,
+  created/updated), media references are rewritten to a relative `assets/` folder (copied alongside),
+  and tables/embeds export portably (Obsidian/VS Code friendly).
+- Markdown export is intentionally scoped to the note text + media. Presentation/metadata that lives
+  outside the note — PDF highlights, canvas, workspace membership, media layout — is **not** in the
+  Markdown; use **Settings → Import / Export → "Export full vault (.zip)"** for a complete, restorable
+  copy of everything.
 
 ### Appearance (Theme Studio)
 - **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
@@ -213,6 +219,15 @@ npm test         # frontend unit tests (Vitest)
 # Rust:
 cd src-tauri && cargo build && cargo test
 ```
+
+### Updating
+Jnana does not yet auto-update. To move to a newer version, download and install the latest release
+(or `git pull` and rebuild) — your data is untouched: notes, media, backups and settings live in the
+OS app-data folder (`%APPDATA%\jnana` on Windows, `~/.local/share/jnana` on Linux,
+`~/Library/Application Support/jnana` on macOS), separate from the app binary. Before a version that
+bumps the database schema, Jnana automatically snapshots your database into that folder's `backups/`
+(`pre-migration-vN-*.db`) so an upgrade is always reversible; **Settings → Import / Export → Create
+Backup** makes a full `.zip` on demand.
 
 ---
 

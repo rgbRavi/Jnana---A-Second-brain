@@ -201,6 +201,12 @@ export function ImportExportPanel() {
           </button>
         </div>
 
+        <span className={styles.hint}>
+          Markdown export carries note text, media, tags and timestamps (as YAML frontmatter). PDF
+          highlights, canvas, workspace membership and media layout are not included — use “Export full
+          vault” for a complete, restorable copy.
+        </span>
+
         {picking && (
           <div className={styles.picker}>
             {notes.length === 0 && <p className={styles.hint}>No notes to export.</p>}
