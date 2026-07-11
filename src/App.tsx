@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import {HashRouter, Routes, Route} from "react-router-dom";
 import AppLayout from "./AppLayout";
+import ErrorBoundary from "./ui/ErrorBoundary";
 import NotesView from './views/notes/NotesView'
 import Graph from "./views/graph/Graph";
 import Search from "./views/search/Search";
@@ -13,20 +17,22 @@ function App() {
     return (
         <>
             <div className="router-section">
-                <HashRouter basename="jnana">
-                    <Routes>
-                        <Route element= {<AppLayout />}>
-                                <Route path = "/" element = {<Home />} />
-                                <Route path = "/notes" element = {<NotesView />} />
-                                <Route path = "/graph" element = {<Graph />}/>
-                                <Route path = "/search" element = {<Search />}/>
-                                <Route path = "/ai" element = {<Ai />}/>
-                                <Route path = "/workspaces" element = {<Workspaces />}/>
-                                <Route path = "/workspaces/:id" element = {<Workspace />}/>
-                                <Route path = "/settings" element = {<Settings />}/>
-                        </Route>
-                    </Routes>
-                </HashRouter>
+                <ErrorBoundary>
+                    <HashRouter basename="jnana">
+                        <Routes>
+                            <Route element= {<AppLayout />}>
+                                    <Route path = "/" element = {<Home />} />
+                                    <Route path = "/notes" element = {<NotesView />} />
+                                    <Route path = "/graph" element = {<Graph />}/>
+                                    <Route path = "/search" element = {<Search />}/>
+                                    <Route path = "/ai" element = {<Ai />}/>
+                                    <Route path = "/workspaces" element = {<Workspaces />}/>
+                                    <Route path = "/workspaces/:id" element = {<Workspace />}/>
+                                    <Route path = "/settings" element = {<Settings />}/>
+                            </Route>
+                        </Routes>
+                    </HashRouter>
+                </ErrorBoundary>
             </div>
         </>
     )

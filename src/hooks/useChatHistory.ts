@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useChatHistory.ts
 import { useCallback, useEffect, useRef } from 'react'
 import { eventBus } from '../lib/eventBus'

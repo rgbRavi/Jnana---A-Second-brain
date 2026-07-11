@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useCallback, useMemo, useState } from 'react'
 import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'

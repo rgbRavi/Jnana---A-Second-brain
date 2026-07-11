@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Working Notes — the module store behind the tabbed/split editor.
 //
 // Mirrors the useComposerOptions / useNotesViewPrefs pattern: a module-level

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Shared swatch palette for the pen color, node coloring, and canvas
 // background pickers — keeps all three popovers visually consistent.
 

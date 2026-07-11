@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Workspace canvases — a freeform spatial board per workspace. The whole board
 // (nodes / edges / freehand drawings) is stored as one JSON document in `data`
 // (JSON-Canvas-compatible shape + Jnana extensions). Mirrors the workspaces

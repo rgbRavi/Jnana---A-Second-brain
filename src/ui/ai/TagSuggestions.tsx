@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useState } from 'react'
 import type { Note, TagSuggestion } from '../../types'
 import { loadAiConfig, suggestTags } from '../../core/ai'

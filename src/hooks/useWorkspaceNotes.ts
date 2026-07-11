@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNotesContext } from '../context/NotesContext'
 import { eventBus } from '../lib/eventBus'

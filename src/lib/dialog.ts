@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/lib/dialog.ts
 //
 // Promise-based, in-app dialogs — a modern replacement for blocking native

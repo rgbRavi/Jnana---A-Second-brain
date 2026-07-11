@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Resize/align chrome for media widgets in the live editor (read-mode never
 // shows this — see NoteEmbeds.tsx, which only ever applies the *saved* size).
 // A thin wrapper around whatever embed it's given: shows a corner resize

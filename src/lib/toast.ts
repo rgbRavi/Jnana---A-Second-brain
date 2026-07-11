@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/lib/toast.ts
 //
 // A tiny, dependency-free toast store. Importable from anywhere (components AND

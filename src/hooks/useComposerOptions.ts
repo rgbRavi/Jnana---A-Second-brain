@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useComposerOptions.ts
 //
 // Persistent UI preferences for the floating note composer. A module-level store

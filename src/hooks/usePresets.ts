@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/usePresets.ts
 import { useCallback, useEffect, useState } from 'react'
 import { listPresets, ensureDefaultPresets } from '../core/aiWorkspace'

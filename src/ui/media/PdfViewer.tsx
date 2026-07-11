@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/ui/media/PdfViewer.tsx
 import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'
 import type { Canvas } from '../../../core/canvas'
 import styles from './canvas.module.css'

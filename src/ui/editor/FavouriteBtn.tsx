@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useFavourites } from "../../hooks/useFavourites"
 import { useState, useEffect } from "react"
 import Styles from "./FavouriteBtn.module.css"

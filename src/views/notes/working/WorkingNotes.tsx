@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNotesContext } from '../../../context/NotesContext'

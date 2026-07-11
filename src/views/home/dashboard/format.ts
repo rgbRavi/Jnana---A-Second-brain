@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Small formatting helpers shared across dashboard widgets.
 
 export function relativeTime(ts: number): string {

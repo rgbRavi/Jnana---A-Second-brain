@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // The "live preview" visual layer: a ViewPlugin that walks the syntax tree
 // (CommonMark + GFM + lezerJnana) on every doc/selection change and builds a
 // DecorationSet that hides markdown markers (showing real bold/italic/

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import HomeStyle from "./Home.module.css"
 import {useState, useEffect} from "react"
 import HomeNewVisitorContent from "./HomeNewVisitorContent"

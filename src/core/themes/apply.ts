@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Pure color/contrast math + DOM application — ported from
 // design_handoff_theme_studio/studio-helpers.jsx. No React, no invoke().
 

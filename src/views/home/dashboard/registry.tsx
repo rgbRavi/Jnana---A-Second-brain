@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // The widget registry — the single place that maps a SectionId to its title,
 // icon and component. Adding a future widget = add a SectionId (types.ts) + an
 // entry here; the page layout never changes.

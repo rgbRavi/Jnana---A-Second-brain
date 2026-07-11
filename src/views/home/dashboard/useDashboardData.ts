@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Aggregates every data source the dashboard needs into memoized, derived
 // metrics, so each widget stays presentational. Frontend-only: reuses existing
 // core fns + the v7 backend additions (recent media, reading progress).

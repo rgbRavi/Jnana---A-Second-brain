@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useState, type ReactNode } from "react"
 import { NavLink, useNavigate } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { ACCENT_SWATCHES, READING_SCALE_MAX, READING_SCALE_MIN, READING_SCALE_STEP } from '../../../core/themes/tokens'
 import { deriveAccent } from '../../../core/themes/apply'
 import type { UseThemeApi } from '../../../hooks/useTheme'

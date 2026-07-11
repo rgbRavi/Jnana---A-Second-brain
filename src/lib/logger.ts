@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/lib/logger.ts
 //
 // App logger built on tauri-plugin-log. Every entry is written to the rotating

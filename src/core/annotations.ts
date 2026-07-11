@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/annotations.ts
 import { invoke } from '@tauri-apps/api/core'
 import type { Annotation } from '../types'

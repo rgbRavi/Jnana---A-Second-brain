@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Rust-calling service for Theme Studio persistence. Mirrors the invoke
 // pattern in core/ai/config.ts, but themes are opaque JSON blobs (like canvas
 // `data` / conversation `messages`) rather than a typed Rust struct.

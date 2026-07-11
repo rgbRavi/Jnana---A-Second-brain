@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
 import { eventBus } from '../lib/eventBus'

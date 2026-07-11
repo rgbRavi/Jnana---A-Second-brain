@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Shared regex *sources* for Jnana's custom note tokens — wikilinks and
 // timestamps — consumed by both the read-mode remark plugin (remarkJnana.ts)
 // and the live editor's lezer extension (lezerJnana.ts), so the two parsers

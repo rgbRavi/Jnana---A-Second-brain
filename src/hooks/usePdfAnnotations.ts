@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useCallback, useMemo } from 'react'
 import { makePdfAnnotation } from '../core/annotations'
 import { useAnnotations } from './useAnnotations'

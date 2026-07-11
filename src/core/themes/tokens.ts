@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Token schema, font catalog, and easing list for Theme Studio. Pure data — no
 // React, no invoke() — ported from the design_handoff_theme_studio/ prototype
 // (studio-data.jsx).

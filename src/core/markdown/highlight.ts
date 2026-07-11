@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Syntax-highlighting seam for fenced code blocks. Deferred for now — no
 // highlighter dependency is bundled, so fenced code renders as plain styled
 // monospace text (see CodeBlock in MarkdownLite.tsx).

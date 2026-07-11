@@ -1,9 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 use rusqlite::{Connection, Result};
 
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
-pub fn run_migrations(conn: &Connection) -> Result<()> {
+pub fn run_migrations(conn: &mut Connection) -> Result<()> {
     // Ensure the version tracking table exists (this never changes).
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_version (
@@ -15,52 +18,33 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         .query_row("SELECT COALESCE(MAX(version), 0) FROM schema_version", [], |r| r.get(0))
         .unwrap_or(0);
 
-    if version < 1 {
-        migrate_v1(conn)?;
-    }
+    // Each migration runs in its OWN transaction, so a failure (or crash/power
+    // loss) can never leave a half-applied schema. Every migrate_vN ends with its
+    // `INSERT INTO schema_version VALUES(N)`, so the DDL and the version bump
+    // commit atomically — after an aborted run the whole batch is rolled back and
+    // re-applied cleanly next launch, instead of a non-idempotent `ALTER TABLE`
+    // tripping on a column that a partial run already added.
+    let migrations: &[(i32, fn(&Connection) -> Result<()>)] = &[
+        (1, migrate_v1),
+        (2, migrate_v2),
+        (3, migrate_v3),
+        (4, migrate_v4),
+        (5, migrate_v5),
+        (6, migrate_v6),
+        (7, migrate_v7),
+        (8, migrate_v8),
+        (9, migrate_v9),
+        (10, migrate_v10),
+        (11, migrate_v11),
+        (12, migrate_v12),
+    ];
 
-    if version < 2 {
-        migrate_v2(conn)?;
-    }
-
-    if version < 3 {
-        migrate_v3(conn)?;
-    }
-
-    if version < 4 {
-        migrate_v4(conn)?;
-    }
-
-    if version < 5 {
-        migrate_v5(conn)?;
-    }
-
-    if version < 6 {
-        migrate_v6(conn)?;
-    }
-
-    if version < 7 {
-        migrate_v7(conn)?;
-    }
-
-    if version < 8 {
-        migrate_v8(conn)?;
-    }
-
-    if version < 9 {
-        migrate_v9(conn)?;
-    }
-
-    if version < 10 {
-        migrate_v10(conn)?;
-    }
-
-    if version < 11 {
-        migrate_v11(conn)?;
-    }
-
-    if version < 12 {
-        migrate_v12(conn)?;
+    for (v, migrate) in migrations {
+        if version < *v {
+            let tx = conn.transaction()?;
+            migrate(&tx)?;
+            tx.commit()?;
+        }
     }
 
     let current: i32 = conn
@@ -435,8 +419,8 @@ mod tests {
 
     #[test]
     fn test_run_migrations() {
-        let conn = Connection::open_in_memory().unwrap();
-        let result = run_migrations(&conn);
+        let mut conn = Connection::open_in_memory().unwrap();
+        let result = run_migrations(&mut conn);
         assert!(result.is_ok());
 
         // Verify version is 12
@@ -448,6 +432,7 @@ mod tests {
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
         let tables: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+        drop(stmt); // release the immutable borrow before re-running migrations below
 
         assert!(tables.contains(&"notes".to_string()));
         assert!(tables.contains(&"links".to_string()));
@@ -467,7 +452,7 @@ mod tests {
         assert!(tables.contains(&"note_media_layout".to_string()));
 
         // Running again should be safe (idempotent)
-        let result2 = run_migrations(&conn);
+        let result2 = run_migrations(&mut conn);
         assert!(result2.is_ok());
     }
 }

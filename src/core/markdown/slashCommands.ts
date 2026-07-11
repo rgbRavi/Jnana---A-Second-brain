@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // The slash-command registry + detection, kept pure (no CM6/React deps) so the
 // menu is unit-testable and LiveEditor only has to map an `action` onto the
 // imperative helper it already owns. The `/query` is real document text — see

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import type { ProposedAction } from '../../core/ai'
 
 const KIND_ICON: Record<ProposedAction['kind'], string> = {

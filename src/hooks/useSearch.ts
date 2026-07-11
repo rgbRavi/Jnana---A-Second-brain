@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useSearch.ts
 import { useEffect, useRef, useState, useCallback } from 'react'
 import MiniSearch, { type SearchResult } from 'minisearch'

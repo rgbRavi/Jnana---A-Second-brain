@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, useState } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
@@ -5,15 +8,17 @@ import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
+import { AboutPanel } from '../../ui/settings/AboutPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai' | 'appearance' | 'composer' | 'data'
+type Tab = 'ai' | 'appearance' | 'composer' | 'data' | 'about'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'ai', label: 'AI Providers' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'composer', label: 'Composer' },
   { id: 'data', label: 'Import / Export' },
+  { id: 'about', label: 'About' },
 ]
 
 function Settings() {
@@ -57,6 +62,7 @@ function Settings() {
         {tab === 'appearance' && <AppearancePanel />}
         {tab === 'composer' && <ComposerSettingsPanel />}
         {tab === 'data' && <ImportExportPanel />}
+        {tab === 'about' && <AboutPanel />}
       </div>
     </div>
   )

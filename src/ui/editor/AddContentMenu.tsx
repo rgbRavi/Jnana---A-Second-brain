@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, useRef, useState } from 'react'
 import { VoiceRecorder, type VoiceRecorderHandle } from './VoiceRecorder'
 import { toast } from '../../lib/toast'

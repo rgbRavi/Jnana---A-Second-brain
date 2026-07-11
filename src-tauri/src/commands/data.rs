@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Import / Export / Backup commands for the Settings → "Import / Export" panel.
 //
 // Backups are file-based (a .zip of a consistent SQLite copy + the assets folder)

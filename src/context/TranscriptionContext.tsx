@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
 import { transcribeAudio } from '../core/ai'
 import { useNotesContext } from './NotesContext'

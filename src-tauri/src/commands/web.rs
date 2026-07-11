@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Web link previews — fetch Open-Graph / <title> metadata for an embedded web
 // page (the `![webpage](url)` note embed + canvas link nodes) and cache it by
 // URL. All HTTP runs Rust-side (bypasses WebView CORS); parsing is lightweight
@@ -5,6 +8,7 @@
 
 use crate::db::{queries, DbState};
 use serde::{Deserialize, Serialize};
+use std::net::{IpAddr, Ipv6Addr, ToSocketAddrs};
 use tauri::{command, State};
 
 fn now_ms() -> i64 {
@@ -59,13 +63,101 @@ pub async fn fetch_link_preview(state: State<'_, DbState>, url: String) -> Resul
     Ok(preview)
 }
 
+/// SSRF guard: is this address one we must never fetch (loopback / private /
+/// link-local / unique-local / CGNAT / metadata / unspecified)?
+fn ip_is_blocked(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local() // 169.254/16, incl. cloud metadata 169.254.169.254
+                || v4.is_broadcast()
+                || v4.is_documentation()
+                || v4.is_unspecified()
+                || v4.octets()[0] == 0
+                // CGNAT 100.64.0.0/10 (Ipv4Addr::is_shared is still unstable)
+                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 64)
+        }
+        IpAddr::V6(v6) => ipv6_is_blocked(v6),
+    }
+}
+
+fn ipv6_is_blocked(v6: &Ipv6Addr) -> bool {
+    if v6.is_loopback() || v6.is_unspecified() {
+        return true;
+    }
+    // IPv4-mapped (::ffff:a.b.c.d) — apply the IPv4 rules to the embedded address.
+    if let Some(v4) = v6.to_ipv4_mapped() {
+        return ip_is_blocked(&IpAddr::V4(v4));
+    }
+    let seg = v6.segments();
+    // fc00::/7 unique-local, fe80::/10 link-local (both accessors are unstable).
+    (seg[0] & 0xfe00) == 0xfc00 || (seg[0] & 0xffc0) == 0xfe80
+}
+
+/// Reject a URL before we fetch it if it isn't http(s) or resolves to a private/
+/// loopback/metadata address — so a `![webpage](url)` embed can't make the app
+/// probe localhost, the LAN, or a cloud metadata endpoint (SSRF). Applied to the
+/// initial URL and re-checked on every redirect hop.
+///
+/// This resolves the hostname and checks the results; it does not fully close a
+/// DNS-rebinding race (reqwest re-resolves at connect time), which is a
+/// proportionate mitigation for a local, single-user app.
+fn validate_public_url(url: &reqwest::Url) -> Result<(), String> {
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return Err(format!("Blocked non-http(s) URL: {}", url));
+    }
+    let host = url.host_str().ok_or_else(|| "URL has no host".to_string())?;
+
+    // IP literal → check directly, no DNS.
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return if ip_is_blocked(&ip) {
+            Err(format!("Blocked private/loopback address: {}", host))
+        } else {
+            Ok(())
+        };
+    }
+
+    // Hostname → block if ANY resolved address is private.
+    let port = url.port_or_known_default().unwrap_or(80);
+    let mut resolved = false;
+    for addr in (host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS resolution failed for {}: {}", host, e))?
+    {
+        resolved = true;
+        if ip_is_blocked(&addr.ip()) {
+            return Err(format!("Blocked host resolving to a private address: {}", host));
+        }
+    }
+    if !resolved {
+        return Err(format!("Host did not resolve: {}", host));
+    }
+    Ok(())
+}
+
 async fn fetch_preview(url: &str) -> Result<LinkPreview, String> {
+    let parsed = reqwest::Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
+    // Guard the initial target before touching the network.
+    validate_public_url(&parsed)?;
+
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (compatible; JnanaBot/1.0; +https://jnana.local)")
         .timeout(std::time::Duration::from_secs(10))
+        // Re-validate every redirect hop so a public URL can't 30x-bounce us to
+        // localhost / the LAN / a metadata endpoint, and cap the chain length.
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many redirects");
+            }
+            match validate_public_url(attempt.url()) {
+                Ok(()) => attempt.follow(),
+                Err(_) => attempt.stop(),
+            }
+        }))
         .build()
         .map_err(|e| e.to_string())?;
-    let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+    let resp = client.get(parsed).send().await.map_err(|e| e.to_string())?;
     let base = resp.url().clone();
     let body = resp.text().await.map_err(|e| e.to_string())?;
     // Only the head region carries the metadata we need.

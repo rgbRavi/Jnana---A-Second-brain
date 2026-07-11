@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Workspace canvases — invoke wrappers + the board document model. The whole
 // board is one JSON document (JSON-Canvas-compatible shape + Jnana extensions:
 // note-cards reference notes by id; freehand `drawings` are an extension) stored

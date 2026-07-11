@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useViewState.ts
 import { useCallback, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'

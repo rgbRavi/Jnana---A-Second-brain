@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
 use crate::commands::canvas::CanvasRow;
 use crate::commands::web::LinkPreview;
@@ -1029,8 +1032,8 @@ mod tests {
     use crate::db::schema::run_migrations;
 
     fn setup_db() -> Connection {
-        let conn = Connection::open_in_memory().unwrap();
-        run_migrations(&conn).unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
+        run_migrations(&mut conn).unwrap();
         conn
     }
 

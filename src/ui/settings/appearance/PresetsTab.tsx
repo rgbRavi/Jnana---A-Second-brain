@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useState } from 'react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Small form-control primitives shared by the Appearance tabs. Co-located
 // here rather than in src/ui/ since they're shaped specifically for the
 // Theme Studio editor (and aren't yet needed elsewhere).

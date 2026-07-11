@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/hooks/useDocumentUpload.ts
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'

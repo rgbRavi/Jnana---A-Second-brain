@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { describe, it, expect, vi } from 'vitest'
 import type { AiConfig, Note } from '../../../types'
 

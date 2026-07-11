@@ -2,8 +2,10 @@
 name = "Jnana---A-Second-brain"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["Jnana Project"]
 edition = "2021"
+# AGPL-3.0-only, with the plugin additional-permission in ../LICENSE-EXCEPTION.md
+license = "AGPL-3.0-only"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

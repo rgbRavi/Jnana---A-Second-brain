@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/chat.ts
 // Thin wrappers over the Rust conversation-history commands.
 import { invoke } from '@tauri-apps/api/core'

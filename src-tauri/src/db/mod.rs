@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 pub mod queries;
 pub mod schema;
 
@@ -126,12 +129,12 @@ pub fn init_db() -> Result<Connection> {
     // Apply a staged backup restore (from restore_backup) before opening the DB.
     apply_pending_restore();
 
-    let conn = Connection::open(dir.join("jnana.db"))?;
+    let mut conn = Connection::open(dir.join("jnana.db"))?;
 
     // Foreign keys are OFF by default in SQLite — enable them.
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
-    schema::run_migrations(&conn)?;
+    schema::run_migrations(&mut conn)?;
 
     Ok(conn)
 }

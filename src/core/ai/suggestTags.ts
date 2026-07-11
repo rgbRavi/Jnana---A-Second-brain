@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import type { AiConfig, Note, TagSuggestion } from '../../types'
 import { isAutoTag } from '../tags'
 import { getChatProvider } from './provider'

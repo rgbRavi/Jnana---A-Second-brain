@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // A small, first-page-only PDF preview (~3"x2", no controls) for note cards
 // and the modal's read view — the full PdfViewer renders every page with a
 // controls bar and is far too tall/heavy for a preview context. Clicking

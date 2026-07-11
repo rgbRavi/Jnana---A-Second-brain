@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 import { useEffect, useState } from 'react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fetchLinkPreview, domainOf, type LinkPreview } from '../core/linkPreview'

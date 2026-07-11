@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // src/core/ai/agent/run.ts
 import { chatWithTools, type AgentMessage } from '../provider'
 import { NATIVE_TOOLS, type AgentTool, type ProposedAction, type ToolContext } from './tools'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
 // Shared embed/token components, rendered identically by the read-mode
 // renderer (MarkdownLite.tsx) and the live editor's inline widgets
 // (LiveEditor.decorations.tsx) — one home so the two surfaces never drift

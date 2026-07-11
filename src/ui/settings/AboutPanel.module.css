@@ -1,0 +1,79 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+  max-width: 560px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.appName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+}
+
+.version {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sectionTitle {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  font-weight: 500;
+  margin: 0;
+}
+
+.body {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.button {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--surface-3);
+}
