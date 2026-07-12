@@ -19,12 +19,26 @@
   --text-2:       #9896a4;
   --text-3:       #55535f;
   --danger:       #e05252;
+  /* Semantic status colours — tokenized so surfaces stop hardcoding literals.
+     (Not themed per-preset yet; success/warning read consistently everywhere.) */
+  --success:      #3fb950;
+  --warning:      #e3b341;
+  --star:         #ffcc00; /* favourite / starred accent */
   --font-body:    'DM Sans', sans-serif;
   --font-mono:    'DM Mono', monospace;
   --radius-sm:    6px;
   --radius-md:    10px;
   --radius-lg:    14px;
+  --radius-xl:    16px; /* hero/section cards — the tier above --radius-lg */
   --max-btn: #F0C24C;
+
+  /* Elevation scale — menus, popovers, cards and modals share these instead of
+     each hand-rolling a bespoke rgba() shadow. */
+  --shadow-sm:    0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md:    0 8px 24px rgba(0, 0, 0, 0.22);
+  --shadow-lg:    0 12px 36px rgba(0, 0, 0, 0.45);
+  --shadow-xl:    0 20px 60px rgba(0, 0, 0, 0.5);
+  --shadow-2xl:   0 24px 70px rgba(0, 0, 0, 0.55);
 
   /* Derived accent variants — Theme Studio (apply.ts resolveVars) overwrites
      these with explicit hex once a theme applies; these color-mix() defaults
