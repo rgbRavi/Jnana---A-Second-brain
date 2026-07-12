@@ -170,9 +170,13 @@ pub fn register_media_ref(
 
 /// Most-recently imported media across the vault (for the dashboard's Recent Imports).
 #[tauri::command]
-pub fn recent_media(state: State<'_, DbState>, limit: u32) -> Result<Vec<RecentMediaRow>, String> {
+pub fn recent_media(
+    state: State<'_, DbState>,
+    limit: u32,
+    vault_id: Option<String>,
+) -> Result<Vec<RecentMediaRow>, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    crate::db::queries::recent_media(&conn, limit as i64)
+    crate::db::queries::recent_media(&conn, limit as i64, vault_id.as_deref())
         .map_err(|e| format!("Failed to fetch recent media: {}", e))
 }
 

@@ -14,6 +14,7 @@ import {
   openWorkspace,
   closeWorkspace,
 } from '../../hooks/useActiveWorkspace'
+import { getActiveVaultId, setActiveVaultId } from '../../hooks/useVaults'
 import { deleteWorkspace, workspaceColor } from '../../core/workspaces'
 import { exportNotes } from '../../core/export'
 import { openComposer } from '../../ui/editor/NoteCreator'
@@ -30,7 +31,9 @@ import styles from './Workspaces.module.css'
 function Workspace() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const { workspaces } = useWorkspaces()
+  // Resolve against ALL vaults so a workspace opened from another vault (a pinned
+  // sidebar shortcut, a direct URL) still loads.
+  const { allWorkspaces } = useWorkspaces()
   const { create, update, remove } = useNotesContext()
   const { notes: wsNotes } = useWorkspaceNotes(id)
   const { pinnedWorkspaceIds } = useActiveWorkspace()
@@ -38,8 +41,15 @@ function Workspace() {
   const setTab = (t: WorkspaceTab) => setWorkspaceTab(id, t)
   const [editing, setEditing] = useState(false)
 
-  const workspace = workspaces.find((w) => w.id === id)
+  const workspace = allWorkspaces.find((w) => w.id === id)
   const pinned = pinnedWorkspaceIds.includes(id)
+
+  // Opening a workspace switches the app to its vault, so the page's vault-scoped
+  // content (its notes, graph, dashboard) matches — same as opening a cross-vault
+  // note. Covers the sidebar, command palette, and direct URLs.
+  useEffect(() => {
+    if (workspace && workspace.vaultId !== getActiveVaultId()) setActiveVaultId(workspace.vaultId)
+  }, [workspace?.vaultId])
 
   // Mark this workspace active while open (drives quick-note capture + AI scope).
   useEffect(() => {

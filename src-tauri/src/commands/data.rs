@@ -330,6 +330,8 @@ pub fn import_markdown_dir(state: State<'_, DbState>, dir: String) -> Result<Vec
                 tags: "[]".to_string(),
                 created_at: ts,
                 updated_at: ts,
+                folder_id: None,
+                vault_id: Some(crate::db::schema::DEFAULT_VAULT_ID.to_string()),
             };
             queries::insert_or_update_note(&conn, &row)
                 .map_err(|e| format!("Failed to import {}: {}", p.display(), e))?;
@@ -341,6 +343,8 @@ pub fn import_markdown_dir(state: State<'_, DbState>, dir: String) -> Result<Vec
                 tags: Vec::new(),
                 created_at: ts,
                 updated_at: ts,
+                folder_id: None,
+                vault_id: Some(crate::db::schema::DEFAULT_VAULT_ID.to_string()),
             });
         }
     }

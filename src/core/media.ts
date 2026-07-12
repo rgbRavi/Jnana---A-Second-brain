@@ -60,6 +60,6 @@ export async function getMediaTypes(noteId: string): Promise<string[]> {
 }
 
 /** Most-recently imported media across the whole vault (for the dashboard). */
-export async function recentMedia(limit = 12): Promise<RecentMedia[]> {
-  return invoke<RecentMedia[]>('recent_media', { limit })
+export async function recentMedia(limit = 12, vaultId?: string | null): Promise<RecentMedia[]> {
+  return invoke<RecentMedia[]>('recent_media', { limit, vaultId: vaultId ?? null })
 }

@@ -14,8 +14,9 @@ import { listProjects, listProjectKnowledge } from '../../../core/aiWorkspace'
 import { getIndexStats, getIndexTimes, staleNotes } from '../../../core/ai'
 import { isAutoTag } from '../../../core/tags'
 import { getLastOpened } from '../../../hooks/useSaveLastOpened'
+import { useActiveVaultId } from '../../../hooks/useVaults'
 import { eventBus } from '../../../lib/eventBus'
-import type { AiProject, Note, RecentMedia } from '../../../types'
+import { DEFAULT_VAULT_ID, type AiProject, type Note, type RecentMedia } from '../../../types'
 
 const PALETTE = [
   '#7c6af7', '#3fb950', '#e3b341', '#3ba7f7', '#f778ba', '#a371f7',
@@ -91,11 +92,20 @@ function startOfDay(ts: number): number {
 }
 
 export function useDashboardData(): DashboardData {
-  const { notes, loading: notesLoading } = useNotesContext()
+  const { notes: allNotes, loading: notesLoading } = useNotesContext()
   const { jobs } = useTranscription()
 
-  const [links, setLinks] = useState<[string, string][]>([])
-  const [projects, setProjects] = useState<AiProject[]>([])
+  // The dashboard is scoped to the active vault (Obsidian-style): all note-derived
+  // metrics (counts, orphans, clusters, activity, snapshot graph, favourites) are
+  // computed over just this vault's notes, and links are filtered to in-vault ends.
+  const activeVaultId = useActiveVaultId()
+  const notes = useMemo(
+    () => allNotes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
+    [allNotes, activeVaultId],
+  )
+
+  const [rawLinks, setRawLinks] = useState<[string, string][]>([])
+  const [allProjects, setProjects] = useState<AiProject[]>([])
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>({})
   const [indexedCount, setIndexedCount] = useState(0)
   const [staleCount, setStaleCount] = useState(0)
@@ -115,10 +125,10 @@ export function useDashboardData(): DashboardData {
         getIndexStats().catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })),
         getIndexTimes().catch(() => []),
         listNoteProgress().catch(() => []),
-        recentMedia(12).catch(() => []),
+        recentMedia(12, activeVaultId).catch(() => []),
         getFavouriteNoteIds().catch(() => []),
       ])
-      setLinks(allLinks)
+      setRawLinks(allLinks)
       setProjects(projs)
       setIndexedCount(stats.indexedNoteCount)
       setStaleCount(stats.indexedNoteCount > 0 ? staleNotes(notesRef.current, times).length : 0)
@@ -143,7 +153,7 @@ export function useDashboardData(): DashboardData {
     } finally {
       setLoaded(true)
     }
-  }, [])
+  }, [activeVaultId])
 
   useEffect(() => {
     void refresh()
@@ -162,6 +172,12 @@ export function useDashboardData(): DashboardData {
 
   // ── Derived metrics (memoized over notes + fetched state) ──
   const data = useMemo<Omit<DashboardData, 'refresh'>>(() => {
+    // Keep only links whose both endpoints are in this vault (links are global).
+    const vaultNoteIds = new Set(notes.map((n) => n.id))
+    const links = rawLinks.filter(([a, b]) => vaultNoteIds.has(a) && vaultNoteIds.has(b))
+    // Projects are per-vault too (v15) — scope them alongside notes.
+    const projects = allProjects.filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId)
+
     const degree = new Map<string, number>()
     for (const [from, to] of links) {
       degree.set(from, (degree.get(from) ?? 0) + 1)
@@ -319,7 +335,7 @@ export function useDashboardData(): DashboardData {
       streak,
       graph: { nodes: snapNodes, links: snapLinks },
     }
-  }, [notes, links, projects, projectCounts, indexedCount, staleCount, progress, imports, favIds, jobs, notesLoading, loaded])
+  }, [notes, rawLinks, allProjects, activeVaultId, projectCounts, indexedCount, staleCount, progress, imports, favIds, jobs, notesLoading, loaded])
 
   return { ...data, refresh: () => void refresh() }
 }

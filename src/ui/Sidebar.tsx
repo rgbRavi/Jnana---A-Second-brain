@@ -66,16 +66,19 @@ const itemClass =
 export function Sidebar() {
   const { jobs } = useTranscription()
   const { collapsed } = useSidebarPrefs()
-  const { workspaces } = useWorkspaces()
+  // Pinned/open are cross-vault shortcuts — resolve them against ALL workspaces
+  // (not just the active vault's) so they never vanish when you switch vaults;
+  // clicking one switches the active vault to match (see onOpenWorkspace).
+  const { allWorkspaces } = useWorkspaces()
   const { pinnedWorkspaceIds, openWorkspaceIds } = useActiveWorkspace()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [trayOpen, setTrayOpen] = useState(false)
   const [wsExpanded, setWsExpanded] = useState(true)
   const runningCount = jobs.filter((j) => j.status === "running").length
-  const pinnedWorkspaces = workspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
+  const pinnedWorkspaces = allWorkspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
   // "Open" excludes pinned ones so a workspace never appears in both lists.
-  const openWorkspaces = workspaces.filter(
+  const openWorkspaces = allWorkspaces.filter(
     (w) => openWorkspaceIds.includes(w.id) && !pinnedWorkspaceIds.includes(w.id),
   )
   const hasSubWorkspaces = pinnedWorkspaces.length > 0 || openWorkspaces.length > 0

@@ -2,17 +2,20 @@
 // Copyright (c) 2026 Jnana Project
 
 // src/hooks/useProjects.ts
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listProjects } from '../core/aiWorkspace'
-import type { AiProject } from '../types'
+import { useActiveVaultId } from './useVaults'
+import { DEFAULT_VAULT_ID, type AiProject } from '../types'
 
-/** Loads the AI projects list (refreshable after edits). */
+/** Loads the AI projects list, scoped to the active vault (each vault has its own
+ *  projects). Refreshable after edits. */
 export function useProjects() {
-  const [projects, setProjects] = useState<AiProject[]>([])
+  const [all, setAll] = useState<AiProject[]>([])
+  const activeVaultId = useActiveVaultId()
 
   const refresh = useCallback(async () => {
     try {
-      setProjects(await listProjects())
+      setAll(await listProjects())
     } catch (e) {
       console.error('Failed to load projects:', e)
     }
@@ -21,6 +24,11 @@ export function useProjects() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  const projects = useMemo(
+    () => all.filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
+    [all, activeVaultId],
+  )
 
   return { projects, refresh }
 }

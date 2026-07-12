@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
-import type { Note } from '../../types'
+import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import { useActiveVaultId } from '../../hooks/useVaults'
 import { NoteItem } from '../../ui/editor/NoteItem'
 import { NoteModal } from '../../ui/NoteModal'
 import { eventBus } from '../../lib/eventBus'
@@ -25,7 +26,14 @@ import NoteStyles from './Notes.module.css'
 const PAGE = 24
 
 function Notes() {
-  const { notes, loading, error, update, remove, updateTags } = useNotesContext()
+  const { notes: allNotes, loading, error, update, remove, updateTags } = useNotesContext()
+  // The gallery is scoped to the active vault (Obsidian-style) — switching vaults
+  // in the file explorer swaps which notes appear here.
+  const activeVaultId = useActiveVaultId()
+  const notes = useMemo(
+    () => allNotes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
+    [allNotes, activeVaultId],
+  )
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
   const [workspaceMenuNoteId, setWorkspaceMenuNoteId] = useState<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)

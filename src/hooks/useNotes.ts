@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
+import { getActiveVaultId } from './useVaults'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
 
@@ -44,6 +45,29 @@ export function useNotes() {
     return () => eventBus.off('note:saved', handler)
   }, [])
 
+  // Reflect virtual-folder moves in memory. `setNoteFolder` only touches
+  // `folder_id` Rust-side (no note:saved / re-index), so patch the one field
+  // here rather than refetch — keeps the sidebar tree reactive to drag-into-folder.
+  useEffect(() => {
+    const handler = ({
+      noteId,
+      folderId,
+      vaultId,
+    }: {
+      noteId: string
+      folderId: string | null
+      vaultId?: string | null
+    }) => {
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === noteId ? { ...n, folderId, ...(vaultId !== undefined ? { vaultId } : {}) } : n,
+        ),
+      )
+    }
+    eventBus.on('note:moved', handler)
+    return () => eventBus.off('note:moved', handler)
+  }, [])
+
   // Drive [[wikilink]] syncing from the note:saved event.
   // This is the single place syncLinksForNote is triggered —
   // GraphView and NoteCreator no longer call it directly.
@@ -65,6 +89,9 @@ export function useNotes() {
       tags: userTags,
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      // New notes land in the active vault (unfiled) so they show in its
+      // explorer + gallery; folder placement happens after, if any.
+      vaultId: getActiveVaultId(),
     }
 
     // Optimistic — show immediately before Rust confirms

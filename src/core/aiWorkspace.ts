@@ -109,9 +109,9 @@ export async function removeProjectKnowledge(id: string): Promise<void> {
   await invoke('remove_project_knowledge', { id })
 }
 
-export function newProject(): AiProject {
+export function newProject(vaultId: string): AiProject {
   const now = Date.now()
-  return { id: newId(), name: '', description: '', instructions: '', createdAt: now, updatedAt: now }
+  return { id: newId(), name: '', description: '', instructions: '', vaultId, createdAt: now, updatedAt: now }
 }
 
 export function newKnowledge(projectId: string, kind: 'note' | 'file', refId: string, label: string): ProjectKnowledge {

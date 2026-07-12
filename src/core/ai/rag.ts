@@ -60,6 +60,20 @@ export function getRetrievalScope(): Set<string> | null {
 }
 
 /**
+ * Active-vault retrieval scope — a second, orthogonal constraint to
+ * `retrievalScope` (workspace). Kept in sync app-wide with the active vault (set
+ * in AppLayout) so RAG never surfaces notes from another vault. A hit must pass
+ * BOTH scopes. Separate global (not folded into `retrievalScope`) so switching
+ * the workspace scope on/off doesn't clobber the vault constraint.
+ */
+let vaultScope: Set<string> | null = null
+
+/** Restrict (or, with null, unrestrict) all retrievals to the active vault's notes. */
+export function setVaultScope(ids: Set<string> | null): void {
+  vaultScope = ids && ids.size > 0 ? ids : null
+}
+
+/**
  * Semantic retrieval: embed the query and return the closest chunks.
  * This is the shared primitive every RAG feature (analyzer, link suggester,
  * quiz) builds on. When a retrieval scope is active, over-fetches and filters
@@ -74,13 +88,20 @@ export async function retrieve(
   const [queryVector] = await getEmbeddingProvider(config).embed([query])
   if (!queryVector) return []
 
+  // Two orthogonal constraints: the active vault and (optionally) a workspace.
+  // A hit must satisfy both. Over-fetch when either is set, since Rust search is
+  // global, then filter + trim to topK.
   const scope = retrievalScope
+  const vault = vaultScope
+  const constrained = scope || vault
   const hits = await invoke<RetrievalHit[]>('search_embeddings', {
     queryVector,
-    topK: scope ? Math.max(topK * 6, 48) : topK,
+    topK: constrained ? Math.max(topK * 6, 48) : topK,
   })
-  if (!scope) return hits
-  return hits.filter((h) => scope.has(h.noteId)).slice(0, topK)
+  if (!constrained) return hits
+  return hits
+    .filter((h) => (!vault || vault.has(h.noteId)) && (!scope || scope.has(h.noteId)))
+    .slice(0, topK)
 }
 
 export async function getIndexedNoteIds(): Promise<string[]> {

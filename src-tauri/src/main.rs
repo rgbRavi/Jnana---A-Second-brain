@@ -15,10 +15,12 @@ use commands::chat::*;
 use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
+use commands::folders::*;
 use commands::media::*;
 use commands::media_layout::*;
 use commands::notes::*;
 use commands::themes::*;
+use commands::vaults::*;
 use commands::web::*;
 use commands::workspaces::*;
 
@@ -314,6 +316,15 @@ fn main() {
             list_collection_note_ids,
             add_collection_note,
             remove_collection_note,
+            list_folders,
+            save_folder,
+            delete_folder,
+            move_folder,
+            set_note_folder,
+            list_vaults,
+            save_vault,
+            delete_vault,
+            set_note_vault,
             get_or_create_workspace_canvas,
             list_canvases,
             get_canvas,

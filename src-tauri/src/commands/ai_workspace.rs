@@ -53,6 +53,9 @@ pub struct ProjectRow {
     /// Optional dashboard color (hex); null → UI derives one from the id.
     #[serde(default)]
     pub color: Option<String>,
+    /// The vault this project belongs to (v15). Set on create, never changed by
+    /// an edit.
+    pub vault_id: String,
 }
 
 /// One knowledge item attached to a project: a note or an uploaded file.

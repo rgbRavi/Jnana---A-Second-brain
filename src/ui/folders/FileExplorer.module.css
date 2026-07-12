@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+.panel {
+  width: 232px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+/* Collapsed rail — a thin strip with a reopen button. */
+.rail {
+  width: 32px;
+  flex: none;
+  display: flex;
+  justify-content: center;
+  padding-top: 10px;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+}
+.railBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 4px;
+  border-radius: var(--radius-sm, 6px);
+}
+.railBtn:hover {
+  background: var(--surface-3);
+}
+
+.vaultBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.vaultSwitcher {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.86rem;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm, 6px);
+}
+.vaultSwitcher:hover {
+  background: var(--surface-3);
+}
+
+.vaultIcon {
+  flex: none;
+  font-size: 0.9rem;
+}
+.vaultName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  min-width: 0;
+}
+.vaultChevron {
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--text-3);
+}
+
+.vaultInput {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.86rem;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  color: var(--text-1);
+}
+.vaultInput:focus {
+  outline: none;
+}
+
+.collapseBtn {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: var(--radius-sm, 6px);
+}
+.collapseBtn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}

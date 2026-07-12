@@ -8,6 +8,7 @@ import {
   newCollection,
   saveCollection,
 } from '../../core/workspaces'
+import { getActiveVaultId } from '../../hooks/useVaults'
 import { toast } from '../../lib/toast'
 import type { Workspace } from '../../types'
 import styles from './Workspaces.module.css'
@@ -58,7 +59,7 @@ export function WorkspaceEditDialog({ existing, onClose, onSaved }: Props) {
     if (!name.trim() || saving) return
     setSaving(true)
     try {
-      const base = existing ?? newWorkspace()
+      const base = existing ?? newWorkspace(getActiveVaultId())
       const ws: Workspace = {
         ...base,
         name: name.trim(),

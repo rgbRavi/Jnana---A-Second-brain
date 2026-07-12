@@ -1,0 +1,157 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+.tree {
+  margin: 2px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+}
+
+.headerLabel {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.headerBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm, 6px);
+}
+.headerBtn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.rootDrop {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  overflow-y: auto;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.editInput {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0 4px;
+  margin: -1px 0;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-1);
+}
+.editInput:focus {
+  outline: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-2);
+  user-select: none;
+  min-width: 0;
+  touch-action: none; /* pointer-drag: stop the webview hijacking the gesture */
+}
+.row:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.folderRow {
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.noteRow .icon {
+  opacity: 0.7;
+}
+
+.chevron {
+  display: inline-block;
+  width: 12px;
+  font-size: 0.6rem;
+  color: var(--text-3);
+  transition: transform 0.12s ease;
+  flex: none;
+}
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.icon {
+  flex: none;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.dropTarget {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft, var(--surface-3));
+}
+
+.unfiledLabel,
+.empty {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 6px 8px 2px;
+}
+
+.empty {
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.4;
+}
+
+.dragGhost {
+  position: fixed;
+  z-index: 10001;
+  pointer-events: none;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--text-1);
+  font-size: 0.8rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

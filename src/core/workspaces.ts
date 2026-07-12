@@ -39,9 +39,9 @@ export function listWorkspaceCounts(): Promise<WorkspaceCount[]> {
   return invoke<WorkspaceCount[]>('list_workspace_counts')
 }
 
-export function newWorkspace(): Workspace {
+export function newWorkspace(vaultId: string): Workspace {
   const now = Date.now()
-  return { id: newId(), name: '', icon: '📁', color: undefined, description: '', createdAt: now, updatedAt: now }
+  return { id: newId(), name: '', icon: '📁', color: undefined, description: '', vaultId, createdAt: now, updatedAt: now }
 }
 
 // ─── Membership ─────────────────────────────────────────

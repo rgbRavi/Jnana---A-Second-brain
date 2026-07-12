@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import { useWorkspaceNotes } from '../../hooks/useWorkspaceNotes'
+import { useActiveVaultId } from '../../hooks/useVaults'
 import { getLastOpened } from '../../hooks/useSaveLastOpened'
 import { getAllLinks } from '../../core/notes'
 import { recentMedia } from '../../core/media'
@@ -37,6 +38,7 @@ const TYPE_ICON: Record<string, string> = {
 export function WorkspaceDashboard({ workspaceId, onGotoNotes }: Props) {
   const { update, updateTags } = useNotesContext()
   const { notes, pinnedIds } = useWorkspaceNotes(workspaceId)
+  const activeVaultId = useActiveVaultId()
 
   const [links, setLinks] = useState<[string, string][]>([])
   const [imports, setImports] = useState<RecentMedia[]>([])
@@ -46,7 +48,7 @@ export function WorkspaceDashboard({ workspaceId, onGotoNotes }: Props) {
     let active = true
     const refresh = () => {
       getAllLinks().then((l) => { if (active) setLinks(l) }).catch(() => {})
-      recentMedia(40).then((m) => { if (active) setImports(m) }).catch(() => {})
+      recentMedia(40, activeVaultId).then((m) => { if (active) setImports(m) }).catch(() => {})
     }
     refresh()
     const events = ['note:saved', 'note:deleted', 'link:created', 'link:removed']
@@ -55,7 +57,7 @@ export function WorkspaceDashboard({ workspaceId, onGotoNotes }: Props) {
       active = false
       events.forEach((e) => eventBus.off(e, refresh))
     }
-  }, [])
+  }, [activeVaultId])
 
   const scopeIds = useMemo(() => new Set(notes.map((n) => n.id)), [notes])
 

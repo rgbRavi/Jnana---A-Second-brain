@@ -1,6 +1,12 @@
 ## Folders & Vault (virtual file tree)
 
-**Status:** planned · target Phase 1 polish (alongside theme switcher) · migration **v11**
+**Status:** folder system **implemented** (migration landed as **v13**, not v11 — the schema had
+already moved on by the time this was built). **Vaults implemented too (v14)**, but as **multiple
+Obsidian-style vaults** (each note/folder has a `vault_id`; a collapsible file-explorer sidebar with a
+vault switcher) — this **supersedes the "one global tree = one vault" decision below**, at the user's
+request. Vault scoping is now **app-wide**: /notes gallery, explorer, dashboard, main graph, search,
+workspaces, and AI/RAG all filter to the active vault (the working-notes desk / editor / command
+palette stay unscoped by design). **Vault import** + migrant-comfort items still to do.
 
 ### Why
 
@@ -82,13 +88,13 @@ store + localStorage like other UI prefs (mirror `useComposerOptions` / dashboar
 ### Roadmap
 
 **Folder system**
-- [ ] `migrate_v11`: `folders` table + `notes.folder_id` column; update schema test
-- [ ] Rust commands (`folders.rs`) + queries; cycle guard on `move_folder`
-- [ ] `core/folders.ts` wrappers (emit `folder:*` / `note:moved`)
-- [ ] `useFolders` hook (tree build, expanded-state persistence)
-- [ ] Sidebar folder tree: expand/collapse, right-click (new / rename / delete), unfiled root
-- [ ] Drag note → folder; drag folder → folder (reparent)
-- [ ] Delete-folder dialog ("folder only" vs "folder + notes"), safe default
+- [x] `migrate_v13`: `folders` table + `notes.folder_id` column; update schema test
+- [x] Rust commands (`folders.rs`) + queries; cycle guard on `move_folder`
+- [x] `core/folders.ts` wrappers (emit `folder:*` / `note:moved`)
+- [x] `useFolders` hook (tree build, expanded-state persistence)
+- [x] Sidebar folder tree: expand/collapse, right-click (new / rename / delete), unfiled root
+- [x] Drag note → folder; drag folder → folder (reparent)
+- [x] Delete-folder dialog ("folder only" vs "folder + notes"), safe default
 - [ ] Optional "show folder as scope" — filter the notes list to a folder + descendants
 
 **Vault import (the actual migration-killer)**

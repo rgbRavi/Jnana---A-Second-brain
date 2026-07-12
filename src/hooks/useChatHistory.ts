@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { eventBus } from '../lib/eventBus'
 import { getConversation, saveConversation } from '../core/chat'
 import { useViewState, getViewState } from './useViewState'
+import { useActiveVaultId } from './useVaults'
 import type { StoredConversation } from '../types'
 
 const newId = () =>
@@ -28,7 +29,11 @@ export function useChatHistory(
   onLoad: (conv: StoredConversation) => void,
   onNew: () => void,
 ) {
-  const [activeId, setActiveId] = useViewState<string>(`ai.conv.${mode}`, newId)
+  // The active conversation id is tracked per (mode, vault) so switching vaults
+  // starts a fresh chat rather than carrying another vault's conversation over.
+  const activeVaultId = useActiveVaultId()
+  const convKey = `ai.conv.${mode}.${activeVaultId}`
+  const [activeId, setActiveId] = useViewState<string>(convKey, newId)
 
   // Refs keep the event listeners stable (no resubscribe per render).
   const onLoadRef = useRef(onLoad)
@@ -62,7 +67,7 @@ export function useChatHistory(
   const persist = useCallback(
     async (messages: unknown, scope: unknown, title: string, projectId?: string | null) => {
       // Read the current id from the store in case it changed mid-request.
-      const id = getViewState<string>(`ai.conv.${mode}`) ?? activeId
+      const id = getViewState<string>(convKey) ?? activeId
       const now = Date.now()
       const conv: StoredConversation = {
         id,
@@ -71,6 +76,7 @@ export function useChatHistory(
         messages: JSON.stringify(messages ?? []),
         scope: scope == null ? null : JSON.stringify(scope),
         projectId: projectId ?? null,
+        vaultId: activeVaultId,
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
       }
@@ -81,7 +87,7 @@ export function useChatHistory(
         console.error('Failed to persist conversation:', e)
       }
     },
-    [mode, activeId],
+    [mode, activeId, convKey, activeVaultId],
   )
 
   return { activeId, setActiveId, persist }
