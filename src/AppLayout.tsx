@@ -17,7 +17,7 @@ import { NotesProvider, useNotesContext } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
 import { useTheme } from "./hooks/useTheme";
-import { useViewState } from "./hooks/useViewState";
+import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
 // HashRouter always boots at "/", so the app forgets which view you were on.
@@ -85,6 +85,11 @@ function AppInner() {
     // from any view (Canvas, Search, an editor's wikilink, …).
     useEffect(() => {
         const handler = (note: Note) => {
+            // Remember where the jump came from (a workspace, search, home, …) so
+            // Working Notes can offer a "← Back" that returns there. Only capture
+            // real origins — opening another note while already on /notes must not
+            // overwrite the original origin with '/notes'.
+            if (pathname !== "/notes") setViewState<string | null>('notes.returnTo', pathname)
             openNoteInWorking(note.id)
             if (pathname !== "/notes") navigate("/notes")
         }

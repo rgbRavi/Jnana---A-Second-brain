@@ -196,9 +196,29 @@ class YouTubeWidget extends ReactWidget<{
   }
 }
 
-class PdfWidget extends ReactWidget<{ url: string; noteId: string }> {
+class PdfWidget extends ReactWidget<{
+  url: string
+  noteId: string
+  mediaKey: string
+  layout: MediaLayout | undefined
+  moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
+}> {
   renderWidget() {
-    return <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} />
+    return (
+      <ResizableMediaFrame
+        noteId={this.props.noteId}
+        mediaKey={this.props.mediaKey}
+        layout={this.props.layout}
+        onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
+        onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
+      >
+        {(layout) => <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} layout={layout} />}
+      </ResizableMediaFrame>
+    )
   }
 }
 
@@ -437,7 +457,10 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
           }
         } else if (alt === 'pdf') {
           if (!revealed(from, to)) {
-            builder.add(from, to, Decoration.replace({ widget: new PdfWidget({ url, noteId: context.noteId }) }))
+            applyAlign()
+            builder.add(from, to, Decoration.replace({
+              widget: new PdfWidget({ url, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+            }))
           }
         } else if (alt === 'webpage') {
           if (!revealed(from, to)) {

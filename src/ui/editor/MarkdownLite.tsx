@@ -133,7 +133,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} />
       }
       if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} />
+      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} />
       if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} />
       return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
     }

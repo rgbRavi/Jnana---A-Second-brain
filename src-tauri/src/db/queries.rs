@@ -802,6 +802,18 @@ pub fn update_annotation_content(
     Ok(())
 }
 
+pub fn update_annotation_position(
+    conn: &Connection,
+    id: &str,
+    position: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE annotations SET position = ?1 WHERE id = ?2",
+        params![position, id],
+    )?;
+    Ok(())
+}
+
 pub fn remove_annotation(conn: &Connection, id: &str) -> Result<()> {
     conn.execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
     Ok(())

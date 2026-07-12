@@ -233,6 +233,28 @@
   color: var(--text-1);
 }
 
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.closeLink {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+
+.closeLink:hover {
+  color: var(--danger, #e5484d);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .tabs {
   display: flex;
   gap: 0.3rem;

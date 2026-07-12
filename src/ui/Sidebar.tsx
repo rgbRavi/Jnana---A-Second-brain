@@ -2,11 +2,11 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, type ReactNode } from "react"
-import { NavLink, useNavigate } from "react-router-dom"
+import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"
 import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPrefs"
 import { useWorkspaces } from "../hooks/useWorkspaces"
-import { useActiveWorkspace } from "../hooks/useActiveWorkspace"
+import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import SidebarStyles from "./Sidebar.module.css"
 
@@ -57,6 +57,7 @@ const ICONS = {
     </>,
   ),
   workspaces: nav(<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h2.6l1.4 1.8H15.5A1.5 1.5 0 0 1 17 8.3V14a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14Z" />),
+  chevron: nav(<path d="M6 8l4 4 4-4" />),
 }
 
 const itemClass =
@@ -66,16 +67,30 @@ export function Sidebar() {
   const { jobs } = useTranscription()
   const { collapsed } = useSidebarPrefs()
   const { workspaces } = useWorkspaces()
-  const { pinnedWorkspaceIds } = useActiveWorkspace()
+  const { pinnedWorkspaceIds, openWorkspaceIds } = useActiveWorkspace()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [trayOpen, setTrayOpen] = useState(false)
+  const [wsExpanded, setWsExpanded] = useState(true)
   const runningCount = jobs.filter((j) => j.status === "running").length
   const pinnedWorkspaces = workspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
+  // "Open" excludes pinned ones so a workspace never appears in both lists.
+  const openWorkspaces = workspaces.filter(
+    (w) => openWorkspaceIds.includes(w.id) && !pinnedWorkspaceIds.includes(w.id),
+  )
+  const hasSubWorkspaces = pinnedWorkspaces.length > 0 || openWorkspaces.length > 0
 
   // One-click capture: land on Notes and open the (app-level) composer expanded.
   const handleQuickNote = () => {
     navigate("/notes")
     openComposer()
+  }
+
+  // Dismiss an open workspace from the sidebar — and if it's the one being
+  // viewed, leave its page for the all-workspaces view.
+  const handleCloseWorkspace = (id: string) => {
+    closeWorkspace(id)
+    if (pathname === `/workspaces/${id}`) navigate("/workspaces")
   }
 
   return (
@@ -127,24 +142,73 @@ export function Sidebar() {
           <span className={SidebarStyles.label}>Notes</span>
         </NavLink>
 
-        <NavLink to="/workspaces" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Workspaces" : undefined}>
-          <span className={SidebarStyles.navIcon}>{ICONS.workspaces}</span>
-          <span className={SidebarStyles.label}>Workspaces</span>
-        </NavLink>
-
-        {/* Kept mounted (label hidden via CSS when collapsed, not unmounted) so
-            toggling the sidebar doesn't also mount/unmount this list mid-animation. */}
-        {pinnedWorkspaces.map((w) => (
-          <NavLink
-            key={w.id}
-            to={`/workspaces/${w.id}`}
-            className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
-            title={collapsed ? w.name : undefined}
-          >
-            <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
-            <span className={SidebarStyles.label}>{w.name}</span>
+        {/* Workspaces entry carries the single disclosure toggle for its whole
+            sub-tree (pinned + open), shown only when there's something to show. */}
+        <div className={SidebarStyles.wsNavRow}>
+          <NavLink to="/workspaces" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Workspaces" : undefined}>
+            <span className={SidebarStyles.navIcon}>{ICONS.workspaces}</span>
+            <span className={SidebarStyles.label}>Workspaces</span>
           </NavLink>
-        ))}
+          {hasSubWorkspaces && !collapsed && (
+            <button
+              type="button"
+              className={`${SidebarStyles.wsDisclosure} ${wsExpanded ? "" : SidebarStyles.wsDisclosureCollapsed}`}
+              onClick={() => setWsExpanded((v) => !v)}
+              aria-label={wsExpanded ? "Collapse workspaces" : "Expand workspaces"}
+              aria-expanded={wsExpanded}
+            >
+              {ICONS.chevron}
+            </button>
+          )}
+        </div>
+
+        {hasSubWorkspaces && (wsExpanded || collapsed) && (
+          <div className={SidebarStyles.wsSub}>
+            {pinnedWorkspaces.map((w) => (
+              <NavLink
+                key={w.id}
+                to={`/workspaces/${w.id}`}
+                className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
+                title={collapsed ? w.name : undefined}
+              >
+                <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
+                <span className={SidebarStyles.label}>{w.name}</span>
+              </NavLink>
+            ))}
+
+            {/* Open workspaces — visited this run; each has a hover × to dismiss it
+                from the sidebar (closeWorkspace). Labelled only when pinned ones
+                also show, to separate the two groups. */}
+            {openWorkspaces.length > 0 && (
+              <>
+                {pinnedWorkspaces.length > 0 && (
+                  <span className={SidebarStyles.wsGroupLabel}>Open</span>
+                )}
+                {openWorkspaces.map((w) => (
+                  <div key={w.id} className={SidebarStyles.openWsRow}>
+                    <NavLink
+                      to={`/workspaces/${w.id}`}
+                      className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem} ${SidebarStyles.openWsLink}`}
+                      title={collapsed ? w.name : undefined}
+                    >
+                      <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || "📁"}</span>
+                      <span className={SidebarStyles.label}>{w.name}</span>
+                    </NavLink>
+                    <button
+                      type="button"
+                      className={SidebarStyles.openWsClose}
+                      onClick={() => handleCloseWorkspace(w.id)}
+                      title={`Close ${w.name}`}
+                      aria-label={`Close ${w.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
 
         <NavLink to="/search" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Search" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.search}</span>

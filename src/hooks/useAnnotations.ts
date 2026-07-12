@@ -9,9 +9,23 @@ import {
   getAnnotationsForMedia,
   saveAnnotation,
   updateAnnotation,
+  updateAnnotationPosition,
   deleteAnnotation,
 } from '../core/annotations'
 import { eventBus } from '../lib/eventBus'
+
+/** Merge whichever of content/position an `annotation:updated` event carries —
+ *  content edits and position moves emit the same event with different fields. */
+type AnnotationPatch = { id: string; content?: string; position?: string }
+function applyPatch(list: Annotation[], patch: AnnotationPatch): Annotation[] {
+  return list.map((a) => {
+    if (a.id !== patch.id) return a
+    const next = { ...a }
+    if (patch.content !== undefined) next.content = patch.content
+    if (patch.position !== undefined) next.position = patch.position
+    return next
+  })
+}
 
 // ─── Per-note hook ────────────────────────────────────────────────────────────
 // Use this in note views that need all annotations across every media item.
@@ -37,10 +51,8 @@ export function useAnnotations(noteId: string) {
       // skip if we've seen this id (mirrors the note:saved handling in useNotes).
       setAnnotations((prev) => (prev.some((x) => x.id === a.id) ? prev : [...prev, a]))
     }
-    const onUpdate = ({ id, content }: { id: string; content: string }) => {
-      setAnnotations((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, content } : a))
-      )
+    const onUpdate = (patch: AnnotationPatch) => {
+      setAnnotations((prev) => applyPatch(prev, patch))
     }
     const onDelete = ({ id }: { id: string }) => {
       setAnnotations((prev) => prev.filter((a) => a.id !== id))
@@ -70,12 +82,19 @@ export function useAnnotations(noteId: string) {
     await updateAnnotation(id, content)
   }, [])
 
+  const updatePosition = useCallback(async (id: string, position: string) => {
+    setAnnotations((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, position } : a))
+    )
+    await updateAnnotationPosition(id, position)
+  }, [])
+
   const remove = useCallback(async (id: string) => {
     setAnnotations((prev) => prev.filter((a) => a.id !== id))
     await deleteAnnotation(id)
   }, [])
 
-  return { annotations, loading, create, update, remove }
+  return { annotations, loading, create, update, updatePosition, remove }
 }
 
 // ─── Per-media hook ───────────────────────────────────────────────────────────
@@ -100,10 +119,8 @@ export function useMediaAnnotations(mediaId: string) {
       // Idempotent: skip if the optimistic create already added this id.
       setAnnotations((prev) => (prev.some((x) => x.id === a.id) ? prev : [...prev, a]))
     }
-    const onUpdate = ({ id, content }: { id: string; content: string }) => {
-      setAnnotations((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, content } : a))
-      )
+    const onUpdate = (patch: AnnotationPatch) => {
+      setAnnotations((prev) => applyPatch(prev, patch))
     }
     const onDelete = ({ id }: { id: string }) => {
       setAnnotations((prev) => prev.filter((a) => a.id !== id))

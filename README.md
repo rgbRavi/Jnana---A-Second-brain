@@ -16,7 +16,7 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Local-first & private.** Everything is stored on your device (SQLite + an app-managed assets
   folder). It works offline. Nothing is uploaded unless *you* choose a cloud AI provider.
 - **Media-native, not just text.** PDFs, local video, audio, images, and YouTube live *inside*
-  your notes — with highlight annotations on PDFs and clickable timestamps on audio/video.
+  your notes — draw, type, and highlight on PDFs, with clickable timestamps on audio/video.
 - **A real knowledge graph.** Notes link with `[[wikilinks]]` and render as an interactive
   force-directed graph you can explore, search, and connect by hand.
 - **AI that's grounded and optional.** The AI features answer *only* from your notes, cite the
@@ -76,7 +76,8 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   suggested links)
 - **Collections** — lightweight sub-groups inside a workspace that chip-filter its notes
 - Templates (Research / Course / Writing / …), per-workspace icon & colour, note-count badges,
-  pinned workspaces in the sidebar, and quick-note capture straight into the active workspace
+  pinned + open workspaces in the sidebar (each workspace reopens on the tab you left it on), and
+  quick-note capture straight into the active workspace
 
 ### Canvas (freeform board)
 - A pannable / zoomable **spatial board per workspace** — drop **note cards**, text cards,
@@ -92,8 +93,11 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   when you're already there)
 
 ### Media
-- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations; compact
-  **thumbnail preview** in note cards (click to open the full viewer)
+- **PDFs** — embed, page through, zoom/fit, and **mark them up**: freehand **pen**, free-positioned
+  **text boxes** (auto-contrasting the page, or your chosen colour), **highlights** (with inline notes),
+  and an **eraser**, from a toolbar or right-click menu. Marks are persistent overlay annotations (the
+  file itself is untouched). Compact **thumbnail preview** in note cards (click to open the full viewer);
+  PDF embeds are resizable/draggable in the editor like images
 - **Local video** — imported and streamed through a custom asset protocol (with range/seek support)
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox

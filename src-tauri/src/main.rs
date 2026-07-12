@@ -32,14 +32,22 @@ use tauri_plugin_opener::OpenerExt;
 
 /// True for the app's own WebView origins — the only legitimate callers of the
 /// `jnana-asset://` scheme. Tauri v2 uses `tauri://localhost` (macOS/Linux) and
-/// `http(s)://tauri.localhost` / `http://<scheme>.localhost` (Windows).
+/// `http(s)://tauri.localhost` / `http://<scheme>.localhost` (Windows). In
+/// `tauri dev` the WebView is served by the Vite dev server, so the origin also
+/// carries a port (`http://localhost:1420`) — strip it before matching, or
+/// fetch-based consumers (pdf.js) get a `null` ACAO and are CORS-blocked in dev.
 fn is_app_origin(origin: &str) -> bool {
     let host = origin
         .strip_prefix("tauri://")
         .or_else(|| origin.strip_prefix("https://"))
         .or_else(|| origin.strip_prefix("http://"));
     match host {
-        Some(h) => h == "localhost" || h.ends_with(".localhost"),
+        // Origin is `scheme://host[:port]` (no path), so the first `:` starts the
+        // port — everything before it is the host we match against.
+        Some(h) => {
+            let host_only = h.split(':').next().unwrap_or(h);
+            host_only == "localhost" || host_only.ends_with(".localhost")
+        }
         None => false,
     }
 }
@@ -269,6 +277,7 @@ fn main() {
             get_annotations_for_note,
             get_annotations_for_media,
             update_annotation,
+            update_annotation_position,
             delete_annotation,
             add_favourite,
             get_favourite_note_ids,
@@ -356,6 +365,8 @@ mod tests {
             "https://tauri.localhost",
             "http://jnana-asset.localhost",
             "http://localhost",
+            // `tauri dev` serves the WebView from the Vite dev server (with port).
+            "http://localhost:1420",
         ] {
             assert!(is_app_origin(ok), "should accept {ok}");
         }
@@ -366,6 +377,9 @@ mod tests {
         for bad in [
             "https://evil.com",
             "http://localhost.evil.com",
+            // A port must not let a foreign host masquerade as localhost.
+            "http://localhost.evil.com:1420",
+            "https://evil.com:1420",
             "https://tauri.localhost.evil.com",
             "file://",
             "null",

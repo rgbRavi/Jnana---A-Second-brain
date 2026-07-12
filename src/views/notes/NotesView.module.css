@@ -12,6 +12,27 @@
   flex-shrink: 0;
 }
 
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: 0.75rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.backBtn:hover {
+  border-color: var(--accent);
+  color: var(--text-1);
+}
+
 .segment {
   display: inline-flex;
   background: var(--surface-2);

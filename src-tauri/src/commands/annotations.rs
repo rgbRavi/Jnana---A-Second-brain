@@ -115,6 +115,19 @@ pub fn update_annotation(
         .map_err(|e| format!("Failed to update annotation: {}", e))
 }
 
+/// Update the opaque `position` JSON of an existing annotation (e.g. dragging a
+/// PDF text box or ink stroke). Kind stays immutable; content is untouched.
+#[command]
+pub fn update_annotation_position(
+    state: State<'_, DbState>,
+    id: String,
+    position: String,
+) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::update_annotation_position(&conn, &id, &position)
+        .map_err(|e| format!("Failed to update annotation position: {}", e))
+}
+
 /// Delete a single annotation by id.
 #[command]
 pub fn delete_annotation(

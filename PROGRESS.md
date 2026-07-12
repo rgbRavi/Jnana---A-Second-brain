@@ -197,9 +197,14 @@ For new unsaved notes, deferred registration is handled through hook state in `u
 
 ### Annotation pipeline
 
-PDF highlight annotations are created through hook wrappers and stored in SQLite.
+PDF markup — highlights, freehand **ink** (`pdf_ink`), and **text boxes** (`pdf_text`) — is created
+through `usePdfAnnotations` hook wrappers and stored in SQLite. All are overlay annotations in PDF
+point space; the `.pdf` file is never modified. Kinds are opaque `TEXT`, so new ones need no migration.
 
-The Rust `save_annotation` command ensures a matching `media_refs` row exists before inserting the annotation, which helps older or partially-registered notes keep working.
+The Rust `save_annotation` command ensures a matching `media_refs` row exists before inserting the
+annotation (its catch-all maps any unknown kind to media_type `"pdf"`), which helps older or
+partially-registered notes keep working. `update_annotation` mutates only `content`;
+`update_annotation_position` was added for drag-to-move / text-colour changes to `position`.
 
 ### Asset protocol
 
@@ -420,7 +425,14 @@ Notes:
 - [x] **PDF thumbnail** — `PdfThumbnail.tsx` renders the first page at ~216×192 px (no controls).
       `PdfEmbed` shows the thumbnail in cards and modal read view (viewport-lazy — pdf.js only runs
       once the embed scrolls into view); clicking opens the full `PdfViewer` in a portal. Prevents
-      PDFs from dominating card height
+      PDFs from dominating card height. The rendered page is cached at module scope (keyed by
+      filename) so an editor-widget remount repaints instantly; in the live editor the embed is
+      wrapped in `ResizableMediaFrame` for resize/drag/align/move like images
+- [x] **PDF markup tools** — `PdfViewer.tsx` overlays a tool mode (select/highlight/pen/eraser/text)
+      over the page canvas, driven from a toolbar + right-click menu. Ink reuses `core/ink.ts`
+      (`strokePath`, extracted from the canvas `DrawLayer`); text boxes auto-contrast the page bg
+      (canvas `getImageData`) with a manual colour override; highlights get an inline note editor.
+      All marks stored in PDF point space so they survive zoom/page changes
 - [x] **`MemoizedMarkdown` + `notesRef` pattern** — inner `memo()` component decouples full
       re-parse from `notes` identity changes; `notesRef` keeps `notes` out of `components` deps
 - [ ] Standard CommonMark newlines apply — accepted behavior change from old `pre-wrap` renderer
@@ -485,8 +497,10 @@ Notes:
       the workspace's notes + their internal links, own layout/viewport), **Canvas**, **Insights**
       (orphans / untagged / needs-indexing / suggested links)
 - [x] **Collections** — sub-groups inside a workspace; chip-filter the Notes tab; CRUD + note picker
-- [x] Templates, per-workspace icon+colour, note-count badges, pinned workspaces in the sidebar,
-      quick-note capture into the active workspace, add-to-workspace from All Notes
+- [x] Templates, per-workspace icon+colour, note-count badges, pinned + open workspaces in the sidebar
+      (single disclosure toggle; open rows have a hover × / in-view "✕ Close" that returns to All
+      Workspaces; active tab persists per-workspace), quick-note capture into the active workspace,
+      add-to-workspace from All Notes
 - [x] **Command palette** (Ctrl/⌘-K) — minisearch over notes + workspaces + a command registry
 - [x] **Workspace AI/search scope** — point RAG retrieval (AI view) and Search at one workspace
 - [x] **Canvas** — hand-rolled pointer-event board (pan/zoom, drag/resize), text/note/media/web
