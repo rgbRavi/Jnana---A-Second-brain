@@ -2,56 +2,53 @@
 .noteModalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(10, 10, 12, 0.65);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px) saturate(100%);
   }
   to {
     opacity: 1;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(12px) saturate(180%);
   }
 }
 
 .noteModalContainer {
-  background: var(--surface);
+  background: linear-gradient(145deg, var(--surface-2) 0%, var(--surface) 100%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 1.5rem;
   width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
+  max-width: 850px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.3s ease-out;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: translateY(30px) scale(0.97);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     opacity: 1;
   }
 }
 
-/* Fills the main-content area (excludes the sidebar — `left` is set inline
-   from --sidebar-width/--sidebar-collapsed-width since it depends on the
-   sidebar's current collapse state). Snaps rather than animates: interpolating
-   between a centered flex child and fixed viewport coordinates isn't something
-   CSS transitions can express cleanly. */
 .noteModalContainer.expanded {
   position: fixed;
   top: 0;
@@ -61,57 +58,55 @@
   max-width: none;
   max-height: none;
   border-radius: 0;
+  border: none;
   animation: none;
 }
 
-.noteModalClose {
+.noteModalTopControls {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: transparent;
-  border: none;
-  color: var(--text-2);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
+  top: 1.25rem;
+  right: 1.25rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all 0.15s;
+  gap: 0.5rem;
   z-index: 1001;
 }
 
-.noteModalClose:hover {
-  background: var(--surface-2);
-  color: var(--text-1);
+.noteModalTopLeftControls {
+  position: absolute;
+  top: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 1001;
 }
 
-.noteModalExpand {
-  position: absolute;
-  top: 1rem;
-  right: 3.5rem;
-  background: transparent;
-  border: none;
+.noteModalClose, .noteModalExpand {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   color: var(--text-2);
   font-size: 1.15rem;
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all 0.15s;
-  z-index: 1001;
+  border-radius: 50%;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
 }
 
-.noteModalExpand:hover {
-  background: var(--surface-2);
+.noteModalClose:hover, .noteModalExpand:hover {
+  background: var(--surface-3);
   color: var(--text-1);
+  transform: scale(1.05);
+  border-color: var(--border-hover);
+}
+
+.noteModalClose:active, .noteModalExpand:active {
+  transform: scale(0.95);
 }
 
 .noteModalContent {
@@ -119,30 +114,40 @@
   flex-direction: column;
   overflow: hidden;
   flex: 1;
-  padding: 2rem;
-  padding-right: 3rem;
+  padding: 4rem 2.5rem 2.5rem 2.5rem;
+}
+
+.noteModalTitleWrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .noteModalTitle {
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 1.5rem;
-  margin-top: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, var(--text-1) 0%, var(--text-2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .noteModalBody {
   flex: 1;
   overflow-y: auto;
   color: var(--text-2);
-  line-height: 1.6;
-  font-size: 0.95rem;
-  padding-right: 0.5rem;
+  line-height: 1.7;
+  font-size: 1rem;
+  padding-right: 1rem;
+  margin-top: 1rem;
 }
 
 /* Allow fullscreen videos to escape modal */
 .noteModalBody video {
   max-width: 100%;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
 }
 
 .noteModalBody video:fullscreen {
@@ -190,13 +195,18 @@
 .noteModalHeader {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
+  align-items: center;
   margin-bottom: 1.5rem;
 }
 
+.noteModalHeaderActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .noteModalEditBtn {
-  background: transparent;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   font-size: 1.2rem;
@@ -207,14 +217,73 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
 .noteModalEditBtn:hover {
-  background: var(--surface-2);
+  background: var(--surface-3);
   color: var(--text-1);
   border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.noteModalEditBtn:active {
+  transform: translateY(0);
+}
+
+.noteModalDropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.4rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  z-index: 1002;
+  min-width: 180px;
+  backdrop-filter: blur(8px);
+  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dropdownLeft {
+  right: auto;
+  left: 0;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.noteModalDropdownItem {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  padding: 0.6rem 0.8rem;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.noteModalDropdownItem:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
 .noteModalEditMode {
@@ -243,7 +312,7 @@
 .noteModalTitleInput:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .noteModalTextarea {
@@ -262,7 +331,7 @@
 .noteModalTextarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* LiveEditor variant — grows to fill remaining modal height (flex:1 in the
@@ -281,7 +350,7 @@
 
 .noteModalTextareaEditor:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .noteModalTextareaEditor :global(.cm-editor) {
@@ -353,12 +422,12 @@
 }
 
 .noteModalBtnSave {
-  background: rgba(124, 106, 247, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-color: var(--accent);
   color: var(--accent);
 }
 
 .noteModalBtnSave:hover:not(:disabled) {
-  background: rgba(124, 106, 247, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 

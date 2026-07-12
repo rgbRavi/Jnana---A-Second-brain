@@ -17,8 +17,8 @@
   width: 32px;
   flex: none;
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding-top: 10px;
   background: var(--surface-2);
   border-right: 1px solid var(--border);
 }
@@ -30,9 +30,13 @@
   line-height: 1;
   padding: 4px;
   border-radius: var(--radius-sm, 6px);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s;
 }
 .railBtn:hover {
   background: var(--surface-3);
+}
+.railBtn:active {
+  transform: scale(0.92);
 }
 
 .vaultBar {
@@ -105,8 +109,12 @@
   line-height: 1;
   padding: 3px 5px;
   border-radius: var(--radius-sm, 6px);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s, color 0.15s;
 }
 .collapseBtn:hover {
   background: var(--surface-3);
   color: var(--text-1);
+}
+.collapseBtn:active {
+  transform: scale(0.92);
 }

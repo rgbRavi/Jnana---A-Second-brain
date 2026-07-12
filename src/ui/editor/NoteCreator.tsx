@@ -237,7 +237,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
               onClick={() => setState((s) => (s === 'fullscreen' ? 'expanded' : 'fullscreen'))}
               title={state === 'fullscreen' ? 'Restore' : 'Maximize'}
             >
-              {state === 'fullscreen' ? '🗗' : '⛶'}
+              {state === 'fullscreen' ? '⤡' : '⤢'}
             </button>
             <button
               type="button"
@@ -245,7 +245,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
               onClick={() => setState('collapsed')}
               title="Collapse"
             >
-              ⌄
+              ✕
             </button>
           </div>
         </div>

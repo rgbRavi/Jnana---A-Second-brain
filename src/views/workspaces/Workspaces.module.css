@@ -251,7 +251,7 @@
 }
 
 .closeLink:hover {
-  color: var(--danger, #e5484d);
+  color: var(--danger);
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -313,7 +313,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   padding: 1.25rem 1.3rem;
   display: flex;
   flex-direction: column;

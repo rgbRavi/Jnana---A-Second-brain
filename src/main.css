@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,8 +24,8 @@
   --success:      #3fb950;
   --warning:      #e3b341;
   --star:         #ffcc00; /* favourite / starred accent */
-  --font-body:    'DM Sans', sans-serif;
-  --font-mono:    'DM Mono', monospace;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
   --radius-sm:    6px;
   --radius-md:    10px;
   --radius-lg:    14px;
@@ -54,6 +54,7 @@ html { height: 100%; }
 body {
   height: 100%;
   background: var(--bg);
+  background-image: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 60%);
   color: var(--text-1);
   font-family: var(--font-body);
   font-size: 15px;
@@ -165,6 +166,15 @@ body {
    Interaction & accessibility polish (applies app-wide).
    ─────────────────────────────────────────────────────────────────────────── */
 
+/* Global press/click animation utility */
+.pressable {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s, color 0.15s;
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
 /* Keyboard focus ring. Only shows for keyboard/AT users (not mouse clicks),
    so the UI stays clean while staying navigable. Modern WebView rounds the
    outline to the element's own border-radius automatically. */
@@ -181,7 +191,7 @@ select:focus-visible {
 }
 
 ::selection {
-  background: rgba(124, 106, 247, 0.32);
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
   color: var(--text-1);
 }
 

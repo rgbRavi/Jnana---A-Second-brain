@@ -28,6 +28,7 @@ import { showChoiceDialog } from '../../lib/dialog'
 import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { DEFAULT_VAULT_ID, type Folder, type Note } from '../../types'
+import { Folder as FolderIcon, FolderOpen, FileText, ChevronRight, Plus } from 'lucide-react'
 import styles from './FolderTree.module.css'
 
 interface DragState {
@@ -313,10 +314,10 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
           title={node.name}
         >
           <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} aria-hidden>
-            ▸
+            <ChevronRight size={14} strokeWidth={2.5} />
           </span>
           <span className={styles.icon} aria-hidden>
-            {isOpen ? '📂' : '📁'}
+            {isOpen ? <FolderOpen size={16} /> : <FolderIcon size={16} />}
           </span>
           {nameCell('folder', node.id, node.name)}
         </div>
@@ -344,7 +345,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
       title={note.title || 'Untitled'}
     >
       <span className={styles.icon} aria-hidden>
-        📄
+        <FileText size={16} />
       </span>
       {nameCell('note', note.id, note.title || 'Untitled')}
     </div>
@@ -363,7 +364,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
           title="New folder"
           aria-label="New folder"
         >
-          ＋
+          <Plus size={16} strokeWidth={2.5} />
         </button>
       </div>
 
@@ -388,7 +389,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
       {drag &&
         createPortal(
           <div className={styles.dragGhost} style={{ left: drag.x + 12, top: drag.y + 8 }}>
-            {drag.kind === 'folder' ? '📁' : '📄'} {drag.label}
+            {drag.kind === 'folder' ? <FolderIcon size={14} /> : <FileText size={14} />} <span>{drag.label}</span>
           </div>,
           document.body,
         )}

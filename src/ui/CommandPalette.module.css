@@ -17,7 +17,7 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-2xl);
   display: flex;
   flex-direction: column;
   max-height: 70vh;

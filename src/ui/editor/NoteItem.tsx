@@ -13,6 +13,7 @@ import { isAutoTag } from '../../core/tags'
 import { ComposerToolbar } from './ComposerToolbar'
 import { FormatToolbar } from './FormatToolbar'
 import { LiveEditor, type LiveEditorHandle } from './LiveEditor'
+import { Pin, PinOff, Star, FolderPlus, PenLine, Trash2, Image, Film, Headphones, FileText, Link, Globe } from 'lucide-react'
 import Styles from './NoteItem.module.css'
 
 /** Display density — mirrors DisplayMode in views/notes/filterNotes.ts (kept local
@@ -39,13 +40,13 @@ interface Props {
 }
 
 /** Auto-tag → chip glyph + label, shown on non-default variants. */
-const MEDIA_CHIPS: [string, string, string][] = [
-  ['has:image', '🖼', 'Images'],
-  ['has:videoOrYt', '🎬', 'Video'],
-  ['has:audio', '🎧', 'Audio'],
-  ['has:pdf', '📄', 'PDF'],
-  ['has:docxlink', '📎', 'Document'],
-  ['has:webpage', '🌐', 'Web page'],
+const MEDIA_CHIPS: [string, React.ReactNode, string][] = [
+  ['has:image', <Image size={12} />, 'Images'],
+  ['has:videoOrYt', <Film size={12} />, 'Video'],
+  ['has:audio', <Headphones size={12} />, 'Audio'],
+  ['has:pdf', <FileText size={12} />, 'PDF'],
+  ['has:docxlink', <Link size={12} />, 'Document'],
+  ['has:webpage', <Globe size={12} />, 'Web page'],
 ]
 
 /**
@@ -224,7 +225,7 @@ function NoteItemImpl({
               aria-pressed={pinned}
               title={pinned ? 'Unpin' : 'Pin in workspace'}
             >
-              {pinned ? '📌' : '📍'}
+              {pinned ? <PinOff size={14} /> : <Pin size={14} />}
             </button>
           )}
           {onToggleFavourite && (
@@ -235,7 +236,7 @@ function NoteItemImpl({
               aria-pressed={isFavourite}
               title={isFavourite ? 'Unfavourite' : 'Favourite'}
             >
-              {isFavourite ? '★' : '☆'}
+              {isFavourite ? <Star size={14} fill="currentColor" /> : <Star size={14} />}
             </button>
           )}
           {onAddToWorkspace && (
@@ -245,7 +246,7 @@ function NoteItemImpl({
               aria-label="Add to workspace"
               title="Add to workspace"
             >
-              📁
+              <FolderPlus size={14} />
             </button>
           )}
           <button
@@ -254,7 +255,7 @@ function NoteItemImpl({
             aria-label="Edit note"
             title="Edit"
           >
-            &#9998;
+            <PenLine size={14} />
           </button>
           <button
             className={Styles.noteCardDelete}
@@ -262,9 +263,7 @@ function NoteItemImpl({
             aria-label={removeTitle}
             title={removeTitle}
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M1 3.5h12M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M5.5 6.5v4M8.5 6.5v4M2.5 3.5l.75 7.25a.5.5 0 0 0 .5.45h6.5a.5.5 0 0 0 .5-.45L11.5 3.5" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <Trash2 size={14} />
           </button>
         </div>
       </div>

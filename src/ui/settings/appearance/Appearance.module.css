@@ -230,7 +230,7 @@
 .miniSwatch {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   cursor: pointer;
 }
@@ -441,7 +441,7 @@
 
 .contrastOk {
   font-size: 0.78rem;
-  color: #3fb950;
+  color: var(--success);
 }
 
 .contrastFail {
@@ -486,8 +486,8 @@
 }
 
 .gradeOk {
-  color: #3fb950;
-  background: color-mix(in srgb, #3fb950 18%, transparent);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 18%, transparent);
 }
 
 .gradeFail {
@@ -509,7 +509,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-2xl);
   overflow: hidden;
 }
 

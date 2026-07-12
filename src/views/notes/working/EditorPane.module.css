@@ -35,7 +35,7 @@
 .titleInput:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-softer, rgba(124, 106, 247, 0.1));
+  box-shadow: 0 0 0 3px var(--accent-softer);
 }
 
 .headerActions {
@@ -85,7 +85,7 @@
 }
 
 .iconBtnOn {
-  background: var(--accent-soft, rgba(124, 106, 247, 0.15));
+  background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -103,7 +103,7 @@
 
 .editor:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-softer, rgba(124, 106, 247, 0.1));
+  box-shadow: 0 0 0 3px var(--accent-softer);
 }
 
 .editor :global(.cm-editor) {

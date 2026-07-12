@@ -15,7 +15,14 @@
 
 .tagEditor:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.tagEditor.disabled {
+  background: transparent;
+  border-color: transparent;
+  padding: 0.5rem 0;
+  min-height: auto;
 }
 
 .tagChip {
@@ -33,14 +40,14 @@
 
 /* Auto-generated — muted, read-only feel */
 .tagChipAuto {
-  background: rgba(124, 106, 247, 0.08);
-  border: 1px solid rgba(124, 106, 247, 0.25);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--text-2);
 }
 
 /* User-created — solid accent pill */
 .tagChipUser {
-  background: rgba(124, 106, 247, 0.18);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
   border: 1px solid var(--accent);
   color: var(--accent);
 }
@@ -73,6 +80,10 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   padding: 0;
+}
+
+.tagInput:focus-visible {
+  outline: none;
 }
 
 .tagInput::placeholder {

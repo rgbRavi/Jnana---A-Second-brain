@@ -16,6 +16,7 @@ import { showConfirmDialog } from '../../lib/dialog'
 import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { FolderTree } from './FolderTree'
+import { PanelLeftClose, PanelLeftOpen, Package, ChevronDown } from 'lucide-react'
 import styles from './FileExplorer.module.css'
 
 // ─── Collapsed state (persisted module store) ───────────
@@ -50,7 +51,7 @@ function useExplorerCollapsed(): boolean {
 }
 
 export function FileExplorer() {
-  const { vaults } = useVaults()
+  const { vaults, refresh } = useVaults()
   const activeVaultId = useActiveVaultId()
   const isCollapsed = useExplorerCollapsed()
 
@@ -89,9 +90,10 @@ export function FileExplorer() {
     const vault = createVault('New Vault')
     try {
       await saveVault(vault)
+      await refresh()
       setActiveVaultId(vault.id)
-      beginRenameVault()
       setDraft(vault.name)
+      setRenamingVault(true)
     } catch (e) {
       log.error('Failed to create vault', e)
       toast.error('Could not create vault')
@@ -145,7 +147,7 @@ export function FileExplorer() {
           title="Show file explorer"
           aria-label="Show file explorer"
         >
-          🗂
+          <PanelLeftOpen size={16} />
         </button>
       </div>
     )
@@ -176,11 +178,11 @@ export function FileExplorer() {
             title="Switch vault"
           >
             <span className={styles.vaultIcon} aria-hidden>
-              📦
+              <Package size={16} />
             </span>
             <span className={styles.vaultName}>{activeVault?.name ?? 'Vault'}</span>
             <span className={styles.vaultChevron} aria-hidden>
-              ▾
+              <ChevronDown size={14} strokeWidth={2.5} />
             </span>
           </button>
         )}
@@ -191,7 +193,7 @@ export function FileExplorer() {
           title="Hide file explorer"
           aria-label="Hide file explorer"
         >
-          «
+          <PanelLeftClose size={16} />
         </button>
       </div>
 

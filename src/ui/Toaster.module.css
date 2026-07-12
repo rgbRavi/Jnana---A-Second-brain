@@ -66,10 +66,10 @@
 }
 
 .success {
-  border-left-color: #3fb950;
+  border-left-color: var(--success);
 }
 .success .icon {
-  color: #3fb950;
+  color: var(--success);
 }
 
 .error {

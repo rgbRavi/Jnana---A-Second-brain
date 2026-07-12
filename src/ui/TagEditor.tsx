@@ -43,7 +43,7 @@ export function TagEditor({ tags, onChange, disabled }: Props) {
 
   return (
     <div
-      className={TagStyles.tagEditor}
+      className={`${TagStyles.tagEditor} ${disabled ? TagStyles.disabled : ''}`}
       onClick={() => inputRef.current?.focus()}
     >
       {/* Auto-generated tags — read only */}

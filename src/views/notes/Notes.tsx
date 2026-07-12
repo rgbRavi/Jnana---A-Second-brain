@@ -17,6 +17,7 @@ import { applyFilters, sortNotes, buildLinkCounts } from './filterNotes'
 import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
 import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
+import { setNotesSubView } from './working/useWorkingLayout'
 
 import NoteStyles from './Notes.module.css'
 
@@ -172,6 +173,15 @@ function Notes() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen((v) => !v)}
         prefsKey={NOTES_PREFS_KEY}
+        extraActions={
+          <button 
+            className={NoteStyles.workingBtn} 
+            onClick={() => setNotesSubView('working')}
+            title="Open Working Notes"
+          >
+            Working Notes
+          </button>
+        }
       />
       {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
 
