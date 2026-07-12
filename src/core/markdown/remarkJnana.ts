@@ -19,6 +19,7 @@ import { visit } from 'unist-util-visit'
 import { findAndReplace } from 'mdast-util-find-and-replace'
 import type { PhrasingContent, Root } from 'mdast'
 import { audioTimestampRegex, simpleTimestampRegex, videoTimestampRegex, wikilinkRegex } from './tokenPatterns'
+import { colorAnyTokenRegex } from './colors'
 
 /** mdast-util-to-hast's `data.hProperties` convention isn't in `@types/mdast`. */
 interface HData {
@@ -62,6 +63,20 @@ export function remarkJnana() {
     // the `00:05` inside `[[00:05]]` would be claimed by the generic pattern
     // first (mirrors the old renderer's leftmost-match-wins behavior).
     findAndReplace(tree, [
+      // Colour/highlight first so their `[c:…]…[/c]` / `[h:…]…[/h]` markers are
+      // consumed before the other bracket patterns can nibble at them. A single
+      // combined pattern matches the OUTERMOST span (see colorAnyTokenRegex), so
+      // one token nested in the other survives as raw `data-text` — the renderer
+      // (MarkdownLite `renderColorTokens`) re-parses that inner run so the nested
+      // token becomes a nested span. Markdown inside is otherwise plain text (as
+      // with the other leaf tokens); an empty inner run is dropped.
+      [
+        colorAnyTokenRegex(),
+        (_match: string, kind: string, color: string, inner: string) =>
+          inner
+            ? customNode(kind === 'h' ? 'jnana-highlight' : 'jnana-color', { 'data-color': color, 'data-text': inner })
+            : false,
+      ],
       [
         wikilinkRegex(),
         (_match: string, title: string) => {

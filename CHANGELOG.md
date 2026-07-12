@@ -15,11 +15,23 @@ All notable changes to Jnana are documented here. The format is based on
   only the app's own WebView origins (deny others with `null`); media and pdf.js are unaffected.
 
 ### Added
+- **Text colour & highlight in the note composers.** Toolbar swatch dropdowns (plus "Text colour" /
+  "Highlight" right-click submenus and `/`-menu rows) wrap the selection in a `[c:NAME]…[/c]` (coloured
+  text) or `[h:NAME]…[/h]` (translucent highlight) token, rendered in both read- and edit-mode. Each
+  dropdown offers the curated palette **and a custom-colour picker**; the two tokens **nest** (a
+  highlight inside a text colour, or vice-versa) and render as nested spans. Values are sanitised
+  (palette name, `#hex`, or a bare CSS colour word only).
 - Automatic DB snapshot into `backups/` before any version-bumping migration runs.
 - Modal dialogs now trap Tab/Shift+Tab focus and return focus to the previously-focused element on close.
 - Markdown export writes YAML frontmatter (title, timestamps, tags, id) so tags/metadata survive.
 
 ### Fixed
+- **Editor popups in the docked composer.** The right-click context menu, `/` command menu, and `[[`
+  note-picker did not appear when composing a **fresh** note — the dock's CSS `transform` made it the
+  containing block for their `position: fixed`, positioning them off-screen. They now render through a
+  `document.body` portal, so they anchor to the viewport in every composer. The toolbar colour picker
+  also opens **upward** (it sits in the footer at the window's bottom edge) and its custom-colour input
+  is styled directly (the previous transparent overlay didn't forward clicks in the webview).
 - **Fresh-install database initialization.** A brand-new install failed to create its database because
   the first migration set `PRAGMA journal_mode=WAL` inside a transaction (which SQLite rejects on a
   file database); WAL is now enabled on the connection before migrations run. Existing databases were

@@ -33,13 +33,17 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 ### Notes & organization
 - Note create / edit / delete with instant (optimistic) updates and SQLite persistence
 - **Real markdown rendering** (GFM: headings, bold/italic, lists, blockquotes, code, tables,
-  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp tokens
+  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp/colour tokens
 - **Live editor** (Obsidian/Typora-style) — syntax markers hidden while you type; bold appears
   bold, headings are styled, media embeds render inline; raw markdown revealed near the cursor for
   quick edits; used everywhere you write (new note, card edit, and the Working Notes editor)
 - A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
   lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
   import-at-cursor from the right-click menu
+- **Text colour & highlight** — swatch dropdowns in the toolbar (plus right-click submenus and `/`-menu
+  rows), each with the curated palette and a custom-colour picker, tint the selected text or give it a
+  translucent highlighter background; stored as portable `[c:red]…[/c]` / `[h:teal]…[/h]` markdown
+  tokens that nest, shown styled while editing and reading
 - A **slash (`/`) command menu** — type `/` for an inline, filterable palette to insert media/embeds/
   divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
 - **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the

@@ -2,7 +2,41 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect } from 'vitest'
-import { applyFormat, moveMediaBlock, rearrangeMedia, findMediaTokenPos } from './format'
+import { applyColor, applyFormat, applyHighlight, moveMediaBlock, rearrangeMedia, findMediaTokenPos } from './format'
+
+describe('applyColor', () => {
+  it('wraps a selection in a colour token and keeps it selected', () => {
+    const r = applyColor('Hello world', 6, 11, 'red')
+    expect(r.text).toBe('Hello [c:red]world[/c]')
+    expect(r.text.slice(r.selStart, r.selEnd)).toBe('world')
+  })
+
+  it('places the caret between the markers when there is no selection', () => {
+    const r = applyColor('Hello ', 6, 6, 'blue')
+    expect(r.text).toBe('Hello [c:blue][/c]')
+    expect(r.selStart).toBe(r.selEnd)
+    expect(r.text.slice(0, r.selStart)).toBe('Hello [c:blue]')
+  })
+
+  it('supports a raw hex colour value', () => {
+    const r = applyColor('x', 0, 1, '#ff0000')
+    expect(r.text).toBe('[c:#ff0000]x[/c]')
+  })
+})
+
+describe('applyHighlight', () => {
+  it('wraps a selection in a highlight token and keeps it selected', () => {
+    const r = applyHighlight('Hello world', 6, 11, 'teal')
+    expect(r.text).toBe('Hello [h:teal]world[/h]')
+    expect(r.text.slice(r.selStart, r.selEnd)).toBe('world')
+  })
+
+  it('places the caret between the markers when there is no selection', () => {
+    const r = applyHighlight('Hello ', 6, 6, 'blue')
+    expect(r.text).toBe('Hello [h:blue][/h]')
+    expect(r.selStart).toBe(r.selEnd)
+  })
+})
 
 describe('applyFormat', () => {
   describe('inline kinds', () => {

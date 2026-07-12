@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { normalizeTitle, type TitledNote } from '../../core/markdown/wikilinks'
 import styles from './SlashMenu.module.css'
 
@@ -76,7 +77,9 @@ export function WikilinkMenu({ items, activeIndex, coords, onPick, onHover, onCl
 
   if (items.length === 0) return null
 
-  return (
+  // Portal to <body> so `position: fixed` resolves against the viewport, not a
+  // transformed ancestor (the docked NoteCreator panel has one). See ContextMenu.
+  return createPortal(
     <div ref={ref} className={styles.menu} style={{ left: pos.left, top: pos.top }} role="listbox">
       {items.map((item, i) => (
         <button
@@ -95,6 +98,7 @@ export function WikilinkMenu({ items, activeIndex, coords, onPick, onHover, onCl
           </span>
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   )
 }

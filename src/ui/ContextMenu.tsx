@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import styles from './ContextMenu.module.css'
 
 export interface MenuItem {
@@ -58,7 +59,11 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     }
   }, [onClose])
 
-  return (
+  // Portal to the document body so the menu's `position: fixed` is resolved
+  // against the viewport, not a transformed ancestor. The docked NoteCreator
+  // panel has a `transform`, which otherwise establishes a containing block and
+  // pushes the fixed menu off-screen (right-click appears to do nothing there).
+  return createPortal(
     <div
       ref={ref}
       className={styles.contextMenu}
@@ -101,6 +106,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
           )}
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   )
 }

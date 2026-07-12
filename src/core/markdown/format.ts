@@ -103,6 +103,33 @@ export function applyFormat(text: string, selStart: number, selEnd: number, kind
   }
 }
 
+/** Shared body for the colour/highlight wraps — asymmetric markers, so they
+ *  can't reuse `wrapInline`. With no selection, drops the caret between the
+ *  markers ready to type. */
+function wrapColorSpan(text: string, selStart: number, selEnd: number, open: string, close: string): FormatResult {
+  const before = text.slice(0, selStart)
+  const selected = text.slice(selStart, selEnd)
+  const after = text.slice(selEnd)
+  const next = `${before}${open}${selected}${close}${after}`
+  if (selected) {
+    return { text: next, selStart: selStart + open.length, selEnd: selStart + open.length + selected.length }
+  }
+  const caret = selStart + open.length
+  return { text: next, selStart: caret, selEnd: caret }
+}
+
+/** Wrap the selection in a text-colour token — `[c:NAME]selected[/c]` (see
+ *  core/markdown/colors.ts). */
+export function applyColor(text: string, selStart: number, selEnd: number, color: string): FormatResult {
+  return wrapColorSpan(text, selStart, selEnd, `[c:${color}]`, '[/c]')
+}
+
+/** Wrap the selection in a highlight token — `[h:NAME]selected[/h]`, rendered as
+ *  a translucent background wash (see core/markdown/colors.ts). */
+export function applyHighlight(text: string, selStart: number, selEnd: number, color: string): FormatResult {
+  return wrapColorSpan(text, selStart, selEnd, `[h:${color}]`, '[/h]')
+}
+
 /** Escape CommonMark/GFM inline-significant characters so pasted text renders
  *  literally instead of being interpreted as markdown syntax (the editor's
  *  "Paste as plain text" — the system clipboard only exposes plain text here,

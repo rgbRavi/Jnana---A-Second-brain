@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, and performance improvements landed
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, and performance improvements landed; release-hardening pass done
 
-Last updated: 2026-07-04
+Last updated: 2026-07-12
 
 ---
 
@@ -20,9 +20,10 @@ optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearanc
 theming — presets, derived accent, base swap, radius, a WCAG contrast guardrail, export/import —
 applied live to the whole app and persisted to SQLite. Notes render through a **hybrid markdown
 renderer** (`react-markdown` + `remark-gfm` + a custom plugin) — real headings/bold/lists/code/
-tables alongside the app's own wikilink/timestamp/media tokens — with a composer **format
-toolbar** for applying markdown without typing syntax. A plugin framework exists, but plugin
-implementations and activation UI are not built yet.
+tables alongside the app's own wikilink/timestamp/media/colour tokens — with a composer **format
+toolbar** (bold/italic/headings/lists/…, plus **text-colour + highlight** swatches) for applying markdown without
+typing syntax. A plugin framework exists, but plugin implementations and activation UI are not built
+yet.
 
 ---
 
@@ -366,12 +367,22 @@ Notes:
 - [x] **Hybrid markdown AST renderer** — `MarkdownLite` on `react-markdown` + `remark-gfm`: real
       headings/bold/italic/lists/blockquotes/code/tables/strikethrough/task-lists
 - [x] Custom `remarkJnana` plugin preserves the app's tokens — `[[wikilinks]]`, `[V0::…]`/
-      `[A0::…]`/`[MM:SS]` timestamps, document-order `data-video-index`/`data-audio-index` for
-      `![video]`/`![audio]`, and stable **`data-media-key`** (`${url}#${ordinal}`) for every media
-      node (used to apply saved layout sizes without touching markdown text)
+      `[A0::…]`/`[MM:SS]` timestamps, `[c:NAME]…[/c]` **colour** / `[h:NAME]…[/h]` **highlight** spans
+      (matched via one `\1`-backreferenced pattern so the two nest), document-order
+      `data-video-index`/`data-audio-index` for `![video]`/`![audio]`, and stable **`data-media-key`**
+      (`${url}#${ordinal}`) for every media node (used to apply saved layout sizes without touching
+      markdown text)
 - [x] Custom `urlTransform` keeps `jnana-asset://` and `external://` embeds working
 - [x] **`FormatToolbar`** (bold/italic/strike/inline-code/H1/H2/bullet/numbered/quote/link/
       code-block) wired into NoteCreator, NoteItem's edit mode, and NoteModal's edit mode
+- [x] **Text colour & highlight** — toolbar swatch dropdowns (curated palette + a custom-colour
+      picker), "Text colour" / "Highlight" right-click submenus, and generated `/`-menu rows wrap the
+      selection in a `[c:NAME]…[/c]` (coloured text) / `[h:NAME]…[/h]` (translucent `color-mix`
+      highlight) token (`core/markdown/colors.ts` — curated palette + a single `resolveColor()`
+      CSS-injection sanitiser accepting a palette name / `#hex` / bare colour word). Rendered as styled
+      `<span>`s in read-mode (recursively, so the two nest) and styled with markers hidden in the live
+      editor. The editor popups (context menu / `/` / `[[`) portal to `document.body` so they position
+      correctly inside the docked composer's transformed panel
 - [x] Code-highlighting seam (`core/markdown/highlight.ts`) — fenced code renders as plain styled
       monospace; ready for a lazy-loaded highlighter later
 - [x] **Live editor (CodeMirror 6)** — `LiveEditor.tsx` + `LiveEditor.decorations.tsx` — Obsidian/
