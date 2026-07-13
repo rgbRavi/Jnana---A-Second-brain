@@ -45,8 +45,15 @@ export interface PluginContext {
   bus: PluginBus
   /** Per-plugin persistent storage. */
   storage: PluginStorage
-  /** Scoped notes read + content-write API. */
-  notes: PluginNotesApi
+  /** Scoped notes read + content-write API. Present only when the `notes`
+   *  permission was granted (always present for trusted first-party plugins). */
+  notes?: PluginNotesApi
   /** Register a custom note type (custom view + editor over a note). */
   registerNoteType: (def: NoteTypeDefinition) => void
+}
+
+/** Options passed when registering a (non-trusted) loaded plugin. */
+export interface PluginRegisterOptions {
+  /** Permissions the user granted at install time; gates the context's `notes`. */
+  grantedPermissions?: string[]
 }

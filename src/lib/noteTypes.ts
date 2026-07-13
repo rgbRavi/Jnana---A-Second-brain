@@ -47,6 +47,26 @@ export interface NoteTypeDefinition {
 
 const registry = new Map<string, NoteTypeDefinition>()
 
+// Bumped on any registry change so views resolving a note's type (NoteView /
+// NoteTypeEditor) can re-render when a plugin is enabled/disabled/loaded live.
+let version = 0
+const listeners = new Set<() => void>()
+
+function changed(): void {
+  version += 1
+  listeners.forEach((l) => l())
+}
+
+export function subscribeNoteTypes(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/** Stable snapshot for useSyncExternalStore — its identity changes on mutation. */
+export function getNoteTypesVersion(): number {
+  return version
+}
+
 /** Register a note type. Idempotent per id (last registration wins with a warn),
  *  matching `pluginRegistry`'s tolerance of StrictMode double-invoke. */
 export function registerNoteType(def: NoteTypeDefinition): void {
@@ -54,10 +74,11 @@ export function registerNoteType(def: NoteTypeDefinition): void {
     console.warn(`Note type "${def.id}" is already registered; replacing.`)
   }
   registry.set(def.id, def)
+  changed()
 }
 
 export function unregisterNoteType(id: string): void {
-  registry.delete(id)
+  if (registry.delete(id)) changed()
 }
 
 /** The definition for a note's `kind`, or `undefined` for a plain markdown note

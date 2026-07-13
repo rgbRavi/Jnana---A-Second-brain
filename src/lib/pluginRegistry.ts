@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { Plugin } from '../types'
+import type { PluginRegisterOptions } from './pluginApi'
 import { eventBus, PluginBus } from './eventBus'
 import { registerNoteType, unregisterNoteType } from './noteTypes'
 import { pluginLog } from './pluginLog'
@@ -24,7 +25,10 @@ class PluginRegistry {
   // note types each inline plugin registered, so unregister can tear them down
   private pluginNoteTypes = new Map<string, string[]>()
 
-  register(plugin: Plugin): void {
+  /** Register a plugin. Omit `opts` for trusted first-party plugins (full context);
+   *  loaded third-party plugins pass `opts.grantedPermissions` so their context is
+   *  capability-gated. */
+  register(plugin: Plugin, opts?: PluginRegisterOptions): void {
     if (this.plugins.has(plugin.id)) {
       console.warn(`Plugin "${plugin.id}" is already registered`)
       return
@@ -33,7 +37,7 @@ class PluginRegistry {
     if (plugin.worker && plugin.workerUrl) {
       this._registerWorkerPlugin(plugin)
     } else {
-      this._registerInlinePlugin(plugin)
+      this._registerInlinePlugin(plugin, opts)
     }
 
     this.plugins.set(plugin.id, plugin)
@@ -92,14 +96,19 @@ class PluginRegistry {
     return Array.from(this.plugins.values())
   }
 
-  private _registerInlinePlugin(plugin: Plugin): void {
+  private _registerInlinePlugin(plugin: Plugin, opts?: PluginRegisterOptions): void {
     const bus = new PluginBus(eventBus)
     const registeredKinds: string[] = []
+    // No opts = trusted first-party plugin (full context). A loaded plugin passes
+    // opts (even if empty), so its access is gated by the granted permission set.
+    const trusted = opts === undefined
+    const granted = new Set(opts?.grantedPermissions ?? [])
+    const canReadNotes = trusted || granted.has('notes')
     plugin.init?.({
       pluginId: plugin.id,
       bus,
       storage: makePluginStorage(plugin.id),
-      notes: makePluginNotesApi(),
+      notes: canReadNotes ? makePluginNotesApi() : undefined,
       registerNoteType: (def) => {
         registerNoteType(def)
         registeredKinds.push(def.id)

@@ -14,6 +14,7 @@ pub mod folders;
 pub mod notes;
 pub mod media;
 pub mod plugins;
+pub mod plugin_loader;
 pub mod media_layout;
 pub mod themes;
 pub mod vaults;

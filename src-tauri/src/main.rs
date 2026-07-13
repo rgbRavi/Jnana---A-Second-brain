@@ -20,6 +20,7 @@ use commands::media::*;
 use commands::media_layout::*;
 use commands::notes::*;
 use commands::plugins::*;
+use commands::plugin_loader::*;
 use commands::themes::*;
 use commands::vaults::*;
 use commands::web::*;
@@ -366,6 +367,14 @@ fn main() {
             plugin_kv_list,
             plugin_kv_clear,
             scaffold_plugin,
+            list_installed_plugins,
+            read_zip_manifest,
+            read_local_manifest,
+            install_plugin_zip,
+            install_local_plugin,
+            remove_plugin,
+            read_plugin_main,
+            package_plugin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

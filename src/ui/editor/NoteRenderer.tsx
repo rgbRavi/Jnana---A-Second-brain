@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { useSyncExternalStore } from 'react'
 import type { Note } from '../../types'
-import { getNoteType } from '../../lib/noteTypes'
+import { getNoteType, subscribeNoteTypes, getNoteTypesVersion } from '../../lib/noteTypes'
 import { MarkdownLite } from './MarkdownLite'
+
+/** Re-render when the note-type registry changes (plugin enabled/disabled/loaded),
+ *  so an open note swaps between its custom view and the markdown fallback live. */
+function useNoteTypesVersion(): number {
+  return useSyncExternalStore(subscribeNoteTypes, getNoteTypesVersion)
+}
 
 /**
  * The single read-mode choke-point for a note. If a plugin has registered a type
@@ -26,6 +33,7 @@ export function NoteView({
   lazy?: boolean
   fullscreen?: boolean
 }) {
+  useNoteTypesVersion()
   const def = getNoteType(note)
   if (def) {
     const View = def.View
@@ -56,6 +64,7 @@ export function NoteTypeEditor({
   value: string
   onChange: (next: string) => void
 }) {
+  useNoteTypesVersion()
   const def = getNoteType(note)
   if (!def) return null
   const Editor = def.Editor

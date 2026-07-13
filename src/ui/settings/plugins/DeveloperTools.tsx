@@ -2,12 +2,19 @@
 // Copyright (c) 2026 Jnana Project
 
 import { invoke } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { FilePlus2, FolderInput, Package, RotateCw, ScrollText, Trash } from 'lucide-react'
 import { reloadBuiltinPlugins } from '../../../plugins'
 import { scaffoldPlugin } from '../../../core/plugins/manager'
+import {
+  readLocalManifest,
+  installLocalPlugin,
+  loadInstalledPlugin,
+  packagePlugin,
+} from '../../../core/plugins/loader'
+import { confirmPluginInstall } from './consent'
 import { clearPluginLog } from '../../../lib/pluginLog'
-import { usePluginLog } from './usePluginManager'
+import { usePluginLog, setPluginSubview } from './usePluginManager'
 import { showPromptDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
 import Styles from './PluginsPanel.module.css'
@@ -45,6 +52,39 @@ export function DeveloperTools() {
     }
   }
 
+  const loadLocal = async () => {
+    const dir = await open({ directory: true, title: 'Select an unpacked plugin folder' })
+    if (typeof dir !== 'string') return
+    try {
+      const manifest = await readLocalManifest(dir)
+      const granted = await confirmPluginInstall(manifest)
+      if (!granted) return
+      const info = await installLocalPlugin(dir, granted)
+      const ok = await loadInstalledPlugin(info)
+      toast.success(ok ? `Loaded ${info.name}.` : `Installed ${info.name}, but it failed to load (see console below).`)
+      setPluginSubview('installed')
+    } catch (err) {
+      toast.error('Load failed: ' + String(err))
+    }
+  }
+
+  const packagePluginFolder = async () => {
+    const src = await open({ directory: true, title: 'Select the plugin folder to package' })
+    if (typeof src !== 'string') return
+    const dest = await save({
+      title: 'Save plugin package',
+      defaultPath: 'plugin.zip',
+      filters: [{ name: 'Zip', extensions: ['zip'] }],
+    })
+    if (typeof dest !== 'string') return
+    try {
+      const out = await packagePlugin(src, dest)
+      toast.success(`Packaged to ${out}`)
+    } catch (err) {
+      toast.error('Package failed: ' + String(err))
+    }
+  }
+
   const viewLogs = async () => {
     try {
       await invoke('open_logs_dir')
@@ -67,24 +107,16 @@ export function DeveloperTools() {
           <small>Scaffold a new plugin project</small>
         </button>
 
-        <button
-          className={Styles.tool}
-          disabled
-          title="Requires the plugin loader (a later phase)"
-        >
+        <button className={Styles.tool} onClick={packagePluginFolder}>
           <Package size={16} />
           <span>Package Plugin</span>
           <small>Zip a built plugin for distribution</small>
         </button>
 
-        <button
-          className={Styles.tool}
-          disabled
-          title="Requires the plugin loader (a later phase)"
-        >
+        <button className={Styles.tool} onClick={loadLocal}>
           <FolderInput size={16} />
           <span>Load Local Plugin</span>
-          <small>Run an unpacked plugin folder</small>
+          <small>Install an unpacked plugin folder</small>
         </button>
 
         <button className={Styles.tool} onClick={reload}>

@@ -20,6 +20,11 @@ pub fn assets_dir() -> PathBuf {
     data_dir().join("assets")
 }
 
+/// Root for installed third-party plugins — one subfolder per plugin id (v-loader).
+pub fn plugins_dir() -> PathBuf {
+    data_dir().join("plugins")
+}
+
 /// True when `name` is a plain asset filename that cannot escape `assets_dir()`.
 /// Assets are stored flat under generated names, so a legitimate filename never
 /// contains a path separator, a parent-dir segment, percent-encoding, or an

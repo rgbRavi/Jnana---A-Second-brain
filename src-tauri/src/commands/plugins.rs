@@ -95,19 +95,27 @@ pub fn scaffold_plugin(dir: String, id: String, name: String) -> Result<String, 
         name = display_name,
     );
 
+    // A working sample: a note type whose View + Editor use JSX and a hook, so it
+    // exercises the host React bridge once built + loaded.
     let index = format!(
-        "// {name} — a Jnana plugin.\n// Types will ship as an npm package (@jnana/plugin-api); the shape is shown inline.\n\ninterface PluginContext {{\n  pluginId: string\n  registerNoteType: (def: unknown) => void\n  // storage, notes, bus … (see docs)\n}}\n\ninterface Plugin {{\n  id: string\n  name: string\n  version: string\n  init?: (ctx: PluginContext) => void\n  destroy?: () => void\n}}\n\nconst plugin: Plugin = {{\n  id: '{id}',\n  name: '{name}',\n  version: '0.1.0',\n  init(ctx) {{\n    console.log('{name} loaded', ctx.pluginId)\n    // ctx.registerNoteType({{ id, label, View, Editor }})\n  }},\n}}\n\nexport default plugin\n",
+        "// {name} — a Jnana plugin. `react` is provided by the host at load time.\nimport {{ useState }} from 'react'\n\nconst plugin = {{\n  id: '{id}',\n  name: '{name}',\n  version: '0.1.0',\n  init(ctx: any) {{\n    ctx.registerNoteType({{\n      id: '{id}-note',\n      label: '{name} note',\n      newContent: () => 'Hello from {name}!',\n      View: ({{ note }}: any) => <div style={{{{ padding: 12 }}}}>{{note.content}}</div>,\n      Editor: ({{ value, onChange }}: any) => {{\n        const [v, setV] = useState(value)\n        return (\n          <textarea\n            style={{{{ width: '100%', minHeight: 140 }}}}\n            value={{v}}\n            onChange={{(e) => {{ setV(e.target.value); onChange(e.target.value) }}}}\n          />\n        )\n      }},\n    }})\n  }},\n}}\n\nexport default plugin\n",
         id = safe_id,
         name = display_name,
     );
 
+    let package_json = format!(
+        "{{\n  \"name\": \"{id}\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {{\n    \"build\": \"esbuild src/index.tsx --bundle --format=esm --jsx=automatic --external:react --external:react/jsx-runtime --outfile=dist/main.js\"\n  }},\n  \"devDependencies\": {{\n    \"esbuild\": \"^0.24.0\"\n  }}\n}}\n",
+        id = safe_id,
+    );
+
     let readme = format!(
-        "# {name}\n\nA Jnana plugin.\n\n## Develop\n\n1. `npm install`\n2. Build an ESM bundle to `dist/main.js` (the manifest's `main`).\n3. In Jnana → Settings → Plugins → Developer, use **Load Local Plugin** to point at this folder, or **Package Plugin** to zip it for distribution.\n",
+        "# {name}\n\nA Jnana plugin.\n\n## Develop\n\n1. `npm install`\n2. `npm run build` — bundles `src/index.tsx` to `dist/main.js` (ESM), with `react` / `react/jsx-runtime` marked **external** (Jnana provides its own React at load time; bundling your own copy breaks hooks).\n3. In Jnana → Settings → Plugins → Developer, use **Load Local Plugin** to install this folder, or **Package Plugin** to zip it for distribution.\n\n## Permissions\n\nDeclare any capabilities your plugin needs in `manifest.json` (`\"permissions\"`). Users approve them at install; today `notes` gates read/write access to notes.\n",
         name = display_name,
     );
 
     fs::write(root.join("manifest.json"), manifest)
-        .and_then(|_| fs::write(root.join("src").join("index.ts"), index))
+        .and_then(|_| fs::write(root.join("package.json"), package_json))
+        .and_then(|_| fs::write(root.join("src").join("index.tsx"), index))
         .and_then(|_| fs::write(root.join("README.md"), readme))
         .map_err(|e| format!("Failed to write plugin files: {}", e))?;
 
