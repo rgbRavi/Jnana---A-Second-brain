@@ -17,13 +17,14 @@ use rusqlite::{params, Connection, OptionalExtension, Result};
 // ─── Notes ──────────────────────────────────────────────
 
 pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
-    // `folder_id` / `vault_id` are set on INSERT (so a note can be created
-    // directly into a folder/vault) but deliberately NOT in the ON CONFLICT
-    // branch — a plain note save must never move an existing note between folders
-    // or vaults. Those moves go through `set_note_folder` / `set_note_vault`.
+    // `folder_id` / `vault_id` / `kind` are set on INSERT (so a note can be created
+    // directly into a folder/vault, or as a typed note) but deliberately NOT in the
+    // ON CONFLICT branch — a plain note save must never move an existing note between
+    // folders or vaults, nor change its type. Those moves go through
+    // `set_note_folder` / `set_note_vault`; a note's `kind` is fixed at creation.
     conn.execute(
-        "INSERT INTO notes (id, title, content, tags, created_at, updated_at, folder_id, vault_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        "INSERT INTO notes (id, title, content, tags, created_at, updated_at, folder_id, vault_id, kind)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(id) DO UPDATE SET
            title      = excluded.title,
            content    = excluded.content,
@@ -38,6 +39,7 @@ pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
             note.updated_at,
             note.folder_id,
             note.vault_id,
+            note.kind,
         ],
     )?;
     Ok(())
@@ -45,7 +47,7 @@ pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
 
 pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id
+        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id, kind
          FROM notes ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -58,6 +60,7 @@ pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
             updated_at: row.get(5)?,
             folder_id:  row.get(6)?,
             vault_id:   row.get(7)?,
+            kind:       row.get(8)?,
         })
     })?;
     rows.collect()
@@ -65,7 +68,7 @@ pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
 
 pub fn fetch_note(conn: &Connection, id: &str) -> Result<NoteRow> {
     conn.query_row(
-        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id
+        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id, kind
          FROM notes WHERE id = ?1",
         params![id],
         |row| {
@@ -78,6 +81,7 @@ pub fn fetch_note(conn: &Connection, id: &str) -> Result<NoteRow> {
                 updated_at: row.get(5)?,
                 folder_id:  row.get(6)?,
                 vault_id:   row.get(7)?,
+                kind:       row.get(8)?,
             })
         },
     )
@@ -712,6 +716,51 @@ pub fn delete_vault(conn: &Connection, id: &str, reassign_to: &str) -> Result<()
     Ok(())
 }
 
+// ─── Plugin KV store ────────────────────────────────────
+
+/// Per-plugin opaque-JSON key/value storage (v17). `value` is never parsed by
+/// Rust — same treatment as themes/canvas blobs. Scoped by `plugin_id` so plugins
+/// can't read each other's keys.
+pub fn plugin_kv_get(conn: &Connection, plugin_id: &str, key: &str) -> Result<Option<String>> {
+    conn.query_row(
+        "SELECT value FROM plugin_kv WHERE plugin_id = ?1 AND key = ?2",
+        params![plugin_id, key],
+        |row| row.get(0),
+    )
+    .optional()
+}
+
+pub fn plugin_kv_set(conn: &Connection, plugin_id: &str, key: &str, value: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO plugin_kv (plugin_id, key, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value",
+        params![plugin_id, key, value],
+    )?;
+    Ok(())
+}
+
+pub fn plugin_kv_delete(conn: &Connection, plugin_id: &str, key: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM plugin_kv WHERE plugin_id = ?1 AND key = ?2",
+        params![plugin_id, key],
+    )?;
+    Ok(())
+}
+
+pub fn plugin_kv_list(conn: &Connection, plugin_id: &str) -> Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT key, value FROM plugin_kv WHERE plugin_id = ?1 ORDER BY key",
+    )?;
+    let rows = stmt.query_map(params![plugin_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    rows.collect()
+}
+
+/// Drop all of a plugin's stored keys (the manager's "Clear data" action).
+pub fn plugin_kv_clear(conn: &Connection, plugin_id: &str) -> Result<()> {
+    conn.execute("DELETE FROM plugin_kv WHERE plugin_id = ?1", params![plugin_id])?;
+    Ok(())
+}
+
 // ─── Canvases ───────────────────────────────────────────
 
 pub fn list_canvases(conn: &Connection, workspace_id: &str) -> Result<Vec<CanvasRow>> {
@@ -1261,6 +1310,7 @@ mod tests {
             updated_at: 12345,
             folder_id: None,
             vault_id: None,
+            kind: None,
         };
 
         insert_or_update_note(&conn, &note).unwrap();
@@ -1278,9 +1328,9 @@ mod tests {
         let mut conn = setup_db();
         
         // Insert notes
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
-        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
-        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
+        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
         
         insert_or_update_note(&conn, &note1).unwrap();
         insert_or_update_note(&conn, &note2).unwrap();
@@ -1308,8 +1358,8 @@ mod tests {
     #[test]
     fn test_sync_links_skips_self_and_removes_stale() {
         let mut conn = setup_db();
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
-        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
         insert_or_update_note(&conn, &note1).unwrap();
         insert_or_update_note(&conn, &note2).unwrap();
 
@@ -1326,7 +1376,7 @@ mod tests {
     #[test]
     fn test_sync_links_ignores_unresolved_titles() {
         let mut conn = setup_db();
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None, kind: None };
         insert_or_update_note(&conn, &note1).unwrap();
 
         let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["does not exist".to_string()]).unwrap();

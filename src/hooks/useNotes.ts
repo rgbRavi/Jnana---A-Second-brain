@@ -81,7 +81,7 @@ export function useNotes() {
     return () => eventBus.off('note:saved', handler)
   }, [])
 
-  const create = useCallback(async (title: string, content: string, id?: string, userTags: string[] = []): Promise<Note> => {
+  const create = useCallback(async (title: string, content: string, id?: string, userTags: string[] = [], kind?: string): Promise<Note> => {
     const note: Note = {
       id: id ?? crypto.randomUUID(),
       title: title.trim() || 'Untitled',
@@ -92,6 +92,9 @@ export function useNotes() {
       // New notes land in the active vault (unfiled) so they show in its
       // explorer + gallery; folder placement happens after, if any.
       vaultId: getActiveVaultId(),
+      // Typed notes (plugin note types) carry their kind; plain notes omit it.
+      // Fixed at creation — a later plain save never changes it (Rust-side).
+      kind: kind ?? null,
     }
 
     // Optimistic — show immediately before Rust confirms

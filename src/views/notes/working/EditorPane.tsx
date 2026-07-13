@@ -9,7 +9,8 @@ import { isAutoTag } from '../../../core/tags'
 import { setNoteProgress } from '../../../core/notes'
 import { exportNotes } from '../../../core/export'
 import { toast } from '../../../lib/toast'
-import { MarkdownLite } from '../../../ui/editor/MarkdownLite'
+import { NoteView, NoteTypeEditor } from '../../../ui/editor/NoteRenderer'
+import { getNoteType } from '../../../lib/noteTypes'
 import { LiveEditor, type LiveEditorHandle } from '../../../ui/editor/LiveEditor'
 import { TagEditor } from '../../../ui/TagEditor'
 import { ComposerToolbar } from '../../../ui/editor/ComposerToolbar'
@@ -167,6 +168,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
 
   const currentUserTags = tags.filter((t) => !isAutoTag(t))
   const preview: Note = { ...note, title, content, tags }
+  const noteType = getNoteType(note)
 
   return (
     <div className={Styles.pane}>
@@ -253,40 +255,49 @@ export function EditorPane({ noteId }: { noteId: string }) {
         tags={tags}
         onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
       />
-      <ComposerSuggestions
-        note={preview}
-        allNotes={notes}
-        currentTags={currentUserTags}
-        onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-        onAddLink={(linkTitle) => {
-          const wl = `[[${linkTitle}]]`
-          setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
-        }}
-      />
+      {/* AI suggestions read note content as prose — skip for typed (JSON) notes. */}
+      {!noteType && (
+        <ComposerSuggestions
+          note={preview}
+          allNotes={notes}
+          currentTags={currentUserTags}
+          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
+        />
+      )}
 
       {mode === 'edit' ? (
-        <>
-          <LiveEditor
-            ref={editorRef}
-            className={Styles.editor}
-            placeholder="Note content..."
-            value={content}
-            onChange={setContent}
-            onSubmit={() => void flushSave()}
-            notes={notes}
-            noteId={note.id}
-            allowNavigate
-            importHandlers={contextMenuImportProps}
-          />
-          <div className={Styles.toolbar}>
-            <ComposerToolbar {...toolbarProps} disabled={uploading} />
-            <FormatToolbar editorRef={editorRef} disabled={uploading} />
-            {isRecording && <span className={Styles.recording}>● recording…</span>}
+        noteType ? (
+          <div className={Styles.readBody}>
+            <NoteTypeEditor note={note} value={content} onChange={setContent} />
           </div>
-        </>
+        ) : (
+          <>
+            <LiveEditor
+              ref={editorRef}
+              className={Styles.editor}
+              placeholder="Note content..."
+              value={content}
+              onChange={setContent}
+              onSubmit={() => void flushSave()}
+              notes={notes}
+              noteId={note.id}
+              allowNavigate
+              importHandlers={contextMenuImportProps}
+            />
+            <div className={Styles.toolbar}>
+              <ComposerToolbar {...toolbarProps} disabled={uploading} />
+              <FormatToolbar editorRef={editorRef} disabled={uploading} />
+              {isRecording && <span className={Styles.recording}>● recording…</span>}
+            </div>
+          </>
+        )
       ) : (
         <div className={Styles.readBody} ref={bodyRef} onScroll={handleBodyScroll}>
-          <MarkdownLite content={content} lazy={false} noteId={note.id} fullscreen />
+          <NoteView note={note} content={content} lazy={false} fullscreen />
           <time className={Styles.time}>{new Date(note.updatedAt).toLocaleString()}</time>
         </div>
       )}

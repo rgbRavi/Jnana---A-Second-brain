@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useRef, useEffect } from 'react'
-import { MarkdownLite } from './editor/MarkdownLite'
+import { NoteView } from './editor/NoteRenderer'
+import { getNoteType } from '../lib/noteTypes'
 import type { Note } from '../types'
 import { TagEditor } from './TagEditor'
 import { isAutoTag } from '../core/tags'
@@ -180,7 +181,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             disabled
           />
-          <ComposerSuggestions
+          {!getNoteType(note) && <ComposerSuggestions
             note={note}
             allNotes={notes}
             currentTags={currentUserTags}
@@ -194,9 +195,9 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                   }
                 : undefined
             }
-          />
+          />}
           <div className={NoteModalStyles.noteModalBody} ref={bodyRef} onScroll={handleBodyScroll}>
-            <MarkdownLite content={note.content || ''} lazy={false} noteId={note.id} fullscreen />
+            <NoteView note={note} lazy={false} fullscreen />
           </div>
           <time className={NoteModalStyles.noteModalTime}>
             {new Date(note.updatedAt).toLocaleString()}

@@ -7,6 +7,7 @@ import App from "./App";
 import { initLogging } from "./lib/logger";
 import { applyVars, THEME_STORAGE_KEY } from "./core/themes/apply";
 import { themeFromPreset } from "./core/themes/presets";
+import { registerBuiltinPlugins } from "./plugins";
 import type { Theme } from "./types";
 import "./main.css"
 
@@ -29,6 +30,10 @@ function applyBootTheme(): void {
   applyVars(document.documentElement, theme)
 }
 applyBootTheme()
+
+// Register first-party bundled plugins (note types, etc.) before the app mounts,
+// so a note's `kind` resolves to its custom view on the very first render.
+registerBuiltinPlugins()
 
 if (!window.location.hash || window.location.hash === "#" || window.location.hash === "#/") {
   window.location.replace(`${window.location.pathname}#/jnana`);

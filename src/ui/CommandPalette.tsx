@@ -10,6 +10,7 @@ import { eventBus } from '../lib/eventBus'
 import { openComposer } from './editor/NoteCreator'
 import { workspaceColor } from '../core/workspaces'
 import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWorkingLayout'
+import { listNoteTypes, noteSearchText } from '../lib/noteTypes'
 import styles from './CommandPalette.module.css'
 
 // Intuitive, non-intrusive: ⇧ + the palette-style modifier + E ("Editor desk").
@@ -41,7 +42,7 @@ interface Item {
  */
 export function CommandPalette() {
   const navigate = useNavigate()
-  const { notes } = useNotesContext()
+  const { notes, create } = useNotesContext()
   const { workspaces } = useWorkspaces()
 
   const [open, setOpen] = useState(false)
@@ -88,7 +89,9 @@ export function CommandPalette() {
       searchOptions: { boost: { title: 3, tags: 2, content: 1 }, prefix: true, fuzzy: 0.2 },
     })
     mi.addAll(
-      notes.map((n) => ({ id: n.id, title: n.title || '', content: n.content || '', tags: (n.tags || []).join(' ') })),
+      // Index the note-type search projection (plain text for typed notes) rather
+      // than raw content, so searching a flashcard deck matches its card text.
+      notes.map((n) => ({ id: n.id, title: n.title || '', content: noteSearchText(n), tags: (n.tags || []).join(' ') })),
     )
     return mi
   }, [open, notes])
@@ -107,6 +110,20 @@ export function CommandPalette() {
   const commands: Item[] = useMemo(
     () => [
       { key: 'cmd:new-note', icon: '✏️', label: 'New note', hint: 'Create', run: () => { openComposer(); close() } },
+      // One "New {label}" per registered plugin note type (e.g. Flashcard deck).
+      ...listNoteTypes().map((t) => ({
+        key: `cmd:new-${t.id}`,
+        icon: '🧩',
+        label: `New ${t.label}`,
+        hint: 'Create',
+        run: async () => {
+          const note = await create('', t.newContent?.() ?? '', undefined, [], t.id)
+          setNotesSubView('working')
+          openNoteInWorking(note.id, note.vaultId ?? undefined)
+          navigate('/notes')
+          close()
+        },
+      })),
       { key: 'cmd:home', icon: '🏠', label: 'Go to Home', run: () => goto('/') },
       { key: 'cmd:notes', icon: '📝', label: 'Go to All Notes', run: () => { setNotesSubView('gallery'); goto('/notes') } },
       { key: 'cmd:working', icon: '🗂️', label: 'Open Working Notes', hint: WORKING_NOTES_SHORTCUT, run: () => { setNotesSubView('working'); goto('/notes') } },

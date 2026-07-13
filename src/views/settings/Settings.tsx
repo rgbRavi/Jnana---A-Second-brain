@@ -8,16 +8,18 @@ import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
+import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
 import { AboutPanel } from '../../ui/settings/AboutPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai' | 'appearance' | 'composer' | 'data' | 'about'
+type Tab = 'ai' | 'appearance' | 'composer' | 'data' | 'plugins' | 'about'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'ai', label: 'AI Providers' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'composer', label: 'Composer' },
   { id: 'data', label: 'Import / Export' },
+  { id: 'plugins', label: 'Plugins' },
   { id: 'about', label: 'About' },
 ]
 
@@ -62,6 +64,7 @@ function Settings() {
         {tab === 'appearance' && <AppearancePanel />}
         {tab === 'composer' && <ComposerSettingsPanel />}
         {tab === 'data' && <ImportExportPanel />}
+        {tab === 'plugins' && <PluginsPanel />}
         {tab === 'about' && <AboutPanel />}
       </div>
     </div>
