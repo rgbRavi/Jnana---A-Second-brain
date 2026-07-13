@@ -166,6 +166,18 @@ through Rust to only the host you configured.
   no flash of default); density/motion/reading-scale controls are wired but not yet consumed by any
   CSS, ahead of a follow-up pass
 
+### Plugins
+- **A real plugin system** — plugins can add **custom note types** (their own view + editor over a
+  note, e.g. the built-in **Flashcard deck** with spaced repetition), **UI widgets** (e.g. the
+  built-in **Pomodoro** timer in a floating tray), and **command-palette commands**
+- **Plugin manager** (Settings → Plugins) — enable/disable, per-plugin storage + "clear data", a live
+  Plugin Console, and developer tools (scaffold a new plugin, package, load a local folder, reload)
+- **Install from anywhere** — a local `.zip`, an unpacked folder, or a **curated community catalog**
+  ([JnanaApp/JnanaPlugins](https://github.com/JnanaApp/JnanaPlugins)); installs show a **permission
+  consent** prompt and updates surface newer catalog versions
+- **First-party by default, third-party by choice** — bundled plugins ship with the app; third-party
+  plugins run as trusted code after you approve them
+
 ---
 
 ## Planned
@@ -180,8 +192,9 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 - **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
   tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
   markdown renderer rewrite have already landed)
-- **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, a plugin
-  permission model
+- **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, and plugin
+  hardening (granular per-permission grants, download signature verification, an optional sandbox for
+  untrusted plugins — the plugin system itself, with install-time permission consent, already ships)
 
 ---
 
