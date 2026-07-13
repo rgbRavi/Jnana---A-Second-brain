@@ -4,6 +4,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { InstalledPlugin } from './loader'
 
+/** The official curated registry — the Browse tab defaults here so approved
+ *  plugins appear with no setup. Editable per-user (see usePluginManager). */
+export const DEFAULT_CATALOG_URL =
+  'https://raw.githubusercontent.com/JnanaApp/JnanaPlugins/main/catalog.json'
+
 /** A plugin as listed in a remote catalog index. */
 export interface CatalogEntry {
   id: string

@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from 'react'
 import { subscribeEnabled, getDisabledSnapshot } from '../../../lib/pluginEnabled'
 import { subscribePluginLog, getPluginLog, type PluginLogEntry } from '../../../lib/pluginLog'
+import { DEFAULT_CATALOG_URL } from '../../../core/plugins/catalog'
 
 // ── Persisted active subview (module store + localStorage, like useComposerOptions) ──
 
@@ -51,9 +52,9 @@ export function usePluginSubview(): PluginSubview {
 const CATALOG_KEY = 'jnana.plugins.catalogUrl.v1'
 let catalogUrl: string = (() => {
   try {
-    return localStorage.getItem(CATALOG_KEY) ?? ''
+    return localStorage.getItem(CATALOG_KEY) ?? DEFAULT_CATALOG_URL
   } catch {
-    return ''
+    return DEFAULT_CATALOG_URL
   }
 })()
 const catalogListeners = new Set<() => void>()

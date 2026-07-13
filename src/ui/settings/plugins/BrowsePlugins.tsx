@@ -10,7 +10,7 @@ import {
   loadInstalledPlugin,
   listInstalledPlugins,
 } from '../../../core/plugins/loader'
-import { fetchPluginCatalog, installFromUrl, isNewerVersion, type CatalogEntry } from '../../../core/plugins/catalog'
+import { fetchPluginCatalog, installFromUrl, isNewerVersion, DEFAULT_CATALOG_URL, type CatalogEntry } from '../../../core/plugins/catalog'
 import { confirmPluginInstall } from './consent'
 import { setPluginSubview, useCatalogUrl, setCatalogUrl } from './usePluginManager'
 import { toast } from '../../../lib/toast'
@@ -46,6 +46,13 @@ export function BrowsePlugins() {
       setLoading(false)
     }
   }
+
+  // Auto-load the (default) registry once when Browse opens, so approved plugins
+  // appear without the user pressing Fetch.
+  useEffect(() => {
+    if (catalogUrl.trim() && entries === null && !loading) void fetchCatalog()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const install = async (entry: CatalogEntry) => {
     const granted = await confirmPluginInstall(entry)
@@ -92,6 +99,15 @@ export function BrowsePlugins() {
         <button className={Styles.subnavItem} onClick={importZip} title="Install from a local .zip">
           <FileArchive size={15} /> Import .zip
         </button>
+        {catalogUrl !== DEFAULT_CATALOG_URL && (
+          <button
+            className={Styles.linkBtn}
+            onClick={() => setCatalogUrl(DEFAULT_CATALOG_URL)}
+            title="Use the official JnanaApp registry"
+          >
+            Reset to default
+          </button>
+        )}
       </div>
 
       {error && <p className={Styles.errorText}>Couldn't load catalog: {error}</p>}
