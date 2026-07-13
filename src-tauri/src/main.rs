@@ -15,10 +15,12 @@ use commands::chat::*;
 use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
+use commands::folders::*;
 use commands::media::*;
 use commands::media_layout::*;
 use commands::notes::*;
 use commands::themes::*;
+use commands::vaults::*;
 use commands::web::*;
 use commands::workspaces::*;
 
@@ -26,7 +28,46 @@ use std::io::{Read, Seek, SeekFrom};
 use std::sync::Mutex;
 
 use tauri::Manager;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_opener::OpenerExt;
+
+/// True for the app's own WebView origins — the only legitimate callers of the
+/// `jnana-asset://` scheme. Tauri v2 uses `tauri://localhost` (macOS/Linux) and
+/// `http(s)://tauri.localhost` / `http://<scheme>.localhost` (Windows). In
+/// `tauri dev` the WebView is served by the Vite dev server, so the origin also
+/// carries a port (`http://localhost:1420`) — strip it before matching, or
+/// fetch-based consumers (pdf.js) get a `null` ACAO and are CORS-blocked in dev.
+fn is_app_origin(origin: &str) -> bool {
+    let host = origin
+        .strip_prefix("tauri://")
+        .or_else(|| origin.strip_prefix("https://"))
+        .or_else(|| origin.strip_prefix("http://"));
+    match host {
+        // Origin is `scheme://host[:port]` (no path), so the first `:` starts the
+        // port — everything before it is the host we match against.
+        Some(h) => {
+            let host_only = h.split(':').next().unwrap_or(h);
+            host_only == "localhost" || host_only.ends_with(".localhost")
+        }
+        None => false,
+    }
+}
+
+/// The `Access-Control-Allow-Origin` value for an asset response. Narrowed from a
+/// blanket `*`: reflect the request's `Origin` only when it's an app origin, else
+/// deny with `null`. Media elements (`<img>`/`<video>`) send no Origin and aren't
+/// CORS-checked, so they're unaffected; fetch-based consumers (pdf.js) run from the
+/// app origin and are reflected — but an arbitrary web origin is no longer allowed.
+fn asset_acao(request: &tauri::http::Request<Vec<u8>>) -> String {
+    request
+        .headers()
+        .get("origin")
+        .and_then(|v| v.to_str().ok())
+        .filter(|o| is_app_origin(o))
+        .map(|o| o.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
 
 fn mime_from_ext(ext: &str) -> &'static str {
     match ext {
@@ -83,13 +124,50 @@ fn main() {
         // any staged restore-swap are logged. Shared with all commands via state.
         .setup(|app| {
             log::info!("Jnana starting — v{}", env!("CARGO_PKG_VERSION"));
-            let conn = db::init_db().expect("Failed to initialize database");
-            app.manage(Mutex::new(conn));
+            // A failed migration or corrupt database must not crash with a raw
+            // panic (a WebView-less hard crash). Migrations are transactional
+            // (db/schema.rs), so the on-disk schema is never half-applied and the
+            // database file plus any existing backups stay intact — surface a
+            // recoverable native dialog pointing the user at them, then exit
+            // cleanly instead of unwinding.
+            match db::init_db() {
+                Ok(conn) => {
+                    app.manage(Mutex::new(conn));
+                }
+                Err(e) => {
+                    log::error!("init_db failed: {}", e);
+                    let data_dir = db::data_dir();
+                    let msg = format!(
+                        "Jnana could not open its database.\n\n{e}\n\nYour notes and any backups are stored in:\n{}\n\nYou can restore a backup (or move the database file aside) from there, then relaunch. Detailed logs are in the app log folder.",
+                        data_dir.display(),
+                    );
+                    let open_folder = app
+                        .dialog()
+                        .message(msg)
+                        .title("Jnana — Database Error")
+                        .kind(MessageDialogKind::Error)
+                        .buttons(MessageDialogButtons::OkCancelCustom(
+                            "Open data folder".into(),
+                            "Quit".into(),
+                        ))
+                        .blocking_show();
+                    if open_folder {
+                        let _ = app
+                            .opener()
+                            .open_path(data_dir.to_string_lossy().to_string(), None::<&str>);
+                    }
+                    // Exit cleanly rather than propagating the error (which Tauri
+                    // would surface as another raw panic).
+                    std::process::exit(1);
+                }
+            }
             Ok(())
         })
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
             let path = request.uri().path();
             let filename = path.trim_start_matches('/');
+            // Narrowed CORS: reflect only app origins, deny others (was a blanket `*`).
+            let acao = asset_acao(&request);
 
             // Shared guard: rejects traversal/absolute names and confirms the
             // resolved file stays inside assets_dir() (see db::safe_asset_file).
@@ -98,7 +176,7 @@ fn main() {
                 Err(_) => {
                     return tauri::http::Response::builder()
                         .status(400)
-                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Access-Control-Allow-Origin", acao.clone())
                         .body(b"Invalid filename".to_vec())
                         .unwrap();
                 }
@@ -107,7 +185,7 @@ fn main() {
             if !filepath.exists() {
                 return tauri::http::Response::builder()
                     .status(404)
-                    .header("Access-Control-Allow-Origin", "*")
+                    .header("Access-Control-Allow-Origin", acao.clone())
                     .body(b"Not found".to_vec())
                     .unwrap();
             }
@@ -129,7 +207,10 @@ fn main() {
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string());
 
-            if let Some(ref range_str) = range_header {
+            // `file_size > 0` guards the `file_size - 1` math below: a 0-byte asset
+            // would underflow (u64 wrap / debug panic) and then try to allocate a
+            // ~u64::MAX buffer. Empty files fall through to the full 200 response.
+            if let (Some(ref range_str), true) = (&range_header, file_size > 0) {
                 if let Some(range) = range_str.strip_prefix("bytes=") {
                     let parts: Vec<&str> = range.splitn(2, '-').collect();
                     let start: u64 = parts[0].parse().unwrap_or(0);
@@ -148,7 +229,7 @@ fn main() {
 
                         return tauri::http::Response::builder()
                             .status(206)
-                            .header("Access-Control-Allow-Origin", "*")
+                            .header("Access-Control-Allow-Origin", acao.clone())
                             .header("Content-Type", content_type)
                             .header(
                                 "Content-Range",
@@ -166,7 +247,7 @@ fn main() {
             let bytes = std::fs::read(&filepath).unwrap_or_default();
             tauri::http::Response::builder()
                 .status(200)
-                .header("Access-Control-Allow-Origin", "*")
+                .header("Access-Control-Allow-Origin", acao)
                 .header("Content-Type", content_type)
                 .header("Content-Length", file_size.to_string())
                 .header("Accept-Ranges", "bytes")
@@ -198,6 +279,7 @@ fn main() {
             get_annotations_for_note,
             get_annotations_for_media,
             update_annotation,
+            update_annotation_position,
             delete_annotation,
             add_favourite,
             get_favourite_note_ids,
@@ -234,6 +316,15 @@ fn main() {
             list_collection_note_ids,
             add_collection_note,
             remove_collection_note,
+            list_folders,
+            save_folder,
+            delete_folder,
+            move_folder,
+            set_note_folder,
+            list_vaults,
+            save_vault,
+            delete_vault,
+            set_note_vault,
             get_or_create_workspace_canvas,
             list_canvases,
             get_canvas,
@@ -271,4 +362,41 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_app_origin;
+
+    #[test]
+    fn accepts_tauri_webview_origins() {
+        for ok in [
+            "tauri://localhost",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "http://jnana-asset.localhost",
+            "http://localhost",
+            // `tauri dev` serves the WebView from the Vite dev server (with port).
+            "http://localhost:1420",
+        ] {
+            assert!(is_app_origin(ok), "should accept {ok}");
+        }
+    }
+
+    #[test]
+    fn rejects_foreign_origins() {
+        for bad in [
+            "https://evil.com",
+            "http://localhost.evil.com",
+            // A port must not let a foreign host masquerade as localhost.
+            "http://localhost.evil.com:1420",
+            "https://evil.com:1420",
+            "https://tauri.localhost.evil.com",
+            "file://",
+            "null",
+            "",
+        ] {
+            assert!(!is_app_origin(bad), "should reject {bad}");
+        }
+    }
 }

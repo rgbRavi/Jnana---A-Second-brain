@@ -62,4 +62,17 @@ describe('filterSlashCommands', () => {
     const res = filterSlashCommands('list')
     expect(res.map((c) => c.id)).toEqual(['ul', 'ol'])
   })
+
+  it('includes colour and highlight commands routing to the colour action', () => {
+    const red = SLASH_COMMANDS.find((c) => c.id === 'color-red')
+    expect(red?.action).toEqual({ kind: 'color', variant: 'color', color: 'red' })
+    const hl = SLASH_COMMANDS.find((c) => c.id === 'highlight-red')
+    expect(hl?.action).toEqual({ kind: 'color', variant: 'highlight', color: 'red' })
+  })
+
+  it('filters to only highlight rows on the "highlight" keyword', () => {
+    const ids = filterSlashCommands('highlight').map((c) => c.id)
+    expect(ids.length).toBeGreaterThan(0)
+    expect(ids.every((id) => id.startsWith('highlight-'))).toBe(true)
+  })
 })

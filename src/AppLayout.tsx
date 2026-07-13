@@ -8,16 +8,21 @@ import { openNoteInWorking, useNotesSubView, getNotesSubView, setNotesSubView } 
 import type { Note } from "./types";
 import { toast } from "./lib/toast";
 import { Sidebar } from "./ui/Sidebar";
+import { FileExplorer } from "./ui/folders/FileExplorer";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
+import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
 import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
 import { NotesProvider, useNotesContext } from "./context/NotesContext";
 import { TranscriptionProvider } from "./context/TranscriptionContext";
+import { useActiveVaultId } from "./hooks/useVaults";
+import { setVaultScope } from "./core/ai";
+import { DEFAULT_VAULT_ID } from "./types";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
 import { useTheme } from "./hooks/useTheme";
-import { useViewState } from "./hooks/useViewState";
+import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
 // HashRouter always boots at "/", so the app forgets which view you were on.
@@ -42,7 +47,14 @@ function AppInner() {
     useTheme()
     const { pathname } = useLocation()
     const navigate = useNavigate()
-    const { create, update } = useNotesContext()
+    const { create, update, notes } = useNotesContext()
+    const activeVaultId = useActiveVaultId()
+    // Keep RAG retrieval constrained to the active vault app-wide (orthogonal to
+    // the workspace scope the AI view may set) — so AI never surfaces notes from
+    // another vault. Recomputed as notes are created / moved between vaults.
+    useEffect(() => {
+        setVaultScope(new Set(notes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId).map((n) => n.id)))
+    }, [notes, activeVaultId])
     // Restore the last route once on launch (before the save effect below can
     // overwrite the stored value with the initial "/").
     const restoredRef = useRef(false)
@@ -85,7 +97,14 @@ function AppInner() {
     // from any view (Canvas, Search, an editor's wikilink, …).
     useEffect(() => {
         const handler = (note: Note) => {
-            openNoteInWorking(note.id)
+            // Remember where the jump came from (a workspace, search, home, …) so
+            // Working Notes can offer a "← Back" that returns there. Only capture
+            // real origins — opening another note while already on /notes must not
+            // overwrite the original origin with '/notes'.
+            if (pathname !== "/notes") setViewState<string | null>('notes.returnTo', pathname)
+            // Pass the note's vault so opening from anywhere (search, a wikilink,
+            // a cross-vault peek) switches to that vault's desk.
+            openNoteInWorking(note.id, note.vaultId ?? undefined)
             if (pathname !== "/notes") navigate("/notes")
         }
         eventBus.on('note:navigate', handler)
@@ -123,11 +142,13 @@ function AppInner() {
     return (
         <div className={AppStyles.appShell}>
             <Sidebar />
+            <FileExplorer />
             <main className={AppStyles.mainContent}>
                 <Outlet />
+                {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
-            {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             <CommandPalette />
+            <Tooltip />
             <Toaster />
             <DialogHost />
             <ThemeStudioOverlay />

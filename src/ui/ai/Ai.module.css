@@ -137,7 +137,7 @@
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btnActive {
-  background: rgba(124, 106, 247, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -221,7 +221,7 @@
 }
 
 .pickerItem:hover,
-.pickerItemActive { background: rgba(124, 106, 247, 0.12); }
+.pickerItemActive { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 .pickerItemTitle {
   font-size: 0.85rem;
@@ -371,7 +371,7 @@
 .chatQ {
   align-self: flex-end;
   max-width: 85%;
-  background: rgba(124, 106, 247, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   padding: 0.45rem 0.7rem;
@@ -550,7 +550,7 @@
   letter-spacing: 0.06em;
   font-family: var(--font-mono);
   color: var(--accent);
-  background: rgba(124, 106, 247, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   border-radius: 4px;
   padding: 0.05rem 0.35rem;
   margin-right: 0.45rem;

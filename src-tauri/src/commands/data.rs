@@ -117,6 +117,77 @@ pub async fn export_assets(dir: String) -> Result<usize, String> {
 
 // ─── Backup (SQLite copy + assets, zipped) ──────────────────────────────────
 
+/// Write a backup zip at `zip_path`: `db_bytes` as `jnana.db` (deflated), plus every
+/// flat file in `assets_src` stored (uncompressed) under `assets/`. Extracted from
+/// `create_backup` so the round-trip is unit-testable over explicit paths.
+fn write_backup_zip(zip_path: &Path, db_bytes: &[u8], assets_src: &Path) -> Result<(), String> {
+    let file = fs::File::create(zip_path).map_err(|e| format!("Failed to create backup file: {}", e))?;
+    let mut zip = zip::ZipWriter::new(file);
+    let db_opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let store_opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+    zip.start_file("jnana.db", db_opts).map_err(|e| e.to_string())?;
+    zip.write_all(db_bytes).map_err(|e| e.to_string())?;
+
+    if let Ok(entries) = fs::read_dir(assets_src) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if !p.is_file() {
+                continue;
+            }
+            let Some(name) = p.file_name().and_then(|n| n.to_str()) else { continue };
+            let Ok(mut f) = fs::File::open(&p) else { continue };
+            zip.start_file(format!("assets/{}", name), store_opts)
+                .map_err(|e| e.to_string())?;
+            // Stream the file straight into the archive (no full read into memory).
+            std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
+        }
+    }
+
+    zip.finish().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Extract a backup zip into `staging`: `jnana.db` at the root and each `assets/<file>`
+/// into `staging/assets/`, rejecting any traversal / nested / absolute entry name.
+/// Returns `Ok(true)` when a `jnana.db` member was found and staged. Extracted from
+/// `restore_backup` so the round-trip is unit-testable over explicit paths.
+fn extract_backup_zip(zip_path: &Path, staging: &Path) -> Result<bool, String> {
+    fs::create_dir_all(staging).map_err(|e| format!("Failed to create staging dir: {}", e))?;
+
+    let file = fs::File::open(zip_path).map_err(|e| format!("Failed to open backup: {}", e))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid backup zip: {}", e))?;
+
+    let mut has_db = false;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().to_string();
+        if name.contains("..") || name.starts_with('/') || name.starts_with('\\') {
+            continue;
+        }
+
+        let out_path = if name == "jnana.db" {
+            has_db = true;
+            staging.join("jnana.db")
+        } else if let Some(asset) = name.strip_prefix("assets/") {
+            if asset.is_empty() || asset.contains('/') || asset.contains('\\') {
+                continue;
+            }
+            let adir = staging.join("assets");
+            fs::create_dir_all(&adir).map_err(|e| e.to_string())?;
+            adir.join(asset)
+        } else {
+            continue;
+        };
+
+        let mut buf = Vec::new();
+        entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        fs::write(&out_path, &buf).map_err(|e| format!("Failed to stage {}: {}", name, e))?;
+    }
+
+    Ok(has_db)
+}
+
 /// Write a backup `.zip` (a consistent DB snapshot + the assets folder). When
 /// `dest_dir` is given it's the "Export Full Vault" target; otherwise the backup
 /// lands in the app's default `backups/` dir ("Create Backup"). Returns the path.
@@ -154,31 +225,7 @@ pub async fn create_backup(state: State<'_, DbState>, dest_dir: Option<String>) 
     let assets = assets_dir();
     let zp = zip_path.clone();
     let result = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
-        let file = fs::File::create(&zp).map_err(|e| format!("Failed to create backup file: {}", e))?;
-        let mut zip = zip::ZipWriter::new(file);
-        let db_opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-        let store_opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-
-        zip.start_file("jnana.db", db_opts).map_err(|e| e.to_string())?;
-        zip.write_all(&db_bytes).map_err(|e| e.to_string())?;
-
-        if let Ok(entries) = fs::read_dir(&assets) {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if !p.is_file() {
-                    continue;
-                }
-                let Some(name) = p.file_name().and_then(|n| n.to_str()) else { continue };
-                let Ok(mut f) = fs::File::open(&p) else { continue };
-                zip.start_file(format!("assets/{}", name), store_opts)
-                    .map_err(|e| e.to_string())?;
-                // Stream the file straight into the archive (no full read into memory).
-                std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
-            }
-        }
-
-        zip.finish().map_err(|e| e.to_string())?;
-        Ok(())
+        write_backup_zip(&zp, &db_bytes, &assets)
     })
     .await
     .map_err(|e| format!("Backup task failed: {}", e))?;
@@ -206,38 +253,8 @@ pub async fn restore_backup(zip_path: String) -> Result<(), String> {
 
         let staging = data_dir().join("restore_staging");
         let _ = fs::remove_dir_all(&staging);
-        fs::create_dir_all(&staging).map_err(|e| format!("Failed to create staging dir: {}", e))?;
 
-        let file = fs::File::open(zp).map_err(|e| format!("Failed to open backup: {}", e))?;
-        let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid backup zip: {}", e))?;
-
-        let mut has_db = false;
-        for i in 0..archive.len() {
-            let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-            let name = entry.name().to_string();
-            if name.contains("..") || name.starts_with('/') || name.starts_with('\\') {
-                continue;
-            }
-
-            let out_path = if name == "jnana.db" {
-                has_db = true;
-                staging.join("jnana.db")
-            } else if let Some(asset) = name.strip_prefix("assets/") {
-                if asset.is_empty() || asset.contains('/') || asset.contains('\\') {
-                    continue;
-                }
-                let adir = staging.join("assets");
-                fs::create_dir_all(&adir).map_err(|e| e.to_string())?;
-                adir.join(asset)
-            } else {
-                continue;
-            };
-
-            let mut buf = Vec::new();
-            entry.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-            fs::write(&out_path, &buf).map_err(|e| format!("Failed to stage {}: {}", name, e))?;
-        }
-
+        let has_db = extract_backup_zip(zp, &staging)?;
         if !has_db {
             let _ = fs::remove_dir_all(&staging);
             log::error!("restore_backup: backup is missing jnana.db");
@@ -313,6 +330,8 @@ pub fn import_markdown_dir(state: State<'_, DbState>, dir: String) -> Result<Vec
                 tags: "[]".to_string(),
                 created_at: ts,
                 updated_at: ts,
+                folder_id: None,
+                vault_id: Some(crate::db::schema::DEFAULT_VAULT_ID.to_string()),
             };
             queries::insert_or_update_note(&conn, &row)
                 .map_err(|e| format!("Failed to import {}: {}", p.display(), e))?;
@@ -324,6 +343,8 @@ pub fn import_markdown_dir(state: State<'_, DbState>, dir: String) -> Result<Vec
                 tags: Vec::new(),
                 created_at: ts,
                 updated_at: ts,
+                folder_id: None,
+                vault_id: Some(crate::db::schema::DEFAULT_VAULT_ID.to_string()),
             });
         }
     }
@@ -346,4 +367,66 @@ pub fn open_logs_dir(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_path(dir.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| format!("Failed to open logs directory: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_scratch() -> PathBuf {
+        let d = std::env::temp_dir().join(format!("jnana-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A backup written by `write_backup_zip` restores byte-for-byte through
+    /// `extract_backup_zip` — the DB snapshot and every asset survive the round trip.
+    #[test]
+    fn backup_zip_round_trips_db_and_assets() {
+        let scratch = temp_scratch();
+        let src_assets = scratch.join("assets");
+        fs::create_dir_all(&src_assets).unwrap();
+        fs::write(src_assets.join("pic.png"), b"PNGDATA").unwrap();
+        fs::write(src_assets.join("clip.mp4"), b"MP4DATA").unwrap();
+
+        let db_bytes: &[u8] = b"SQLITE-DB-BYTES";
+        let zip_path = scratch.join("backup.zip");
+        write_backup_zip(&zip_path, db_bytes, &src_assets).unwrap();
+        assert!(zip_path.is_file());
+
+        let staging = scratch.join("staging");
+        let has_db = extract_backup_zip(&zip_path, &staging).unwrap();
+        assert!(has_db);
+
+        assert_eq!(fs::read(staging.join("jnana.db")).unwrap(), db_bytes.to_vec());
+        assert_eq!(fs::read(staging.join("assets/pic.png")).unwrap(), b"PNGDATA".to_vec());
+        assert_eq!(fs::read(staging.join("assets/clip.mp4")).unwrap(), b"MP4DATA".to_vec());
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
+
+    /// Restoring an archive with no `jnana.db` member reports `false` (the command
+    /// turns this into a "Backup is missing jnana.db" error rather than a bad swap).
+    #[test]
+    fn extract_reports_missing_db() {
+        let scratch = temp_scratch();
+        // Build a zip carrying only an asset, no jnana.db, by writing directly.
+        let zip_path = scratch.join("no-db.zip");
+        {
+            let file = fs::File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            zip.start_file("assets/pic.png", opts).unwrap();
+            zip.write_all(b"PNGDATA").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let staging = scratch.join("staging");
+        let has_db = extract_backup_zip(&zip_path, &staging).unwrap();
+        assert!(!has_db);
+        // The asset still extracted, but the caller rejects the restore on !has_db.
+        assert!(staging.join("assets/pic.png").is_file());
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }

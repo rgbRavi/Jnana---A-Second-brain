@@ -21,7 +21,8 @@ import { commonmarkLanguage, markdown } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Note } from '../../types'
-import { applyFormat, escapeMarkdownText, moveMediaBlock, rearrangeMedia, type FormatKind, type MediaPlacement } from '../../core/markdown/format'
+import { applyColor, applyFormat, applyHighlight, escapeMarkdownText, moveMediaBlock, rearrangeMedia, type FormatKind, type MediaPlacement } from '../../core/markdown/format'
+import { COLOR_PALETTE } from '../../core/markdown/colors'
 import { lezerJnana } from '../../core/markdown/lezerJnana'
 import { getMediaLayout, type MediaLayout } from '../../core/mediaLayout'
 import type { ComposerToolbarProps } from '../../hooks/useComposer'
@@ -56,6 +57,8 @@ interface WikilinkState {
 export interface LiveEditorHandle {
   focus(): void
   applyFormatAtSelection(kind: FormatKind): void
+  applyColorAtSelection(color: string): void
+  applyHighlightAtSelection(color: string): void
   insertAtCursor(markdown: string): void
   cut(): Promise<void>
   copy(): Promise<void>
@@ -381,6 +384,32 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     view.focus()
   }
 
+  const applyColorAtSelection = (color: string) => {
+    const view = viewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection.main
+    const text = view.state.doc.toString()
+    const result = applyColor(text, from, to, color)
+    view.dispatch({
+      changes: { from: 0, to: text.length, insert: result.text },
+      selection: { anchor: result.selStart, head: result.selEnd },
+    })
+    view.focus()
+  }
+
+  const applyHighlightAtSelection = (color: string) => {
+    const view = viewRef.current
+    if (!view) return
+    const { from, to } = view.state.selection.main
+    const text = view.state.doc.toString()
+    const result = applyHighlight(text, from, to, color)
+    view.dispatch({
+      changes: { from: 0, to: text.length, insert: result.text },
+      selection: { anchor: result.selStart, head: result.selEnd },
+    })
+    view.focus()
+  }
+
   const insertAtCursor = (md: string) => {
     const view = viewRef.current
     if (!view) return
@@ -496,6 +525,9 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       const pos = view.state.selection.main.head
       view.dispatch({ changes: { from: pos, to: pos, insert: '[[]]' }, selection: { anchor: pos + 2 } })
       view.focus()
+    } else if (action.kind === 'color') {
+      if (action.variant === 'highlight') applyHighlightAtSelection(action.color)
+      else applyColorAtSelection(action.color)
     } else {
       switch (action.which) {
         case 'image': imageInputRef.current?.click(); break
@@ -570,6 +602,22 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
           onClick: () => applyFormatAtSelection(kind),
         })),
       },
+      {
+        label: 'Text colour',
+        disabled: !hasSelection,
+        children: COLOR_PALETTE.map((c) => ({
+          label: c.label,
+          onClick: () => applyColorAtSelection(c.name),
+        })),
+      },
+      {
+        label: 'Highlight',
+        disabled: !hasSelection,
+        children: COLOR_PALETTE.map((c) => ({
+          label: c.label,
+          onClick: () => applyHighlightAtSelection(c.name),
+        })),
+      },
     ]
     if (importHandlers) {
       items.push({
@@ -599,6 +647,8 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       viewRef.current?.focus()
     },
     applyFormatAtSelection,
+    applyColorAtSelection,
+    applyHighlightAtSelection,
     insertAtCursor,
     cut: doCut,
     copy: doCopy,

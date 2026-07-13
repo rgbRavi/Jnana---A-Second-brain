@@ -97,7 +97,9 @@ export function CommandPalette() {
     const n = notes.find((x) => x.id === id)
     if (!n) return
     eventBus.emit('note:opened', n)
-    openNoteInWorking(id)
+    // Palette is unscoped (searches all vaults); pass the note's vault so opening
+    // it switches to that vault's desk.
+    openNoteInWorking(id, n.vaultId ?? undefined)
     navigate('/notes')
     close()
   }

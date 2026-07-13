@@ -2,7 +2,9 @@
    .contextMenu family so the editor's menu matches the canvas's look. */
 .contextMenu {
   position: fixed;
-  z-index: 1200;
+  /* Above fullscreen overlays (e.g. the PDF viewer's z-index: 9999) — a
+     right-click menu must sit on top of whatever surface opened it. */
+  z-index: 10000;
   min-width: 180px;
   display: flex;
   flex-direction: column;
@@ -10,7 +12,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
 }
 
 .itemWrap {
@@ -78,5 +80,5 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
 }

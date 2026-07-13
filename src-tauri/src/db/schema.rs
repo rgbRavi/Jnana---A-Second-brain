@@ -3,6 +3,38 @@
 
 use rusqlite::{Connection, Result};
 
+/// The ordered migration list. A `const` (not a local) so `run_migrations` and the
+/// `#[cfg(test)] migrate_to` helper share one source of truth. Function items coerce
+/// to `fn` pointers in const position.
+const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
+    (1, migrate_v1),
+    (2, migrate_v2),
+    (3, migrate_v3),
+    (4, migrate_v4),
+    (5, migrate_v5),
+    (6, migrate_v6),
+    (7, migrate_v7),
+    (8, migrate_v8),
+    (9, migrate_v9),
+    (10, migrate_v10),
+    (11, migrate_v11),
+    (12, migrate_v12),
+    (13, migrate_v13),
+    (14, migrate_v14),
+    (15, migrate_v15),
+    (16, migrate_v16),
+];
+
+/// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
+/// folders are backfilled into it, and the app never lets the user delete the
+/// last remaining vault, so this row effectively always exists.
+pub const DEFAULT_VAULT_ID: &str = "vault-default";
+
+/// The newest schema version this build knows how to produce. Kept in sync with
+/// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
+/// decide whether an existing DB is about to be upgraded (and so should be
+/// snapshotted first). Bump this when you add a `migrate_vN`.
+pub const LATEST_VERSION: i32 = 16;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -24,22 +56,12 @@ pub fn run_migrations(conn: &mut Connection) -> Result<()> {
     // commit atomically — after an aborted run the whole batch is rolled back and
     // re-applied cleanly next launch, instead of a non-idempotent `ALTER TABLE`
     // tripping on a column that a partial run already added.
-    let migrations: &[(i32, fn(&Connection) -> Result<()>)] = &[
-        (1, migrate_v1),
-        (2, migrate_v2),
-        (3, migrate_v3),
-        (4, migrate_v4),
-        (5, migrate_v5),
-        (6, migrate_v6),
-        (7, migrate_v7),
-        (8, migrate_v8),
-        (9, migrate_v9),
-        (10, migrate_v10),
-        (11, migrate_v11),
-        (12, migrate_v12),
-    ];
+    //
+    // Tripwire: if a new migrate_vN is added but LATEST_VERSION isn't bumped, the
+    // pre-migration snapshot in init_db would silently skip the final step.
+    debug_assert_eq!(MIGRATIONS.last().map(|(v, _)| *v).unwrap_or(0), LATEST_VERSION);
 
-    for (v, migrate) in migrations {
+    for (v, migrate) in MIGRATIONS {
         if version < *v {
             let tx = conn.transaction()?;
             migrate(&tx)?;
@@ -59,12 +81,26 @@ pub fn run_migrations(conn: &mut Connection) -> Result<()> {
     Ok(())
 }
 
+/// Test-only: bring a fresh connection up to exactly `target` schema version by
+/// running the real migrations (each in its own transaction), so tests can build a
+/// genuine "old install" fixture to migrate forward from.
+#[cfg(test)]
+pub(crate) fn migrate_to(conn: &mut Connection, target: i32) -> Result<()> {
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);")?;
+    for (v, migrate) in MIGRATIONS {
+        if *v <= target {
+            let tx = conn.transaction()?;
+            migrate(&tx)?;
+            tx.commit()?;
+        }
+    }
+    Ok(())
+}
+
 /// V1: Initial schema — notes, links, media_refs, annotations.
 fn migrate_v1(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
-        PRAGMA journal_mode=WAL;
-
         CREATE TABLE IF NOT EXISTS notes (
             id          TEXT PRIMARY KEY,
             title       TEXT NOT NULL DEFAULT 'Untitled',
@@ -412,6 +448,109 @@ fn migrate_v12(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V13: Virtual folders — a single global folder tree that gives Obsidian
+/// migrants the "vault" front door they expect, without any real filesystem
+/// directories (virtual rows sidestep cross-platform path landmines: case
+/// sensitivity, illegal chars, MAX_PATH, reserved names). Deliberately
+/// SINGLE-parent — a note lives in exactly one folder (or is unfiled) — which is
+/// what makes a folder feel like a folder. Hence a nullable `folder_id` COLUMN on
+/// `notes`, not a junction table (junctions cover the "lives in many" need via
+/// tags/collections/workspaces). Folders are an extra lens, never a container:
+/// deleting a folder cascades its sub-folders but only SET NULLs its notes'
+/// `folder_id` (they survive, unfiled) — the FK does this automatically under
+/// `PRAGMA foreign_keys = ON`.
+fn migrate_v13(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS folders (
+            id          TEXT PRIMARY KEY,
+            parent_id   TEXT REFERENCES folders(id) ON DELETE CASCADE,
+            name        TEXT NOT NULL,
+            position    INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        -- Nullable so existing notes are 'unfiled' (NULL); SET NULL keeps notes
+        -- alive when their folder is deleted. Adding a column with a NULL-default
+        -- FK reference is allowed by SQLite's ALTER TABLE ADD COLUMN.
+        ALTER TABLE notes ADD COLUMN folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL;
+
+        INSERT INTO schema_version (version) VALUES (13);
+        ",
+    )
+}
+
+/// V14: Vaults — the Obsidian-style top-level container. Each note and folder
+/// belongs to exactly one vault; the file explorer shows one active vault's tree
+/// at a time. A single default vault is seeded and all pre-existing notes/folders
+/// backfilled into it (so the upgrade is invisible until the user makes a second
+/// vault). Deleting a vault cascades its folders; its notes are reassigned by the
+/// `delete_vault` command before the row goes (the FK's SET NULL is only a
+/// safety net — the app never orphans a note). `folder_id`'s vault must match the
+/// note's vault, an invariant maintained by `set_note_folder`.
+fn migrate_v14(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS vaults (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            position    INTEGER NOT NULL DEFAULT 0,
+            created_at  INTEGER NOT NULL,
+            updated_at  INTEGER NOT NULL
+        );
+
+        -- Seed the default vault every existing note/folder folds into.
+        INSERT INTO vaults (id, name, position, created_at, updated_at)
+        VALUES ('vault-default', 'My Vault', 0,
+                CAST(strftime('%s','now') AS INTEGER) * 1000,
+                CAST(strftime('%s','now') AS INTEGER) * 1000);
+
+        ALTER TABLE notes   ADD COLUMN vault_id TEXT REFERENCES vaults(id) ON DELETE SET NULL;
+        ALTER TABLE folders ADD COLUMN vault_id TEXT REFERENCES vaults(id) ON DELETE CASCADE;
+
+        UPDATE notes   SET vault_id = 'vault-default';
+        UPDATE folders SET vault_id = 'vault-default';
+
+        INSERT INTO schema_version (version) VALUES (14);
+        ",
+    )
+}
+
+/// V15: Vault-scope workspaces and AI projects. Both are now Obsidian-style
+/// per-vault: a workspace/project belongs to one vault (like notes/folders), so
+/// switching the active vault swaps which ones are shown. Backfilled into the
+/// default vault. Cascades when a vault is deleted (its workspaces/projects — and
+/// their junction rows — go with it), consistent with folders.
+fn migrate_v15(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        ALTER TABLE workspaces  ADD COLUMN vault_id TEXT REFERENCES vaults(id) ON DELETE CASCADE;
+        ALTER TABLE ai_projects ADD COLUMN vault_id TEXT REFERENCES vaults(id) ON DELETE CASCADE;
+
+        UPDATE workspaces  SET vault_id = 'vault-default';
+        UPDATE ai_projects SET vault_id = 'vault-default';
+
+        INSERT INTO schema_version (version) VALUES (15);
+        ",
+    )
+}
+
+/// V16: Vault-scope AI conversations. Chat history is per-vault (like workspaces
+/// / projects), so a new vault starts with an empty history instead of showing
+/// another vault's chats. Backfilled into the default vault; cascades on vault
+/// delete.
+fn migrate_v16(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        ALTER TABLE conversations ADD COLUMN vault_id TEXT REFERENCES vaults(id) ON DELETE CASCADE;
+        UPDATE conversations SET vault_id = 'vault-default';
+
+        INSERT INTO schema_version (version) VALUES (16);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,11 +562,13 @@ mod tests {
         let result = run_migrations(&mut conn);
         assert!(result.is_ok());
 
-        // Verify version is 12
+        // Verify version is at LATEST_VERSION (currently 12 — the tripwire below
+        // keeps LATEST_VERSION honest against the migrations list).
         let version: i32 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 12);
+        assert_eq!(version, LATEST_VERSION);
+        assert_eq!(LATEST_VERSION, 16);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -450,9 +591,57 @@ mod tests {
         assert!(tables.contains(&"link_previews".to_string()));
         assert!(tables.contains(&"themes".to_string()));
         assert!(tables.contains(&"note_media_layout".to_string()));
+        assert!(tables.contains(&"folders".to_string()));
+        assert!(tables.contains(&"vaults".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&mut conn);
         assert!(result2.is_ok());
+    }
+
+    /// Simulate an old install stuck at v1, then upgrade the whole chain to
+    /// LATEST_VERSION — the pre-existing note (and its favourite) must survive every
+    /// step. Guards against a future migrate_vN dropping/rewriting existing data.
+    #[test]
+    fn test_migration_chain_from_v1_preserves_data() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE schema_version (version INTEGER NOT NULL);").unwrap();
+
+        // Bring the DB up to v1 only, the way run_migrations would (its own tx).
+        {
+            let tx = conn.transaction().unwrap();
+            migrate_v1(&tx).unwrap();
+            tx.commit().unwrap();
+        }
+        let v1: i32 = conn
+            .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v1, 1);
+
+        // Seed data into the v1 schema.
+        conn.execute(
+            "INSERT INTO notes (id, title, content, created_at, updated_at) VALUES ('n1','Old Note','body',1,1)",
+            [],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO favourites (note_id) VALUES ('n1')", []).unwrap();
+
+        // Upgrade the rest of the way.
+        run_migrations(&mut conn).unwrap();
+
+        let version: i32 = conn
+            .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, LATEST_VERSION);
+
+        // The pre-existing note + favourite came through the full chain intact.
+        let title: String = conn
+            .query_row("SELECT title FROM notes WHERE id='n1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "Old Note");
+        let fav: i32 = conn
+            .query_row("SELECT COUNT(*) FROM favourites WHERE note_id='n1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(fav, 1);
     }
 }

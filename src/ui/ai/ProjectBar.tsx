@@ -15,6 +15,7 @@ import {
   newKnowledge,
 } from '../../core/aiWorkspace'
 import { pickAttachments as pickFiles } from '../../core/ai'
+import { getActiveVaultId } from '../../hooks/useVaults'
 
 const pill: React.CSSProperties = {
   display: 'inline-flex',
@@ -139,7 +140,7 @@ function ProjectManager({
   }
 
   const createNew = async () => {
-    const p = { ...newProject(), name: 'New project' }
+    const p = { ...newProject(getActiveVaultId()), name: 'New project' }
     await persistProject(p)
     openProject(p)
   }

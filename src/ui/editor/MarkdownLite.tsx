@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,6 +9,7 @@ import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
+import { colorAnyTokenRegex, highlightBackground, resolveColor } from '../../core/markdown/colors'
 import { getMediaLayout, alignmentTextAlign, type MediaLayout } from '../../core/mediaLayout'
 import {
   AudioEmbed,
@@ -42,6 +43,34 @@ function jnanaUrlTransform(url: string): string {
 
 function hastProperties(node: HastElement | undefined): Record<string, unknown> {
   return (node?.properties ?? {}) as Record<string, unknown>
+}
+
+/** Render the raw inner text of a colour/highlight span, recursing into any
+ *  nested `[c:…]`/`[h:…]` token (e.g. a highlight wrapped in a text colour) so
+ *  it becomes a nested styled span rather than literal text. remarkJnana carries
+ *  only the OUTERMOST token, leaving the rest here for this pass. An unsafe
+ *  colour value (rejected by resolveColor) is left as its literal token text. */
+function renderColorTokens(text: string): ReactNode {
+  const re = colorAnyTokenRegex()
+  const out: ReactNode[] = []
+  let last = 0
+  let key = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index))
+    const resolved = resolveColor(m[2])
+    if (resolved) {
+      const style = m[1] === 'h'
+        ? { backgroundColor: highlightBackground(resolved), borderRadius: '0.2em' }
+        : { color: resolved }
+      out.push(<span key={key++} style={style}>{renderColorTokens(m[3])}</span>)
+    } else {
+      out.push(m[0])
+    }
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out.length === 1 ? out[0] : out
 }
 
 export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = false }: Props) {
@@ -104,7 +133,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} />
       }
       if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} />
+      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} />
       if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} />
       return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
     }
@@ -174,7 +203,29 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       return <TimestampButton kind={kind} index={index} time={time} onSeek={seek} />
     }
 
-    return { img, a, p, pre, code, 'jnana-wikilink': wikilink, 'jnana-timestamp': timestamp } as Components
+    const color = ({ node }: { node?: HastElement }) => {
+      const props = hastProperties(node)
+      const inner = renderColorTokens(String(props['data-text'] ?? ''))
+      const resolved = resolveColor(String(props['data-color'] ?? ''))
+      return resolved ? <span style={{ color: resolved }}>{inner}</span> : <>{inner}</>
+    }
+
+    const highlight = ({ node }: { node?: HastElement }) => {
+      const props = hastProperties(node)
+      const inner = renderColorTokens(String(props['data-text'] ?? ''))
+      const resolved = resolveColor(String(props['data-color'] ?? ''))
+      return resolved
+        ? <span style={{ backgroundColor: highlightBackground(resolved), borderRadius: '0.2em' }}>{inner}</span>
+        : <>{inner}</>
+    }
+
+    return {
+      img, a, p, pre, code,
+      'jnana-wikilink': wikilink,
+      'jnana-timestamp': timestamp,
+      'jnana-color': color,
+      'jnana-highlight': highlight,
+    } as Components
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lazy, fullscreen, noteId, layoutMap])
 

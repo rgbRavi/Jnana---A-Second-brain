@@ -19,6 +19,8 @@ pub struct ConversationRow {
     pub scope: Option<String>,
     /// Owning project (AI Chat mode), or null.
     pub project_id: Option<String>,
+    /// The vault this conversation belongs to (v16). Set on create.
+    pub vault_id: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -38,9 +40,10 @@ pub struct ConversationMeta {
 pub fn list_conversations(
     state: State<'_, DbState>,
     mode: Option<String>,
+    vault_id: Option<String>,
 ) -> Result<Vec<ConversationMeta>, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    queries::list_conversations(&conn, mode.as_deref())
+    queries::list_conversations(&conn, mode.as_deref(), vault_id.as_deref())
         .map_err(|e| format!("Failed to list conversations: {}", e))
 }
 

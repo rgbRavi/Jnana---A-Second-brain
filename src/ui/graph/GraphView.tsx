@@ -163,8 +163,11 @@ interface Props {
   /** Create a note (used to materialize a pseudo-node's `[[title]]` on click). */
   onCreate: (title: string, content: string) => Promise<Note>
   /** When set, restrict the graph to these note ids (and the links among them) —
-   *  used for a workspace's local graph. */
+   *  used for a workspace's local graph and the vault-scoped main graph. */
   scopeIds?: Set<string>
+  /** Noun for the empty-state copy when `scopeIds` is set ('workspace' | 'vault').
+   *  Defaults to 'workspace'. */
+  scopeNoun?: string
   /** Distinguishes this graph's session caches (layout + viewport) from others.
    *  Defaults to 'main'; a workspace graph passes e.g. `ws:<id>`. */
   instanceKey?: string
@@ -429,7 +432,7 @@ function JumpToNote({
   )
 }
 
-export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, instanceKey = 'main' }: Props) {
+export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 'workspace', instanceKey = 'main' }: Props) {
   const { graphData, loading, syncNoteLinks } = useGraph()
 
   // Per-instance session caches (layout + viewport), so a workspace's local graph
@@ -1006,7 +1009,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, instanceKey 
       {scopedNodes.length === 0 && (
         <div className="note-empty" style={{ position: 'absolute', width: '100%', zIndex: 10 }}>
           {scopeIds
-            ? 'No notes in this workspace yet. Add or create some, then link them with [[Title]]!'
+            ? `No notes in this ${scopeNoun} yet. Add or create some, then link them with [[Title]]!`
             : 'No notes to graph. Create some notes and link them using [[Title]]!'}
         </div>
       )}

@@ -233,6 +233,28 @@
   color: var(--text-1);
 }
 
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.closeLink {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+
+.closeLink:hover {
+  color: var(--danger);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .tabs {
   display: flex;
   gap: 0.3rem;
@@ -291,7 +313,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   padding: 1.25rem 1.3rem;
   display: flex;
   flex-direction: column;

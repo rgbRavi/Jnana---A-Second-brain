@@ -8,11 +8,37 @@ import styles from './DialogHost.module.css'
 /** Renders the app-wide modal dialog (choice / prompt / confirm). Mount once near the root. */
 export function DialogHost() {
   const dialog = useSyncExternalStore(subscribeDialog, getDialog, getDialog)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!dialog) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') resolveDialog(null)
+      if (e.key === 'Escape') {
+        resolveDialog(null)
+        return
+      }
+      if (e.key !== 'Tab') return
+      // Focus trap: keep Tab / Shift+Tab cycling within the dialog. (Focus is
+      // returned to the pre-dialog element by lib/dialog's close(), which captures
+      // it before autoFocus fires.)
+      const root = dialogRef.current
+      if (!root) return
+      const focusable = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && (active === first || !root.contains(active))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (active === last || !root.contains(active))) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -28,7 +54,13 @@ export function DialogHost() {
         if (e.target === e.currentTarget) resolveDialog(null)
       }}
     >
-      <div className={styles.dialog} role="dialog" aria-modal="true" aria-label={dialog.title}>
+      <div
+        ref={dialogRef}
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-label={dialog.title}
+      >
         <div className={styles.header}>
           <h2 className={styles.title}>{dialog.title}</h2>
           {dialog.message && <p className={styles.message}>{dialog.message}</p>}

@@ -14,6 +14,7 @@
   padding: 1rem 0;
   overflow-x: hidden;
   overflow-y: auto;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.02), inset -1px 0 0 rgba(255, 255, 255, 0.02);
   transition: width 0.2s cubic-bezier(0.33, 1, 0.68, 1);
   will-change: width;
 }
@@ -91,12 +92,16 @@
   font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s, border-color 0.15s;
 }
 
 .collapseToggle:hover {
   color: var(--text-1);
   border-color: var(--border-hover);
+}
+
+.collapseToggle:active {
+  transform: scale(0.92);
 }
 
 /* ─── Collapsed mode ─── */
@@ -141,6 +146,20 @@
   gap: 0.15rem;
 }
 
+.workingLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.workingBadge {
+  background: var(--surface-3);
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+}
+
 .sidebarNavItem {
   position: relative;
   display: flex;
@@ -160,7 +179,7 @@
   font-family: var(--font-body);
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s, color 0.15s;
 }
 
 .sidebarNavItem:hover {
@@ -168,8 +187,12 @@
   color: var(--text-1);
 }
 
+.sidebarNavItem:active {
+  transform: scale(0.97);
+}
+
 .sidebarNavItem.active {
-  background: rgba(124, 106, 247, 0.16);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--text-1);
   font-weight: 500;
 }
@@ -196,6 +219,127 @@
 
 .subItem .navIcon {
   font-size: 0.9rem;
+}
+
+/* ─── Workspaces sub-tree (pinned + open) ─── */
+/* The Workspaces nav item carries a disclosure chevron on its right that toggles
+   the whole sub-tree below it. */
+.wsNavRow {
+  position: relative;
+}
+
+.wsDisclosure {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.wsDisclosure:hover {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wsDisclosure svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.18s ease;
+}
+
+.wsDisclosureCollapsed svg {
+  transform: rotate(-90deg);
+}
+
+.wsSub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin: 0.1rem 0 0.15rem;
+}
+
+/* Subtle group divider inside the sub-tree (only when both groups show). */
+.wsGroupLabel {
+  padding: 0.4rem 0.8rem 0.15rem 1.9rem;
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+  opacity: 0.65;
+}
+
+.collapsed .wsGroupLabel {
+  display: none;
+}
+
+/* An open-workspace row: the link (fills) with a hover-revealed × close button. */
+.openWsRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.openWsLink {
+  flex: 1;
+  min-width: 0;
+  padding-right: 1.9rem;
+}
+
+.openWsLink .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.openWsClose {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.openWsRow:hover .openWsClose,
+.openWsClose:focus-visible {
+  opacity: 1;
+}
+
+.openWsClose:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--danger);
+}
+
+/* Collapsed sidebar: no room for the × or the group chrome. */
+.collapsed .openWsClose {
+  display: none;
+}
+
+.collapsed .openWsLink {
+  padding-right: 0;
 }
 
 .navIcon {
@@ -234,12 +378,16 @@
   font-size: 0.8rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), all 0.15s;
 }
 
 .transcribeToggle:hover {
   border-color: var(--border-hover);
   color: var(--text-1);
+}
+
+.transcribeToggle:active {
+  transform: scale(0.97);
 }
 
 .transcribeChevron {
@@ -325,6 +473,6 @@
 
 .transcribeErr {
   font-size: 0.7rem;
-  color: var(--danger, #e5484d);
+  color: var(--danger);
   line-height: 1.35;
 }

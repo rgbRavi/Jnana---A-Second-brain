@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { useNavigate } from 'react-router-dom'
 import Notes from './Notes'
 import { WorkingNotes } from './working/WorkingNotes'
-import { useNotesSubView, setNotesSubView, useWorkingLayout } from './working/useWorkingLayout'
-import { allOpenNoteIds } from './working/layout'
-import { WORKING_NOTES_SHORTCUT } from '../../ui/CommandPalette'
+import { useNotesSubView } from './working/useWorkingLayout'
+import { useViewState, setViewState } from '../../hooks/useViewState'
 import Styles from './NotesView.module.css'
 
 /**
@@ -17,33 +17,30 @@ import Styles from './NotesView.module.css'
  */
 export default function NotesView() {
   const sub = useNotesSubView()
-  const layout = useWorkingLayout()
-  const openCount = allOpenNoteIds(layout).length
+  const navigate = useNavigate()
+  // Where a jump into this desk came from (set in AppLayout's note:navigate
+  // handler). Offers a one-click return to that workspace/view.
+  const [returnTo] = useViewState<string | null>('notes.returnTo', null)
+
+  const goBack = () => {
+    const dest = returnTo ?? '/'
+    setViewState<string | null>('notes.returnTo', null)
+    navigate(dest)
+  }
 
   return (
     <div className={Styles.container}>
-      <div className={Styles.segmentBar}>
-        <div className={Styles.segment} role="tablist" aria-label="Notes view">
+      {returnTo && (
+        <div className={Styles.segmentBar}>
           <button
-            role="tab"
-            aria-selected={sub === 'gallery'}
-            className={`${Styles.segmentBtn} ${sub === 'gallery' ? Styles.segmentBtnActive : ''}`}
-            onClick={() => setNotesSubView('gallery')}
+            className={Styles.backBtn}
+            onClick={goBack}
+            title={`Back to ${returnTo.startsWith('/workspaces/') ? 'workspace' : returnTo}`}
           >
-            Notes
-          </button>
-          <button
-            role="tab"
-            aria-selected={sub === 'working'}
-            className={`${Styles.segmentBtn} ${sub === 'working' ? Styles.segmentBtnActive : ''}`}
-            onClick={() => setNotesSubView('working')}
-            title={`Working Notes (${WORKING_NOTES_SHORTCUT})`}
-          >
-            Working Notes
-            {openCount > 0 && <span className={Styles.count}>{openCount}</span>}
+            ← Back
           </button>
         </div>
-      </div>
+      )}
       <div className={Styles.body}>
         {/* Keep both mounted? No — the gallery is cheap to remount and Working
             Notes' state lives in the module store, so a plain switch is fine and

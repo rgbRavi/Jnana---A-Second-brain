@@ -1,7 +1,7 @@
 [package]
-name = "Jnana---A-Second-brain"
+name = "jnana"
 version = "0.1.0"
-description = "A Tauri App"
+description = "Jnana — a local-first desktop second brain: notes, media, a wikilink graph, workspaces, and an optional locally-grounded AI layer."
 authors = ["Jnana Project"]
 edition = "2021"
 # AGPL-3.0-only, with the plugin additional-permission in ../LICENSE-EXCEPTION.md

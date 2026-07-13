@@ -31,6 +31,7 @@ import {
   videoTimestampAnchored,
   wikilinkAnchored,
 } from '../../core/markdown/tokenPatterns'
+import { colorTokenRegex, highlightBackground, highlightTokenRegex, resolveColor } from '../../core/markdown/colors'
 import {
   AudioEmbed,
   ExternalDocLink,
@@ -195,9 +196,29 @@ class YouTubeWidget extends ReactWidget<{
   }
 }
 
-class PdfWidget extends ReactWidget<{ url: string; noteId: string }> {
+class PdfWidget extends ReactWidget<{
+  url: string
+  noteId: string
+  mediaKey: string
+  layout: MediaLayout | undefined
+  moveMedia: LiveContext['moveMedia']
+  onMediaDragStart: LiveContext['onMediaDragStart']
+  onLayoutChange: LiveContext['onLayoutChange']
+}> {
   renderWidget() {
-    return <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} />
+    return (
+      <ResizableMediaFrame
+        noteId={this.props.noteId}
+        mediaKey={this.props.mediaKey}
+        layout={this.props.layout}
+        onMoveUp={() => this.props.moveMedia(this.props.mediaKey, 'up')}
+        onMoveDown={() => this.props.moveMedia(this.props.mediaKey, 'down')}
+        onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
+        onLayoutChange={this.props.onLayoutChange}
+      >
+        {(layout) => <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} layout={layout} />}
+      </ResizableMediaFrame>
+    )
   }
 }
 
@@ -436,7 +457,10 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
           }
         } else if (alt === 'pdf') {
           if (!revealed(from, to)) {
-            builder.add(from, to, Decoration.replace({ widget: new PdfWidget({ url, noteId: context.noteId }) }))
+            applyAlign()
+            builder.add(from, to, Decoration.replace({
+              widget: new PdfWidget({ url, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+            }))
           }
         } else if (alt === 'webpage') {
           if (!revealed(from, to)) {
@@ -509,6 +533,35 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
       return undefined
     },
   })
+
+  // Colour `[c:NAME]text[/c]` and highlight `[h:NAME]text[/h]` tokens aren't
+  // Lezer nodes (they're plain text to the markdown grammar), so scan the raw
+  // doc for them separately. When the cursor is outside the token we hide the
+  // open/close markers (replace) and style the inner run (mark). The two marker
+  // ranges sit at the token edges, so they never overlap an inner media/wikilink
+  // *replace* widget; the *mark* may overlap other marks/widgets freely, so this
+  // can't throw. (The `open`/`close` markers are the same length for both — a
+  // 3-char prefix `[x:` + NAME + `]`, and a 4-char closer.)
+  const colorScans: { re: RegExp; style: (resolved: string) => string }[] = [
+    { re: colorTokenRegex(), style: (c) => `color:${c}` },
+    { re: highlightTokenRegex(), style: (c) => `background-color:${highlightBackground(c)};border-radius:0.2em` },
+  ]
+  for (const { re, style } of colorScans) {
+    let cm: RegExpExecArray | null
+    while ((cm = re.exec(text)) !== null) {
+      const from = cm.index
+      const to = from + cm[0].length
+      const resolved = resolveColor(cm[1])
+      if (!resolved || revealed(from, to)) continue
+      const innerFrom = from + `[c:${cm[1]}]`.length
+      const innerTo = to - 4
+      builder.add(from, innerFrom, Decoration.replace({}))
+      if (innerFrom < innerTo) {
+        builder.add(innerFrom, innerTo, Decoration.mark({ attributes: { style: style(resolved) } }))
+      }
+      builder.add(innerTo, to, Decoration.replace({}))
+    }
+  }
 
   return Decoration.set(ranges, true)
 }

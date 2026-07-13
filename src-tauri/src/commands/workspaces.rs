@@ -26,6 +26,9 @@ pub struct WorkspaceRow {
     #[serde(default)]
     pub color: Option<String>,
     pub description: String,
+    /// The vault this workspace belongs to (v15). Set on create, never changed
+    /// by an edit (like folders' vault).
+    pub vault_id: String,
     pub created_at: i64,
     pub updated_at: i64,
 }

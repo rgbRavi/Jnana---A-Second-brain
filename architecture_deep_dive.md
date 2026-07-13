@@ -145,7 +145,7 @@ erDiagram
         TEXT id PK
         TEXT note_id "FK → notes.id"
         TEXT media_id "FK → media_refs.id"
-        TEXT kind "video_timestamp|pdf_highlight|audio_marker"
+        TEXT kind "video_timestamp|pdf_highlight|pdf_ink|pdf_text|audio_marker"
         TEXT position "JSON coordinates"
         TEXT content
         INTEGER created_at
@@ -505,12 +505,16 @@ flowchart TD
     subgraph Kinds["Annotation Kinds"]
         VT["video_timestamp"]
         PH["pdf_highlight"]
+        PI["pdf_ink"]
+        PT["pdf_text"]
         AM["audio_marker"]
     end
     
     subgraph Position["Position Encoding (JSON)"]
         VT -->|"{'seconds': 125}"| PosJSON["Stored as TEXT"]
         PH -->|"{'page': 3, 'rect': [x,y,w,h]}"| PosJSON
+        PI -->|"{'page': 3, 'points': [[x,y,pressure]], 'color', 'size'}"| PosJSON
+        PT -->|"{'page': 3, 'x', 'y', 'fontSize', 'color?'}"| PosJSON
         AM -->|"{'seconds': 42}" | PosJSON
     end
     
@@ -524,6 +528,8 @@ flowchart TD
     subgraph Writers["Annotation Factories"]
         MakeVideo["makeVideoAnnotation()"]
         MakePdf["makePdfAnnotation()"]
+        MakePdfInk["makePdfInkAnnotation()"]
+        MakePdfText["makePdfTextAnnotation()"]
         MakeAudio["makeAudioAnnotation()"]
     end
     

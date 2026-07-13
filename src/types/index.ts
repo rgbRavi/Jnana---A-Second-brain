@@ -8,7 +8,39 @@ export interface Note {
   tags: string[]
   createdAt: number
   updatedAt: number
+  /** Virtual folder this note lives in (single-parent); `null`/absent = unfiled
+   *  (but still in a vault). Changed only via `setNoteFolder`. */
+  folderId?: string | null
+  /** The vault this note belongs to (Obsidian-style, exactly one). */
+  vaultId?: string | null
 }
+
+/** A node in a vault's virtual folder tree. Folders are SQLite rows, not real
+ *  directories. `parentId === null` = top level within its vault. */
+export interface Folder {
+  id: string
+  parentId: string | null
+  name: string
+  /** Manual sort order within a parent. */
+  position: number
+  /** The vault this folder belongs to. */
+  vaultId: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** An Obsidian-style vault — the top-level container. Each note and folder
+ *  belongs to exactly one; the file explorer shows one active vault at a time. */
+export interface Vault {
+  id: string
+  name: string
+  position: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** Stable id of the always-present default vault (seeded in migrate_v14). */
+export const DEFAULT_VAULT_ID = 'vault-default'
 
 export interface Link {
   fromId: string
@@ -25,6 +57,8 @@ export interface Workspace {
   /** Hex color; when absent the UI derives one from the id. */
   color?: string
   description: string
+  /** The vault this workspace belongs to (Obsidian-style, exactly one). */
+  vaultId: string
   createdAt: number
   updatedAt: number
 }
@@ -53,6 +87,8 @@ export interface StoredConversation {
   scope: string | null
   /** Owning project (AI Chat), or null. */
   projectId: string | null
+  /** The vault this conversation belongs to (Obsidian-style, exactly one). */
+  vaultId: string
   createdAt: number
   updatedAt: number
 }
@@ -76,6 +112,8 @@ export interface AiProject {
   updatedAt: number
   /** Optional dashboard color (hex). When absent, the UI derives one from the id. */
   color?: string
+  /** The vault this project belongs to (Obsidian-style, exactly one). */
+  vaultId: string
 }
 
 /** One knowledge item attached to a project. */

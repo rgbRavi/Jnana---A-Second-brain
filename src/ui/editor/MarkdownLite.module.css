@@ -207,7 +207,7 @@
 }
 
 .noteExternalDocBtn {
-  background: rgba(124, 106, 247, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -221,7 +221,7 @@
 }
 
 .noteExternalDocBtn:hover {
-  background: rgba(124, 106, 247, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 
@@ -245,41 +245,61 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.4rem;
-  margin: 0.75rem 0;
+  gap: 0.75rem;
+  margin: 1rem 0;
   width: 100%;
+  background: rgba(30, 30, 36, 0.4);
+  padding: 1rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .noteAudio {
   width: 100%;
+  border-radius: 0.5rem;
+  outline: none;
 }
 
 .noteAudioTranscribe {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  border-radius: var(--radius-sm);
-  padding: 0.3rem 0.7rem;
-  font-size: 0.78rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, transparent) 0%, color-mix(in srgb, var(--accent) 5%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+  border-radius: 0.5rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.8rem;
   font-family: var(--font-body);
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .noteAudioTranscribe:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--text-1);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 25%, transparent) 0%, color-mix(in srgb, var(--accent) 10%, transparent) 100%);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.noteAudioTranscribe:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .noteAudioTranscribe:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-3);
 }
 
 /* Wikilink Button Styles */
 .wikilinkBtn {
   display: inline-block;
-  background: rgba(124, 106, 247, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -292,9 +312,9 @@
 }
 
 .wikilinkBtn:hover {
-  background: rgba(124, 106, 247, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(124, 106, 247, 0.2);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .wikilinkBtn:active {
@@ -319,7 +339,7 @@
 /* Timestamp Button Styles */
 .timestampBtn {
   display: inline-block;
-  background: rgba(124, 106, 247, 0.15);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
@@ -332,9 +352,9 @@
 }
 
 .timestampBtn:hover {
-  background: rgba(124, 106, 247, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(124, 106, 247, 0.2);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .timestampBtn:active {
@@ -356,7 +376,7 @@
   position: relative;
   width: 92vw;
   height: 92vh;
-  background: var(--surface-1, #111116);
+  background: var(--surface);
   border-radius: var(--radius-md);
   overflow: auto;
   display: flex;

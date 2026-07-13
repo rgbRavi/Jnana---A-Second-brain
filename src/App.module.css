@@ -13,8 +13,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* No `contain: layout` here deliberately — it would make this the containing
-     block for `position: fixed` descendants (NoteModal's overlay, etc.), breaking
-     their full-viewport coverage. Per-view scroll containers (e.g. Notes.module.css
-     .notesScroll) already carry their own `contain: layout paint` instead. */
+  /* Containing block for the docked composer (NoteCreator's .dock is
+     position:absolute; inset:0), so the composer + its "take a note" pill track
+     the content area as BOTH sidebars collapse/expand — no width math.
+     `position: relative` (unlike `contain: layout`) does NOT become a containing
+     block for `position: fixed` descendants, so NoteModal's full-viewport overlay
+     is unaffected. Per-view scroll containers (e.g. Notes.module.css .notesScroll)
+     carry their own `contain: layout paint`. */
+  position: relative;
 }

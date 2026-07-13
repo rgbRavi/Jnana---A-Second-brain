@@ -53,7 +53,7 @@
 }
 
 /* Secondary toolbar action (e.g. workspace "Add notes"). */
-.addBtn {
+.addBtn, .workingBtn {
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-1);
@@ -66,6 +66,6 @@
   flex-shrink: 0;
 }
 
-.addBtn:hover {
+.addBtn:hover, .workingBtn:hover {
   border-color: var(--accent);
 }

@@ -59,7 +59,7 @@
 .customizeBtn:hover {
   border-color: var(--accent);
   color: var(--text-1);
-  background: rgba(124, 106, 247, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 /* ── Layout switcher ─────────────────────────────────────────────────────── */
@@ -111,7 +111,7 @@
   background: var(--surface-2);
 }
 .layoutItemActive {
-  background: rgba(124, 106, 247, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .layoutItemMain {
   flex: 1;
@@ -277,7 +277,7 @@
   position: relative;
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), transparent 60%), var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   padding: 1.1rem 1.2rem;
   display: flex;
   flex-direction: column;
@@ -327,8 +327,8 @@
   user-select: none;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
   transition: border-color 0.18s;
 }
 .card:hover {
@@ -476,7 +476,7 @@
   gap: 0.45rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 1rem 0.5rem;
   color: var(--text-1);
   font-family: var(--font-body);
@@ -486,7 +486,7 @@
 }
 .quickAction:hover {
   border-color: var(--accent);
-  background: rgba(124, 106, 247, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   transform: translateY(-2px);
 }
 .quickIcon {
@@ -524,7 +524,7 @@
   text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 0.9rem 1rem;
   cursor: pointer;
   transition: border-color 0.15s, transform 0.12s;
@@ -557,7 +557,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #9d8bff);
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, white));
   transition: width 0.3s ease;
 }
 .learnProgress {
@@ -589,7 +589,7 @@
   transform: translateY(-2px);
 }
 .favStar {
-  color: #ffcc00;
+  color: var(--star);
   font-size: 0.95rem;
   line-height: 1.35;
   flex-shrink: 0;
@@ -659,13 +659,13 @@
   border-left-color: var(--text-3);
 }
 .insightWarn {
-  border-left-color: #e3b341;
+  border-left-color: var(--warning);
 }
 .insightAccent {
   border-left-color: var(--accent);
 }
 .insightGood {
-  border-left-color: #3fb950;
+  border-left-color: var(--success);
 }
 
 /* ── Graph snapshot ──────────────────────────────────────────────────────── */
@@ -682,7 +682,7 @@
   min-height: 260px;
   border-radius: 12px;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 40%, rgba(124, 106, 247, 0.06), transparent 70%), var(--bg);
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%), var(--bg);
   border: 1px solid var(--border);
   cursor: pointer;
 }
@@ -707,7 +707,7 @@
   gap: 0.1rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.3rem;
 }
 .graphStatVal {
@@ -725,7 +725,7 @@
 }
 .openGraphBtn {
   align-self: flex-start;
-  background: rgba(124, 106, 247, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid var(--accent);
   color: var(--accent);
   border-radius: var(--radius-sm);
@@ -736,7 +736,7 @@
   transition: background 0.15s;
 }
 .openGraphBtn:hover {
-  background: rgba(124, 106, 247, 0.2);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 /* ── Projects ────────────────────────────────────────────────────────────── */
@@ -800,7 +800,7 @@
   text-align: left;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.6rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -845,7 +845,7 @@
   gap: 0.7rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 0.6rem 0.8rem;
 }
 .task_error {
@@ -856,7 +856,7 @@
   flex-shrink: 0;
 }
 .task_done .taskStatus {
-  color: #3fb950;
+  color: var(--success);
 }
 .task_error .taskStatus {
   color: var(--danger);
@@ -925,9 +925,9 @@
   height: 12px;
 }
 .heatL0 { background: var(--surface-3); }
-.heatL1 { background: rgba(124, 106, 247, 0.3); }
-.heatL2 { background: rgba(124, 106, 247, 0.5); }
-.heatL3 { background: rgba(124, 106, 247, 0.72); }
+.heatL1 { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.heatL2 { background: color-mix(in srgb, var(--accent) 50%, transparent); }
+.heatL3 { background: color-mix(in srgb, var(--accent) 72%, transparent); }
 .heatL4 { background: var(--accent); }
 .heatLegend {
   display: flex;
@@ -973,7 +973,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   padding: 1.2rem 1.25rem 1rem;
   animation: popIn 0.2s ease-out;
 }

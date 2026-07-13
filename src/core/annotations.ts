@@ -25,6 +25,14 @@ export async function updateAnnotation(id: string, content: string): Promise<voi
   eventBus.emit('annotation:updated', { id, content })
 }
 
+/// Update an annotation's opaque `position` JSON (e.g. dragging a PDF text box
+/// or ink stroke to a new spot). `update_annotation` only touches `content`, so
+/// this is the symmetric command for position moves.
+export async function updateAnnotationPosition(id: string, position: string): Promise<void> {
+  await invoke<void>('update_annotation_position', { id, position })
+  eventBus.emit('annotation:updated', { id, position })
+}
+
 export async function deleteAnnotation(id: string): Promise<void> {
   await invoke<void>('delete_annotation', { id })
   eventBus.emit('annotation:deleted', { id })
@@ -65,6 +73,53 @@ export function makePdfAnnotation(
     kind: 'pdf_highlight',
     position: JSON.stringify({ page, rect }),
     content,
+    createdAt: Date.now(),
+  }
+}
+
+/// Helper — build a PDF freehand-ink annotation payload.
+/// points are [x, y, pressure] in PDF coordinate space (bottom-left origin) so
+/// the stroke stays anchored across zoom; content is unused.
+export function makePdfInkAnnotation(
+  noteId: string,
+  mediaId: string,
+  page: number,
+  points: [number, number, number][],
+  color: string,
+  size: number,
+): Annotation {
+  return {
+    id: crypto.randomUUID(),
+    noteId,
+    mediaId,
+    kind: 'pdf_ink',
+    position: JSON.stringify({ page, points, color, size }),
+    content: '',
+    createdAt: Date.now(),
+  }
+}
+
+/// Helper — build a PDF text-box annotation payload.
+/// (x, y) is the box's top-left in PDF coordinate space; fontSize is in PDF
+/// points; the typed text lives in `content`. `color` is optional — when
+/// omitted the viewer auto-picks a colour that contrasts the page background.
+export function makePdfTextAnnotation(
+  noteId: string,
+  mediaId: string,
+  page: number,
+  x: number,
+  y: number,
+  text: string,
+  fontSize: number,
+  color?: string,
+): Annotation {
+  return {
+    id: crypto.randomUUID(),
+    noteId,
+    mediaId,
+    kind: 'pdf_text',
+    position: JSON.stringify({ page, x, y, fontSize, ...(color ? { color } : {}) }),
+    content: text,
     createdAt: Date.now(),
   }
 }

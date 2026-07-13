@@ -12,6 +12,13 @@ pub struct NoteRow {
     pub tags: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The virtual folder this note lives in, or `None` when unfiled (v13).
+    /// Single-parent: a note is in exactly one folder. Changed only via
+    /// `set_note_folder`, never a plain note save (see `insert_or_update_note`).
+    pub folder_id: Option<String>,
+    /// The vault this note belongs to (v14). Every note has exactly one; `None`
+    /// only transiently if its vault was deleted (the app reassigns immediately).
+    pub vault_id: Option<String>,
 }
 
 /// A note's reading progress (0..1) — drives the dashboard's "Continue learning".
@@ -40,6 +47,14 @@ pub struct Note {
     pub tags: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Virtual folder membership (v13); absent/`null` = unfiled. `#[serde(default)]`
+    /// so callers that don't care about folders (most of the app) can omit it.
+    #[serde(default)]
+    pub folder_id: Option<String>,
+    /// Vault membership (v14). `#[serde(default)]` so most callers can omit it;
+    /// on a plain save it's preserved server-side (see `insert_or_update_note`).
+    #[serde(default)]
+    pub vault_id: Option<String>,
 }
 
 impl Note {
@@ -51,6 +66,8 @@ impl Note {
             tags: serde_json::to_string(&self.tags).unwrap_or("[]".into()),
             created_at: self.created_at,
             updated_at: self.updated_at,
+            folder_id: self.folder_id.clone(),
+            vault_id: self.vault_id.clone(),
         }
     }
     fn from_row(row: NoteRow) -> Self {
@@ -61,6 +78,8 @@ impl Note {
             tags: serde_json::from_str(&row.tags).unwrap_or_default(),
             created_at: row.created_at,
             updated_at: row.updated_at,
+            folder_id: row.folder_id,
+            vault_id: row.vault_id,
         }
     }
 }

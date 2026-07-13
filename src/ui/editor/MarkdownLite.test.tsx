@@ -104,6 +104,58 @@ describe('MarkdownLite', () => {
     expect(getByText('00:01:00')).toBeDefined()
   })
 
+  describe('text colour', () => {
+    it('renders a colour token as a styled span with the palette hex', () => {
+      const { getByText } = render(<MarkdownLite content="a [c:red]hot[/c] b" />)
+      const span = getByText('hot')
+      expect(span.tagName).toBe('SPAN')
+      expect(span.style.color).toBe('rgb(229, 72, 77)') // #e5484d
+    })
+
+    it('accepts a raw hex colour value', () => {
+      const { getByText } = render(<MarkdownLite content="[c:#00ff00]go[/c]" />)
+      expect(getByText('go').style.color).toBe('rgb(0, 255, 0)')
+    })
+
+    it('renders text but no colour for an unsafe value', () => {
+      const { container } = render(<MarkdownLite content="[c:rgb(1,2,3)]x[/c]" />)
+      // Unsafe value (parens) → the token doesn't match, so it stays literal text
+      // and no styled span is produced.
+      expect(container.textContent).toContain('[c:rgb(1,2,3)]x[/c]')
+      expect(container.querySelector('span[style]')).toBeNull()
+    })
+  })
+
+  describe('highlight', () => {
+    it('renders a highlight token as a span with the inner text, markers stripped', () => {
+      const { getByText, container } = render(<MarkdownLite content="a [h:teal]hot[/h] b" />)
+      const span = getByText('hot')
+      expect(span.tagName).toBe('SPAN')
+      expect(container.textContent).not.toContain('[h:teal]')
+    })
+
+    it('renders text but no highlight for an unsafe value', () => {
+      const { container } = render(<MarkdownLite content="[h:rgb(1,2,3)]x[/h]" />)
+      expect(container.textContent).toContain('[h:rgb(1,2,3)]x[/h]')
+      expect(container.querySelector('span[style]')).toBeNull()
+    })
+
+    it('renders a highlight nested inside a text colour as nested spans', () => {
+      const { getByText, container } = render(<MarkdownLite content="[c:red][h:teal]word[/h][/c]" />)
+      const inner = getByText('word')
+      expect(inner.tagName).toBe('SPAN')
+      // The inner span is the highlight (its border-radius is the tell — the
+      // color-mix background itself is dropped by jsdom's CSS parser); its parent
+      // span is the text colour.
+      expect(inner.style.borderRadius).toBe('0.2em')
+      const outer = inner.parentElement as HTMLElement
+      expect(outer.tagName).toBe('SPAN')
+      expect(outer.style.color).toBe('rgb(229, 72, 77)') // #e5484d
+      // no literal token markers leak into the output.
+      expect(container.textContent).toBe('word')
+    })
+  })
+
   describe('real markdown', () => {
     it('renders headings, bold, and lists as real elements', () => {
       const content = '# Title\n\nSome **bold** text.\n\n- one\n- two'

@@ -4,6 +4,8 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNotesContext } from '../../../context/NotesContext'
+import { useActiveVaultId } from '../../../hooks/useVaults'
+import { DEFAULT_VAULT_ID } from '../../../types'
 import type { PaneNode } from './layout'
 import { findGroup, allGroups } from './layout'
 import {
@@ -58,13 +60,17 @@ function renderNode(node: PaneNode, activeGroup: string | null, multiPane: boole
  */
 export function WorkingNotes() {
   const { notes, loading } = useNotesContext()
+  const activeVaultId = useActiveVaultId()
   const layout = useWorkingLayout()
 
-  // Reconcile once notes have loaded, and on delete.
+  // Reconcile once notes have loaded, on delete, and on vault switch — the desk
+  // is per-vault, so its tabs are kept in sync with just the active vault's notes.
   useEffect(() => {
     if (loading) return
-    reconcileWorking(new Set(notes.map((n) => n.id)))
-  }, [loading, notes])
+    reconcileWorking(
+      new Set(notes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId).map((n) => n.id)),
+    )
+  }, [loading, notes, activeVaultId])
 
   // Keyboard: Ctrl/⌘-W closes the active tab; Ctrl/⌘-\ splits the active group.
   useEffect(() => {

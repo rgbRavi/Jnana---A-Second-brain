@@ -61,6 +61,10 @@ export type ActiveDialog =
 let current: ActiveDialog | null = null
 const listeners = new Set<() => void>()
 let nextId = 1
+// The element focused before the dialog opened, captured synchronously at present()
+// time — before the dialog renders and its autoFocus button steals focus — so we can
+// return focus to it on close (accessibility: focus shouldn't jump to <body>).
+let previouslyFocused: HTMLElement | null = null
 
 const emit = () => listeners.forEach((l) => l())
 
@@ -81,6 +85,10 @@ function close(value: string | null): void {
   const { resolve } = current
   current = null
   emit()
+  // Restore focus to the pre-dialog element (if it's still in the document).
+  const toRestore = previouslyFocused
+  previouslyFocused = null
+  if (toRestore && toRestore.isConnected) toRestore.focus()
   resolve(value)
 }
 
@@ -92,6 +100,9 @@ export function resolveDialog(value: string | null): void {
 function present(make: (base: Base) => ActiveDialog): Promise<string | null> {
   // Only one dialog at a time — cancel any in-flight one first.
   if (current) close(null)
+  // Capture focus now, before the dialog mounts + autofocuses.
+  previouslyFocused =
+    typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null
   return new Promise<string | null>((resolve) => {
     current = make({ id: nextId++, resolve })
     emit()

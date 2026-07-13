@@ -17,7 +17,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   padding: 1.25rem 1.25rem 1rem;
   animation: dialogPop 0.2s ease-out;
 }
@@ -65,7 +65,7 @@
 
 .option:hover {
   border-color: var(--accent);
-  background: rgba(124, 106, 247, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .option:active {

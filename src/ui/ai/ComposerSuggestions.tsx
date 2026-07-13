@@ -6,6 +6,7 @@ import type { Note } from '../../types'
 import { isAutoTag } from '../../core/tags'
 import { TagSuggestions } from './TagSuggestions'
 import { LinkSuggestions } from './LinkSuggestions'
+import styles from './Suggestions.module.css'
 
 interface Props {
   /** The note (or live draft) the suggestions are about. */
@@ -22,8 +23,9 @@ interface Props {
 
 /**
  * The AI tag + link suggestion pair, shared by every composer and the note
- * modal. Computes the tag vocabulary once; each panel renders only if its
- * handler is provided.
+ * modal — two icon buttons on one line, each opening a checkbox dropdown (see
+ * SuggestionMenu). Computes the tag vocabulary once; each button renders only if
+ * its handler is provided.
  */
 export function ComposerSuggestions({ note, allNotes, currentTags, onAddTag, onAddLink }: Props) {
   const vocabulary = useMemo(
@@ -31,12 +33,14 @@ export function ComposerSuggestions({ note, allNotes, currentTags, onAddTag, onA
     [allNotes],
   )
 
+  if (!onAddTag && !onAddLink) return null
+
   return (
-    <>
+    <div className={styles.row}>
       {onAddTag && (
         <TagSuggestions note={note} vocabulary={vocabulary} currentTags={currentTags} onAccept={onAddTag} />
       )}
       {onAddLink && <LinkSuggestions note={note} allNotes={allNotes} onAddLink={onAddLink} />}
-    </>
+    </div>
   )
 }

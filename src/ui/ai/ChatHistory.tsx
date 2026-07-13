@@ -6,6 +6,7 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
+import { useActiveVaultId } from '../../hooks/useVaults'
 import type { ConversationMeta } from '../../types'
 
 const newId = () =>
@@ -17,8 +18,10 @@ const fmt = (t: number) => new Date(t).toLocaleString(undefined, { month: 'short
  *  chat component purely through the eventBus. */
 export function ChatHistory({ mode }: { mode: string }) {
   const [list, setList] = useState<ConversationMeta[]>([])
-  // Same key + default factory as useChatHistory so the highlight stays in sync.
-  const [activeId] = useViewState<string>(`ai.conv.${mode}`, newId)
+  const activeVaultId = useActiveVaultId()
+  // Same key + default factory as useChatHistory so the highlight stays in sync
+  // (per mode + vault — history is vault-scoped).
+  const [activeId] = useViewState<string>(`ai.conv.${mode}.${activeVaultId}`, newId)
   const [collapsed, setCollapsed] = useViewState('ai.history.collapsed', false)
   // In AI Chat, the drawer is scoped to the active project (Claude-style grouping).
   const [activeProjectId] = useViewState('ai.free.projectId', '')
@@ -29,10 +32,10 @@ export function ChatHistory({ mode }: { mode: string }) {
     mode === 'chat' ? list.filter((c) => (c.projectId ?? '') === (activeProjectId ?? '')) : list
 
   const refresh = useCallback(() => {
-    listConversations(mode)
+    listConversations(mode, activeVaultId)
       .then(setList)
       .catch((e) => console.error('Failed to list conversations:', e))
-  }, [mode])
+  }, [mode, activeVaultId])
 
   useEffect(() => {
     refresh()

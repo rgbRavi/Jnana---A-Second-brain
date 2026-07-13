@@ -11,10 +11,13 @@ import { useSyncExternalStore } from 'react'
 export interface ActiveWorkspaceState {
   activeWorkspaceId: string | null
   pinnedWorkspaceIds: string[]
+  /** Workspaces the user has opened this session/run — shown in the sidebar's
+   *  collapsible "Open workspaces" section until explicitly closed (×). */
+  openWorkspaceIds: string[]
 }
 
 const STORAGE_KEY = 'jnana.workspace.active'
-const DEFAULTS: ActiveWorkspaceState = { activeWorkspaceId: null, pinnedWorkspaceIds: [] }
+const DEFAULTS: ActiveWorkspaceState = { activeWorkspaceId: null, pinnedWorkspaceIds: [], openWorkspaceIds: [] }
 
 function load(): ActiveWorkspaceState {
   try {
@@ -52,6 +55,18 @@ export function togglePinnedWorkspace(id: string): void {
       ? state.pinnedWorkspaceIds.filter((x) => x !== id)
       : [...state.pinnedWorkspaceIds, id],
   })
+}
+
+/** Add a workspace to the "open" list (no-op if already there). Called on visit. */
+export function openWorkspace(id: string): void {
+  if (!id || state.openWorkspaceIds.includes(id)) return
+  commit({ ...state, openWorkspaceIds: [...state.openWorkspaceIds, id] })
+}
+
+/** Remove a workspace from the "open" list (the sidebar ×, or the in-view Close). */
+export function closeWorkspace(id: string): void {
+  if (!state.openWorkspaceIds.includes(id)) return
+  commit({ ...state, openWorkspaceIds: state.openWorkspaceIds.filter((x) => x !== id) })
 }
 
 /** Non-reactive read — for the composer's auto-add-on-save. */

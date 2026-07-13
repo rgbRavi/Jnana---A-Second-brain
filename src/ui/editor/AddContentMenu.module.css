@@ -9,21 +9,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 0.5rem;
   color: var(--text-2);
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .addBtn:hover:not(:disabled) {
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--text-1);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.addBtn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .addBtn:disabled {
@@ -85,7 +92,7 @@
 }
 
 .menuItem:hover {
-  background: rgba(124, 106, 247, 0.12);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .menuIcon {

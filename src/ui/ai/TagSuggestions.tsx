@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useState } from 'react'
 import type { Note, TagSuggestion } from '../../types'
 import { loadAiConfig, suggestTags } from '../../core/ai'
-import styles from './TagSuggestions.module.css'
+import { SuggestionMenu } from './SuggestionMenu'
+import styles from './Suggestions.module.css'
 
 interface Props {
   note: Note
@@ -17,68 +17,34 @@ interface Props {
 }
 
 /**
- * AI tag suggestions for a note. On demand (never automatic): it suggests tags
- * grounded in the note + the user's vocabulary, shows existing tags before
- * proposed-new ones with a reason on hover, and applies a tag only when the
- * user clicks it. Nothing mutates the note until then.
+ * AI tag suggestions for a note — an icon button that, on click, suggests tags
+ * grounded in the note + the user's vocabulary and opens a checkbox dropdown;
+ * ticked tags are applied on **Apply**. Nothing mutates the note until then.
  */
 export function TagSuggestions({ note, vocabulary, currentTags, onAccept }: Props) {
-  const [items, setItems] = useState<TagSuggestion[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const run = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const config = await loadAiConfig()
-      if (!config.enabled) {
-        setError('Enable AI in AI settings to suggest tags.')
-        return
-      }
-      setItems(await suggestTags(note, config, vocabulary))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not suggest tags.')
-    } finally {
-      setLoading(false)
-    }
+  const run = async (): Promise<TagSuggestion[]> => {
+    const config = await loadAiConfig()
+    if (!config.enabled) throw new Error('Enable AI in AI settings to suggest tags.')
+    const items = await suggestTags(note, config, vocabulary)
+    // Hide tags already on the note (the model may echo existing ones).
+    return items.filter((s) => !currentTags.includes(s.tag))
   }
-
-  const accept = (tag: string) => {
-    onAccept(tag)
-    setItems((prev) => (prev ? prev.filter((s) => s.tag !== tag) : prev))
-  }
-
-  // Hide suggestions already on the note (the model may echo existing tags).
-  const visible = items?.filter((s) => !currentTags.includes(s.tag)) ?? null
 
   return (
-    <div className={styles.wrap}>
-      <button className={styles.suggestBtn} onClick={run} disabled={loading}>
-        {loading ? 'Thinking…' : '✨ Suggest tags'}
-      </button>
-
-      {error && <span className={styles.error}>{error}</span>}
-
-      {visible && visible.length === 0 && !loading && (
-        <span className={styles.empty}>No new tags to suggest.</span>
+    <SuggestionMenu<TagSuggestion>
+      icon="✨"
+      label="Suggest tags"
+      keyOf={(s) => s.tag}
+      run={run}
+      onApply={(items) => items.forEach((s) => onAccept(s.tag))}
+      loadingText="Thinking…"
+      emptyText="No new tags to suggest."
+      renderItem={(s) => (
+        <span className={styles.tagName} title={s.reason || (s.isNew ? 'New tag' : 'From your existing tags')}>
+          {s.tag}
+          {s.isNew && <span className={styles.newMark}>new</span>}
+        </span>
       )}
-
-      {visible && visible.length > 0 && (
-        <div className={styles.chips}>
-          {visible.map((s) => (
-            <button
-              key={s.tag}
-              className={`${styles.chip} ${s.isNew ? styles.chipNew : ''}`}
-              title={s.reason || (s.isNew ? 'New tag' : 'From your existing tags')}
-              onClick={() => accept(s.tag)}
-            >
-              + {s.tag}
-              {s.isNew && <span className={styles.newMark}>new</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    />
   )
 }

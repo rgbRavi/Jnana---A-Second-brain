@@ -6,12 +6,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import { useWorkspaceNotes } from '../../hooks/useWorkspaceNotes'
-import { useViewState } from '../../hooks/useViewState'
+import { useWorkspaceTab, setWorkspaceTab, type WorkspaceTab } from './useWorkspaceTab'
 import {
   useActiveWorkspace,
   setActiveWorkspace,
   togglePinnedWorkspace,
+  openWorkspace,
+  closeWorkspace,
 } from '../../hooks/useActiveWorkspace'
+import { getActiveVaultId, setActiveVaultId } from '../../hooks/useVaults'
 import { deleteWorkspace, workspaceColor } from '../../core/workspaces'
 import { exportNotes } from '../../core/export'
 import { openComposer } from '../../ui/editor/NoteCreator'
@@ -25,26 +28,39 @@ import { WorkspaceEditDialog } from './WorkspaceEditDialog'
 import { CanvasBoard } from './canvas/CanvasBoard'
 import styles from './Workspaces.module.css'
 
-type Tab = 'dashboard' | 'notes' | 'graph' | 'canvas' | 'insights'
-
 function Workspace() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const { workspaces } = useWorkspaces()
+  // Resolve against ALL vaults so a workspace opened from another vault (a pinned
+  // sidebar shortcut, a direct URL) still loads.
+  const { allWorkspaces } = useWorkspaces()
   const { create, update, remove } = useNotesContext()
   const { notes: wsNotes } = useWorkspaceNotes(id)
   const { pinnedWorkspaceIds } = useActiveWorkspace()
-  const [tab, setTab] = useViewState<Tab>('workspace.tab', 'dashboard')
+  const tab = useWorkspaceTab(id)
+  const setTab = (t: WorkspaceTab) => setWorkspaceTab(id, t)
   const [editing, setEditing] = useState(false)
 
-  const workspace = workspaces.find((w) => w.id === id)
+  const workspace = allWorkspaces.find((w) => w.id === id)
   const pinned = pinnedWorkspaceIds.includes(id)
+
+  // Opening a workspace switches the app to its vault, so the page's vault-scoped
+  // content (its notes, graph, dashboard) matches — same as opening a cross-vault
+  // note. Covers the sidebar, command palette, and direct URLs.
+  useEffect(() => {
+    if (workspace && workspace.vaultId !== getActiveVaultId()) setActiveVaultId(workspace.vaultId)
+  }, [workspace?.vaultId])
 
   // Mark this workspace active while open (drives quick-note capture + AI scope).
   useEffect(() => {
     setActiveWorkspace(id)
     return () => setActiveWorkspace(null)
   }, [id])
+
+  // Add to the sidebar's "Open workspaces" list once we know it's a real one.
+  useEffect(() => {
+    if (workspace) openWorkspace(id)
+  }, [workspace, id])
 
   const scopeIds = useMemo(() => new Set(wsNotes.map((n) => n.id)), [wsNotes])
 
@@ -67,6 +83,14 @@ function Workspace() {
     })
     if (!ok) return
     await deleteWorkspace(id)
+    closeWorkspace(id)
+    navigate('/workspaces')
+  }
+
+  // Close = dismiss from the sidebar's "Open workspaces" list AND return to the
+  // all-workspaces view (the "← Workspaces" link only returns; it stays open).
+  const handleClose = () => {
+    closeWorkspace(id)
     navigate('/workspaces')
   }
 
@@ -85,9 +109,18 @@ function Workspace() {
 
   return (
     <div className={styles.page}>
-      <button className={styles.backLink} onClick={() => navigate('/workspaces')}>
-        ← Workspaces
-      </button>
+      <div className={styles.topBar}>
+        <button className={styles.backLink} onClick={() => navigate('/workspaces')}>
+          ← Workspaces
+        </button>
+        <button
+          className={styles.closeLink}
+          onClick={handleClose}
+          title="Close workspace (remove from sidebar) and return"
+        >
+          ✕ Close
+        </button>
+      </div>
 
       <div className={styles.header}>
         <span className={styles.headerIcon}>{workspace.icon || '📁'}</span>

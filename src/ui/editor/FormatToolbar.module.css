@@ -8,27 +8,116 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 0.35rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0.4rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
   color: var(--text-2);
   font-family: var(--font-body);
-  font-size: 0.72rem;
+  font-size: 0.9rem;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--accent);
+  background: var(--surface-3);
   color: var(--text-1);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+  transform: none;
+}
+
+.colorGlyph {
+  font-weight: 700;
+  border-bottom: 2px solid var(--accent);
+  line-height: 1;
+  padding-bottom: 1px;
+}
+
+.highlightGlyph {
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.colorWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.palette {
+  position: absolute;
+  /* Opens upward — the toolbar lives in the composer footer at the bottom edge,
+     so a downward menu would clip under the window bar. */
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
+  padding: 0.4rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.swatch:hover {
+  transform: scale(1.15);
+  border-color: var(--text-1);
+}
+
+/* Custom-colour swatch — the native `<input type="color">` styled directly (its
+   own click opens the OS picker, so no overlay is needed) as a round puck. The
+   ::-webkit-color-swatch pseudo-elements strip the default chrome; a conic
+   rainbow shows through the transparent wrapper so it reads as "pick any". */
+.customSwatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  background: conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red);
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform 0.1s;
+}
+
+.customSwatch:hover {
+  transform: scale(1.15);
+  border-color: var(--text-1);
+}
+
+.customSwatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.customSwatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
 }

@@ -7,6 +7,7 @@
 // LiveEditor's slash wiring — so detection just reads the current line.
 
 import type { FormatKind } from './format'
+import { COLOR_PALETTE } from './colors'
 
 /** Where a slash-insert command routes: reuse LiveEditor's existing helpers. */
 export type ImportWhich = 'image' | 'video' | 'audio' | 'document' | 'youtube' | 'webpage'
@@ -17,6 +18,9 @@ export type SlashAction =
   | { kind: 'import'; which: ImportWhich }
   // Insert `[[]]` and open the note-picker between the brackets.
   | { kind: 'wikilink' }
+  // Wrap the selection (or drop an empty span ready to type) in a colour /
+  // highlight token — routes to LiveEditor's applyColor/applyHighlight helper.
+  | { kind: 'color'; variant: 'color' | 'highlight'; color: string }
 
 export interface SlashCommand {
   id: string
@@ -24,7 +28,7 @@ export interface SlashCommand {
   icon: string
   /** Extra match terms beyond the label (e.g. 'h1' for Heading 1). */
   keywords: string[]
-  group: 'Format' | 'Insert'
+  group: 'Format' | 'Insert' | 'Text colour' | 'Highlight'
   action: SlashAction
 }
 
@@ -50,6 +54,26 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'document', label: 'Document / File', icon: '📄', keywords: ['document', 'file', 'pdf', 'doc'], group: 'Insert', action: { kind: 'import', which: 'document' } },
   { id: 'youtube', label: 'YouTube embed', icon: '▶️', keywords: ['youtube', 'video', 'embed'], group: 'Insert', action: { kind: 'import', which: 'youtube' } },
   { id: 'webpage', label: 'Web page', icon: '🌐', keywords: ['web', 'page', 'link', 'url', 'bookmark'], group: 'Insert', action: { kind: 'import', which: 'webpage' } },
+
+  // Text colour / Highlight — one row per palette swatch (generated from the same
+  // COLOR_PALETTE the toolbar uses). Applied to the selection, or an empty span
+  // ready to type into when there's none.
+  ...COLOR_PALETTE.map((c): SlashCommand => ({
+    id: `color-${c.name}`,
+    label: `${c.label} text`,
+    icon: '🎨',
+    keywords: ['colour', 'color', 'text', c.name],
+    group: 'Text colour',
+    action: { kind: 'color', variant: 'color', color: c.name },
+  })),
+  ...COLOR_PALETTE.map((c): SlashCommand => ({
+    id: `highlight-${c.name}`,
+    label: `${c.label} highlight`,
+    icon: '🖍️',
+    keywords: ['highlight', 'mark', 'marker', c.name],
+    group: 'Highlight',
+    action: { kind: 'color', variant: 'highlight', color: c.name },
+  })),
 ]
 
 /**

@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNotesContext } from '../context/NotesContext'
+import { useActiveVaultId } from './useVaults'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
 import {
@@ -11,7 +12,7 @@ import {
   removeWorkspaceNote,
   setWorkspaceNotePinned,
 } from '../core/workspaces'
-import type { WorkspaceNote } from '../types'
+import { DEFAULT_VAULT_ID, type WorkspaceNote } from '../types'
 
 /**
  * A workspace's notes, derived by intersecting the global notes (from
@@ -21,6 +22,7 @@ import type { WorkspaceNote } from '../types'
  */
 export function useWorkspaceNotes(workspaceId: string) {
   const { notes: allNotes } = useNotesContext()
+  const activeVaultId = useActiveVaultId()
   const [members, setMembers] = useState<WorkspaceNote[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -47,7 +49,15 @@ export function useWorkspaceNotes(workspaceId: string) {
   }, [refresh])
 
   const memberMap = useMemo(() => new Map(members.map((m) => [m.noteId, m])), [members])
-  const notes = useMemo(() => allNotes.filter((n) => memberMap.has(n.id)), [allNotes, memberMap])
+  // Scoped to the active vault: a workspace's notes shown are its members that
+  // also live in the current vault (membership is global; the vault is a lens).
+  const notes = useMemo(
+    () =>
+      allNotes.filter(
+        (n) => memberMap.has(n.id) && (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId,
+      ),
+    [allNotes, memberMap, activeVaultId],
+  )
   const pinnedIds = useMemo(
     () => new Set(members.filter((m) => m.pinned).map((m) => m.noteId)),
     [members],

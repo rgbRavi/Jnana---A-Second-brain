@@ -5,7 +5,8 @@ import { useRef } from 'react'
 import { VoiceRecorder } from './VoiceRecorder'
 import { toast } from '../../lib/toast'
 import { showPromptDialog } from '../../lib/dialog'
-import Styles from './NoteCreator.module.css'
+import { Image, Film, Headphones, FileText, Play } from 'lucide-react'
+import Styles from './FormatToolbar.module.css'
 
 interface Props {
   onInsertMarkdown: (markdown: string) => void
@@ -59,41 +60,41 @@ export function ComposerToolbar({
         }
       />
       <button
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onClick={() => fileInputRef.current?.click()}
         disabled={disabled}
         title="Attach Image"
-      >📷</button>
+      ><Image size={18} /></button>
       <button
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onClick={onVideoUpload}
         disabled={disabled}
         title="Attach Video"
-      >🎬</button>
+      ><Film size={18} /></button>
       <button
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onClick={onAudioUpload}
         disabled={disabled}
         title="Attach Audio"
-      >🎵</button>
+      ><Headphones size={18} /></button>
       <VoiceRecorder
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onRecorded={onRecordAudio}
         onRecordingChange={onRecordingChange}
         disabled={disabled}
       />
       <button
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onClick={onDocumentUpload}
         disabled={disabled}
         title="Attach Document"
-      >📄</button>
+      ><FileText size={18} /></button>
       <button
-        className={Styles.composerIconBtn}
+        className={Styles.btn}
         onClick={handleYouTubeEmbed}
         disabled={disabled}
         title="Embed YouTube"
-      >▶️</button>
+      ><Play size={18} /></button>
     </>
   )
 }

@@ -3,6 +3,8 @@
 
 use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
 use crate::commands::canvas::CanvasRow;
+use crate::commands::folders::FolderRow;
+use crate::commands::vaults::VaultRow;
 use crate::commands::web::LinkPreview;
 use crate::commands::workspaces::{CollectionRow, WorkspaceNoteRow, WorkspaceRow};
 use crate::commands::chat::{ConversationMeta, ConversationRow};
@@ -10,14 +12,18 @@ use crate::commands::media::RecentMediaRow;
 use crate::commands::notes::{NoteProgressRow, NoteRow};
 use crate::commands::themes::ThemeRow;
 use crate::commands::media_layout::MediaLayoutRow;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, OptionalExtension, Result};
 
 // ─── Notes ──────────────────────────────────────────────
 
 pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
+    // `folder_id` / `vault_id` are set on INSERT (so a note can be created
+    // directly into a folder/vault) but deliberately NOT in the ON CONFLICT
+    // branch — a plain note save must never move an existing note between folders
+    // or vaults. Those moves go through `set_note_folder` / `set_note_vault`.
     conn.execute(
-        "INSERT INTO notes (id, title, content, tags, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO notes (id, title, content, tags, created_at, updated_at, folder_id, vault_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(id) DO UPDATE SET
            title      = excluded.title,
            content    = excluded.content,
@@ -30,6 +36,8 @@ pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
             note.tags,
             note.created_at,
             note.updated_at,
+            note.folder_id,
+            note.vault_id,
         ],
     )?;
     Ok(())
@@ -37,7 +45,7 @@ pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
 
 pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, content, tags, created_at, updated_at
+        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id
          FROM notes ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -48,6 +56,8 @@ pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
             tags:       row.get(3)?,
             created_at: row.get(4)?,
             updated_at: row.get(5)?,
+            folder_id:  row.get(6)?,
+            vault_id:   row.get(7)?,
         })
     })?;
     rows.collect()
@@ -55,7 +65,7 @@ pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
 
 pub fn fetch_note(conn: &Connection, id: &str) -> Result<NoteRow> {
     conn.query_row(
-        "SELECT id, title, content, tags, created_at, updated_at
+        "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id
          FROM notes WHERE id = ?1",
         params![id],
         |row| {
@@ -66,6 +76,8 @@ pub fn fetch_note(conn: &Connection, id: &str) -> Result<NoteRow> {
                 tags:       row.get(3)?,
                 created_at: row.get(4)?,
                 updated_at: row.get(5)?,
+                folder_id:  row.get(6)?,
+                vault_id:   row.get(7)?,
             })
         },
     )
@@ -184,22 +196,22 @@ pub fn fetch_all_links(conn: &Connection) -> Result<Vec<(String, String)>> {
 
 pub fn upsert_conversation(conn: &Connection, c: &ConversationRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, vault_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(id) DO UPDATE SET
            title      = excluded.title,
            messages   = excluded.messages,
            scope      = excluded.scope,
            project_id = excluded.project_id,
            updated_at = excluded.updated_at",
-        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.created_at, c.updated_at],
+        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.vault_id, c.created_at, c.updated_at],
     )?;
     Ok(())
 }
 
 pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow> {
     conn.query_row(
-        "SELECT id, mode, title, messages, scope, project_id, created_at, updated_at
+        "SELECT id, mode, title, messages, scope, project_id, vault_id, created_at, updated_at
          FROM conversations WHERE id = ?1",
         params![id],
         |row| {
@@ -210,14 +222,19 @@ pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow
                 messages: row.get(3)?,
                 scope: row.get(4)?,
                 project_id: row.get(5)?,
-                created_at: row.get(6)?,
-                updated_at: row.get(7)?,
+                vault_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
             })
         },
     )
 }
 
-pub fn list_conversations(conn: &Connection, mode: Option<&str>) -> Result<Vec<ConversationMeta>> {
+pub fn list_conversations(
+    conn: &Connection,
+    mode: Option<&str>,
+    vault_id: Option<&str>,
+) -> Result<Vec<ConversationMeta>> {
     let to_meta = |row: &rusqlite::Row| {
         Ok(ConversationMeta {
             id: row.get(0)?,
@@ -227,8 +244,17 @@ pub fn list_conversations(conn: &Connection, mode: Option<&str>) -> Result<Vec<C
             updated_at: row.get(4)?,
         })
     };
-    match mode {
-        Some(m) => {
+    // Chat history is per-vault (v16); a null vault_id lists across all vaults.
+    match (mode, vault_id) {
+        (Some(m), Some(v)) => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, project_id, updated_at FROM conversations
+                 WHERE mode = ?1 AND vault_id = ?2 ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map(params![m, v], to_meta)?;
+            rows.collect()
+        }
+        (Some(m), None) => {
             let mut stmt = conn.prepare(
                 "SELECT id, mode, title, project_id, updated_at FROM conversations
                  WHERE mode = ?1 ORDER BY updated_at DESC",
@@ -236,7 +262,15 @@ pub fn list_conversations(conn: &Connection, mode: Option<&str>) -> Result<Vec<C
             let rows = stmt.query_map(params![m], to_meta)?;
             rows.collect()
         }
-        None => {
+        (None, Some(v)) => {
+            let mut stmt = conn.prepare(
+                "SELECT id, mode, title, project_id, updated_at FROM conversations
+                 WHERE vault_id = ?1 ORDER BY updated_at DESC",
+            )?;
+            let rows = stmt.query_map(params![v], to_meta)?;
+            rows.collect()
+        }
+        (None, None) => {
             let mut stmt = conn.prepare(
                 "SELECT id, mode, title, project_id, updated_at FROM conversations ORDER BY updated_at DESC",
             )?;
@@ -303,7 +337,7 @@ pub fn delete_preset(conn: &Connection, id: &str) -> Result<()> {
 
 pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, instructions, created_at, updated_at, color
+        "SELECT id, name, description, instructions, created_at, updated_at, color, vault_id
          FROM ai_projects ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -315,6 +349,7 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
             created_at: row.get(4)?,
             updated_at: row.get(5)?,
             color: row.get(6)?,
+            vault_id: row.get(7)?,
         })
     })?;
     rows.collect()
@@ -322,15 +357,15 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<ProjectRow>> {
 
 pub fn upsert_project(conn: &Connection, p: &ProjectRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO ai_projects (id, name, description, instructions, created_at, updated_at, color)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO ai_projects (id, name, description, instructions, created_at, updated_at, color, vault_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(id) DO UPDATE SET
            name         = excluded.name,
            description  = excluded.description,
            instructions = excluded.instructions,
            updated_at   = excluded.updated_at,
            color        = excluded.color",
-        params![p.id, p.name, p.description, p.instructions, p.created_at, p.updated_at, p.color],
+        params![p.id, p.name, p.description, p.instructions, p.created_at, p.updated_at, p.color, p.vault_id],
     )?;
     Ok(())
 }
@@ -378,7 +413,7 @@ pub fn delete_project_knowledge(conn: &Connection, id: &str) -> Result<()> {
 
 pub fn list_workspaces(conn: &Connection) -> Result<Vec<WorkspaceRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, icon, color, description, created_at, updated_at
+        "SELECT id, name, icon, color, description, vault_id, created_at, updated_at
          FROM workspaces ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -388,8 +423,9 @@ pub fn list_workspaces(conn: &Connection) -> Result<Vec<WorkspaceRow>> {
             icon: row.get(2)?,
             color: row.get(3)?,
             description: row.get(4)?,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            vault_id: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     })?;
     rows.collect()
@@ -397,15 +433,15 @@ pub fn list_workspaces(conn: &Connection) -> Result<Vec<WorkspaceRow>> {
 
 pub fn upsert_workspace(conn: &Connection, w: &WorkspaceRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO workspaces (id, name, icon, color, description, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO workspaces (id, name, icon, color, description, vault_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(id) DO UPDATE SET
            name        = excluded.name,
            icon        = excluded.icon,
            color       = excluded.color,
            description = excluded.description,
            updated_at  = excluded.updated_at",
-        params![w.id, w.name, w.icon, w.color, w.description, w.created_at, w.updated_at],
+        params![w.id, w.name, w.icon, w.color, w.description, w.vault_id, w.created_at, w.updated_at],
     )?;
     Ok(())
 }
@@ -527,6 +563,152 @@ pub fn remove_collection_note(conn: &Connection, collection_id: &str, note_id: &
         "DELETE FROM collection_notes WHERE collection_id = ?1 AND note_id = ?2",
         params![collection_id, note_id],
     )?;
+    Ok(())
+}
+
+// ─── Folders (virtual tree / vault) ─────────────────────
+
+pub fn list_folders(conn: &Connection) -> Result<Vec<FolderRow>> {
+    // Whole tree in one shot — it's tiny; the UI builds the adjacency list.
+    // Ordered so siblings come out in manual `position`, then name as a
+    // deterministic tie-break.
+    let mut stmt = conn.prepare(
+        "SELECT id, parent_id, name, position, vault_id, created_at, updated_at
+         FROM folders ORDER BY position, name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(FolderRow {
+            id: row.get(0)?,
+            parent_id: row.get(1)?,
+            name: row.get(2)?,
+            position: row.get(3)?,
+            vault_id: row.get(4)?,
+            created_at: row.get(5)?,
+            updated_at: row.get(6)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_folder(conn: &Connection, f: &FolderRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO folders (id, parent_id, name, position, vault_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+           name       = excluded.name,
+           position   = excluded.position,
+           updated_at = excluded.updated_at",
+        params![f.id, f.parent_id, f.name, f.position, f.vault_id, f.created_at, f.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_folder(conn: &Connection, id: &str) -> Result<()> {
+    // Sub-folders cascade (parent_id FK); contained notes SET NULL → unfiled.
+    // Both are enforced by the FKs under PRAGMA foreign_keys = ON, so a plain
+    // DELETE is enough — notes are never destroyed by deleting a folder.
+    conn.execute("DELETE FROM folders WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// True if `candidate_ancestor` is `folder` itself or one of its ancestors —
+/// used to reject a reparent that would create a cycle (moving a folder into its
+/// own descendant). Walks parent pointers; the tree is tiny.
+fn folder_is_ancestor_of(conn: &Connection, candidate_ancestor: &str, folder: &str) -> Result<bool> {
+    let mut current = Some(folder.to_string());
+    while let Some(id) = current {
+        if id == candidate_ancestor {
+            return Ok(true);
+        }
+        current = conn
+            .query_row("SELECT parent_id FROM folders WHERE id = ?1", params![id], |r| r.get::<_, Option<String>>(0))
+            .optional()?
+            .flatten();
+    }
+    Ok(false)
+}
+
+/// Reparent a folder. Rejects a move that would form a cycle (into itself or a
+/// descendant), returning `Ok(false)` so the caller can surface a friendly error
+/// without it being a hard failure.
+pub fn move_folder(conn: &Connection, id: &str, new_parent: Option<&str>, now: i64) -> Result<bool> {
+    if let Some(parent) = new_parent {
+        if parent == id || folder_is_ancestor_of(conn, id, parent)? {
+            return Ok(false);
+        }
+    }
+    conn.execute(
+        "UPDATE folders SET parent_id = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, new_parent, now],
+    )?;
+    Ok(true)
+}
+
+/// Set (or clear, when `folder_id` is `None`) a note's folder AND its vault — the
+/// single-parent move. A note's vault must always match its folder's vault, so
+/// both move together (when unfiling, the caller passes the vault to keep the note
+/// in). Touches only `folder_id`/`vault_id`, never `updated_at` or content, so it
+/// won't trip the note-saved cascade (search re-index, link sync).
+pub fn set_note_folder(
+    conn: &Connection,
+    note_id: &str,
+    folder_id: Option<&str>,
+    vault_id: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE notes SET folder_id = ?2, vault_id = ?3 WHERE id = ?1",
+        params![note_id, folder_id, vault_id],
+    )?;
+    Ok(())
+}
+
+// ─── Vaults (Obsidian-style top-level container) ────────
+
+pub fn list_vaults(conn: &Connection) -> Result<Vec<VaultRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, position, created_at, updated_at
+         FROM vaults ORDER BY position, name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(VaultRow {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            position: row.get(2)?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn upsert_vault(conn: &Connection, v: &VaultRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO vaults (id, name, position, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+           name       = excluded.name,
+           position   = excluded.position,
+           updated_at = excluded.updated_at",
+        params![v.id, v.name, v.position, v.created_at, v.updated_at],
+    )?;
+    Ok(())
+}
+
+pub fn count_vaults(conn: &Connection) -> Result<i64> {
+    conn.query_row("SELECT COUNT(*) FROM vaults", [], |r| r.get(0))
+}
+
+/// Delete a vault, first reassigning every note it holds to `reassign_to` and
+/// unfiling them (their old folders live in the deleted vault and cascade away).
+/// Never destroys notes — Jnana's philosophy. The caller guarantees at least one
+/// other vault exists to receive them.
+pub fn delete_vault(conn: &Connection, id: &str, reassign_to: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE notes SET vault_id = ?2, folder_id = NULL WHERE vault_id = ?1",
+        params![id, reassign_to],
+    )?;
+    // Folders in this vault cascade via the FK when the vault row goes.
+    conn.execute("DELETE FROM vaults WHERE id = ?1", params![id])?;
     Ok(())
 }
 
@@ -655,15 +837,11 @@ pub fn insert_media_ref(
     Ok(())
 }
 
-/// Most-recently imported media across the whole vault, joined to its note title.
-pub fn recent_media(conn: &Connection, limit: i64) -> Result<Vec<RecentMediaRow>> {
-    let mut stmt = conn.prepare(
-        "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
-         FROM media_refs m JOIN notes n ON n.id = m.note_id
-         ORDER BY m.created_at DESC, m.rowid DESC
-         LIMIT ?1",
-    )?;
-    let rows = stmt.query_map(params![limit], |row| {
+/// Most-recently imported media, joined to its note title. Scoped to `vault_id`
+/// when given (a media's vault is its note's vault) so the dashboard's "recent
+/// imports" follows the active vault; `None` returns across all vaults.
+pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Result<Vec<RecentMediaRow>> {
+    let map_row = |row: &rusqlite::Row| {
         Ok(RecentMediaRow {
             filename: row.get(0)?,
             media_type: row.get(1)?,
@@ -671,8 +849,30 @@ pub fn recent_media(conn: &Connection, limit: i64) -> Result<Vec<RecentMediaRow>
             note_title: row.get(3)?,
             created_at: row.get(4)?,
         })
-    })?;
-    rows.collect()
+    };
+    match vault_id {
+        Some(v) => {
+            let mut stmt = conn.prepare(
+                "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
+                 FROM media_refs m JOIN notes n ON n.id = m.note_id
+                 WHERE n.vault_id = ?2
+                 ORDER BY m.created_at DESC, m.rowid DESC
+                 LIMIT ?1",
+            )?;
+            let rows = stmt.query_map(params![limit, v], map_row)?;
+            rows.collect()
+        }
+        None => {
+            let mut stmt = conn.prepare(
+                "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
+                 FROM media_refs m JOIN notes n ON n.id = m.note_id
+                 ORDER BY m.created_at DESC, m.rowid DESC
+                 LIMIT ?1",
+            )?;
+            let rows = stmt.query_map(params![limit], map_row)?;
+            rows.collect()
+        }
+    }
 }
 
 pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
@@ -798,6 +998,18 @@ pub fn update_annotation_content(
     conn.execute(
         "UPDATE annotations SET content = ?1 WHERE id = ?2",
         params![content, id],
+    )?;
+    Ok(())
+}
+
+pub fn update_annotation_position(
+    conn: &Connection,
+    id: &str,
+    position: &str,
+) -> Result<()> {
+    conn.execute(
+        "UPDATE annotations SET position = ?1 WHERE id = ?2",
+        params![position, id],
     )?;
     Ok(())
 }
@@ -1047,6 +1259,8 @@ mod tests {
             tags: "[]".to_string(),
             created_at: 12345,
             updated_at: 12345,
+            folder_id: None,
+            vault_id: None,
         };
 
         insert_or_update_note(&conn, &note).unwrap();
@@ -1064,9 +1278,9 @@ mod tests {
         let mut conn = setup_db();
         
         // Insert notes
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
-        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
-        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note3 = NoteRow { id: "3".to_string(), title: "Target Two".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
         
         insert_or_update_note(&conn, &note1).unwrap();
         insert_or_update_note(&conn, &note2).unwrap();
@@ -1094,8 +1308,8 @@ mod tests {
     #[test]
     fn test_sync_links_skips_self_and_removes_stale() {
         let mut conn = setup_db();
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
-        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
+        let note2 = NoteRow { id: "2".to_string(), title: "Target One".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
         insert_or_update_note(&conn, &note1).unwrap();
         insert_or_update_note(&conn, &note2).unwrap();
 
@@ -1112,7 +1326,7 @@ mod tests {
     #[test]
     fn test_sync_links_ignores_unresolved_titles() {
         let mut conn = setup_db();
-        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0 };
+        let note1 = NoteRow { id: "1".to_string(), title: "Source".to_string(), content: "".to_string(), tags: "[]".to_string(), created_at: 0, updated_at: 0, folder_id: None, vault_id: None };
         insert_or_update_note(&conn, &note1).unwrap();
 
         let (added, removed) = sync_links_for_note(&mut conn, "1", &vec!["does not exist".to_string()]).unwrap();

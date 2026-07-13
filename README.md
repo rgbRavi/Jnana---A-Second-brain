@@ -16,14 +16,15 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Local-first & private.** Everything is stored on your device (SQLite + an app-managed assets
   folder). It works offline. Nothing is uploaded unless *you* choose a cloud AI provider.
 - **Media-native, not just text.** PDFs, local video, audio, images, and YouTube live *inside*
-  your notes — with highlight annotations on PDFs and clickable timestamps on audio/video.
+  your notes — draw, type, and highlight on PDFs, with clickable timestamps on audio/video.
 - **A real knowledge graph.** Notes link with `[[wikilinks]]` and render as an interactive
   force-directed graph you can explore, search, and connect by hand.
 - **AI that's grounded and optional.** The AI features answer *only* from your notes, cite the
   source notes they used, and never invent facts. You bring your own key — or run everything
   locally (Ollama for chat/embeddings, a local Whisper server for transcription). Chat and
   embeddings are configured **independently**, so you can embed locally and chat in the cloud.
-- **Yours to take with you.** Export any note (or all of them) to portable Markdown with assets.
+- **Yours to take with you.** Export any note (or all of them) to portable Markdown — text, media,
+  tags and timestamps (as YAML frontmatter) — or take a full, restorable `.zip` backup of everything.
 
 ---
 
@@ -32,13 +33,17 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 ### Notes & organization
 - Note create / edit / delete with instant (optimistic) updates and SQLite persistence
 - **Real markdown rendering** (GFM: headings, bold/italic, lists, blockquotes, code, tables,
-  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp tokens
+  strikethrough, task lists) alongside the app's own embed/wikilink/timestamp/colour tokens
 - **Live editor** (Obsidian/Typora-style) — syntax markers hidden while you type; bold appears
   bold, headings are styled, media embeds render inline; raw markdown revealed near the cursor for
   quick edits; used everywhere you write (new note, card edit, and the Working Notes editor)
 - A **formatting toolbar** and **right-click context menu** in the editor — bold/italic/headings/
   lists/quote/code-block/link from the toolbar; formatting, cut/copy/paste/paste-as-plain-text, and
   import-at-cursor from the right-click menu
+- **Text colour & highlight** — swatch dropdowns in the toolbar (plus right-click submenus and `/`-menu
+  rows), each with the curated palette and a custom-colour picker, tint the selected text or give it a
+  translucent highlighter background; stored as portable `[c:red]…[/c]` / `[h:teal]…[/h]` markdown
+  tokens that nest, shown styled while editing and reading
 - A **slash (`/`) command menu** — type `/` for an inline, filterable palette to insert media/embeds/
   divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
 - **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the
@@ -71,7 +76,8 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   suggested links)
 - **Collections** — lightweight sub-groups inside a workspace that chip-filter its notes
 - Templates (Research / Course / Writing / …), per-workspace icon & colour, note-count badges,
-  pinned workspaces in the sidebar, and quick-note capture straight into the active workspace
+  pinned + open workspaces in the sidebar (each workspace reopens on the tab you left it on), and
+  quick-note capture straight into the active workspace
 
 ### Canvas (freeform board)
 - A pannable / zoomable **spatial board per workspace** — drop **note cards**, text cards,
@@ -87,8 +93,11 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   when you're already there)
 
 ### Media
-- **PDFs** — embed, page through, zoom/fit, and create persistent highlight annotations; compact
-  **thumbnail preview** in note cards (click to open the full viewer)
+- **PDFs** — embed, page through, zoom/fit, and **mark them up**: freehand **pen**, free-positioned
+  **text boxes** (auto-contrasting the page, or your chosen colour), **highlights** (with inline notes),
+  and an **eraser**, from a toolbar or right-click menu. Marks are persistent overlay annotations (the
+  file itself is untouched). Compact **thumbnail preview** in note cards (click to open the full viewer);
+  PDF embeds are resizable/draggable in the editor like images
 - **Local video** — imported and streamed through a custom asset protocol (with range/seek support)
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
@@ -137,8 +146,13 @@ through Rust to only the host you configured.
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 
 ### Export
-- Export a single note or **all notes** to Markdown; media references are rewritten to a relative
-  `assets/` folder (copied alongside) and tables/embeds export portably (Obsidian/VS Code friendly)
+- Export a single note or **all notes** to Markdown; each file carries YAML frontmatter (title, tags,
+  created/updated), media references are rewritten to a relative `assets/` folder (copied alongside),
+  and tables/embeds export portably (Obsidian/VS Code friendly).
+- Markdown export is intentionally scoped to the note text + media. Presentation/metadata that lives
+  outside the note — PDF highlights, canvas, workspace membership, media layout — is **not** in the
+  Markdown; use **Settings → Import / Export → "Export full vault (.zip)"** for a complete, restorable
+  copy of everything.
 
 ### Appearance (Theme Studio)
 - **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
@@ -213,6 +227,15 @@ npm test         # frontend unit tests (Vitest)
 # Rust:
 cd src-tauri && cargo build && cargo test
 ```
+
+### Updating
+Jnana does not yet auto-update. To move to a newer version, download and install the latest release
+(or `git pull` and rebuild) — your data is untouched: notes, media, backups and settings live in the
+OS app-data folder (`%APPDATA%\jnana` on Windows, `~/.local/share/jnana` on Linux,
+`~/Library/Application Support/jnana` on macOS), separate from the app binary. Before a version that
+bumps the database schema, Jnana automatically snapshots your database into that folder's `backups/`
+(`pre-migration-vN-*.db`) so an upgrade is always reversible; **Settings → Import / Export → Create
+Backup** makes a full `.zip` on demand.
 
 ---
 

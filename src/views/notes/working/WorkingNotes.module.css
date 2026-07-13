@@ -58,7 +58,7 @@
 }
 .dividerV:hover,
 .dividerH:hover {
-  background: var(--accent-soft, rgba(124, 106, 247, 0.25));
+  background: var(--accent-soft);
 }
 
 /* ---- group ---- */
@@ -84,7 +84,7 @@
 /* Pane under the pointer during a tab drag. */
 .groupDropTarget {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 2px var(--accent-soft, rgba(124, 106, 247, 0.4));
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
 }
 
 /* Floating tab-drag ghost (portaled to <body>). */

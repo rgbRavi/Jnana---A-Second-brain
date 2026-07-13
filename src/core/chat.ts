@@ -6,8 +6,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { ConversationMeta, StoredConversation } from '../types'
 
-export async function listConversations(mode?: string): Promise<ConversationMeta[]> {
-  return invoke<ConversationMeta[]>('list_conversations', { mode: mode ?? null })
+export async function listConversations(
+  mode?: string,
+  vaultId?: string | null,
+): Promise<ConversationMeta[]> {
+  return invoke<ConversationMeta[]>('list_conversations', { mode: mode ?? null, vaultId: vaultId ?? null })
 }
 
 export async function getConversation(id: string): Promise<StoredConversation> {
