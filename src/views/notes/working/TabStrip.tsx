@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { Plus, PanelRight, PanelBottom, X } from 'lucide-react'
 import { useNotesContext } from '../../../context/NotesContext'
 import type { GroupNode } from './layout'
 import {
@@ -98,14 +99,14 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
               aria-label="Close tab"
               title="Close tab"
             >
-              ✕
+              <X size={14} />
             </button>
           </div>
         ))}
       </div>
       <div className={Styles.tabActions}>
         <button className={Styles.tabActionBtn} onClick={onNewNote} aria-label="New note" title="New note">
-          ＋
+          <Plus size={16} />
         </button>
         <button
           className={Styles.tabActionBtn}
@@ -113,7 +114,7 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
           aria-label="Split right"
           title="Split right"
         >
-          ⇥
+          <PanelRight size={16} />
         </button>
         <button
           className={Styles.tabActionBtn}
@@ -121,7 +122,7 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
           aria-label="Split down"
           title="Split down"
         >
-          ⤓
+          <PanelBottom size={16} />
         </button>
         {multiPane && (
           <button
@@ -130,7 +131,7 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
             aria-label="Close pane"
             title="Close pane"
           >
-            ✕
+            <X size={16} />
           </button>
         )}
       </div>

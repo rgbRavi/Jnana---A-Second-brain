@@ -14,7 +14,8 @@ import { LiveEditor, type LiveEditorHandle } from '../../../ui/editor/LiveEditor
 import { TagEditor } from '../../../ui/TagEditor'
 import { ComposerToolbar } from '../../../ui/editor/ComposerToolbar'
 import { FormatToolbar } from '../../../ui/editor/FormatToolbar'
-import { FavouriteBtn } from '../../../ui/editor/FavouriteBtn'
+import { useFavourites } from '../../../hooks/useFavourites'
+import { MoreVertical, BookOpen, PenLine, Star, Download } from 'lucide-react'
 import { ComposerSuggestions } from '../../../ui/ai/ComposerSuggestions'
 import Styles from './EditorPane.module.css'
 
@@ -43,6 +44,35 @@ export function EditorPane({ noteId }: { noteId: string }) {
   const [content, setContent] = useState(note?.content ?? '')
   const [tags, setTags] = useState<string[]>(note?.tags ?? [])
   const [status, setStatus] = useState<'saved' | 'dirty' | 'saving'>('saved')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const { addToFavourites, removeFromFavourites, fetchFavourites } = useFavourites()
+  const [isFavourite, setIsFavourite] = useState(false)
+
+  useEffect(() => {
+    if (noteId) {
+      fetchFavourites().then(ids => setIsFavourite(ids.includes(noteId)))
+    }
+  }, [noteId])
+
+  // Close the actions menu on outside pointerdown / Escape — matching the app's
+  // other menus (ContextMenu, NoteModal dropdown).
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   const editorRef = useRef<LiveEditorHandle>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -156,31 +186,66 @@ export function EditorPane({ noteId }: { noteId: string }) {
           >
             {status === 'saving' ? 'Saving…' : status === 'dirty' ? 'Unsaved' : 'Saved'}
           </span>
-          <FavouriteBtn noteId={note.id} />
-          <button
-            className={Styles.iconBtn}
-            onClick={async () => {
-              try {
-                const n = await exportNotes([{ ...note, title, content }])
-                if (n) toast.success('Exported note as Markdown.')
-              } catch (err) {
-                toast.error('Export failed: ' + String(err))
-              }
-            }}
-            aria-label="Export note as Markdown"
-            title="Export as Markdown"
-          >
-            ⤓
-          </button>
-          <button
-            className={`${Styles.iconBtn} ${mode === 'read' ? Styles.iconBtnOn : ''}`}
-            onClick={() => setMode((m) => (m === 'edit' ? 'read' : 'edit'))}
-            aria-label={mode === 'edit' ? 'Reading view' : 'Editing view'}
-            aria-pressed={mode === 'read'}
-            title={mode === 'edit' ? 'Reading view' : 'Editing view'}
-          >
-            {mode === 'edit' ? '📖' : '✎'}
-          </button>
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              className={Styles.iconBtn}
+              onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              title="More options"
+            >
+              <MoreVertical size={18} />
+            </button>
+            {menuOpen && (
+              <div className={`${Styles.dropdown} ${Styles.dropdownRight}`} role="menu">
+                <button
+                  className={Styles.dropdownItem}
+                  role="menuitem"
+                  onClick={() => {
+                    setMode((m) => (m === 'edit' ? 'read' : 'edit'))
+                    setMenuOpen(false)
+                  }}
+                >
+                  {mode === 'edit' ? <BookOpen size={16} /> : <PenLine size={16} />}
+                  {mode === 'edit' ? 'Reading view' : 'Editing view'}
+                </button>
+                <button
+                  className={Styles.dropdownItem}
+                  role="menuitem"
+                  onClick={async () => {
+                    setMenuOpen(false)
+                    if (isFavourite) {
+                      await removeFromFavourites(note.id)
+                      setIsFavourite(false)
+                    } else {
+                      await addToFavourites(note.id)
+                      setIsFavourite(true)
+                    }
+                  }}
+                >
+                  <Star size={16} fill={isFavourite ? 'currentColor' : 'none'} />
+                  {isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+                </button>
+                <button
+                  className={Styles.dropdownItem}
+                  role="menuitem"
+                  onClick={async () => {
+                    setMenuOpen(false)
+                    try {
+                      const n = await exportNotes([{ ...note, title, content }])
+                      if (n) toast.success('Exported note as Markdown.')
+                    } catch (err) {
+                      toast.error('Export failed: ' + String(err))
+                    }
+                  }}
+                >
+                  <Download size={16} />
+                  Download / Export
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

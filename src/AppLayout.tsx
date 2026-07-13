@@ -12,6 +12,7 @@ import { FileExplorer } from "./ui/folders/FileExplorer";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
+import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
 import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
 import { NotesProvider, useNotesContext } from "./context/NotesContext";
@@ -144,9 +145,10 @@ function AppInner() {
             <FileExplorer />
             <main className={AppStyles.mainContent}>
                 <Outlet />
+                {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
-            {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             <CommandPalette />
+            <Tooltip />
             <Toaster />
             <DialogHost />
             <ThemeStudioOverlay />
