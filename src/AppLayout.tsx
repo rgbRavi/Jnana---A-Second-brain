@@ -12,6 +12,7 @@ import { FileExplorer } from "./ui/folders/FileExplorer";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
+import { PluginWidgetHost } from "./ui/PluginWidgetHost";
 import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
 import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
@@ -148,6 +149,7 @@ function AppInner() {
                 {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
             <CommandPalette />
+            <PluginWidgetHost />
             <Tooltip />
             <Toaster />
             <DialogHost />

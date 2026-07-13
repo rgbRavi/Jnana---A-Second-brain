@@ -1,0 +1,12 @@
+{
+  "name": "com.jnana.sample-checklist",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.tsx --bundle --format=esm --jsx=automatic --external:react --external:react/jsx-runtime --outfile=dist/main.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

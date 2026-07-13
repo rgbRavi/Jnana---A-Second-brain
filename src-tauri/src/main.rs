@@ -375,6 +375,8 @@ fn main() {
             remove_plugin,
             read_plugin_main,
             package_plugin,
+            fetch_plugin_catalog,
+            install_from_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

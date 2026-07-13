@@ -4,6 +4,15 @@
 import type { Note } from '../types'
 import type { PluginBus } from './eventBus'
 import type { NoteTypeDefinition } from './noteTypes'
+import type { PluginWidget, PluginCommand } from './pluginContributions'
+
+/** UI a plugin can contribute beyond note types. */
+export interface PluginUiApi {
+  /** Add a widget panel to the plugin widget tray. */
+  registerWidget: (widget: PluginWidget) => void
+  /** Add an entry to the command palette. */
+  registerCommand: (command: PluginCommand) => void
+}
 
 /**
  * Per-plugin, opaque-JSON key/value storage (backed by the Rust `plugin_kv`
@@ -50,6 +59,8 @@ export interface PluginContext {
   notes?: PluginNotesApi
   /** Register a custom note type (custom view + editor over a note). */
   registerNoteType: (def: NoteTypeDefinition) => void
+  /** Contribute UI (widgets, commands). */
+  ui: PluginUiApi
 }
 
 /** Options passed when registering a (non-trusted) loaded plugin. */

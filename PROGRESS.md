@@ -652,8 +652,14 @@ Notes:
 - [x] AI tag suggestions
 - [x] AI link suggestions
 - [x] Quiz generator
-- [ ] Flashcard plugin
-- [ ] Pomodoro plugin
+- [x] Flashcard plugin (custom note type + SM-2 scheduling)
+- [x] Pomodoro plugin (bundled; exercises the UI widget + command slot API)
+
+### Far future
+- [ ] **Book** note type — a proper customizable book: bespoke cover, page/paper styling,
+  paper size, handwriting style, page-flip animation. Deferred; best expressed as a
+  presentation *view/plugin* layered over ordinary notes (a renderer/skin), **not** a new
+  storage primitive — so it rides search/graph/export like any note.
 
 ---
 

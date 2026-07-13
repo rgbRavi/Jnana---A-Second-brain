@@ -235,11 +235,15 @@ fn write_meta(dir: &Path, granted: Vec<String>, source: &str) -> Result<(), Stri
     fs::write(dir.join(".install.json"), json).map_err(|e| e.to_string())
 }
 
-/// Install a plugin from a `.zip` (must contain `manifest.json` at its root).
-/// Extracts into `plugins_dir()/<id>/`, replacing any existing install.
-#[command]
-pub fn install_plugin_zip(zip_path: String, granted: Vec<String>) -> Result<InstalledPlugin, String> {
-    let file = fs::File::open(&zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
+/// Extract + register a plugin `.zip` (must contain `manifest.json` at its root)
+/// into `plugins_dir()/<id>/`, replacing any existing install. Shared by the local
+/// zip install and the catalog/URL install.
+fn extract_and_register_zip(
+    zip_path: &Path,
+    granted: Vec<String>,
+    source: &str,
+) -> Result<InstalledPlugin, String> {
+    let file = fs::File::open(zip_path).map_err(|e| format!("Failed to open zip: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid zip: {}", e))?;
 
     // First pass: find + validate the manifest.
@@ -258,10 +262,11 @@ pub fn install_plugin_zip(zip_path: String, granted: Vec<String>) -> Result<Inst
     }
     fs::create_dir_all(&dir).map_err(|e| format!("Failed to create plugin dir: {}", e))?;
 
-    // Second pass: extract every safe entry.
+    // Second pass: extract every safe entry. Normalize separators so a zip written
+    // with backslashes (e.g. PowerShell Compress-Archive) is handled portably.
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
+        let name = entry.name().replace('\\', "/");
         if entry.is_dir() || !safe_relative(&name) {
             continue;
         }
@@ -280,8 +285,14 @@ pub fn install_plugin_zip(zip_path: String, granted: Vec<String>) -> Result<Inst
         return Err(format!("Manifest 'main' ({}) is missing from the package.", manifest.main));
     }
 
-    write_meta(&dir, granted.clone(), "zip")?;
-    Ok(to_installed(manifest, InstallMeta { granted, source: "zip".into(), installed_at: now_ms() }))
+    write_meta(&dir, granted.clone(), source)?;
+    Ok(to_installed(manifest, InstallMeta { granted, source: source.into(), installed_at: now_ms() }))
+}
+
+/// Install a plugin from a local `.zip`.
+#[command]
+pub fn install_plugin_zip(zip_path: String, granted: Vec<String>) -> Result<InstalledPlugin, String> {
+    extract_and_register_zip(Path::new(&zip_path), granted, "zip")
 }
 
 /// Install a plugin from an unpacked local folder (Developer → Load Local Plugin).
@@ -375,6 +386,75 @@ pub fn package_plugin(src_dir: String, dest_zip: String) -> Result<String, Strin
     }
     zip.finish().map_err(|e| e.to_string())?;
     Ok(dest_zip)
+}
+
+// ─── Remote catalog (Phase 2) ───────────────────────────
+
+/// One plugin as listed in a community catalog index.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogEntry {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub author: String,
+    /// Where the plugin's `.zip` package can be downloaded.
+    pub download_url: String,
+    #[serde(default)]
+    pub permissions: Vec<String>,
+    #[serde(default)]
+    pub min_app_version: String,
+}
+
+/// Fetch a catalog's bytes from an http(s) URL or a local file path (the latter
+/// makes the whole flow testable offline).
+async fn fetch_bytes(url: &str) -> Result<Vec<u8>, String> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        let resp = reqwest::get(url)
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+        if !resp.status().is_success() {
+            return Err(format!("Request failed: HTTP {}", resp.status()));
+        }
+        Ok(resp.bytes().await.map_err(|e| e.to_string())?.to_vec())
+    } else {
+        let path = url.strip_prefix("file://").unwrap_or(url);
+        fs::read(path).map_err(|e| format!("Failed to read {}: {}", path, e))
+    }
+}
+
+/// Fetch + parse a plugin catalog. Accepts either `{ "plugins": [...] }` or a bare
+/// array of entries.
+#[command]
+pub async fn fetch_plugin_catalog(url: String) -> Result<Vec<CatalogEntry>, String> {
+    let bytes = fetch_bytes(&url).await?;
+    #[derive(Deserialize)]
+    struct Wrap {
+        #[serde(default)]
+        plugins: Vec<CatalogEntry>,
+    }
+    if let Ok(w) = serde_json::from_slice::<Wrap>(&bytes) {
+        return Ok(w.plugins);
+    }
+    serde_json::from_slice::<Vec<CatalogEntry>>(&bytes)
+        .map_err(|e| format!("Invalid catalog JSON: {}", e))
+}
+
+/// Download a plugin `.zip` from a URL (or local path) and install it.
+#[command]
+pub async fn install_from_url(
+    download_url: String,
+    granted: Vec<String>,
+) -> Result<InstalledPlugin, String> {
+    let bytes = fetch_bytes(&download_url).await?;
+    let tmp = std::env::temp_dir().join(format!("jnana-plugin-{}.zip", uuid::Uuid::new_v4()));
+    fs::write(&tmp, &bytes).map_err(|e| format!("Failed to buffer download: {}", e))?;
+    let result = extract_and_register_zip(&tmp, granted, "catalog");
+    let _ = fs::remove_file(&tmp);
+    result
 }
 
 #[cfg(test)]

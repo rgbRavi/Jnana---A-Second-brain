@@ -5,6 +5,12 @@ import type { Plugin } from '../types'
 import type { PluginRegisterOptions } from './pluginApi'
 import { eventBus, PluginBus } from './eventBus'
 import { registerNoteType, unregisterNoteType } from './noteTypes'
+import {
+  registerWidget,
+  unregisterWidget,
+  registerCommand,
+  unregisterCommand,
+} from './pluginContributions'
 import { pluginLog } from './pluginLog'
 import { makePluginStorage } from '../core/plugins/storage'
 import { makePluginNotesApi } from '../core/plugins/notesApi'
@@ -24,6 +30,8 @@ class PluginRegistry {
   private workerForwardCleanups = new Map<string, Array<() => void>>()
   // note types each inline plugin registered, so unregister can tear them down
   private pluginNoteTypes = new Map<string, string[]>()
+  // widget + command ids each inline plugin contributed, for teardown
+  private pluginContribs = new Map<string, { widgets: string[]; commands: string[] }>()
 
   /** Register a plugin. Omit `opts` for trusted first-party plugins (full context);
    *  loaded third-party plugins pass `opts.grantedPermissions` so their context is
@@ -73,6 +81,13 @@ class PluginRegistry {
       kinds.forEach(unregisterNoteType)
       this.pluginNoteTypes.delete(id)
     }
+    // Remove any widgets / commands it contributed.
+    const contribs = this.pluginContribs.get(id)
+    if (contribs) {
+      contribs.widgets.forEach(unregisterWidget)
+      contribs.commands.forEach(unregisterCommand)
+      this.pluginContribs.delete(id)
+    }
     pluginLog('info', 'Unloaded', id)
 
     // Clean up worker plugin
@@ -104,6 +119,8 @@ class PluginRegistry {
     const trusted = opts === undefined
     const granted = new Set(opts?.grantedPermissions ?? [])
     const canReadNotes = trusted || granted.has('notes')
+    const contribWidgets: string[] = []
+    const contribCommands: string[] = []
     plugin.init?.({
       pluginId: plugin.id,
       bus,
@@ -113,9 +130,20 @@ class PluginRegistry {
         registerNoteType(def)
         registeredKinds.push(def.id)
       },
+      ui: {
+        registerWidget: (w) => {
+          registerWidget(w)
+          contribWidgets.push(w.id)
+        },
+        registerCommand: (c) => {
+          registerCommand(c)
+          contribCommands.push(c.id)
+        },
+      },
     })
     this.buses.set(plugin.id, bus)
     this.pluginNoteTypes.set(plugin.id, registeredKinds)
+    this.pluginContribs.set(plugin.id, { widgets: contribWidgets, commands: contribCommands })
   }
 
   private _registerWorkerPlugin(plugin: Plugin): void {

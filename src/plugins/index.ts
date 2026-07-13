@@ -5,10 +5,11 @@ import type { Plugin } from '../types'
 import { pluginRegistry } from '../lib/pluginRegistry'
 import { isPluginEnabled, setPluginEnabledState } from '../lib/pluginEnabled'
 import { flashcardsPlugin } from './flashcards'
+import { pomodoroPlugin } from './pomodoro'
 
 /** Every first-party plugin bundled into the app (registered or not). The manager
  *  lists these so a disabled plugin still appears (and can be re-enabled). */
-export const BUILTIN_PLUGINS: Plugin[] = [flashcardsPlugin]
+export const BUILTIN_PLUGINS: Plugin[] = [flashcardsPlugin, pomodoroPlugin]
 
 /**
  * Register all enabled first-party plugins. Called once at boot from `main.tsx`.

@@ -46,6 +46,38 @@ export function usePluginSubview(): PluginSubview {
   )
 }
 
+// ── Persisted catalog URL (Browse / Updates) ──
+
+const CATALOG_KEY = 'jnana.plugins.catalogUrl.v1'
+let catalogUrl: string = (() => {
+  try {
+    return localStorage.getItem(CATALOG_KEY) ?? ''
+  } catch {
+    return ''
+  }
+})()
+const catalogListeners = new Set<() => void>()
+
+export function setCatalogUrl(url: string): void {
+  catalogUrl = url
+  try {
+    localStorage.setItem(CATALOG_KEY, url)
+  } catch {
+    // ignore
+  }
+  catalogListeners.forEach((l) => l())
+}
+
+export function useCatalogUrl(): string {
+  return useSyncExternalStore(
+    (l) => {
+      catalogListeners.add(l)
+      return () => catalogListeners.delete(l)
+    },
+    () => catalogUrl,
+  )
+}
+
 // ── Reactive views over the enabled + log stores ──
 
 export function useDisabledPlugins(): Set<string> {

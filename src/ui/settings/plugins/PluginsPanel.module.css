@@ -215,6 +215,52 @@
 .log_warn span { color: var(--warning); }
 .log_error span { color: var(--danger); }
 
+/* ── Browse / catalog ── */
+.browse { display: flex; flex-direction: column; gap: 12px; }
+
+.urlRow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.urlInput {
+  flex: 1;
+  min-width: 220px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.installBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.installBtn:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+
+.installedTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success, var(--text-3));
+  font-size: 0.8rem;
+}
+
+.errorText {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 /* ── Empty states (Browse / Updates) ── */
 .empty {
   text-align: center;
