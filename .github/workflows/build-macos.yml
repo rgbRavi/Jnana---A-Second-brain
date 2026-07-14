@@ -1,0 +1,46 @@
+name: Build macOS installer
+
+# Manual, on-demand: Actions tab -> "Build macOS installer" -> Run workflow.
+# Also fires on version tags (v*). Produces a universal .dmg (Intel + Apple
+# Silicon) and uploads it as a downloadable artifact.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  macos:
+    name: Build universal .dmg
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Both Apple architectures so we can lipo a universal binary.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `tauri build` runs `npm run build` (beforeBuildCommand) then packages the
+      # bundle. Universal target builds + merges both arches, so the .dmg runs on
+      # any Mac. (For a cheaper single-arch build, drop the --target flag.)
+      - name: Build universal macOS bundle (unsigned)
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: jnana-macos-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error

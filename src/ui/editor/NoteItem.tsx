@@ -3,6 +3,8 @@
 
 import { memo, useState, useRef, useEffect } from 'react'
 import { MarkdownLite } from './MarkdownLite'
+import { NoteTypeEditor } from './NoteRenderer'
+import { getNoteType, noteSearchText } from '../../lib/noteTypes'
 import { truncateMarkdown } from '../../core/markdown/preview'
 import type { Note } from '../../types'
 import { useComposer } from '../../hooks/useComposer'
@@ -114,6 +116,8 @@ function NoteItemEditForm({
     if (e.key === 'Escape') handleCancel()
   }
 
+  const noteType = getNoteType(note)
+
   return (
     <div className={Styles.noteCardEditing}>
       <input
@@ -129,33 +133,39 @@ function NoteItemEditForm({
         tags={tags}
         onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
       />
-      <ComposerSuggestions
-        note={{ ...note, title, content, tags }}
-        allNotes={notes}
-        currentTags={tags.filter((t) => !isAutoTag(t))}
-        onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-        onAddLink={(linkTitle) => {
-          const wl = `[[${linkTitle}]]`
-          setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
-        }}
-      />
-      <LiveEditor
-        ref={editorRef}
-        className={Styles.composerBodyBorderlessEditor}
-        placeholder="What do you want to remember?"
-        value={content}
-        onChange={setContent}
-        onSubmit={() => void handleSave()}
-        onCancel={handleCancel}
-        notes={notes}
-        noteId={note.id}
-        allowNavigate={false}
-        importHandlers={contextMenuImportProps}
-      />
+      {!noteType && (
+        <ComposerSuggestions
+          note={{ ...note, title, content, tags }}
+          allNotes={notes}
+          currentTags={tags.filter((t) => !isAutoTag(t))}
+          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
+          onAddLink={(linkTitle) => {
+            const wl = `[[${linkTitle}]]`
+            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+          }}
+        />
+      )}
+      {noteType ? (
+        <NoteTypeEditor note={note} value={content} onChange={setContent} />
+      ) : (
+        <LiveEditor
+          ref={editorRef}
+          className={Styles.composerBodyBorderlessEditor}
+          placeholder="What do you want to remember?"
+          value={content}
+          onChange={setContent}
+          onSubmit={() => void handleSave()}
+          onCancel={handleCancel}
+          notes={notes}
+          noteId={note.id}
+          allowNavigate={false}
+          importHandlers={contextMenuImportProps}
+        />
+      )}
       <div className={Styles.composerFooterBorderlessFooter}>
         <div className={Styles.composerActions}>
-          <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />
-          <FormatToolbar editorRef={editorRef} disabled={saving || uploading} />
+          {!noteType && <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />}
+          {!noteType && <FormatToolbar editorRef={editorRef} disabled={saving || uploading} />}
           <button
             className={Styles.composerCancel}
             onClick={handleCancel}
@@ -203,11 +213,15 @@ function NoteItemImpl({
 
   const userTags = note.tags.filter((t) => !isAutoTag(t))
   const mediaChips = MEDIA_CHIPS.filter(([tag]) => note.tags.includes(tag))
+  const noteType = getNoteType(note)
   const showBody = variant !== 'compact' && !!note.content
   // A card is a preview, not the full note (that's the modal) — cap the body so
   // long notes don't each parse their entire content through react-markdown.
   // Deterministic, so MarkdownLite's memoized parse still holds across renders.
-  const previewBody = truncateMarkdown(note.content)
+  // For a typed note the body is JSON, so preview its plain-text projection
+  // (toSearchText) instead of parsing raw JSON — cheap, and never mounts the
+  // type's interactive View in every card.
+  const previewBody = truncateMarkdown(noteType ? noteSearchText(note) : note.content)
 
   return (
     <div
@@ -273,6 +287,12 @@ function NoteItemImpl({
         </div>
       )}
       <div className={Styles.noteCardMeta}>
+        {noteType && (
+          <span className={Styles.noteChip} title={noteType.label} aria-label={noteType.label}>
+            {noteType.icon ? <noteType.icon size={12} /> : null}
+            {noteType.label}
+          </span>
+        )}
         {mediaChips.map(([tag, glyph, label]) => (
           <span key={tag} className={Styles.noteChip} title={label} aria-label={label}>
             {glyph}

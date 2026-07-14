@@ -13,6 +13,10 @@ export interface Note {
   folderId?: string | null
   /** The vault this note belongs to (Obsidian-style, exactly one). */
   vaultId?: string | null
+  /** Registered note-type id (v17); absent/`null` = plain markdown (the default).
+   *  A plugin supplies a custom view/editor for its `kind` via `registerNoteType`.
+   *  Fixed at creation — a plain save never changes it. */
+  kind?: string | null
 }
 
 /** A node in a vault's virtual folder tree. Folders are SQLite rows, not real
@@ -371,8 +375,9 @@ export interface Plugin {
   worker?: boolean
   /** Required when worker: true. Use: new URL('./myPlugin.worker.ts', import.meta.url) */
   workerUrl?: URL
-  /** Called with a sandboxed PluginBus for inline (non-worker) plugins */
-  init?: (bus: import('../lib/eventBus').PluginBus) => void
+  /** Called once at load with a sandboxed context (event bus + scoped storage +
+   *  scoped notes API + `registerNoteType`) for inline (non-worker) plugins. */
+  init?: (ctx: import('../lib/pluginApi').PluginContext) => void
   /** Called before the plugin is unregistered (inline plugins only) */
   destroy?: () => void
 }

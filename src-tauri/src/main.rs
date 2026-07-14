@@ -19,6 +19,8 @@ use commands::folders::*;
 use commands::media::*;
 use commands::media_layout::*;
 use commands::notes::*;
+use commands::plugins::*;
+use commands::plugin_loader::*;
 use commands::themes::*;
 use commands::vaults::*;
 use commands::web::*;
@@ -359,6 +361,22 @@ fn main() {
             set_active_theme,
             get_media_layout,
             set_media_layout,
+            plugin_kv_get,
+            plugin_kv_set,
+            plugin_kv_delete,
+            plugin_kv_list,
+            plugin_kv_clear,
+            scaffold_plugin,
+            list_installed_plugins,
+            read_zip_manifest,
+            read_local_manifest,
+            install_plugin_zip,
+            install_local_plugin,
+            remove_plugin,
+            read_plugin_main,
+            package_plugin,
+            fetch_plugin_catalog,
+            install_from_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

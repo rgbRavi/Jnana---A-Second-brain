@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { Note, NoteChunk } from '../../types'
+import { noteSearchText } from '../../lib/noteTypes'
 
 const MAX_CHARS = 1200
 const OVERLAP_CHARS = 150
@@ -31,7 +32,9 @@ function cleanForEmbedding(content: string): string {
  * hard character cut for very long paragraphs.
  */
 export function chunkNote(note: Note): NoteChunk[] {
-  const body = cleanForEmbedding(note.content)
+  // Route through the note-type's search projection so a typed (e.g. JSON) note
+  // embeds its real text instead of raw JSON; plain notes get their content back.
+  const body = cleanForEmbedding(noteSearchText(note))
   const title = note.title?.trim() || 'Untitled'
 
   if (!body) return []

@@ -19,6 +19,9 @@ pub struct NoteRow {
     /// The vault this note belongs to (v14). Every note has exactly one; `None`
     /// only transiently if its vault was deleted (the app reassigns immediately).
     pub vault_id: Option<String>,
+    /// Registered note-type id (v17); `None` = plain markdown (the default). Set on
+    /// creation and never changed by a plain save (see `insert_or_update_note`).
+    pub kind: Option<String>,
 }
 
 /// A note's reading progress (0..1) — drives the dashboard's "Continue learning".
@@ -55,6 +58,10 @@ pub struct Note {
     /// on a plain save it's preserved server-side (see `insert_or_update_note`).
     #[serde(default)]
     pub vault_id: Option<String>,
+    /// Note-type id (v17); absent/`null` = plain markdown. `#[serde(default)]` so
+    /// the vast majority of callers (which create/save plain notes) can omit it.
+    #[serde(default)]
+    pub kind: Option<String>,
 }
 
 impl Note {
@@ -68,6 +75,7 @@ impl Note {
             updated_at: self.updated_at,
             folder_id: self.folder_id.clone(),
             vault_id: self.vault_id.clone(),
+            kind: self.kind.clone(),
         }
     }
     fn from_row(row: NoteRow) -> Self {
@@ -80,6 +88,7 @@ impl Note {
             updated_at: row.updated_at,
             folder_id: row.folder_id,
             vault_id: row.vault_id,
+            kind: row.kind,
         }
     }
 }

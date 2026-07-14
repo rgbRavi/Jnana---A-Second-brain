@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "id": "com.jnana.sample-checklist",
+      "name": "Sample Checklist",
+      "version": "1.0.0",
+      "description": "A checklist note type — the reference sample plugin, served from a local test catalog.",
+      "author": "Jnana Project",
+      "downloadUrl": "C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/sample-checklist.zip",
+      "permissions": [],
+      "minAppVersion": "0.1.0"
+    }
+  ]
+}

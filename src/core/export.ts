@@ -4,6 +4,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { Note } from '../types'
+import { getNoteType } from '../lib/noteTypes'
 
 interface ExportFile {
   name: string
@@ -65,7 +66,12 @@ function buildFrontmatter(n: Note): string {
 
 /** Assemble one exported note: frontmatter + `# Title` + portable markdown. */
 export function exportNoteContent(n: Note): { content: string; assets: string[] } {
-  const { markdown, assets } = toExportMarkdown(n.content || '')
+  // A typed note exports via its note-type's markdown projection (e.g. a deck as a
+  // Q/A list); the result still runs through the asset rewriter below. Plain notes
+  // export their raw content unchanged.
+  const def = getNoteType(n)
+  const source = def?.toExportMarkdown ? def.toExportMarkdown(n) : (n.content || '')
+  const { markdown, assets } = toExportMarkdown(source)
   const content = `${buildFrontmatter(n)}\n\n# ${n.title?.trim() || 'Untitled'}\n\n${markdown}\n`
   return { content, assets }
 }

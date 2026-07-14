@@ -1,0 +1,133 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 4px;
+}
+
+.summary {
+  font-size: 13px;
+  color: var(--text-2);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.summary strong { color: var(--text-1); }
+
+/* ── Study view ── */
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 20px;
+  gap: 14px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.side {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.face {
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--text-1);
+  white-space: pre-wrap;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.grades {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.grade {
+  padding: 10px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.grade:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.grade b { display: block; font-size: 11px; color: var(--text-3); font-weight: 500; }
+
+.done {
+  text-align: center;
+  padding: 32px 12px;
+  color: var(--text-2);
+}
+
+.empty {
+  text-align: center;
+  padding: 28px 12px;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* ── Editor ── */
+.rows { display: flex; flex-direction: column; gap: 10px; }
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.input {
+  width: 100%;
+  resize: vertical;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+}
+
+.del {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  align-self: center;
+}
+.del:hover { color: var(--danger); border-color: var(--danger); }
+
+.add {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 13px;
+  cursor: pointer;
+}
+.add:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }

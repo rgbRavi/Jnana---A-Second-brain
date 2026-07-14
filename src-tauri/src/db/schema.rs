@@ -23,6 +23,7 @@ const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
     (14, migrate_v14),
     (15, migrate_v15),
     (16, migrate_v16),
+    (17, migrate_v17),
 ];
 
 /// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
@@ -34,7 +35,7 @@ pub const DEFAULT_VAULT_ID: &str = "vault-default";
 /// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
 /// decide whether an existing DB is about to be upgraded (and so should be
 /// snapshotted first). Bump this when you add a `migrate_vN`.
-pub const LATEST_VERSION: i32 = 16;
+pub const LATEST_VERSION: i32 = 17;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -551,6 +552,29 @@ fn migrate_v16(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V17: Plugin-defined note types + plugin storage. `notes.kind` tags a note with
+/// a registered note-type id (NULL = plain markdown, the default), so a plugin can
+/// supply a custom view/editor while the note keeps riding folders/vaults/graph/
+/// export as ordinary content. `plugin_kv` is a per-plugin opaque-JSON key/value
+/// store (side-state a plugin needs beyond note content — e.g. a flashcard deck's
+/// SM-2 schedule); Rust never parses `value`, same as themes/canvas blobs.
+fn migrate_v17(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        ALTER TABLE notes ADD COLUMN kind TEXT;
+
+        CREATE TABLE IF NOT EXISTS plugin_kv (
+            plugin_id TEXT NOT NULL,
+            key       TEXT NOT NULL,
+            value     TEXT NOT NULL,
+            PRIMARY KEY (plugin_id, key)
+        );
+
+        INSERT INTO schema_version (version) VALUES (17);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -568,7 +592,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
-        assert_eq!(LATEST_VERSION, 16);
+        assert_eq!(LATEST_VERSION, 17);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -593,6 +617,7 @@ mod tests {
         assert!(tables.contains(&"note_media_layout".to_string()));
         assert!(tables.contains(&"folders".to_string()));
         assert!(tables.contains(&"vaults".to_string()));
+        assert!(tables.contains(&"plugin_kv".to_string()));
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&mut conn);

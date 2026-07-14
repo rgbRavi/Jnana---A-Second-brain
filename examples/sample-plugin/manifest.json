@@ -1,0 +1,11 @@
+{
+  "id": "com.jnana.sample-checklist",
+  "name": "Sample Checklist",
+  "version": "1.0.0",
+  "description": "A checklist note type — the reference third-party plugin used to smoke-test the loader runtime.",
+  "author": "Jnana Project",
+  "main": "dist/main.js",
+  "minAppVersion": "0.1.0",
+  "contributes": { "noteTypes": ["sample-checklist"] },
+  "permissions": []
+}

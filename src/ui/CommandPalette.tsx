@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MiniSearch from 'minisearch'
 import { useNotesContext } from '../context/NotesContext'
@@ -10,6 +10,8 @@ import { eventBus } from '../lib/eventBus'
 import { openComposer } from './editor/NoteCreator'
 import { workspaceColor } from '../core/workspaces'
 import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWorkingLayout'
+import { listNoteTypes, noteSearchText, subscribeNoteTypes, getNoteTypesVersion } from '../lib/noteTypes'
+import { listCommands, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
 import styles from './CommandPalette.module.css'
 
 // Intuitive, non-intrusive: ⇧ + the palette-style modifier + E ("Editor desk").
@@ -41,8 +43,13 @@ interface Item {
  */
 export function CommandPalette() {
   const navigate = useNavigate()
-  const { notes } = useNotesContext()
+  const { notes, create } = useNotesContext()
   const { workspaces } = useWorkspaces()
+  // Re-render when the note-type registry changes so a plugin loaded *after* mount
+  // (built-ins register synchronously, but installed plugins load async at boot)
+  // adds its "New {label}" command without needing an app reload.
+  const noteTypesVersion = useSyncExternalStore(subscribeNoteTypes, getNoteTypesVersion)
+  const contributionsVersion = useSyncExternalStore(subscribeContributions, getContributionsVersion)
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -88,7 +95,9 @@ export function CommandPalette() {
       searchOptions: { boost: { title: 3, tags: 2, content: 1 }, prefix: true, fuzzy: 0.2 },
     })
     mi.addAll(
-      notes.map((n) => ({ id: n.id, title: n.title || '', content: n.content || '', tags: (n.tags || []).join(' ') })),
+      // Index the note-type search projection (plain text for typed notes) rather
+      // than raw content, so searching a flashcard deck matches its card text.
+      notes.map((n) => ({ id: n.id, title: n.title || '', content: noteSearchText(n), tags: (n.tags || []).join(' ') })),
     )
     return mi
   }, [open, notes])
@@ -107,6 +116,20 @@ export function CommandPalette() {
   const commands: Item[] = useMemo(
     () => [
       { key: 'cmd:new-note', icon: '✏️', label: 'New note', hint: 'Create', run: () => { openComposer(); close() } },
+      // One "New {label}" per registered plugin note type (e.g. Flashcard deck).
+      ...listNoteTypes().map((t) => ({
+        key: `cmd:new-${t.id}`,
+        icon: '🧩',
+        label: `New ${t.label}`,
+        hint: 'Create',
+        run: async () => {
+          const note = await create('', t.newContent?.() ?? '', undefined, [], t.id)
+          setNotesSubView('working')
+          openNoteInWorking(note.id, note.vaultId ?? undefined)
+          navigate('/notes')
+          close()
+        },
+      })),
       { key: 'cmd:home', icon: '🏠', label: 'Go to Home', run: () => goto('/') },
       { key: 'cmd:notes', icon: '📝', label: 'Go to All Notes', run: () => { setNotesSubView('gallery'); goto('/notes') } },
       { key: 'cmd:working', icon: '🗂️', label: 'Open Working Notes', hint: WORKING_NOTES_SHORTCUT, run: () => { setNotesSubView('working'); goto('/notes') } },
@@ -115,10 +138,19 @@ export function CommandPalette() {
       { key: 'cmd:search', icon: '🔍', label: 'Open Search', run: () => goto('/search') },
       { key: 'cmd:ai', icon: '🤖', label: 'Open AI Chat', run: () => goto('/ai') },
       { key: 'cmd:settings', icon: '⚙️', label: 'Open Settings', run: () => goto('/settings') },
+      // Commands contributed by plugins via ctx.ui.registerCommand.
+      ...listCommands().map((c) => ({
+        key: `plugincmd:${c.id}`,
+        icon: c.icon ?? '🔌',
+        label: c.label,
+        hint: c.hint,
+        run: () => { c.run(); close() },
+      })),
     ],
-    // navigate is stable; goto closes over it
+    // Recompute when a note type or contributed command registers/unregisters
+    // (plugin load/enable/disable). navigate is stable; goto closes over it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [noteTypesVersion, contributionsVersion],
   )
 
   const groups = useMemo(() => {

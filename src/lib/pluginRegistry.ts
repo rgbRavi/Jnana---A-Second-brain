@@ -2,7 +2,18 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { Plugin } from '../types'
+import type { PluginRegisterOptions } from './pluginApi'
 import { eventBus, PluginBus } from './eventBus'
+import { registerNoteType, unregisterNoteType } from './noteTypes'
+import {
+  registerWidget,
+  unregisterWidget,
+  registerCommand,
+  unregisterCommand,
+} from './pluginContributions'
+import { pluginLog } from './pluginLog'
+import { makePluginStorage } from '../core/plugins/storage'
+import { makePluginNotesApi } from '../core/plugins/notesApi'
 
 // Core app events that worker plugins are not allowed to emit
 const WORKER_BLOCKED_EVENTS = new Set([
@@ -17,8 +28,15 @@ class PluginRegistry {
   private workers = new Map<string, Worker>()
   // tracks per-worker which events have been forwarded so we can clean up
   private workerForwardCleanups = new Map<string, Array<() => void>>()
+  // note types each inline plugin registered, so unregister can tear them down
+  private pluginNoteTypes = new Map<string, string[]>()
+  // widget + command ids each inline plugin contributed, for teardown
+  private pluginContribs = new Map<string, { widgets: string[]; commands: string[] }>()
 
-  register(plugin: Plugin): void {
+  /** Register a plugin. Omit `opts` for trusted first-party plugins (full context);
+   *  loaded third-party plugins pass `opts.grantedPermissions` so their context is
+   *  capability-gated. */
+  register(plugin: Plugin, opts?: PluginRegisterOptions): void {
     if (this.plugins.has(plugin.id)) {
       console.warn(`Plugin "${plugin.id}" is already registered`)
       return
@@ -27,12 +45,23 @@ class PluginRegistry {
     if (plugin.worker && plugin.workerUrl) {
       this._registerWorkerPlugin(plugin)
     } else {
-      this._registerInlinePlugin(plugin)
+      this._registerInlinePlugin(plugin, opts)
     }
 
     this.plugins.set(plugin.id, plugin)
     eventBus.emit('plugin:registered', { id: plugin.id })
     console.log(`Plugin "${plugin.name}" v${plugin.version} loaded`)
+    pluginLog('info', `Loaded v${plugin.version}`, plugin.id)
+  }
+
+  /** Ids of the note types a (registered) plugin contributed — drives the manager's
+   *  "Provides" line. Empty for a plugin that's unregistered or contributes none. */
+  noteTypeIdsOf(id: string): string[] {
+    return this.pluginNoteTypes.get(id) ?? []
+  }
+
+  isRegistered(id: string): boolean {
+    return this.plugins.has(id)
   }
 
   unregister(id: string): void {
@@ -46,6 +75,20 @@ class PluginRegistry {
       bus.dispose()
       this.buses.delete(id)
     }
+    // Remove any note types this plugin registered.
+    const kinds = this.pluginNoteTypes.get(id)
+    if (kinds) {
+      kinds.forEach(unregisterNoteType)
+      this.pluginNoteTypes.delete(id)
+    }
+    // Remove any widgets / commands it contributed.
+    const contribs = this.pluginContribs.get(id)
+    if (contribs) {
+      contribs.widgets.forEach(unregisterWidget)
+      contribs.commands.forEach(unregisterCommand)
+      this.pluginContribs.delete(id)
+    }
+    pluginLog('info', 'Unloaded', id)
 
     // Clean up worker plugin
     const worker = this.workers.get(id)
@@ -68,10 +111,39 @@ class PluginRegistry {
     return Array.from(this.plugins.values())
   }
 
-  private _registerInlinePlugin(plugin: Plugin): void {
+  private _registerInlinePlugin(plugin: Plugin, opts?: PluginRegisterOptions): void {
     const bus = new PluginBus(eventBus)
-    plugin.init?.(bus)
+    const registeredKinds: string[] = []
+    // No opts = trusted first-party plugin (full context). A loaded plugin passes
+    // opts (even if empty), so its access is gated by the granted permission set.
+    const trusted = opts === undefined
+    const granted = new Set(opts?.grantedPermissions ?? [])
+    const canReadNotes = trusted || granted.has('notes')
+    const contribWidgets: string[] = []
+    const contribCommands: string[] = []
+    plugin.init?.({
+      pluginId: plugin.id,
+      bus,
+      storage: makePluginStorage(plugin.id),
+      notes: canReadNotes ? makePluginNotesApi() : undefined,
+      registerNoteType: (def) => {
+        registerNoteType(def)
+        registeredKinds.push(def.id)
+      },
+      ui: {
+        registerWidget: (w) => {
+          registerWidget(w)
+          contribWidgets.push(w.id)
+        },
+        registerCommand: (c) => {
+          registerCommand(c)
+          contribCommands.push(c.id)
+        },
+      },
+    })
     this.buses.set(plugin.id, bus)
+    this.pluginNoteTypes.set(plugin.id, registeredKinds)
+    this.pluginContribs.set(plugin.id, { widgets: contribWidgets, commands: contribCommands })
   }
 
   private _registerWorkerPlugin(plugin: Plugin): void {
@@ -103,6 +175,7 @@ class PluginRegistry {
 
     worker.onerror = (err) => {
       console.error(`[PluginRegistry] Worker plugin "${plugin.id}" threw an error:`, err)
+      pluginLog('error', `Worker error: ${err.message ?? 'unknown'}`, plugin.id)
     }
 
     this.workerForwardCleanups.set(plugin.id, cleanups)
