@@ -22,8 +22,9 @@ applied live to the whole app and persisted to SQLite. Notes render through a **
 renderer** (`react-markdown` + `remark-gfm` + a custom plugin) — real headings/bold/lists/code/
 tables alongside the app's own wikilink/timestamp/media/colour tokens — with a composer **format
 toolbar** (bold/italic/headings/lists/…, plus **text-colour + highlight** swatches) for applying markdown without
-typing syntax. A plugin framework exists, but plugin implementations and activation UI are not built
-yet.
+typing syntax. A full **plugin system** ships too: custom note types, UI widgets, and commands, with
+first-party built-ins (Flashcards, Pomodoro), a plugin manager, and installable third-party plugins
+(local `.zip`/folder or a curated catalog).
 
 ---
 
@@ -158,19 +159,25 @@ Events in active use:
 
 ### Plugin system
 
-Two plugin modes exist:
-- Inline plugins via `PluginBus`
-- Web Worker plugins via `postMessage`
+A full plugin system ships. Plugins get a sandboxed `PluginContext` (`bus`, scoped `storage`,
+gated `notes`, `registerNoteType`, `ui`) and can contribute **note types**, **UI widgets**, and
+**commands**. Trust model: trusted main-thread render + install-time permission consent (no sandbox).
 
 What exists now:
-- Registry
-- Lifecycle wiring
-- Worker event forwarding
-- Blocking of core event emission from plugins
+- Registry + capability-gated context; inline (main-thread) and Web Worker modes
+- **Custom note types** — a typed note is still a `Note` (data in `content`, `notes.kind` column);
+  read/edit choke-point (`NoteRenderer`) falls back to markdown; registry is reactive
+- **UI widgets + commands** — floating widget tray (`PluginWidgetHost`) + command-palette entries
+- **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id)
+- **Loader** — install from a local `.zip`, an unpacked folder, or a curated remote **catalog**;
+  built ESM entry loaded via a Blob URL with `react` rewritten to host shims
+- **Plugin manager** (Settings → Plugins) — Installed / Browse / Updates / Developer, with
+  enable/disable, uninstall, storage clear, a Plugin Console, and scaffold/package/load-local/reload
+- **Built-ins**: Flashcard deck (note type + SM-2), Pomodoro (widget + commands)
+- **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with install-time permission consent
 
-What does not exist yet:
-- Real plugin implementations
-- Plugin activation/deactivation UI
+Still deferred (hardening): granular per-permission grants, download signature verification, an
+optional sandbox for untrusted plugins, and editor/markdown extension points.
 
 ### State ownership
 
@@ -621,8 +628,15 @@ Notes:
 - [x] Inline plugin bus
 - [x] Worker plugin isolation
 - [x] `plugin:registered` event
-- [ ] Plugin implementations
-- [ ] Plugin management UI
+- [x] Capability-gated `PluginContext` (bus, scoped storage, gated notes, registerNoteType, ui)
+- [x] Custom note types (`notes.kind` + reactive registry + `NoteRenderer` choke-point)
+- [x] UI widget + command contributions (`PluginWidgetHost`, command palette)
+- [x] Per-plugin storage (`plugin_kv`)
+- [x] Loader — install from `.zip` / local folder / remote catalog (Blob-URL load, host-React shims)
+- [x] Plugin management UI (Settings → Plugins: Installed / Browse / Updates / Developer)
+- [x] Built-in plugins — Flashcard deck, Pomodoro
+- [x] Curated catalog + install-time permission consent
+- [ ] Hardening — granular per-permission grants, signature verification, sandbox, editor extensions
 
 ### Verification
 - [x] Unit tests: **137 passing** across 15 test files (`npm test`) — covers `eventBus`, `applyFormat`,
