@@ -90,36 +90,63 @@
 }
 
 .modes {
-  display: flex;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
 .modeBtn {
-  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
   border: none;
-  border-left: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-3);
-  padding: 0.4rem 0.55rem;
-  font-size: 0.95rem;
+  padding: 0.35rem 0.5rem;
   line-height: 1;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
 }
 
-.modeBtn:first-child {
-  border-left: none;
-}
-
 .modeBtn:hover {
   color: var(--text-1);
+  background: var(--surface-3);
 }
 
 .modeBtnActive {
-  color: var(--text-1);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.modeBtn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The selected mode names itself (baked from the accepted Labels=Active knob). */
+.modeLabel {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.modeBtnActive .modeLabel {
+  max-width: 7rem;
+  opacity: 1;
 }
 
 .count {

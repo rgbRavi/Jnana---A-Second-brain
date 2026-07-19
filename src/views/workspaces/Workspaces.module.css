@@ -15,7 +15,7 @@
 }
 
 .managerTitle {
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-1);
   margin: 0;
@@ -35,10 +35,11 @@
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
   border-radius: var(--radius-md);
   padding: 1rem 1.1rem;
   cursor: pointer;
+  /* Flat hairline card at rest; the accent shows on hover (below) rather than
+     as an always-on side stripe — the house style for cards. */
   transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
 
@@ -54,12 +55,12 @@
 }
 
 .cardIcon {
-  font-size: 1.4rem;
+  font-size: 1.375rem;
   line-height: 1;
 }
 
 .cardName {
-  font-size: 0.98rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -111,7 +112,7 @@
   border: none;
   color: var(--text-3);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   line-height: 1;
   padding: 3px 5px;
   border-radius: var(--radius-sm);
@@ -129,7 +130,7 @@
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.95rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
@@ -144,7 +145,7 @@
 
 .empty {
   color: var(--text-3);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   text-align: center;
   padding: 3rem 0;
 }
@@ -158,7 +159,7 @@
   border: 1px dashed var(--border-hover);
   border-radius: var(--radius-md);
   color: var(--text-2);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   cursor: pointer;
   min-height: 96px;
   transition: color 0.15s, border-color 0.15s;
@@ -186,7 +187,7 @@
 }
 
 .headerIcon {
-  font-size: 1.8rem;
+  font-size: 1.75rem;
   line-height: 1;
 }
 
@@ -267,7 +268,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-2);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
   padding: 0.5rem 0.7rem;
   cursor: pointer;
@@ -321,7 +322,7 @@
 }
 
 .modalTitle {
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
@@ -334,7 +335,7 @@
 }
 
 .fieldLabel {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-2);
 }
 
@@ -346,7 +347,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-1);
   padding: 0.5rem 0.65rem;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
   outline: none;
 }
@@ -424,7 +425,7 @@
   color: var(--text-2);
   border-radius: var(--radius-sm);
   padding: 0.5rem 0.9rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
@@ -452,7 +453,7 @@
   padding: 0.4rem 0.5rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-1);
 }
 
@@ -523,7 +524,7 @@
   border: 1px dashed var(--border-hover);
   border-radius: 999px;
   color: var(--text-2);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   line-height: 1;
   padding: 0.25rem 0.6rem;
   cursor: pointer;
@@ -587,14 +588,14 @@
 }
 
 .panelTitle {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
 }
 
 .panelEmpty {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-3);
   margin: 0;
 }
@@ -623,7 +624,7 @@
 }
 
 .noteRowTitle {
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;

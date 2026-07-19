@@ -19,7 +19,7 @@
 
 .dashTitle {
   margin: 0;
-  font-size: 1.7rem;
+  font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);
@@ -41,25 +41,57 @@
   flex-shrink: 0;
 }
 
+/* Icon-only pill; the "Customize" label reveals as a tooltip on hover/focus. */
 .customizeBtn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  background: var(--surface);
+  justify-content: center;
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   border-radius: 999px;
-  padding: 0.5rem 1rem;
-  font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
   flex-shrink: 0;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 .customizeBtn:hover {
+  background: var(--surface-3);
   border-color: var(--accent);
   color: var(--text-1);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.customizeLbl {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.customizeBtn:hover .customizeLbl,
+.customizeBtn:focus-visible .customizeLbl {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .customizeBtn,
+  .customizeLbl {
+    transition: none;
+  }
 }
 
 /* ── Layout switcher ─────────────────────────────────────────────────────── */
@@ -98,7 +130,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
   padding: 0.3rem;
   animation: popIn 0.14s ease-out;
 }
@@ -124,18 +156,18 @@
   color: var(--text-1);
   text-align: left;
   padding: 0.45rem 0.5rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 .layoutCheck {
   width: 0.9rem;
   color: var(--accent);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   flex-shrink: 0;
 }
 .layoutTag {
   margin-left: auto;
-  font-size: 0.58rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -156,7 +188,7 @@
   cursor: pointer;
   padding: 0.25rem 0.35rem;
   border-radius: var(--radius-sm);
-  font-size: 0.76rem;
+  font-size: 0.75rem;
 }
 .layoutMini:hover {
   color: var(--text-1);
@@ -194,7 +226,7 @@
 }
 .gridItemMoving .card {
   border-color: var(--accent);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Resize handles — comfortable hit zones with a themed grip. */
@@ -207,7 +239,7 @@
   content: '';
   position: absolute;
   background: var(--border-hover);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   transition: background 0.15s, border-color 0.15s;
 }
 .rgHandle_e {
@@ -293,11 +325,11 @@
   position: absolute;
   top: 0.8rem;
   right: 0.9rem;
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   opacity: 0.55;
 }
 .statValue {
-  font-size: 1.85rem;
+  font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);
@@ -399,7 +431,7 @@
   transition: transform 0.18s;
 }
 .cardIcon {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
 .cardActions {
@@ -411,7 +443,7 @@
   background: none;
   border: none;
   color: var(--text-3);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   line-height: 1;
   cursor: pointer;
   padding: 0.3rem 0.45rem;
@@ -447,13 +479,13 @@
   content: '';
   width: 30px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--border);
-  transition: background 0.15s, width 0.15s;
+  transition: background 0.15s, transform 0.15s ease;
 }
 .resizeHandle:hover::after {
   background: var(--accent);
-  width: 46px;
+  transform: scaleX(1.53);
 }
 
 .empty {
@@ -470,6 +502,8 @@
   gap: 0.7rem;
 }
 .quickAction {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -482,18 +516,62 @@
   font-family: var(--font-body);
   font-size: 0.8rem;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s, background 0.15s;
+  transition: border-color 0.15s, transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.15s;
 }
-.quickAction:hover {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  transform: translateY(-2px);
+/* A soft violet "lamp" glow blooms behind the icon on hover — the Quiet Study
+ * North Star: the accent lights the one thing you're reaching for. */
+.quickAction::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  width: 70px;
+  height: 70px;
+  transform: translate(-50%, -50%) scale(0.6);
+  background: radial-gradient(circle, var(--accent) 0%, transparent 68%);
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.quickIcon,
+.quickLabel {
+  position: relative;
+  z-index: 1;
 }
 .quickIcon {
-  font-size: 1.3rem;
+  font-size: 1.25rem;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .quickLabel {
   font-weight: 500;
+}
+.quickAction:hover {
+  border-color: var(--accent);
+  background: transparent;
+  transform: translateY(-2px);
+}
+.quickAction:hover::before {
+  opacity: 0.3;
+  transform: translate(-50%, -50%) scale(1);
+}
+.quickAction:hover .quickIcon {
+  transform: translateY(-1px) scale(1.06);
+}
+@media (prefers-reduced-motion: reduce) {
+  .quickAction,
+  .quickAction::before,
+  .quickIcon {
+    transition: none;
+  }
+  .quickAction:hover .quickIcon {
+    transform: none;
+  }
+  .quickAction:hover::before {
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 /* ── Daily summary ───────────────────────────────────────────────────────── */
@@ -534,7 +612,7 @@
   transform: translateY(-2px);
 }
 .learnTitle {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -561,7 +639,7 @@
   transition: width 0.3s ease;
 }
 .learnProgress {
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
   color: var(--text-2);
 }
@@ -579,7 +657,7 @@
   text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 0.75rem 0.85rem;
   cursor: pointer;
   transition: border-color 0.15s, transform 0.12s;
@@ -601,7 +679,7 @@
   min-width: 0;
 }
 .favTitle {
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -632,8 +710,7 @@
   text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-left-width: 3px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 0.8rem 0.9rem;
   cursor: pointer;
   transition: border-color 0.15s, transform 0.12s, background 0.15s;
@@ -648,24 +725,25 @@
 .insightCount {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-1);
+  color: var(--insight-tone, var(--text-1));
   line-height: 1;
 }
 .insightLabel {
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--text-2);
 }
+/* Tone tints the count (a leading-number signal), not a side-stripe border. */
 .insightNeutral {
-  border-left-color: var(--text-3);
+  --insight-tone: var(--text-1);
 }
 .insightWarn {
-  border-left-color: var(--warning);
+  --insight-tone: var(--warning);
 }
 .insightAccent {
-  border-left-color: var(--accent);
+  --insight-tone: var(--accent);
 }
 .insightGood {
-  border-left-color: var(--success);
+  --insight-tone: var(--success);
 }
 
 /* ── Graph snapshot ──────────────────────────────────────────────────────── */
@@ -680,7 +758,7 @@
   position: relative;
   flex: 1;
   min-height: 260px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%), var(--bg);
   border: 1px solid var(--border);
@@ -716,7 +794,7 @@
   color: var(--text-1);
 }
 .graphStatLabel {
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -752,7 +830,7 @@
   text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 0.75rem 0.9rem;
   cursor: pointer;
   transition: border-color 0.15s, transform 0.12s;
@@ -774,7 +852,7 @@
   min-width: 0;
 }
 .projectName {
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-1);
   white-space: nowrap;
@@ -852,7 +930,7 @@
   border-color: var(--danger);
 }
 .taskStatus {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   flex-shrink: 0;
 }
 .task_done .taskStatus {
@@ -917,7 +995,7 @@
 .heatCell {
   width: 12px;
   height: 12px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--surface-3);
 }
 .heatPad {
@@ -933,7 +1011,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-family: var(--font-mono);
   color: var(--text-3);
 }
@@ -984,7 +1062,7 @@
 }
 .customizeTitle {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   font-weight: 600;
   color: var(--text-1);
 }
@@ -1004,7 +1082,7 @@
   gap: 0.6rem;
   padding: 0.5rem 0.4rem;
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   color: var(--text-1);
   cursor: pointer;
   transition: background 0.12s;

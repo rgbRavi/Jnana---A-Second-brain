@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 import type { Note } from '../../types'
 import type { useCollections } from '../../hooks/useCollections'
 import { showConfirmDialog, showPromptDialog } from '../../lib/dialog'
@@ -82,8 +83,8 @@ export function CollectionsBar({ api, notes, activeId, onSelect }: Props) {
             {c.name} <span className={styles.collCount}>{counts.get(c.id) ?? 0}</span>
           </button>
         ))}
-        <button className={styles.collChipNew} onClick={handleCreate} title="New collection">
-          ＋
+        <button className={styles.collChipNew} onClick={handleCreate} title="New collection" aria-label="New collection">
+          <Plus size={15} />
         </button>
       </div>
 

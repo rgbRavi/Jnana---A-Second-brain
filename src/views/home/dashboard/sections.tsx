@@ -35,7 +35,7 @@ export function HeroSection({ data }: { data: DashboardData }) {
   const t = data.totals
   return (
     <div className={styles.statGrid}>
-      <StatCard icon="📝" label="Notes" value={t.notes} accent="#7c6af7" />
+      <StatCard icon="📝" label="Notes" value={t.notes} accent="var(--accent)" />
       <StatCard icon="🔗" label="Connections" value={t.connections} accent="#3ba7f7" />
       <StatCard icon="📂" label="Projects" value={t.projects} accent="#3fb950" />
       <StatCard icon="🧠" label="Indexed" value={`${t.indexedPct}%`} sub={`${data.notes.length} notes`} accent="#e3b341" />

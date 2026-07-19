@@ -90,7 +90,7 @@
   background: transparent;
   color: var(--text-1);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   line-height: 1.45;
 }
 
@@ -218,7 +218,7 @@
   background: transparent;
   border: none;
   color: var(--text-2);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   padding: 0.15rem 0.35rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -451,7 +451,7 @@
 
 .popoverValue {
   font-family: var(--font-mono);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--text-3);
   min-width: 3.4ch;
   text-align: right;
@@ -480,7 +480,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-family: var(--font-body);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   padding: 0.35rem 0.5rem;
   cursor: pointer;
   white-space: nowrap;
@@ -587,7 +587,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-family: var(--font-body);
   padding: 0.25rem 0.4rem;
   max-width: 150px;
@@ -599,7 +599,7 @@
   background: transparent;
   border: none;
   color: var(--text-2);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   padding: 0.25rem 0.4rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -621,7 +621,7 @@
   bottom: 0.8rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   color: var(--text-3);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -633,7 +633,7 @@
 
 .loading {
   color: var(--text-3);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   padding: 2rem;
   text-align: center;
 }
@@ -666,7 +666,7 @@
 }
 
 .modalTitle {
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-1);
   margin: 0;
@@ -679,7 +679,7 @@
   border-radius: var(--radius-sm);
   color: var(--text-1);
   padding: 0.5rem 0.65rem;
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
   outline: none;
 }
@@ -703,7 +703,7 @@
   padding: 0.45rem 0.5rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--text-1);
   text-align: left;
   background: transparent;
@@ -716,7 +716,7 @@
 
 .empty {
   color: var(--text-3);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   text-align: center;
   padding: 1.5rem 0;
 }

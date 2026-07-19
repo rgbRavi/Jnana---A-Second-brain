@@ -461,7 +461,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
         >
           Previous
         </button>
-        <span style={{ color: 'var(--text-1, #f0eff5)', fontSize: '0.9rem' }}>
+        <span style={{ color: 'var(--text-1, #f0eff5)', fontSize: '0.875rem' }}>
           Page {pageNumber} of {numPages || '-'}
         </span>
         <button
@@ -645,8 +645,8 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
                 top: currentRect.y,
                 width: currentRect.w,
                 height: currentRect.h,
-                backgroundColor: 'rgba(124, 106, 247, 0.3)',
-                border: '1px solid rgba(124, 106, 247, 0.8)',
+                backgroundColor: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--accent) 80%, transparent)',
                 pointerEvents: 'none',
                 zIndex: 15,
               }}

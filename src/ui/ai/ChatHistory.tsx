@@ -2,12 +2,14 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useState } from 'react'
+import { ChevronsLeft, ChevronsRight, Pencil, Plus, X } from 'lucide-react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import type { ConversationMeta } from '../../types'
+import styles from './Ai.module.css'
 
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
@@ -88,10 +90,10 @@ export function ChatHistory({ mode }: { mode: string }) {
         }}
       >
         <button onClick={() => setCollapsed(false)} title="Show chat history" aria-label="Show chat history" style={iconBtn}>
-          »
+          <ChevronsRight size={16} />
         </button>
         <button onClick={newChat} title="New chat" aria-label="New chat" style={{ ...iconBtn, color: '#fff', background: 'var(--accent)', border: 'none' }}>
-          ＋
+          <Plus size={16} />
         </button>
       </div>
     )
@@ -128,29 +130,29 @@ export function ChatHistory({ mode }: { mode: string }) {
     >
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
         <button onClick={() => setCollapsed(true)} title="Collapse history" aria-label="Collapse history" style={iconBtn}>
-          «
+          <ChevronsLeft size={16} />
         </button>
         <button
           onClick={newChat}
+          className={styles.btnPrimary}
           style={{
             flex: 1,
-            background: 'var(--accent)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
             padding: '0.5rem',
-            fontSize: '0.85rem',
+            fontSize: '0.875rem',
             fontWeight: 600,
-            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '5px',
           }}
         >
-          + New chat
+          <Plus size={15} /> New chat
         </button>
       </div>
 
       <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px', minHeight: 0 }}>
         {visible.length === 0 && (
-          <p style={{ fontSize: '0.76rem', color: 'var(--text-3)', padding: '0.4rem 0.2rem' }}>No saved chats yet.</p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', padding: '0.4rem 0.2rem' }}>No saved chats yet.</p>
         )}
         {visible.map((c) => {
           const active = c.id === activeId
@@ -161,10 +163,12 @@ export function ChatHistory({ mode }: { mode: string }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                background: active ? 'rgba(124, 106, 247, 0.15)' : 'transparent',
-                border: '1px solid ' + (active ? 'var(--accent)' : 'transparent'),
+                background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+                backdropFilter: active ? 'blur(8px)' : 'none',
+                border: '1px solid ' + (active ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'transparent'),
                 borderRadius: 'var(--radius-sm)',
                 padding: '0.4rem 0.45rem',
+                boxShadow: active ? '0 0 10px color-mix(in srgb, var(--accent) 20%, transparent)' : 'none',
               }}
             >
               {renamingId === c.id ? (
@@ -206,7 +210,7 @@ export function ChatHistory({ mode }: { mode: string }) {
                   <div style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {c.title || 'Untitled'}
                   </div>
-                  <div style={{ fontSize: '0.66rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmt(c.updatedAt)}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmt(c.updatedAt)}</div>
                 </button>
               )}
 
@@ -217,17 +221,17 @@ export function ChatHistory({ mode }: { mode: string }) {
                 }}
                 title="Rename"
                 aria-label="Rename chat"
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '0.8rem', padding: '2px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '2px', display: 'inline-flex' }}
               >
-                ✎
+                <Pencil size={14} />
               </button>
               <button
                 onClick={() => remove(c.id, c.title)}
                 title="Delete"
                 aria-label="Delete chat"
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '0.85rem', padding: '2px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '2px', display: 'inline-flex' }}
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
           )

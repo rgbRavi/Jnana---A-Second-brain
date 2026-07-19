@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "createdAt": "2026-07-19T12:27:56.854Z",
+        "reason": "User confirmed: intentional tactile press-feedback on .pressable:active, documented in .impeccable/design.json motion"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-07-19T12:28:03.743Z",
+        "reason": "User confirmed: Inter is Jnana's established app-wide body font, committed in DESIGN.md"
+      }
+    ]
+  }
+}

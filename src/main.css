@@ -137,28 +137,29 @@ body {
 /* Muted, centered empty/loading caption (search results, graph loading, …). */
 .note-empty {
   color: var(--text-3);
-  font-size: 0.85rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   font-family: var(--font-mono);
   text-align: center;
 }
 
 /* Placeholder shown while a note image is loading. */
 .image-loading {
-  font-size: 0.8rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   font-family: var(--font-mono);
   color: var(--text-3);
 }
 
-/* PDF viewer error state. */
+/* PDF viewer error state. Danger is carried by a full tinted border + a soft
+   danger fill (both color-mix, so they track a re-theme) — not a >1px side
+   stripe, which the design system bans on callouts/alerts. */
 .pdf-error {
   margin: 1rem 0;
   padding: 1rem 1.25rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
   border-radius: var(--radius-md);
   color: var(--text-2);
-  font-size: 0.88rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   line-height: 1.5;
 }
 

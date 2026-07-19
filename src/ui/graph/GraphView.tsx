@@ -56,12 +56,27 @@ const PSEUDO_COLOR = '#8b8794'
 // GraphView instances (main + per-workspace) can be mounted at once.
 let HUB_COLOR = '#7c6af7'
 let FOCUS_COLOR = '#7c6af7'
+// Translucent accent for link strokes. Canvas 2D can't resolve `var(--accent)`,
+// so we derive a concrete rgba() from the resolved accent (via the browser's own
+// parser) and re-derive it on `theme:changed`, same as HUB/FOCUS above.
+let LINK_COLOR = 'rgba(124, 106, 247, 0.4)'
+
+function accentToRgba(color: string, alpha: number): string | null {
+  const probe = document.createElement('span')
+  probe.style.color = color
+  document.body.appendChild(probe)
+  const computed = getComputedStyle(probe).color
+  probe.remove()
+  const m = computed.match(/-?\d+(?:\.\d+)?/g)
+  return m && m.length >= 3 ? `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${alpha})` : null
+}
 
 function readAccentColor(): void {
   const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
   if (accent) {
     HUB_COLOR = accent
     FOCUS_COLOR = accent
+    LINK_COLOR = accentToRgba(accent, 0.4) ?? accent
   }
 }
 readAccentColor()
@@ -179,7 +194,7 @@ const presetBtnStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-sm)',
   color: 'var(--text-1)',
-  fontSize: '0.74rem',
+  fontSize: '0.75rem',
   padding: '0.4rem 0.5rem',
   cursor: 'pointer',
 }
@@ -225,7 +240,7 @@ function Section({
             background: 'none',
             border: 'none',
             color: 'var(--text-1)',
-            fontSize: '0.9rem',
+            fontSize: '0.875rem',
             fontWeight: 600,
             padding: '0.7rem 0.1rem',
             cursor: 'pointer',
@@ -337,7 +352,7 @@ function Slider({
 /** A color swatch + label row for the hub/orphan mini-legend. */
 function LegendRow({ color, size = 10, label }: { color: string; size?: number; label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.6, fontSize: '0.74rem', color: 'var(--text-2)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.6, fontSize: '0.75rem', color: 'var(--text-2)' }}>
       <span style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', background: color, flexShrink: 0 }} />
       <span>{label}</span>
     </div>
@@ -1206,7 +1221,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           fg.zoom(vp.k, 0)
           fg.centerAt(vp.x, vp.y, 0)
         }}
-        linkColor={() => 'rgba(124, 106, 247, 0.4)'}
+        linkColor={() => LINK_COLOR}
         linkWidth={linkThickness}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
@@ -1287,7 +1302,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                               border: '1px solid ' + (on ? (tagColors.get(tag) as string) : 'var(--border)'),
                               borderRadius: '999px',
                               padding: '0.25rem 0.6rem',
-                              fontSize: '0.74rem',
+                              fontSize: '0.75rem',
                               cursor: 'pointer',
                             }}
                           >
@@ -1299,7 +1314,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                   </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
                   <span>
                     Showing {forceData.nodes.length} of {graphData.nodes.length}
                   </span>
@@ -1484,7 +1499,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               color: 'var(--text-1)',
-              fontSize: '1.05rem',
+              fontSize: '1.125rem',
               cursor: 'pointer',
               boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
               display: 'flex',
@@ -1527,7 +1542,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             <div
               style={{
                 padding: '6px 8px 8px',
-                fontSize: '0.78rem',
+                fontSize: '0.75rem',
                 fontWeight: 600,
                 color: 'var(--text-1)',
                 borderBottom: '1px solid var(--border)',

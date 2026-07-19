@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { Link2 } from 'lucide-react'
 import type { LinkSuggestion, Note } from '../../types'
 import { loadAiConfig, suggestLinks } from '../../core/ai'
 import { SuggestionMenu } from './SuggestionMenu'
@@ -29,7 +30,7 @@ export function LinkSuggestions({ note, allNotes, onAddLink }: Props) {
 
   return (
     <SuggestionMenu<LinkSuggestion>
-      icon="🔗"
+      icon={<Link2 size={15} />}
       label="Suggest links"
       keyOf={(s) => s.noteId}
       run={run}

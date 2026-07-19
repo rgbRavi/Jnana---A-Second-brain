@@ -8,7 +8,7 @@
   background-color: var(--surface-3, #2a2a35);
   color: var(--text-1, #f0eff5);
   border: 1px solid transparent;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
@@ -60,7 +60,7 @@
   background: var(--surface);
   color: var(--text-1, #111);
   font-family: var(--font-sans, sans-serif);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
