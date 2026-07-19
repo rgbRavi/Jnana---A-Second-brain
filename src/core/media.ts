@@ -27,6 +27,15 @@ export async function extractText(filePath: string): Promise<string> {
 }
 
 /**
+ * Read a data file as CSV text for the "insert as editable table" import:
+ * `.csv`/`.tsv`/`.txt` directly, `.xlsx`/`.xls` converted (first sheet) via
+ * LibreOffice. Throws if the spreadsheet converter isn't available.
+ */
+export async function readTableFile(filePath: string): Promise<string> {
+  return invoke<string>('read_table_file', { filePath })
+}
+
+/**
  * Insert a media_refs row for a file that has already been copied to assets.
  * Call this only after save_note has succeeded, so the FK constraint is satisfied.
  */

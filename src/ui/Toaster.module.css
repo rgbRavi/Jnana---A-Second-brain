@@ -13,8 +13,8 @@
 .toast {
   pointer-events: auto;
   display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
+  flex-direction: column;
+  gap: 0.5rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
@@ -25,6 +25,29 @@
   font-size: 0.85rem;
   line-height: 1.45;
   animation: toastIn 0.18s ease-out;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+/* Determinate progress bar at the foot of a progress toast. */
+.progressTrack {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.12s ease-out;
+}
+.success .progressFill {
+  background: var(--success);
 }
 
 .icon {

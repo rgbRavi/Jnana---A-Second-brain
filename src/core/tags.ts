@@ -3,6 +3,7 @@
 
 import { Note } from '../types'
 import { getMediaTypes } from './media';
+import { TABLE_BLOCK } from './table';
 
 const AUTO_TAG_PREFIXES = ['has:', 'long-form']
 
@@ -37,6 +38,9 @@ export async function inferTags(note: Note): Promise<string[]> {
     if (/https?:\/\//.test(content))        tags.push('has:link');
     if (/\[\[.*?\]\]/.test(content))        tags.push('has:wikilink');
     if (/\(external:\/\//.test(content)) tags.push('has:docxlink');
+    // TABLE_BLOCK is a global regex — reset lastIndex so a prior match doesn't skip.
+    TABLE_BLOCK.lastIndex = 0;
+    if (TABLE_BLOCK.test(content))          tags.push('has:table');
 
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
     if (wordCount > 1000)                   tags.push('long-form');

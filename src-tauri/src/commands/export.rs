@@ -60,3 +60,11 @@ pub fn export_notes(
 
     Ok(written)
 }
+
+/// Write UTF-8 text to a user-chosen absolute path (from the native save dialog).
+/// The path is picked by the OS "Save As" dialog, so it is already user-authorised;
+/// we only forward the bytes.
+#[command]
+pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    fs::write(&path, content).map_err(|e| format!("Failed to write {}: {}", path, e))
+}

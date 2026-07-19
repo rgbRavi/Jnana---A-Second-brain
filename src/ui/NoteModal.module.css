@@ -135,6 +135,10 @@
 
 .noteModalBody {
   flex: 1;
+  /* min-width:0 lets this column-flex child shrink below its content's intrinsic
+     width, so a wide ```table scrolls inside its own .noteTableScroll instead of
+     being clipped by the .noteModalContent (overflow:hidden) parent. */
+  min-width: 0;
   overflow-y: auto;
   color: var(--text-2);
   line-height: 1.7;

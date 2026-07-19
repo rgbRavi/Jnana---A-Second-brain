@@ -20,13 +20,29 @@ export function Toaster() {
     <div className={styles.stack} role="region" aria-label="Notifications">
       {toasts.map((t) => (
         <div key={t.id} className={`${styles.toast} ${styles[t.variant]}`} role="status" aria-live="polite">
-          <span className={styles.icon} aria-hidden="true">
-            {ICON[t.variant]}
-          </span>
-          <span className={styles.message}>{t.message}</span>
-          <button className={styles.close} onClick={() => dismissToast(t.id)} aria-label="Dismiss notification">
-            ×
-          </button>
+          <div className={styles.row}>
+            <span className={styles.icon} aria-hidden="true">
+              {ICON[t.variant]}
+            </span>
+            <span className={styles.message}>{t.message}</span>
+            <button className={styles.close} onClick={() => dismissToast(t.id)} aria-label="Dismiss notification">
+              ×
+            </button>
+          </div>
+          {t.progress != null && (
+            <div
+              className={styles.progressTrack}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(Math.min(1, Math.max(0, t.progress)) * 100)}
+            >
+              <div
+                className={styles.progressFill}
+                style={{ width: `${Math.min(1, Math.max(0, t.progress)) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>

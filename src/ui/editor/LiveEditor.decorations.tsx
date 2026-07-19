@@ -19,12 +19,14 @@
 
 import type { ReactElement, PointerEvent as ReactPointerEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { StateEffect, type Range } from '@codemirror/state'
+import { StateEffect, StateField, type EditorState, type Range } from '@codemirror/state'
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view'
 import { syntaxTree } from '@codemirror/language'
 import type { SyntaxNode } from '@lezer/common'
 import type { Note } from '../../types'
 import type { MediaLayout } from '../../core/mediaLayout'
+import type { TableEditMode } from '../../hooks/useComposerOptions'
+import type { TableMeta } from '../../core/table'
 import {
   audioTimestampAnchored,
   simpleTimestampAnchored,
@@ -34,6 +36,7 @@ import {
 import { colorTokenRegex, highlightBackground, highlightTokenRegex, resolveColor } from '../../core/markdown/colors'
 import {
   AudioEmbed,
+  EditorTableWidget,
   ExternalDocLink,
   ImageEmbed,
   PdfEmbed,
@@ -65,6 +68,16 @@ export interface LiveContext {
    *  `text-align` decoration is derived from `mediaLayout`, not the widget's own
    *  local state, so it wouldn't otherwise update until reload. Stable ref. */
   onLayoutChange: (mediaKey: string, layout: MediaLayout) => void
+  /** How ```table blocks appear while editing: 'widget' renders a live grid
+   *  (via the table StateField below), 'inline' leaves the raw CSV fence. */
+  tableEditMode: TableEditMode
+  /** Replaces the `occurrence`-th (document-order) ```table block with a new CSV
+   *  body + meta (header colour) via a CM6 doc change — keeps the document the
+   *  source of truth for in-editor table edits. Stable ref so the widget's eq()
+   *  holds (it never appears in the widget's compared props). */
+  editTable: (occurrence: number, csv: string, meta: TableMeta) => void
+  /** Removes the `occurrence`-th ```table block from the document. Stable ref. */
+  deleteTable: (occurrence: number) => void
 }
 
 /** Dispatched once `mediaLayout` finishes its (async) load, so decorations
@@ -77,8 +90,13 @@ export const forceRebuildMediaLayout = StateEffect.define<void>()
 // and recreates every widget — including video/PDF players — on every
 // unrelated keystroke. Concrete widgets just provide props + a render fn.
 
+// The React root lives on the DOM node (a WeakMap), not the widget instance, so
+// `updateDOM` — which CM6 calls on the *new* widget with the *old* node — can
+// re-render into the existing root instead of tearing it down. The constructor
+// is stored alongside so a node is only ever reused for the same widget kind.
+const widgetRoots = new WeakMap<HTMLElement, { root: Root; ctor: unknown }>()
+
 abstract class ReactWidget<P extends Record<string, unknown>> extends WidgetType {
-  private root: Root | null = null
   constructor(protected readonly props: P) {
     super()
   }
@@ -95,19 +113,34 @@ abstract class ReactWidget<P extends Record<string, unknown>> extends WidgetType
 
   toDOM(): HTMLElement {
     const dom = document.createElement('span')
-    this.root = createRoot(dom)
-    this.root.render(this.renderWidget())
+    const root = createRoot(dom)
+    widgetRoots.set(dom, { root, ctor: this.constructor })
+    root.render(this.renderWidget())
     return dom
   }
 
-  destroy(): void {
+  // When a decoration rebuild yields a semantically-different widget of the same
+  // kind (eq() false), re-render into the SAME DOM node rather than letting CM6
+  // recreate it. This preserves scroll position, focus, and media playback across
+  // rebuilds — and, crucially, keeps a stateful widget (the inline table grid)
+  // mounted so its React state survives its own edits (no jump-to-top / focus
+  // loss on every add/insert/resize). `constructor` match guards against reusing
+  // one widget kind's node for another.
+  updateDOM(dom: HTMLElement): boolean {
+    const entry = widgetRoots.get(dom)
+    if (!entry || entry.ctor !== this.constructor) return false
+    entry.root.render(this.renderWidget())
+    return true
+  }
+
+  destroy(dom: HTMLElement): void {
     // Deferred: CM6 can call destroy() while React is mid-render (e.g. the
     // editor view being torn down as part of an ancestor unmount), and
     // synchronously unmounting a root in that window triggers a React
     // warning/race. The dom node is already discarded by CM6 either way.
-    const root = this.root
-    this.root = null
-    queueMicrotask(() => root?.unmount())
+    const entry = widgetRoots.get(dom)
+    widgetRoots.delete(dom)
+    queueMicrotask(() => entry?.root.unmount())
   }
 }
 
@@ -281,6 +314,28 @@ class TimestampWidget extends ReactWidget<{
   }
 }
 
+// Block widget for a ```table fence (widget mode). `csv`/`occurrence`/`header`
+// are primitives and `editTable` is a stable ref, so eq() holds across rebuilds
+// (only a genuine content/colour change recreates it).
+class TableWidget extends ReactWidget<{
+  csv: string
+  occurrence: number
+  metaText: string
+  editTable: LiveContext['editTable']
+  deleteTable: LiveContext['deleteTable']
+}> {
+  renderWidget() {
+    return (
+      <EditorTableWidget
+        csv={this.props.csv}
+        metaText={this.props.metaText}
+        onCommit={(csv, meta) => this.props.editTable(this.props.occurrence, csv, meta)}
+        onDelete={() => this.props.deleteTable(this.props.occurrence)}
+      />
+    )
+  }
+}
+
 // ── Decoration building ──────────────────────────────────────────────────
 
 const HEADING_CLASS: Record<string, string> = {
@@ -411,6 +466,15 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
       }
 
       if (name === 'FencedCode') {
+        // A ```table fence is owned by the table StateField in widget mode
+        // (it emits the block widget) — skip it here so an inline code mark
+        // never overlaps that block replace. In inline mode we style it as
+        // code like any other fence.
+        if (context.tableEditMode === 'widget') {
+          const info = ref.node.getChild('CodeInfo')
+          const trimmed = info ? text.slice(info.from, info.to).trim() : ''
+          if (trimmed === 'table' || trimmed.startsWith('table ')) return false
+        }
         builder.add(from, to, Decoration.mark({ class: styles.cmInlineCode }))
         return false
       }
@@ -564,6 +628,76 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
   }
 
   return Decoration.set(ranges, true)
+}
+
+// ── Table block widgets (StateField) ──────────────────────────────────────
+// Block-level / line-crossing decorations can't be provided by a ViewPlugin
+// (CM6 throws) — a ```table fence spans multiple lines, so its widget lives in
+// a StateField. Rebuilds on doc/selection change (for reveal-near-cursor) and
+// on `forceRebuildTables` (dispatched when the tableEditMode setting toggles,
+// which isn't a doc/selection change).
+
+/** Nudge the table StateField to recompute after the tableEditMode setting
+ *  changes — mirrors forceRebuildMediaLayout for the async media-layout load. */
+export const forceRebuildTables = StateEffect.define<void>()
+
+function buildTableDecorations(state: EditorState, context: LiveContext): DecorationSet {
+  if (context.tableEditMode !== 'widget') return Decoration.none
+  const ranges: Range<Decoration>[] = []
+  const text = state.doc.toString()
+  const selection = state.selection
+  const revealed = (from: number, to: number): boolean =>
+    selection.ranges.some((r) => r.from < to && r.to > from)
+
+  // Count every table fence in document order so `occurrence` stays stable even
+  // for a block the cursor is currently revealing (no widget) — matches
+  // remarkJnana's tableIndex and replaceTableBlock's ordering.
+  let tableIndex = 0
+  syntaxTree(state).iterate({
+    enter(ref) {
+      if (ref.name !== 'FencedCode') return undefined
+      const node: SyntaxNode = ref.node
+      const info = node.getChild('CodeInfo')
+      // CodeInfo is the whole info string ('table header=indigo'); check the
+      // first word, then parse the rest for the header colour.
+      const infoText = info ? text.slice(info.from, info.to) : ''
+      const trimmed = infoText.trim()
+      if (trimmed !== 'table' && !trimmed.startsWith('table ')) return false
+      const metaText = trimmed.slice('table'.length) // presentation options, parsed by the widget
+      const occurrence = tableIndex++
+      const bodyNode = node.getChild('CodeText')
+      const csv = bodyNode ? text.slice(bodyNode.from, bodyNode.to) : ''
+      // Snap to whole lines — block replace decorations must align to line
+      // boundaries.
+      const bFrom = state.doc.lineAt(ref.from).from
+      const bTo = state.doc.lineAt(ref.to).to
+      if (!revealed(bFrom, bTo)) {
+        ranges.push(
+          Decoration.replace({
+            widget: new TableWidget({ csv, occurrence, metaText, editTable: context.editTable, deleteTable: context.deleteTable }),
+            block: true,
+          }).range(bFrom, bTo),
+        )
+      }
+      return false
+    },
+  })
+  return Decoration.set(ranges, true)
+}
+
+export function tableDecorationsField(contextRef: { current: LiveContext }) {
+  return StateField.define<DecorationSet>({
+    create(state) {
+      return buildTableDecorations(state, contextRef.current)
+    },
+    update(deco, tr) {
+      if (tr.docChanged || tr.selection || tr.effects.some((e) => e.is(forceRebuildTables))) {
+        return buildTableDecorations(tr.state, contextRef.current)
+      }
+      return deco.map(tr.changes)
+    },
+    provide: (f) => EditorView.decorations.from(f),
+  })
 }
 
 export function liveDecorations(contextRef: { current: LiveContext }) {

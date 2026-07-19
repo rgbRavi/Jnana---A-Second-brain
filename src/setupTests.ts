@@ -28,3 +28,12 @@ class MockIntersectionObserver implements IntersectionObserver {
   takeRecords = () => []
 }
 vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+
+// jsdom has no ResizeObserver; the table's sticky horizontal scrollbar observes
+// its scroll container. A no-op mock is enough (tests don't measure layout).
+class MockResizeObserver {
+  observe = () => {}
+  unobserve = () => {}
+  disconnect = () => {}
+}
+vi.stubGlobal('ResizeObserver', MockResizeObserver)

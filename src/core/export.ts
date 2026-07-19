@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { Note } from '../types'
 import { getNoteType } from '../lib/noteTypes'
+import { TABLE_BLOCK, parseCsv, tableToGfm, parseTableMeta } from './table'
 
 interface ExportFile {
   name: string
@@ -19,6 +20,10 @@ interface ExportFile {
 export function toExportMarkdown(content: string): { markdown: string; assets: string[] } {
   const assets = new Set<string>()
   const markdown = content
+    // ```table CSV block → a portable GFM pipe table (renders in Obsidian/
+    // GitHub/VS Code). Done first so the asset rewrites below never see it.
+    // Column alignment carries over (GFM separator); colour/size are dropped.
+    .replace(TABLE_BLOCK, (_m, info: string, csv: string) => `${tableToGfm(parseCsv(csv), parseTableMeta(info).align)}\n`)
     // jnana-asset://FILE  →  assets/FILE
     .replace(/\(jnana-asset:\/\/([^)]+)\)/g, (_m, file: string) => {
       assets.add(file)

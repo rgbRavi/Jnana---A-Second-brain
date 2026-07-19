@@ -84,14 +84,16 @@ export function EditorPane({ noteId }: { noteId: string }) {
   const draftRef = useRef({ title, content, tags })
   draftRef.current = { title, content, tags }
 
+  // Media/embeds insert at the editor's cursor (where the insertion bar is), not
+  // appended to the end — so importing next to a table/paragraph lands there.
+  // Falls back to appending only if the editor isn't mounted.
   const { uploading, isRecording, toolbarProps } = useComposer({
     noteId,
-    appendMarkdown: (md) => setContent((prev) => prev + md),
-    focusTextarea: () => editorRef.current?.focus(),
-  })
-  const { toolbarProps: contextMenuImportProps } = useComposer({
-    noteId,
-    appendMarkdown: (md) => editorRef.current?.insertAtCursor(md),
+    appendMarkdown: (md) => {
+      const handle = editorRef.current
+      if (handle) handle.insertAtCursor(md)
+      else setContent((prev) => prev + md)
+    },
     focusTextarea: () => editorRef.current?.focus(),
   })
 
@@ -286,7 +288,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
               notes={notes}
               noteId={note.id}
               allowNavigate
-              importHandlers={contextMenuImportProps}
+              importHandlers={toolbarProps}
             />
             <div className={Styles.toolbar}>
               <ComposerToolbar {...toolbarProps} disabled={uploading} />

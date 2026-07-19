@@ -75,17 +75,16 @@ function NoteItemEditForm({
   const [saving, setSaving] = useState(false)
   const { notes } = useNotesContext()
   const editorRef = useRef<LiveEditorHandle>(null)
+  // Media/embeds insert at the editor's cursor (where the insertion bar is), not
+  // appended to the end — so importing next to a table/paragraph lands there.
+  // Falls back to appending only if the editor isn't mounted.
   const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: note.id,
-    appendMarkdown: (md) => setContent((prev) => prev + md),
-    focusTextarea: () => editorRef.current?.focus(),
-  })
-  // A second instance just for the editor's right-click "Import" submenu —
-  // same upload plumbing, but inserts land at the click position instead of
-  // always appending to the end.
-  const { toolbarProps: contextMenuImportProps } = useComposer({
-    noteId: note.id,
-    appendMarkdown: (md) => editorRef.current?.insertAtCursor(md),
+    appendMarkdown: (md) => {
+      const handle = editorRef.current
+      if (handle) handle.insertAtCursor(md)
+      else setContent((prev) => prev + md)
+    },
     focusTextarea: () => editorRef.current?.focus(),
   })
 
@@ -159,7 +158,7 @@ function NoteItemEditForm({
           notes={notes}
           noteId={note.id}
           allowNavigate={false}
-          importHandlers={contextMenuImportProps}
+          importHandlers={toolbarProps}
         />
       )}
       <div className={Styles.composerFooterBorderlessFooter}>

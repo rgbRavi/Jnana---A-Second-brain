@@ -17,7 +17,7 @@
 
 import { visit } from 'unist-util-visit'
 import { findAndReplace } from 'mdast-util-find-and-replace'
-import type { PhrasingContent, Root } from 'mdast'
+import type { PhrasingContent, RootContent, Root } from 'mdast'
 import { audioTimestampRegex, simpleTimestampRegex, videoTimestampRegex, wikilinkRegex } from './tokenPatterns'
 import { colorAnyTokenRegex } from './colors'
 
@@ -56,6 +56,30 @@ export function remarkJnana() {
       if (node.alt === 'video') hProperties['data-video-index'] = videoIndex++
       else if (node.alt === 'audio') hProperties['data-audio-index'] = audioIndex++
       node.data = { ...data, hProperties } as typeof node.data
+    })
+
+    // ```table fenced blocks → a custom block node the `components` map renders
+    // as a <TableEmbed>. The fence parses as a `code` node with lang 'table';
+    // we swap it for a `jnana-table` node carrying the raw CSV plus a document-
+    // order `occurrence` index (same parse-time indexing idea as the media
+    // indices above) so the read-view Edit button can write back the right
+    // block. Changing the node's `type` away from `code` is required — that's
+    // what makes mdast-util-to-hast use its `data.hName` fallback instead of the
+    // built-in code handler (the inline `customNode` above relies on the same
+    // trick). remark-gfm pipe tables are untouched; only lang 'table' fences are
+    // intercepted, so ordinary fenced code still flows to `pre`/`CodeBlock`.
+    let tableIndex = 0
+    visit(tree, 'code', (node, index, parent) => {
+      if (node.lang !== 'table' || !parent || index == null) return
+      // mdast splits the info string: `lang` is the first word ('table'), `meta`
+      // is the rest ('header=indigo w=6,8') — the table's presentation options,
+      // carried raw for the renderer (MarkdownLite/TableEmbed) to parse.
+      const hProperties: Record<string, unknown> = { csv: node.value, occurrence: tableIndex++, meta: node.meta ?? '' }
+      const block: RootContent = {
+        type: 'jnana-table',
+        data: { hName: 'jnana-table', hProperties },
+      } as unknown as RootContent
+      parent.children[index] = block
     })
 
     // Order matters: findAndReplace runs one full tree pass per pattern, in

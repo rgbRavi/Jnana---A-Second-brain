@@ -151,6 +151,78 @@ pub async fn extract_text(file_path: String) -> Result<String, String> {
     }
 }
 
+/// Strip a UTF-8 BOM, then decode lossily (UTF-8 assumed). Spreadsheet exports
+/// and hand-written CSVs are overwhelmingly UTF-8; other encodings degrade to
+/// replacement chars rather than failing the import.
+fn decode_text(bytes: &[u8]) -> String {
+    let body = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
+    String::from_utf8_lossy(body).to_string()
+}
+
+/// Read a data file as CSV text for the "insert as editable table" import.
+/// `.csv`/`.tsv`/`.txt` are read directly; `.xlsx`/`.xls` are converted to CSV
+/// (first/active sheet) via LibreOffice headless — same converter as
+/// `convert_to_pdf`, so it inherits the PATH + common-install-location probing.
+#[tauri::command]
+pub async fn read_table_file(file_path: String) -> Result<String, String> {
+    let source_path = Path::new(&file_path);
+    if !source_path.exists() {
+        return Err("File does not exist".to_string());
+    }
+    let ext = source_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    if ext == "csv" || ext == "tsv" || ext == "txt" {
+        let bytes = std::fs::read(source_path).map_err(|e| format!("Failed to read file: {}", e))?;
+        return Ok(decode_text(&bytes));
+    }
+
+    if ext == "xlsx" || ext == "xls" {
+        let out_dir = std::env::temp_dir();
+        let out_name = source_path
+            .with_extension("csv")
+            .file_name()
+            .map(|n| n.to_os_string())
+            .ok_or_else(|| "Invalid source file name".to_string())?;
+        let out_file = out_dir.join(&out_name);
+        let _ = std::fs::remove_file(&out_file); // clear any stale conversion
+
+        let soffice_candidates: &[&str] = &[
+            "soffice",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        ];
+        let mut success = false;
+        for candidate in soffice_candidates {
+            let mut cmd = Command::new(candidate);
+            cmd.arg("--headless")
+                .arg("--convert-to")
+                .arg("csv")
+                .arg(&file_path)
+                .arg("--outdir")
+                .arg(&out_dir);
+            if let Ok(status) = cmd.status() {
+                if status.success() {
+                    success = true;
+                    break;
+                }
+            }
+        }
+        if !success || !out_file.exists() {
+            log::error!("read_table_file: LibreOffice csv conversion failed for {}", file_path);
+            return Err("Failed to read the spreadsheet. Install LibreOffice to import .xlsx/.xls as a table.".to_string());
+        }
+        let bytes = std::fs::read(&out_file).map_err(|e| format!("Failed to read converted CSV: {}", e))?;
+        let _ = std::fs::remove_file(&out_file);
+        return Ok(decode_text(&bytes));
+    }
+
+    Err(format!("Unsupported file type for table import: .{}", ext))
+}
+
 /// Insert a media_refs row after the note has been confirmed saved.
 /// Call this from the frontend once save_note succeeds.
 #[tauri::command]
