@@ -45,15 +45,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Tauri's Linux runtime/build dependencies (webkit2gtk 4.1, app indicator,
-      # rsvg, patchelf for AppImage). No-op on Windows/macOS.
+      # Tauri v2's Linux runtime/build dependencies (webkit2gtk 4.1, ayatana app
+      # indicator, rsvg, patchelf for AppImage). No-op on Windows/macOS.
+      # NOTE: use libayatana-appindicator3-dev only — the old libappindicator3-dev
+      # (Tauri v1) Conflicts with it and breaks `apt-get install` on ubuntu-latest.
       - name: Install Linux system dependencies
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
             librsvg2-dev \
             patchelf \
             build-essential \
