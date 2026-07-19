@@ -1,0 +1,45 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 12, 0.35);
+  z-index: 1100;
+}
+
+.popover {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  padding: 0.85rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1.35rem);
+  grid-auto-rows: 1.35rem;
+  gap: 0.2rem;
+}
+
+.cell {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  cursor: pointer;
+  padding: 0;
+}
+.cell:hover { border-color: var(--accent); }
+
+.cellOn {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: var(--accent);
+}
+
+.label {
+  margin-top: 0.6rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}

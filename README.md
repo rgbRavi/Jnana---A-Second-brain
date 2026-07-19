@@ -45,7 +45,16 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   translucent highlighter background; stored as portable `[c:red]…[/c]` / `[h:teal]…[/h]` markdown
   tokens that nest, shown styled while editing and reading
 - A **slash (`/`) command menu** — type `/` for an inline, filterable palette to insert media/embeds/
-  divider/link or apply formatting, all keyboard-driven (Arrow/Enter)
+  divider/link/**table** or apply formatting, all keyboard-driven (Arrow/Enter)
+- **Tables** — pick a size (rows×cols) and **edit the grid inline** in the live editor: type into
+  cells (Tab/Enter to move), paste from Excel/Sheets, add/delete rows+columns, **drag the grips to
+  reorder** rows/columns, **drag a column edge to resize**, colour the header, and delete the table.
+  Structural edits are **undoable (Ctrl+Z)**; stored as a plain-text CSV `table` block and exported to
+  a portable GFM pipe table. A **Table tools** rail (align, sort, transpose, aggregate footer, …) and
+  **Export as CSV** (a Save-As dialog with a progress + confirmation toast) round it out; table notes
+  get a filterable `has:table` tag ([details](TABLES.md))
+- **Single Enter = line break** — a lone newline renders as a line break in read view (like
+  Obsidian/Bear), while code blocks stay literal
 - **`[[` autocomplete** — start a wikilink and pick from a live, searchable list of notes; if the
   title doesn't exist yet, choose **Create** to link a new note (materialized on first click)
 - **Working Notes** — a tabbed, splittable editor "desk" under **Notes → Working Notes** (or
@@ -117,6 +126,9 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 
 ### Documents
 - Import PDFs directly, convert `doc`/`docx`/`odt` → PDF (LibreOffice/Pandoc), or extract text
+- Import **spreadsheets/data files** (`csv`/`xlsx`/`xls`) either as an **editable table** (parsed into
+  a `table` block — the dialog shows the size; `.xlsx`/`.xls` convert via LibreOffice, first sheet) or
+  as an **"open externally" chip** that opens the file in your default app (Excel/Numbers/LibreOffice)
 - External documents are copied into app storage so links keep working if the original moves
 
 ### Voice transcription
@@ -184,11 +196,11 @@ through Rust to only the host you configured.
 
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
-- **Tables** — a CSV-backed `table` block with a grid editor and paste-from-spreadsheet support,
-  exported to GFM pipe tables ([full spec](TABLES.md)); composes with the GFM pipe tables the
-  renderer already supports
 - **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
   highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
+- **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and
+  GFM export has **shipped** ([details](TABLES.md)); still on the backlog: Tab-to-add-row, per-column
+  alignment, convert-a-pasted-pipe-table, move/reorder row+column, and copy-to-clipboard
 - **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
   tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
   markdown renderer rewrite have already landed)

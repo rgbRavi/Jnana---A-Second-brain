@@ -3,9 +3,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { VoiceRecorder, type VoiceRecorderHandle } from './VoiceRecorder'
+import { TableSizePicker } from './TableSizePicker'
 import { toast } from '../../lib/toast'
 import { showPromptDialog } from '../../lib/dialog'
 import { eventBus } from '../../lib/eventBus'
+import { buildTableBlock, emptyCsv } from '../../core/table'
 import styles from './AddContentMenu.module.css'
 
 interface Props {
@@ -41,6 +43,7 @@ export function AddContentMenu({
   disabled,
 }: Props) {
   const [open, setOpen] = useState(false)
+  const [tableOpen, setTableOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recorderRef = useRef<VoiceRecorderHandle>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -112,6 +115,7 @@ export function AddContentMenu({
     { icon: '📄', label: 'Document / File', run: onDocumentUpload },
     { icon: '▶️', label: 'YouTube embed', run: () => void handleYouTube() },
     { icon: '🌐', label: 'Web page', run: () => void handleWebpage() },
+    { icon: '▦', label: 'Table', run: () => setTableOpen(true) },
   ]
 
   return (
@@ -170,6 +174,16 @@ export function AddContentMenu({
             </button>
           ))}
         </div>
+      )}
+
+      {tableOpen && (
+        <TableSizePicker
+          onInsert={(rows, cols) => {
+            setTableOpen(false)
+            onInsertMarkdown(`\n\n${buildTableBlock(emptyCsv(rows, cols))}\n\n`)
+          }}
+          onClose={() => setTableOpen(false)}
+        />
       )}
     </div>
   )

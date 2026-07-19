@@ -173,6 +173,92 @@ describe('MarkdownLite', () => {
       expect(container.querySelectorAll('td')).toHaveLength(2)
     })
 
+    it('renders a ```table CSV block as a table with header + body cells', () => {
+      const content = '```table\nMethod,Accuracy\nbaseline,0.71\nours,0.86\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const table = container.querySelector('table')
+      expect(table).toBeTruthy()
+      const ths = table!.querySelectorAll('thead th')
+      expect(ths).toHaveLength(2)
+      expect(ths[0].textContent).toBe('Method')
+      expect(table!.querySelectorAll('tbody tr')).toHaveLength(2)
+      expect(table!.querySelectorAll('tbody td')[3].textContent).toBe('0.86')
+    })
+
+    it('applies a header colour from the fence meta to the <th> cells', () => {
+      const content = '```table header=blue\nName,Score\na,1\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const th = container.querySelector('thead th') as HTMLElement
+      expect(th).toBeTruthy()
+      expect(th.style.backgroundColor).not.toBe('')
+    })
+
+    it('renders a quoted comma cell in a ```table block without splitting it', () => {
+      const content = '```table\nname,note\nbaseline,"a, b"\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const cells = container.querySelectorAll('tbody td')
+      expect(cells).toHaveLength(2)
+      expect(cells[1].textContent).toBe('a, b')
+    })
+
+    it('sorts a ```table by a header click (view-only, ascending then descending)', () => {
+      const content = '```table\nName,Score\nb,2\na,10\nc,1\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const scoreHeader = container.querySelectorAll('thead th button')[1] as HTMLButtonElement
+      const firstCol = () => Array.from(container.querySelectorAll('tbody tr')).map((tr) => tr.querySelector('td')!.textContent)
+      expect(firstCol()).toEqual(['b', 'a', 'c']) // document order
+      fireEvent.click(scoreHeader) // asc by Score → 1,2,10
+      expect(firstCol()).toEqual(['c', 'b', 'a'])
+      fireEvent.click(scoreHeader) // desc by Score → 10,2,1
+      expect(firstCol()).toEqual(['a', 'b', 'c'])
+    })
+
+    it('filters ```table rows without changing the stored table', () => {
+      const content = '```table\nName,Score\napple,2\nbanana,10\ncherry,1\n```'
+      const { container, getByLabelText, getByPlaceholderText } = render(<MarkdownLite content={content} noteId="n1" />)
+      expect(container.querySelectorAll('tbody tr')).toHaveLength(3)
+      fireEvent.click(getByLabelText('Filter rows'))
+      fireEvent.change(getByPlaceholderText('Filter rows…'), { target: { value: 'ban' } })
+      const rows = container.querySelectorAll('tbody tr')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].querySelector('td')!.textContent).toBe('banana')
+    })
+
+    it('applies column alignment to a ```table', () => {
+      const content = '```table align=-r\nName,Score\na,1\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const cells = container.querySelectorAll('tbody td')
+      expect((cells[1] as HTMLElement).style.textAlign).toBe('right')
+      expect((cells[0] as HTMLElement).style.textAlign).toBe('')
+    })
+
+    it('renders a noheader ```table without a <thead>', () => {
+      const content = '```table noheader\na,b\nc,d\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      expect(container.querySelector('thead')).toBeNull()
+      expect(container.querySelectorAll('tbody tr')).toHaveLength(2)
+    })
+
+    it('renders an aggregate footer for agg= tables', () => {
+      const content = '```table agg=-s\nName,Score\na,10\nb,20\n```'
+      const { container } = render(<MarkdownLite content={content} noteId="n1" />)
+      const foot = container.querySelectorAll('tfoot td')
+      expect(foot).toHaveLength(2)
+      expect(foot[0].textContent).toBe('')
+      expect(foot[1].textContent).toBe('30')
+    })
+
+    it('renders a single newline as a hard line break (<br>)', () => {
+      const { container } = render(<MarkdownLite content={'line one\nline two'} />)
+      expect(container.querySelector('br')).toBeTruthy()
+    })
+
+    it('does not inject <br> inside a fenced code block', () => {
+      const { container } = render(<MarkdownLite content={'```\nconst a = 1\nconst b = 2\n```'} />)
+      expect(container.querySelector('pre code')?.textContent).toContain('const a = 1\nconst b = 2')
+      expect(container.querySelector('pre br')).toBeNull()
+    })
+
     it('leaves tokens inside a fenced code block literal', () => {
       const content = '```\n[[Not a link]]\n```'
       const { container, queryByRole } = render(<MarkdownLite content={content} />)

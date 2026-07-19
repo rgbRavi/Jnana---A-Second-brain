@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { VoiceRecorder } from './VoiceRecorder'
+import { TableSizePicker } from './TableSizePicker'
 import { toast } from '../../lib/toast'
 import { showPromptDialog } from '../../lib/dialog'
-import { Image, Film, Headphones, FileText, Play } from 'lucide-react'
+import { buildTableBlock, emptyCsv } from '../../core/table'
+import { Image, Film, Headphones, FileText, Play, Table } from 'lucide-react'
 import Styles from './FormatToolbar.module.css'
 
 interface Props {
@@ -30,6 +32,12 @@ export function ComposerToolbar({
   disabled,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [tableOpen, setTableOpen] = useState(false)
+
+  const handleInsertTable = (rows: number, cols: number) => {
+    setTableOpen(false)
+    onInsertMarkdown(`\n\n${buildTableBlock(emptyCsv(rows, cols))}\n\n`)
+  }
 
   const handleYouTubeEmbed = async () => {
     const url = await showPromptDialog({
@@ -95,6 +103,15 @@ export function ComposerToolbar({
         disabled={disabled}
         title="Embed YouTube"
       ><Play size={18} /></button>
+      <button
+        className={Styles.btn}
+        onClick={() => setTableOpen(true)}
+        disabled={disabled}
+        title="Insert Table"
+      ><Table size={18} /></button>
+      {tableOpen && (
+        <TableSizePicker onInsert={handleInsertTable} onClose={() => setTableOpen(false)} />
+      )}
     </>
   )
 }

@@ -17,6 +17,8 @@ export interface Toast {
   variant: ToastVariant
   /** Auto-dismiss after this many ms; 0 keeps it until dismissed. */
   duration: number
+  /** 0..1 → render a determinate progress bar at the toast's foot; undefined → none. */
+  progress?: number
 }
 
 let toasts: Toast[] = []
@@ -44,14 +46,34 @@ export function dismissToast(id: number): void {
   emit()
 }
 
-function push(message: string, variant: ToastVariant, duration: number): number {
+function push(message: string, variant: ToastVariant, duration: number, progress?: number): number {
   const id = nextId++
-  toasts = [...toasts, { id, message: message.trim(), variant, duration }]
+  toasts = [...toasts, { id, message: message.trim(), variant, duration, progress }]
   emit()
   if (duration > 0 && typeof window !== 'undefined') {
     window.setTimeout(() => dismissToast(id), duration)
   }
   return id
+}
+
+/**
+ * Patch a live toast (e.g. advance a progress bar, or flip a progress toast to a
+ * success message and give it an auto-dismiss). Passing a positive `duration`
+ * (re)arms the auto-dismiss timer, so a persistent progress toast can be resolved
+ * into a self-dismissing notification.
+ */
+export function updateToast(id: number, patch: Partial<Omit<Toast, 'id'>>): void {
+  let found = false
+  toasts = toasts.map((t) => {
+    if (t.id !== id) return t
+    found = true
+    return { ...t, ...patch, message: patch.message != null ? patch.message.trim() : t.message }
+  })
+  if (!found) return
+  emit()
+  if (patch.duration != null && patch.duration > 0 && typeof window !== 'undefined') {
+    window.setTimeout(() => dismissToast(id), patch.duration)
+  }
 }
 
 /**
@@ -65,5 +87,7 @@ export const toast = Object.assign(
     info: (message: string, duration = 4000) => push(message, 'info', duration),
     success: (message: string, duration = 4000) => push(message, 'success', duration),
     error: (message: string, duration = 6500) => push(message, 'error', duration),
+    /** A persistent (duration 0) progress toast; advance it with `updateToast`. */
+    progress: (message: string, progress = 0) => push(message, 'info', 0, progress),
   },
 )

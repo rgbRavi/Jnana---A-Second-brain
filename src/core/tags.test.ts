@@ -56,6 +56,21 @@ describe('tags.ts', () => {
       expect(tags).toContain('has:docxlink')
     })
 
+    it('infers has:table when a ```table fence is present', async () => {
+      vi.mocked(getMediaTypes).mockResolvedValue([])
+      const content = 'Intro\n\n```table\nName,Age\nAda,36\n```\n\noutro'
+      const note = { id: '1', title: 'Test', content, tags: [], createdAt: 0, updatedAt: 0 }
+      const tags = await inferTags(note)
+      expect(tags).toContain('has:table')
+    })
+
+    it('does not infer has:table without a table fence', async () => {
+      vi.mocked(getMediaTypes).mockResolvedValue([])
+      const note = { id: '1', title: 'Test', content: 'just prose', tags: [], createdAt: 0, updatedAt: 0 }
+      const tags = await inferTags(note)
+      expect(tags).not.toContain('has:table')
+    })
+
     it('infers long-form for notes with > 1000 words', async () => {
       vi.mocked(getMediaTypes).mockResolvedValue([])
       const longText = Array(1005).fill('word').join(' ')

@@ -8,6 +8,7 @@ import { initLogging } from "./lib/logger";
 import { applyVars, THEME_STORAGE_KEY } from "./core/themes/apply";
 import { themeFromPreset } from "./core/themes/presets";
 import { registerBuiltinPlugins } from "./plugins";
+import { registerBuiltinRailPanels } from "./ui/rail/RightRail";
 import "./core/plugins/hostBridge"; // side-effect: expose host React for loaded plugins
 import { loadAllInstalledPlugins } from "./core/plugins/loader";
 import type { Theme } from "./types";
@@ -36,6 +37,8 @@ applyBootTheme()
 // Register first-party bundled plugins (note types, etc.) before the app mounts,
 // so a note's `kind` resolves to its custom view on the very first render.
 registerBuiltinPlugins()
+// Register built-in right-rail tool panels (Table tools, …).
+registerBuiltinRailPanels()
 // Then load enabled third-party plugins from disk (async — they register shortly
 // after mount; note-type views re-resolve reactively when they do).
 void loadAllInstalledPlugins()

@@ -79,18 +79,17 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
   const { addPendingMedia, flushPendingMedia, resetPendingMedia } = usePendingMedia()
   const { notes } = useNotesContext()
 
+  // Media/embeds insert at the editor's cursor (where the insertion bar is), not
+  // appended to the end — so importing next to a table/paragraph lands there.
+  // Falls back to appending only if the editor isn't mounted. Used by both the
+  // toolbar and the right-click "Import" submenu.
   const { uploading, isRecording, toolbarProps } = useComposer({
     noteId: pendingNoteId.current,
-    appendMarkdown: (md) => setContent((prev) => prev + md),
-    focusTextarea: () => editorRef.current?.focus(),
-    onRegisterPendingMedia: addPendingMedia,
-  })
-  // A second instance just for the editor's right-click "Import" submenu —
-  // same upload plumbing, but inserts land at the click position instead of
-  // always appending to the end.
-  const { toolbarProps: contextMenuImportProps } = useComposer({
-    noteId: pendingNoteId.current,
-    appendMarkdown: (md) => editorRef.current?.insertAtCursor(md),
+    appendMarkdown: (md) => {
+      const handle = editorRef.current
+      if (handle) handle.insertAtCursor(md)
+      else setContent((prev) => prev + md)
+    },
     focusTextarea: () => editorRef.current?.focus(),
     onRegisterPendingMedia: addPendingMedia,
   })
@@ -289,7 +288,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
           notes={notes}
           noteId={pendingNoteId.current}
           allowNavigate={false}
-          importHandlers={contextMenuImportProps}
+          importHandlers={toolbarProps}
         />
 
         <div className={Styles.footer}>

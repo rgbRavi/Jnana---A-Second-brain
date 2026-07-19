@@ -1,6 +1,10 @@
 /* Root container — real markdown now controls block layout (no more pre-wrap). */
 .root {
   word-break: break-word;
+  /* Allow the renderer to shrink inside a flex parent so wide children (a
+     ```table) scroll in their own overflow container rather than widening the
+     card/modal. Pairs with .noteModalBody's min-width:0. */
+  min-width: 0;
 }
 
 /* ── Standard markdown elements ──────────────────────────────────────────── */
@@ -86,6 +90,446 @@
   font-weight: 600;
   color: var(--text-1);
 }
+
+/* ```table block — read-mode render + Edit affordance */
+.noteTableWrapper {
+  display: block;
+  position: relative;
+  margin: 0.75rem 0;
+}
+
+.noteTableScroll {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Read-mode only: cap the height so a tall table scrolls inside its own region
+   (rather than with the page), which is what lets the sticky header actually
+   pin (`.noteTable th` position:sticky needs a bounded scroll ancestor). The
+   edit grid uses the same class but must NOT be capped, so scope to the wrapper. */
+.noteTableWrapper .noteTableScroll { max-height: 60vh; }
+
+/* Floating horizontal scrollbar pinned to the viewport bottom for a wide table
+   whose own scrollbar is below the fold (see TableStickyScrollbar.tsx). */
+.tableStickyScroll {
+  position: fixed;
+  /* `bottom` is set inline — it rides the bottom of the table's clip container
+     (viewport, notes list, or modal body), not always the viewport bottom. */
+  z-index: 9500;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 15px;
+  background: rgba(var(--surface-rgb), 0.92);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.18);
+}
+.tableStickyScrollSpacer { height: 1px; }
+
+/* Read-mode view tools (filter toggle + input + clear-sort) above the table */
+.noteTableTools {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+.noteTableToolBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.noteTableToolBtn:hover { background: var(--surface-3); color: var(--text-1); }
+.noteTableToolBtnOn { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border-color: var(--accent); }
+.noteTableFilter {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.82rem;
+  min-width: 10rem;
+}
+.noteTableFilter:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+
+/* Read-mode sortable header cell → a full-width button carrying the label */
+.noteTableSortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.noteTableSortBtn:hover { color: var(--accent); }
+.noteTableSortArrow { color: var(--accent); font-size: 0.75rem; }
+
+.noteTable {
+  /* Self-contained borders (NOT relying on the `.root table/th/td` rules) so
+     the gridlines show in the live-editor widget too — its detached CM6 widget
+     root has no `.root` ancestor, so without these the table renders borderless
+     and reads as plain text. Width shrinks to content so wide tables scroll
+     inside .noteTableScroll instead of stretching the card. */
+  border-collapse: collapse;
+  width: auto;
+  min-width: 100%;
+  margin: 0;
+  font-size: 0.88rem;
+  border: 1px solid var(--border);
+}
+
+.noteTable th,
+.noteTable td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--text-1);
+  /* Preserve intentional in-cell line breaks (multi-line cells) while still
+     wrapping long unbroken runs. */
+  white-space: pre-wrap;
+  /* Long cells wrap and are capped, so an imported spreadsheet cell can't
+     stretch the whole table off-screen. Per-column widths (colgroup) override. */
+  overflow-wrap: anywhere;
+  max-width: 24rem;
+}
+
+/* When per-column widths are set (colgroup), honour them exactly. */
+.noteTableFixed { table-layout: fixed; }
+.noteTableFixed th,
+.noteTableFixed td { max-width: none; }
+
+.noteTable th {
+  background: var(--surface-2);
+  font-weight: 600;
+  /* Sticky header — keeps the header visible while scrolling a tall table in a
+     scroll container (a card / the modal body). Opaque bg so rows scroll under it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Zebra striping (read-mode body rows) */
+.noteTableZebraRow td { background: var(--surface-2); }
+
+/* Aggregate footer (read-mode) */
+.noteTable tfoot td {
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+}
+
+.noteTableEmpty {
+  display: inline-block;
+  color: var(--text-3);
+  font-size: 0.85rem;
+  font-style: italic;
+  padding: 0.4rem 0;
+}
+
+/* Inline editable grid (live editor widget mode) */
+.noteTableEditor {
+  display: block;
+  margin: 0.75rem 0;
+}
+
+.noteTableGrid {
+  display: grid;
+  gap: 0.3rem;
+  align-items: stretch;
+  width: max-content;
+  position: relative;
+  /* Room for the edge/corner resize handles so their slight outward offsets sit
+     inside the scroll container (overflow-x:auto forces overflow-y:auto, which
+     would otherwise clip anything past the content box). */
+  padding: 0 0.5rem 0.5rem 0;
+}
+
+/* Whole-table resize handle — a small grip at the grid's bottom-right corner
+   that scales every column width at once. */
+.noteTableCornerResize {
+  position: absolute;
+  right: 0.05rem;
+  bottom: 0.05rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  cursor: nwse-resize;
+  touch-action: none;
+  border-right: 2px solid var(--text-3);
+  border-bottom: 2px solid var(--text-3);
+  border-bottom-right-radius: 3px;
+  z-index: 2;
+}
+.noteTableCornerResize:hover { border-color: var(--accent); }
+
+.noteTableCell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.88rem;
+  width: 100%;
+  min-width: 0;
+  /* Multi-line cells: a textarea that grows to its content (auto-sized in JS),
+     wrapping text instead of scrolling a single line. */
+  display: block;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  vertical-align: top;
+}
+.noteTableCell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+.noteTableHeadCell { font-weight: 600; }
+/* Zebra-striped body cells (edit grid) — after .noteTableCell so it wins. */
+.noteTableZebraCell { background: var(--surface-2); }
+
+/* Aggregate footer (edit grid) */
+.noteTableAggCtl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
+.noteTableAggCell {
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Row/column control cells (insert + grip + sort + delete + resize) in the gutters */
+.noteTableCorner { width: 1.5rem; }
+
+.noteTableColCtl,
+.noteTableRowCtl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  border-radius: var(--radius-sm);
+}
+.noteTableColCtl { position: relative; align-self: end; flex-wrap: wrap; }
+.noteTableRowCtl { position: relative; flex-direction: column; }
+.noteTableCtlDrop { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+/* Insert-between (⊕) and edit-mode sort (▲▼) buttons on the gutter controls */
+.noteTableInsert,
+.noteTableSort {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.1rem;
+  border-radius: var(--radius-sm);
+}
+.noteTableInsert:hover:not(:disabled) { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.noteTableSort:hover:not(:disabled) { color: var(--text-1); background: var(--surface-3); }
+.noteTableInsert:disabled,
+.noteTableSort:disabled { opacity: 0.25; cursor: not-allowed; }
+
+/* Row resize handle — sits on the bottom edge of the row control cell */
+.noteTableRowResize {
+  position: absolute;
+  left: 0;
+  bottom: -0.3rem;
+  height: 0.6rem;
+  width: 100%;
+  cursor: row-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.noteTableRowResize::after {
+  content: '';
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  top: 50%;
+  height: 2px;
+  background: var(--border);
+  transform: translateY(-50%);
+}
+.noteTableRowResize:hover::after { background: var(--accent); }
+
+/* Portaled ghost that follows the pointer while dragging a row/column */
+.noteTableDragGhost {
+  position: fixed;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 22rem;
+  padding: 0.35rem 0.5rem;
+  background: rgba(var(--surface-rgb), 0.96);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  font-size: 0.82rem;
+  color: var(--text-1);
+}
+.noteTableDragGhostCell {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 21rem;
+}
+
+.noteTableGrip {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: grab;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.1rem;
+  touch-action: none;
+}
+.noteTableGrip:hover { color: var(--text-1); }
+.noteTableGrip:active { cursor: grabbing; }
+
+.noteTableCtlDel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.1rem 0.2rem;
+}
+.noteTableCtlDel:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+.noteTableCtlDel:disabled { opacity: 0.25; cursor: not-allowed; }
+
+/* Column resize handle — sits on the right edge of the column control cell */
+.noteTableColResize {
+  position: absolute;
+  top: 0;
+  right: -0.3rem;
+  width: 0.6rem;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+.noteTableColResize::after {
+  content: '';
+  position: absolute;
+  top: 15%;
+  bottom: 15%;
+  left: 50%;
+  width: 2px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+.noteTableColResize:hover::after { background: var(--accent); }
+
+.noteTableBar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.noteTableBarBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.noteTableBarBtn:hover:not(:disabled) { background: var(--surface-3); color: var(--text-1); }
+.noteTableBarBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.noteTableColorWrap { position: relative; display: inline-flex; }
+
+.noteTableBarSpacer { flex: 1; }
+
+.noteTableDeleteBtn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.noteTableDeleteBtn:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.noteTableSwatches {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.3rem;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 5;
+}
+
+.noteTableSwatch,
+.noteTableSwatchNone {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+.noteTableSwatchNone {
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.noteTableSwatch:hover,
+.noteTableSwatchNone:hover { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .root strong {
   font-weight: 600;

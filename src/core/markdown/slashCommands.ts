@@ -21,6 +21,8 @@ export type SlashAction =
   // Wrap the selection (or drop an empty span ready to type) in a colour /
   // highlight token — routes to LiveEditor's applyColor/applyHighlight helper.
   | { kind: 'color'; variant: 'color' | 'highlight'; color: string }
+  // Open the grid editor and insert a new ```table block on save.
+  | { kind: 'table' }
 
 export interface SlashCommand {
   id: string
@@ -48,6 +50,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   // Insert
   { id: 'wikilink', label: 'Link to note', icon: '🔗', keywords: ['link', 'wikilink', 'note', 'connect', 'reference'], group: 'Insert', action: { kind: 'wikilink' } },
   { id: 'divider', label: 'Divider', icon: '―', keywords: ['divider', 'rule', 'separator', 'hr'], group: 'Insert', action: { kind: 'insert', markdown: '\n\n---\n\n' } },
+  { id: 'table', label: 'Table', icon: '▦', keywords: ['table', 'grid', 'csv', 'spreadsheet', 'row', 'column'], group: 'Insert', action: { kind: 'table' } },
   { id: 'image', label: 'Image', icon: '📷', keywords: ['image', 'picture', 'photo'], group: 'Insert', action: { kind: 'import', which: 'image' } },
   { id: 'video', label: 'Video', icon: '🎬', keywords: ['video', 'movie', 'clip'], group: 'Insert', action: { kind: 'import', which: 'video' } },
   { id: 'audio', label: 'Audio', icon: '🎵', keywords: ['audio', 'sound', 'music'], group: 'Insert', action: { kind: 'import', which: 'audio' } },

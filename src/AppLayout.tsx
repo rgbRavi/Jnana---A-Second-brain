@@ -9,6 +9,7 @@ import type { Note } from "./types";
 import { toast } from "./lib/toast";
 import { Sidebar } from "./ui/Sidebar";
 import { FileExplorer } from "./ui/folders/FileExplorer";
+import { RightRail } from "./ui/rail/RightRail";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
@@ -148,6 +149,7 @@ function AppInner() {
                 <Outlet />
                 {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
+            <RightRail />
             <CommandPalette />
             <PluginWidgetHost />
             <Tooltip />

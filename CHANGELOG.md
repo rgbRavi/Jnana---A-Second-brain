@@ -21,7 +21,44 @@ All notable changes to Jnana are documented here. The format is based on
 - Narrowed the `jnana-asset://` CORS policy from a blanket `Access-Control-Allow-Origin: *` to reflect
   only the app's own WebView origins (deny others with `null`); media and pdf.js are unaffected.
 
+### Fixed
+- **Imported media lands at the cursor.** The composer toolbar / **+** menu inserted images and embeds
+  at the *end* of the note (e.g. below a table); they now insert at the caret, matching the right-click
+  import.
+- **Table structural edits are undoable and no longer jump the scroll.** Adding/deleting/reordering/
+  resizing rows & columns now commits as a **targeted** edit to just that table block, so Ctrl+Z undoes
+  it and the surrounding scroll/selection stay put (cell typing still batches until you leave the table).
+
+### Changed
+- **Table editing gained drag-reorder, column resize, and better-sized cells.** In the inline grid you
+  can now **drag the ⋮⋮ grips to reorder rows/columns**, **drag a column's right edge to resize it**
+  (saved with the table), and long/imported cells stay a sensible width instead of stretching the
+  table across the screen (widths persist in the ` ```table ` fence as `w=…`).
+
 ### Added
+- **Export a table to a CSV file you name and place.** The table tools' **Export as CSV** now opens a
+  native **Save As** dialog (choose the file name and folder) instead of silently dropping `table.csv`
+  in your downloads folder. A **progress bar** shows in the notification tray (bottom-right) while it
+  writes, then that toast turns into a **"'name' exported to 'folder'"** confirmation that fades after
+  2 s (with a dismiss ×).
+- **`has:table` auto-tag.** Notes containing a ` ```table ` block are tagged `has:table`, so you can
+  filter the Notes gallery to just your tables (alongside `has:pdf`, `has:webpage`, etc.).
+- **Import spreadsheets & data files.** The composer's **Document / File** import now accepts `csv`,
+  `xlsx`, and `xls` alongside PDFs and Word docs. A dialog offers two ways to add them: **Insert as
+  editable table** — parsed into an editable `table` block (the dialog shows the resulting size, e.g.
+  "12 rows × 4 columns", with a heads-up for large tables); `.xlsx`/`.xls` are converted (first sheet)
+  via LibreOffice — or **Link as external file**, an "open externally" chip that opens it in your
+  default app. Imported rows are all kept as data under an empty header row (no row is sacrificed to
+  become the header).
+- **Tables.** A CSV-backed ` ```table ` block (first row = header). Insert one by picking a size
+  (rows×cols) from the toolbar **▦**, the **+** menu, the `/table` slash command, or the editor's
+  right-click menu — then **edit the grid inline in the live editor**: type into cells, Tab/Enter to
+  move, paste a range straight from Excel/Google Sheets, add/delete rows+columns, **colour the header**,
+  and delete the whole table. A **Settings → Composer** toggle switches between the inline grid and a
+  raw CSV fence. Read view always shows a rendered table, and export writes a portable **GFM pipe table**
+  ([details](TABLES.md)).
+- **Single Enter is a line break.** In read view a lone newline now renders as a line break (like
+  Obsidian/Bear) instead of collapsing into a space; fenced/inline code stays literal.
 - **Draw & type on PDFs.** The PDF viewer gained a markup toolbar (next to the zoom controls) and an
   intuitive right-click menu with four tools: **Pen** (freehand ink with a colour + size, reusing the
   canvas board's `perfect-freehand` renderer), **Text** (free-positioned text boxes — click, the ＋ Text

@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, and performance improvements landed; release-hardening pass done
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done
 
-Last updated: 2026-07-12
+Last updated: 2026-07-18
 
 ---
 
@@ -304,6 +304,8 @@ Notes:
 | `import_media` | Copy a file into the assets directory and return the stored filename |
 | `convert_to_pdf` | Convert documents to PDF via LibreOffice or Pandoc fallback |
 | `extract_text` | Extract plain text from documents via Pandoc |
+| `read_table_file` | Read a data file as CSV text for table import (csv direct; xlsx/xls → csv via LibreOffice) |
+| `write_text_file` | Write UTF-8 text to a user-chosen path (from the native Save-As dialog) — backs table Export as CSV |
 | `register_media_ref` | Insert media metadata after note save |
 | `get_media_refs` | Fetch stored media paths for a note |
 | `save_asset` | Save arbitrary bytes such as uploaded images |
@@ -442,7 +444,33 @@ Notes:
       All marks stored in PDF point space so they survive zoom/page changes
 - [x] **`MemoizedMarkdown` + `notesRef` pattern** — inner `memo()` component decouples full
       re-parse from `notes` identity changes; `notesRef` keeps `notes` out of `components` deps
-- [ ] Standard CommonMark newlines apply — accepted behavior change from old `pre-wrap` renderer
+- [x] **Tables** — a ` ```table ` fence holding CSV (first row = header). `remarkJnana` converts the
+      `code[lang=table]` mdast node into a `jnana-table` block node (parse-time `occurrence` + a raw
+      `meta` string for presentation options); read-mode renders a `TableEmbed`. In the live editor an
+      **inline editable grid** (`EditorTableWidget`): type into cells (Tab/Enter to move), paste TSV
+      from spreadsheets, add/delete row+col, **drag the ⋮⋮ grips to reorder** rows/columns, **drag a
+      column edge to resize** it, a **🎨 header colour** picker, and a **🗑 delete-table** button.
+      Cell typing is local and syncs on leave; **structural edits commit immediately as a targeted
+      range replace** (`tableBlockRange`) so each is **undoable (Ctrl+Z) with no scroll jump**. It lives
+      in a **`StateField`** (`tableDecorationsField`), not the ViewPlugin, because CM6 forbids block/
+      line-crossing decorations from plugins. A **Settings → Composer** `tableEditMode` toggle switches
+      widget ⇄ raw CSV fence. Insert via a rows×cols `TableSizePicker` (toolbar ▦ / `+` menu / `/table`
+      / right-click). Presentation options ride the fence info string (`header=` colour, `w=` column
+      widths, plus align/no-header/zebra/aggregate). Pure helpers + tests in `core/table.ts`; exported
+      to a GFM pipe table (colour/widths dropped, alignment kept). An app-global **Table tools rail**
+      surfaces sort/move/insert/delete/align/transpose/aggregate + **Export as CSV** — a native Save-As
+      dialog (`core/saveCsv.ts` → Rust `write_text_file`) with a progress bar + "exported to …" toast.
+      Table notes get a `has:table` auto-tag (filterable). Full write-up in [TABLES.md](TABLES.md)
+- [x] **Import CSV / XLSX / XLS as a table or a linked file** — the Document/File import
+      (`useDocumentUpload`) reads the file via the Rust `read_table_file` command (csv direct; xlsx/xls
+      → csv through LibreOffice, first sheet) and offers a choice dialog: *insert as an editable table*
+      (the size is shown; all rows kept as data under a prepended empty header) or the *open-externally*
+      chip. Assumes UTF-8 + comma; large files warn
+- [x] **Single newline → line break in read view** — a dependency-free `remarkBreaks` plugin turns a
+      lone `\n` into `<br>` (Obsidian/Bear-style); fenced/inline code stays literal. Supersedes the
+      earlier "standard CommonMark newlines collapse" behavior (that ran consecutive lines together)
+- [x] **Media/embeds insert at the cursor** — the composer toolbar / `+` menu now inserts at the caret
+      instead of appending to the note end (unified with the right-click import in `useComposer` callers)
 - [ ] `[D1::Page n]` PDF page-jump markers were dead code; not implemented
 
 ### Performance

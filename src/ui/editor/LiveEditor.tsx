@@ -29,11 +29,14 @@ import type { ComposerToolbarProps } from '../../hooks/useComposer'
 import { showPromptDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { TableSizePicker } from './TableSizePicker'
+import { tableBlockRange, buildTableBlock, emptyCsv, type TableMeta } from '../../core/table'
+import { useComposerOptions } from '../../hooks/useComposerOptions'
 import { SlashMenu } from './SlashMenu'
 import { WikilinkMenu, buildWikilinkItems, type WikilinkItem } from './WikilinkMenu'
 import { detectSlashContext, filterSlashCommands, type SlashCommand } from '../../core/markdown/slashCommands'
 import { detectWikilinkContext } from '../../core/markdown/wikilinks'
-import { liveDecorations, forceRebuildMediaLayout, type LiveContext } from './LiveEditor.decorations'
+import { liveDecorations, tableDecorationsField, forceRebuildMediaLayout, forceRebuildTables, type LiveContext } from './LiveEditor.decorations'
 import styles from './LiveEditor.module.css'
 
 /** Open-menu state for the `/` command popup. `from` is the `/`'s doc offset. */
@@ -144,9 +147,11 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const [{ tableEditMode }] = useComposerOptions()
   const [menuState, setMenuState] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
   const [slash, setSlash] = useState<SlashState | null>(null)
   const [wl, setWl] = useState<WikilinkState | null>(null)
+  const [tableOpen, setTableOpen] = useState(false)
   // Read by the mount-once updateListener / capture keydown handlers, which
   // can't close over fresh render state.
   const slashRef = useRef<SlashState | null>(slash)
@@ -281,8 +286,41 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     })
   }, [])
 
-  const contextRef = useRef<LiveContext>({ notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange })
-  contextRef.current = { notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange }
+  // Rewrite the occurrence-th ```table block's body + meta as a **targeted**
+  // range replace (just that block's characters, not the whole doc). Keeping the
+  // change minimal means the surrounding selection/scroll stay put (no jump on
+  // add/delete row) and each edit is a normal, undoable CM6 transaction. Stable
+  // ref for the widget's eq(). scrollTop is restored as belt-and-suspenders.
+  const editTable = useCallback((occurrence: number, csv: string, meta: TableMeta) => {
+    const view = viewRef.current
+    if (!view) return
+    const doc = view.state.doc.toString()
+    const range = tableBlockRange(doc, occurrence)
+    if (!range) return
+    const insert = buildTableBlock(csv, meta)
+    if (doc.slice(range.from, range.to) === insert) return
+    const st = view.scrollDOM.scrollTop
+    view.dispatch({ changes: { from: range.from, to: range.to, insert } })
+    view.scrollDOM.scrollTop = st
+  }, [])
+
+  // Remove the whole table block (targeted), swallowing up to the two trailing
+  // newlines a block is inserted with so the gap closes. Undoable. Stable ref.
+  const deleteTable = useCallback((occurrence: number) => {
+    const view = viewRef.current
+    if (!view) return
+    const doc = view.state.doc.toString()
+    const range = tableBlockRange(doc, occurrence)
+    if (!range) return
+    let to = range.to
+    while (to < doc.length && doc[to] === '\n' && to - range.to < 2) to++
+    const st = view.scrollDOM.scrollTop
+    view.dispatch({ changes: { from: range.from, to, insert: '' } })
+    view.scrollDOM.scrollTop = st
+  }, [])
+
+  const contextRef = useRef<LiveContext>({ notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange, tableEditMode, editTable, deleteTable })
+  contextRef.current = { notes, noteId, allowNavigate, lazy, mediaLayout, moveMedia, onMediaDragStart, onLayoutChange, tableEditMode, editTable, deleteTable }
 
   // Loaded async (a local SQLite query, but still after first paint) — nudge
   // the decoration plugin to rebuild once it lands, since loading it doesn't
@@ -300,6 +338,12 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   useEffect(() => {
     viewRef.current?.dispatch({ effects: forceRebuildMediaLayout.of() })
   }, [mediaLayout])
+
+  // Toggling the tables setting isn't a doc/selection change, so nudge the
+  // table StateField to recompute (widget ⇄ raw fence) on the current note.
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: forceRebuildTables.of() })
+  }, [tableEditMode])
 
   // While the slash menu is open, own the nav keys in the capture phase — before
   // CM6's own bubble-phase keydown handlers — so Arrow/Enter/Tab drive the menu
@@ -528,6 +572,8 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     } else if (action.kind === 'color') {
       if (action.variant === 'highlight') applyHighlightAtSelection(action.color)
       else applyColorAtSelection(action.color)
+    } else if (action.kind === 'table') {
+      setTableOpen(true)
     } else {
       switch (action.which) {
         case 'image': imageInputRef.current?.click(); break
@@ -637,7 +683,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       { label: 'Copy', disabled: !hasSelection, onClick: () => void doCopy() },
       { label: 'Paste', onClick: () => void doPaste(false) },
       { label: 'Paste as plain text', onClick: () => void doPaste(true) },
-      { label: 'Add table', separator: true, onClick: () => toast.info('Tables are not implemented yet.') },
+      { label: 'Add table', separator: true, onClick: () => setTableOpen(true) },
     )
     return items
   }
@@ -670,6 +716,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
         EditorView.lineWrapping,
         placeholder ? placeholderExt(placeholder) : [],
         liveDecorations(contextRef),
+        tableDecorationsField(contextRef),
         // domEventHandlers (not keymap) so we get the raw event and can
         // stopPropagation() — neither combo has a default CM6 binding, but
         // the composers also attach their own Cmd+Enter/Escape handling to
@@ -789,6 +836,15 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
           y={menuState.y}
           items={buildMenuItems(menuState.hasSelection)}
           onClose={() => setMenuState(null)}
+        />
+      )}
+      {tableOpen && (
+        <TableSizePicker
+          onInsert={(rows, cols) => {
+            setTableOpen(false)
+            insertAtCursor(`\n\n${buildTableBlock(emptyCsv(rows, cols))}\n\n`)
+          }}
+          onClose={() => setTableOpen(false)}
         />
       )}
     </>

@@ -10,6 +10,9 @@
 
 import { useSyncExternalStore } from 'react'
 
+/** How a ```table block appears while editing in the live editor. */
+export type TableEditMode = 'widget' | 'inline'
+
 export interface ComposerOptions {
   /** How see-through the collapsed pill is: 0 = solid, 100 = fully transparent. */
   transparency: number
@@ -17,10 +20,13 @@ export interface ComposerOptions {
   glass: boolean
   /** Reopen the composer in its last expanded/collapsed state after a reload. */
   rememberState: boolean
+  /** 'widget' = render tables as a live grid with an Edit button while editing;
+   *  'inline' = show the raw ```table CSV fence, like other fenced code. */
+  tableEditMode: TableEditMode
 }
 
 const STORAGE_KEY = 'jnana.composer.options'
-const DEFAULTS: ComposerOptions = { transparency: 35, glass: true, rememberState: true }
+const DEFAULTS: ComposerOptions = { transparency: 35, glass: true, rememberState: true, tableEditMode: 'widget' }
 
 function load(): ComposerOptions {
   try {

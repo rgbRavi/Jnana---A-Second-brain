@@ -9,6 +9,7 @@ import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
+import { remarkBreaks } from '../../core/markdown/remarkBreaks'
 import { colorAnyTokenRegex, highlightBackground, resolveColor } from '../../core/markdown/colors'
 import { getMediaLayout, alignmentTextAlign, type MediaLayout } from '../../core/mediaLayout'
 import {
@@ -17,6 +18,7 @@ import {
   ExternalDocLink,
   ImageEmbed,
   PdfEmbed,
+  TableEmbed,
   TimestampButton,
   VideoEmbed,
   WikilinkButton,
@@ -33,7 +35,7 @@ interface Props {
   fullscreen?: boolean
 }
 
-const REMARK_PLUGINS = [remarkGfm, remarkJnana]
+const REMARK_PLUGINS = [remarkGfm, remarkJnana, remarkBreaks]
 
 /** Allow the app's custom asset/external schemes through; everything else
  *  (http/https/mailto/…) still goes through react-markdown's own sanitizer. */
@@ -219,12 +221,18 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         : <>{inner}</>
     }
 
+    const table = ({ node }: { node?: HastElement }) => {
+      const props = hastProperties(node)
+      return <TableEmbed csv={String(props.csv ?? '')} metaText={String(props.meta ?? '')} />
+    }
+
     return {
       img, a, p, pre, code,
       'jnana-wikilink': wikilink,
       'jnana-timestamp': timestamp,
       'jnana-color': color,
       'jnana-highlight': highlight,
+      'jnana-table': table,
     } as Components
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lazy, fullscreen, noteId, layoutMap])

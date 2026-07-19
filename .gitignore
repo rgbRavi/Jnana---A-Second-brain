@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# ...but keep the sample plugin's committed build artifact — its smoke test
+# imports this exact bundle, and CI has no step to rebuild it.
+!examples/sample-plugin/dist/
+!examples/sample-plugin/dist/main.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -36,6 +36,19 @@ describe('toExportMarkdown', () => {
     expect(markdown).toBe('[▶ YouTube](https://youtu.be/abc)')
     expect(assets).toEqual([])
   })
+
+  it('converts a ```table CSV block into a portable GFM pipe table', () => {
+    const { markdown } = toExportMarkdown('intro\n\n```table\nMethod,Score\nbaseline,0.71\n```\n\nafter')
+    expect(markdown).toContain('| Method | Score |')
+    expect(markdown).toContain('| --- | --- |')
+    expect(markdown).toContain('| baseline | 0.71 |')
+    expect(markdown).not.toContain('```table')
+  })
+
+  it('escapes pipes in exported table cells', () => {
+    const { markdown } = toExportMarkdown('```table\na\nx|y\n```')
+    expect(markdown).toContain('| x\\|y |')
+  })
 })
 
 describe('exportNoteContent', () => {

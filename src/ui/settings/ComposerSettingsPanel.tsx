@@ -51,6 +51,24 @@ export function ComposerSettingsPanel() {
           <span className={styles.hint}> — reopen expanded or collapsed as you left it</span>
         </span>
       </label>
+
+      <div className={styles.field}>
+        <div className={styles.fieldHead}>
+          <label htmlFor="composer-table-mode">Tables while editing</label>
+        </div>
+        <select
+          id="composer-table-mode"
+          className={styles.select}
+          value={opts.tableEditMode}
+          onChange={(e) => setOpts({ tableEditMode: e.target.value as typeof opts.tableEditMode })}
+        >
+          <option value="widget">Live table (grid with Edit button)</option>
+          <option value="inline">Raw CSV block</option>
+        </select>
+        <span className={styles.hint}>
+          How a table looks in the editor. Read view always shows a rendered table either way.
+        </span>
+      </div>
     </div>
   )
 }
