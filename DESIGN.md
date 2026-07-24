@@ -13,7 +13,7 @@ colors:
   accent-soft: "#22202b"
   text-1: "#f0eff5"
   text-2: "#9896a4"
-  text-3: "#55535f"
+  text-3: "#6d6b75"
   on-accent: "#ffffff"
   danger: "#e05252"
   success: "#3fb950"
@@ -171,7 +171,7 @@ A deep neutral-dark palette lit by a single reserved violet, with a tokenized se
 - **Hairline** (`#2a2a32` border / `#3d3d4a` border-hover): 1px separators and control strokes. Borders, not shadows, do the everyday work of separation.
 - **Text — Primary** (`#f0eff5`, `--text-1`): Headings, note body, active labels. High contrast on every surface.
 - **Text — Secondary** (`#9896a4`, `--text-2`): Supporting labels, inactive nav, metadata.
-- **Text — Muted** (`#55535f`, `--text-3`): Captions, placeholders, timestamps. Never used for anything a user must read comfortably.
+- **Text — Muted** (`#6d6b75`, `--text-3`): Captions, placeholders, timestamps. Meets WCAG AA-large/UI (≥3:1) on surface; stays below `--text-2` in the ramp.
 
 - **On-Accent** (`#ffffff`, `on-accent`): The text/icon color that sits *on top of* a filled accent (or other saturated) surface — primary buttons, active pills. White reads on every theme's accent, so it's a fixed literal by design, not a themed neutral.
 
