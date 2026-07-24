@@ -145,15 +145,16 @@ function AppInner() {
         (pathname === "/" || pathname === "/notes" || pathname.startsWith("/workspaces/")) &&
         !onCanvasTab &&
         !onWorkingDesk
+    const inSettings = pathname === "/settings"
     return (
         <div className={AppStyles.appShell}>
-            <Sidebar />
-            <FileExplorer />
+            {!inSettings && <Sidebar />}
+            {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>
                 <Outlet />
                 {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
-            <RightRail />
+            {!inSettings && <RightRail />}
             <CommandPalette />
             <PluginWidgetHost />
             <Tooltip />
