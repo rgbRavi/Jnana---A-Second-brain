@@ -4,6 +4,8 @@
 import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { eventBus } from "./lib/eventBus";
+import { log } from "./lib/logger";
+import { purgeExpiredTrash } from "./core/notes";
 import { openNoteInWorking, useNotesSubView, getNotesSubView, setNotesSubView } from "./views/notes/working/useWorkingLayout";
 import type { Note } from "./types";
 import { toast } from "./lib/toast";
@@ -73,6 +75,14 @@ function AppInner() {
         if (target && target !== pathname) {
             navigate(target, { replace: true })
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+    // Purge trash older than the retention window, once per launch. Fire-and-forget:
+    // a failure here must never block the app. 0 days = keep forever (command no-ops).
+    useEffect(() => {
+        void purgeExpiredTrash(getGeneralSettings().trashRetentionDays).catch((e) =>
+            log.error('trash purge failed', e),
+        )
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
     // Remember the current route for next launch.
