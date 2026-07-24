@@ -63,7 +63,20 @@ export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
 
   return (
     <div className={styles.graphPreview}>
-      <div className={styles.graphCanvas} ref={wrapRef} onClick={onOpen}>
+      <div
+        className={styles.graphCanvas}
+        ref={wrapRef}
+        role="button"
+        tabIndex={0}
+        aria-label="Open graph"
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+      >
         {size.w > 0 && size.h > 0 && nodes.length > 0 ? (
           <ForceGraph2D
             ref={fgRef}

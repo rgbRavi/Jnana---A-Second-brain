@@ -91,10 +91,22 @@ export function FlashcardDeckView({ note }: NoteViewProps) {
         <strong>{queue.length}</strong> due · {cards.length} total
       </div>
 
-      <div className={Styles.card} onClick={() => setFlipped((f) => !f)}>
+      <div
+        className={Styles.card}
+        role="button"
+        tabIndex={0}
+        aria-label={flipped ? 'Show question' : 'Reveal answer'}
+        onClick={() => setFlipped((f) => !f)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setFlipped((f) => !f)
+          }
+        }}
+      >
         <div className={Styles.side}>{flipped ? 'Answer' : 'Question'}</div>
         <div className={Styles.face}>{flipped ? current.back : current.front}</div>
-        {!flipped && <div className={Styles.hint}>Click to reveal the answer</div>}
+        {!flipped && <div className={Styles.hint}>Click or press Enter to reveal the answer</div>}
       </div>
 
       {flipped && (
