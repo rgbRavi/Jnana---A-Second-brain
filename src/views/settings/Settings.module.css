@@ -2,7 +2,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.25rem var(--space-xl) 3rem;
+  padding: var(--space-lg) var(--space-xl) var(--space-2xl);
 }
 
 .header {
@@ -42,22 +42,40 @@
   top: var(--space-md);
 }
 
+/* Section nav mirrors the app's primary Sidebar nav idiom so Settings reads as
+   part of the same product, not a bolted-on page: resting --text-2, an accent
+   wash + left accent rail on the active item (DESIGN.md nav-item-active). */
 .navItem {
+  position: relative;
   text-align: left;
   padding: 0.55rem 0.75rem;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-2);
+  font: inherit;
   cursor: pointer;
   transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .navItem:hover { background: var(--surface-hover); color: var(--text-1); }
 
-.navItemActive {
-  background: var(--surface-selected);
+.navItemActive,
+.navItemActive:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--text-1);
-  font-weight: 600;
+  font-weight: 500;
+}
+
+/* Left accent rail — the same active-item signature the Sidebar uses. */
+.navItemActive::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
 }
 
 .content {
