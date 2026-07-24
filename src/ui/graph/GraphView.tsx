@@ -213,7 +213,7 @@ interface Props {
   // GraphView never calls useNotes() directly — that would create a second
   // desynchronised state array alongside App's.
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
-  onRemove: (id: string) => void
+  onRemove: (id: string) => Promise<boolean>
   /** Create a note (used to materialize a pseudo-node's `[[title]]` on click). */
   onCreate: (title: string, content: string) => Promise<Note>
   /** When set, restrict the graph to these note ids (and the links among them) —
@@ -977,21 +977,15 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [onUpdate],
   )
 
-  // Uses the native Tauri dialog (the WebView's window.confirm doesn't reliably
-  // honour Cancel here), so cancelling truly aborts the delete.
+  // `onRemove` (useNotes().remove) confirms centrally when confirmBeforeDelete
+  // is on — no separate dialog here (would double-prompt).
   const handleRemoveNote = useCallback(
     async (id: string) => {
-      const node = graphData.nodes.find((n) => n.id === id)
-      const title = node?.title || 'this note'
-      const ok = await ask(`Delete "${title}"? This cannot be undone.`, {
-        title: 'Delete note',
-        kind: 'warning',
-      })
+      const ok = await onRemove(id)
       if (!ok) return
-      onRemove(id)
       if (focusNodeId === id) setFocusNodeId(null)
     },
-    [onRemove, focusNodeId, graphData.nodes],
+    [onRemove, focusNodeId],
   )
 
   // ── Panel actions ───────────────────────────────────────

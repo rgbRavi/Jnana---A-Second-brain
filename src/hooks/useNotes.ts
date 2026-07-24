@@ -7,6 +7,8 @@ import { Note } from '../types/index'
 import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
 import { getActiveVaultId } from './useVaults'
+import { getGeneralSettings } from './useGeneralSettings'
+import { showConfirmDialog } from '../lib/dialog'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
 
@@ -138,12 +140,23 @@ export function useNotes() {
     []
   )
 
-  const remove = useCallback(async (id: string) => {
+  const remove = useCallback(async (id: string, opts?: { confirm?: boolean }): Promise<boolean> => {
+    const needConfirm = (opts?.confirm ?? true) && getGeneralSettings().confirmBeforeDelete
+    if (needConfirm) {
+      const ok = await showConfirmDialog({
+        title: 'Delete note?',
+        message: 'This permanently removes the note. This cannot be undone.',
+        confirmLabel: 'Delete',
+        danger: true,
+      })
+      if (!ok) return false
+    }
     // Optimistic — remove immediately
     setNotes((prev) => prev.filter((n) => n.id !== id))
     await deleteNote(id)
     // deleteNote already emits 'note:deleted' in core/notes.ts —
     // we don't emit again here to avoid double-fire.
+    return true
   }, [])
 
   /** Update just the user-tag portion without re-running inferTags */

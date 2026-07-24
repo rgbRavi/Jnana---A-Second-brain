@@ -23,6 +23,7 @@ import { useActiveVaultId } from "./hooks/useVaults";
 import { setVaultScope } from "./core/ai";
 import { DEFAULT_VAULT_ID } from "./types";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
+import { getGeneralSettings } from "./hooks/useGeneralSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { useViewState, setViewState } from "./hooks/useViewState";
@@ -67,8 +68,10 @@ function AppInner() {
     useEffect(() => {
         if (restoredRef.current) return
         restoredRef.current = true
-        if (initialRoute && initialRoute !== pathname) {
-            navigate(initialRoute, { replace: true })
+        const startup = getGeneralSettings().startupView
+        const target = startup === 'last' ? initialRoute : startup
+        if (target && target !== pathname) {
+            navigate(target, { replace: true })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
