@@ -1,0 +1,15 @@
+.panel { display: flex; flex-direction: column; gap: var(--space-lg); }
+.intro { font-size: 0.85rem; color: var(--text-2); line-height: 1.5; }
+.field { display: flex; flex-direction: column; gap: var(--space-2xs); }
+.fieldHead { display: flex; align-items: baseline; justify-content: space-between; }
+.field > label, .fieldHead label { font-size: 0.85rem; color: var(--text-1); }
+.hint { font-size: 0.76rem; color: var(--text-3); line-height: 1.4; }
+.select {
+  background: var(--surface-2);
+  color: var(--text-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.6rem;
+  font-family: var(--font-body);
+}
+.toggle { display: flex; align-items: flex-start; gap: var(--space-sm); font-size: 0.85rem; color: var(--text-1); cursor: pointer; }
