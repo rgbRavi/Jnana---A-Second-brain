@@ -75,7 +75,7 @@ function AppInner() {
     // Remember the current route for next launch.
     useEffect(() => {
         try {
-            localStorage.setItem(LAST_ROUTE_KEY, pathname)
+            if (pathname !== "/settings") localStorage.setItem(LAST_ROUTE_KEY, pathname)
         } catch {
             /* storage unavailable */
         }
