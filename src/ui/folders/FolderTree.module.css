@@ -33,7 +33,7 @@
   line-height: 1;
   padding: 2px 4px;
   border-radius: var(--radius-sm, 6px);
-  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast), color var(--dur-fast);
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .headerBtn:hover {
   background: var(--surface-hover-strong);
@@ -80,7 +80,7 @@
   user-select: none;
   min-width: 0;
   touch-action: none; /* pointer-drag: stop the webview hijacking the gesture */
-  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast), color var(--dur-fast);
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .row:hover {
   background: var(--surface-hover-strong);

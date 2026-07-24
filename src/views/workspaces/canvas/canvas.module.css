@@ -378,12 +378,12 @@
 }
 
 .toolBtnOn {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
 }
 
 .toolBtnOn:hover {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
 }
 

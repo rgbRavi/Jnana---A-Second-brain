@@ -628,7 +628,7 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .noteExternalDoc:hover {
@@ -660,7 +660,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
   white-space: nowrap;
 }
 
@@ -715,7 +715,7 @@
   font-family: var(--font-body);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -751,7 +751,7 @@
   font-size: 0.8rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
   margin: 0 0.15rem;
 }
 
@@ -791,7 +791,7 @@
   font-size: 0.8rem;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
   margin: 0 0.25rem;
 }
 
@@ -860,7 +860,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease);
 }
 
 .fullscreenClose:hover {

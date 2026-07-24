@@ -30,7 +30,7 @@
   font-family: var(--font-body);
   padding: 0.3rem 0.7rem;
   cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .segBtn:not(:last-child) {
@@ -48,13 +48,13 @@
 
 .segOn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .segOn:hover {
-  color: #fff;
+  color: var(--on-accent);
   filter: brightness(1.1);
 }
 
@@ -70,7 +70,7 @@
   cursor: pointer;
   outline: none;
   max-width: 180px;
-  transition: all var(--dur-base) cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .select:focus {

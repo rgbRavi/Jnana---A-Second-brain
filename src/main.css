@@ -89,7 +89,7 @@
   --motion-duration-fast: 120ms;
   --motion-duration-base: 220ms;
   --motion-duration-slow: 420ms;
-  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease: var(--motion-ease);
   --dur-fast: calc(var(--motion-duration-fast) * var(--motion-scale));
   --dur-base: calc(var(--motion-duration-base) * var(--motion-scale));
   --dur-slow: calc(var(--motion-duration-slow) * var(--motion-scale));
@@ -231,7 +231,7 @@ body {
 
 /* Global press/click animation utility */
 .pressable {
-  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast), color var(--dur-fast);
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .pressable:active {

@@ -25,7 +25,7 @@
   padding: 0.35rem var(--space-md);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .backBtn:hover {
@@ -55,7 +55,7 @@
   padding: 0.35rem 0.9rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .segmentBtn:hover {

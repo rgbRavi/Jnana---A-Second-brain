@@ -28,7 +28,7 @@
   border-radius: var(--radius-md);
   padding: var(--space-sm) var(--space-md);
   font-family: var(--font-body);
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   margin-left: -0.75rem; /* align with content padding visually */
 }
 
@@ -94,7 +94,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .iconBtn:hover {
@@ -231,7 +231,7 @@
   z-index: 1002;
   min-width: 200px;
   backdrop-filter: blur(8px);
-  animation: dropdownFadeIn var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownFadeIn var(--dur-base) var(--motion-ease);
 }
 
 .dropdownRight {
@@ -262,7 +262,7 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
   display: flex;
   align-items: center;
   gap: var(--space-sm);

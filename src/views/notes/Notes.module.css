@@ -62,7 +62,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 

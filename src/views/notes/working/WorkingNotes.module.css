@@ -40,7 +40,7 @@
   position: absolute;
   z-index: 5;
   background: transparent;
-  transition: background var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease);
 }
 .dividerV {
   top: 0;
@@ -74,7 +74,7 @@
   margin: 0.35rem;
   background: var(--surface);
   overflow: hidden;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .groupActive {
@@ -137,7 +137,7 @@
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .tab:hover {

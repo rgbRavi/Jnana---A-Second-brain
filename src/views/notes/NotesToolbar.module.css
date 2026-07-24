@@ -35,7 +35,7 @@
   font-size: 0.85rem;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .search:focus {
@@ -51,7 +51,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -110,7 +110,7 @@
   padding: 0.35rem var(--space-sm);
   line-height: 1;
   cursor: pointer;
-  transition: color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .modeBtn:hover {
@@ -159,7 +159,7 @@
 
 .newBtn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.45rem 0.85rem;
@@ -167,7 +167,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity var(--dur-fast), transform var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -223,7 +223,7 @@
   font-size: 0.76rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .chip:hover {

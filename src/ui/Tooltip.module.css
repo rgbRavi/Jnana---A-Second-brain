@@ -19,7 +19,7 @@
   letter-spacing: 0.01em;
   white-space: normal;
   pointer-events: none;
-  animation: tooltipIn var(--dur-fast) ease-out;
+  animation: tooltipIn var(--dur-fast) var(--motion-ease);
 }
 
 @keyframes tooltipIn {

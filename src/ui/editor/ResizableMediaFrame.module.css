@@ -17,7 +17,7 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--motion-ease);
   z-index: 5;
 }
 
@@ -94,7 +94,7 @@
   border: 2px solid var(--surface);
   opacity: 0;
   cursor: nwse-resize;
-  transition: opacity var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--motion-ease);
   z-index: 5;
 }
 

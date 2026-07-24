@@ -607,7 +607,7 @@
   cursor: pointer;
   padding: var(--space-3xs) var(--space-2xs);
   border-radius: var(--radius-sm);
-  transition: color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 .fontRemove:hover {
   color: var(--danger);

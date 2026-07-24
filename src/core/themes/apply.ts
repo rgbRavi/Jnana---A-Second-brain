@@ -78,12 +78,18 @@ export function resolveVars(theme: Theme): Record<string, string> {
   const density = DENSITY_SCALE[theme.density] ?? 1
   const surfaceRgb = hexToRgb(theme.tokens['--surface'])
   const dark = theme.base === 'dark'
+  const accent = theme.tokens['--accent']
   return {
     ...theme.tokens,
     '--accent-hover': acc.hover,
     '--accent-active': acc.active,
     '--accent-soft': acc.soft,
     '--accent-softer': acc.softer,
+    // Readable label colour for text/icons sitting ON the accent fill — picks
+    // white or near-black by whichever has more contrast against the accent, so
+    // a light accent (light/sepia/rosé preset) gets dark text instead of an
+    // invisible white one.
+    '--on-accent': contrastRatio(accent, '#ffffff') >= contrastRatio(accent, '#0d0d0f') ? '#ffffff' : '#0d0d0f',
     // Base-dependent Layer-2 tokens: the elevation-wash colour inverts to
     // dark-on-light so washes read correctly on the light/sepia/rosé presets
     // (sites supply their own alpha via rgba(var(--wash-rgb), α)). The

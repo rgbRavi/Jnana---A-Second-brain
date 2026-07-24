@@ -45,7 +45,7 @@
   flex-direction: column;
   gap: var(--space-sm);
   cursor: pointer;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), box-shadow var(--dur-fast) var(--motion-ease);
 }
 
 .recentCard:hover {
@@ -97,7 +97,7 @@
   cursor: pointer;
   color: var(--text-2);
   font-size: 0.85rem;
-  transition: border-color var(--dur-fast), color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .scrollButtons button:hover {
@@ -129,7 +129,7 @@
   color: var(--text-1);
   outline: none;
   width: 200px;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 .favouriteSearch:focus { border-color: var(--accent); }
 .favouriteSearch::placeholder { color: var(--text-3); }
@@ -156,6 +156,6 @@
   font-family: var(--font-mono);
   color: var(--text-2);
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .showMoreBtn:hover { border-color: var(--accent); color: var(--text-1); }

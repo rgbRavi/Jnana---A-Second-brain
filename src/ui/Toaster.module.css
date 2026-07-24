@@ -24,7 +24,7 @@
   color: var(--text-1);
   font-size: 0.85rem;
   line-height: 1.45;
-  animation: toastIn var(--dur-fast) ease-out;
+  animation: toastIn var(--dur-fast) var(--motion-ease);
 }
 
 .row {
@@ -44,7 +44,7 @@
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
-  transition: width var(--dur-fast) ease-out;
+  transition: width var(--dur-fast) var(--motion-ease);
 }
 .success .progressFill {
   background: var(--success);
@@ -73,7 +73,7 @@
   cursor: pointer;
   padding: 0 0.1rem;
   margin-top: 1px;
-  transition: color var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease);
 }
 
 .close:hover {

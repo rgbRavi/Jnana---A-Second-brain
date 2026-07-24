@@ -29,7 +29,7 @@
   font-family: var(--font-body);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   white-space: nowrap;
 }
 
@@ -57,7 +57,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .iconBtn:hover:not(:disabled),
@@ -200,7 +200,7 @@
 .applyBtn {
   background: var(--accent);
   border: none;
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--radius-sm);
   padding: 0.3rem 0.85rem;
   font-size: 0.8rem;

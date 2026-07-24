@@ -26,7 +26,7 @@
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
 }
 
 .subnavItem:hover { color: var(--text-1); }
@@ -107,7 +107,7 @@
   background: var(--surface-3);
   cursor: pointer;
   padding: 0;
-  transition: background var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 .switchOn { background: var(--accent); border-color: var(--accent); }
@@ -119,8 +119,8 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
-  transition: transform var(--dur-fast);
+  background: var(--text-1);
+  transition: transform var(--dur-fast) var(--motion-ease);
   box-shadow: var(--shadow-sm);
 }
 .switchOn .switchKnob { transform: translateX(16px); }
@@ -154,7 +154,7 @@
   font: inherit;
   cursor: pointer;
   text-align: left;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
 }
 .tool:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .tool:disabled { opacity: 0.5; cursor: not-allowed; }

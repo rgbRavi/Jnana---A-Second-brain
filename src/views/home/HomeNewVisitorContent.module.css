@@ -64,5 +64,5 @@ p {
 .gettingStarted h2 {
     margin-bottom: 0.5em;   
     margin-left: -1em;
-    color: #BAC7D5;
+    color: var(--text-2);
 }

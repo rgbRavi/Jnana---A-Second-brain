@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn var(--dur-slow) var(--motion-ease) forwards;
 }
 
 @keyframes fadeIn {
@@ -34,7 +34,7 @@
   flex-direction: column;
   position: relative;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(var(--wash-rgb), 0.1);
-  animation: slideUp var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp var(--dur-slow) var(--motion-ease) forwards;
   overflow: hidden;
 }
 
@@ -94,7 +94,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   backdrop-filter: blur(8px);
 }
 
@@ -224,7 +224,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -251,7 +251,7 @@
   z-index: 1002;
   min-width: 180px;
   backdrop-filter: blur(8px);
-  animation: dropdownFadeIn var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownFadeIn var(--dur-base) var(--motion-ease);
 }
 
 .dropdownLeft {
@@ -282,7 +282,7 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: 0.5rem;
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -405,7 +405,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-body);
-  transition: all var(--dur-fast);
+  transition: all var(--dur-fast) var(--motion-ease);
 }
 
 .noteModalBtn:hover:not(:disabled) {

@@ -11,7 +11,7 @@
   padding: 0;
   overflow: hidden;
   position: relative;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .thumb:hover {

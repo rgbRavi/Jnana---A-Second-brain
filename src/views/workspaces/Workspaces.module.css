@@ -40,7 +40,7 @@
   cursor: pointer;
   /* Flat hairline card at rest; the accent shows on hover (below) rather than
      as an always-on side stripe — the house style for cards. */
-  transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 
 .card:hover {
@@ -100,7 +100,7 @@
   display: flex;
   gap: 0.2rem;
   opacity: 0;
-  transition: opacity var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--motion-ease);
 }
 
 .card:hover .cardActions {
@@ -126,7 +126,7 @@
 .createBtn,
 .primaryBtn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: var(--space-sm) 0.95rem;
@@ -134,7 +134,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity var(--dur-fast);
+  transition: opacity var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -162,7 +162,7 @@
   font-size: 0.875rem;
   cursor: pointer;
   min-height: 96px;
-  transition: color var(--dur-fast), border-color var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
 }
 
 .addTile:hover {
@@ -248,7 +248,7 @@
   cursor: pointer;
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-sm);
-  transition: color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .closeLink:hover {
@@ -272,7 +272,7 @@
   font-family: var(--font-body);
   padding: var(--space-sm) 0.7rem;
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
 }
 
 .tab:hover {
@@ -499,7 +499,7 @@
   font-family: var(--font-body);
   padding: var(--space-2xs) 0.65rem;
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .collChip:hover {
@@ -616,7 +616,7 @@
   border-radius: var(--radius-sm);
   padding: 0.4rem var(--space-sm);
   cursor: pointer;
-  transition: background var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease);
 }
 
 .noteRow:hover {

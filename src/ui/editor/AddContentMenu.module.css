@@ -18,7 +18,7 @@
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
-  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .addBtn:hover:not(:disabled) {
@@ -71,7 +71,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  animation: menuIn var(--dur-fast) ease-out;
+  animation: menuIn var(--dur-fast) var(--motion-ease);
 }
 
 .menuItem {
@@ -88,7 +88,7 @@
   font-size: 0.85rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: background var(--dur-fast);
+  transition: background var(--dur-fast) var(--motion-ease);
 }
 
 .menuItem:hover {

@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-xl);
-  animation: dialogFade var(--dur-fast) ease-out;
+  animation: dialogFade var(--dur-fast) var(--motion-ease);
 }
 
 .dialog {
@@ -19,7 +19,7 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
   padding: 1.25rem 1.25rem var(--space-lg);
-  animation: dialogPop var(--dur-base) ease-out;
+  animation: dialogPop var(--dur-base) var(--motion-ease);
 }
 
 .header {
@@ -60,7 +60,7 @@
   color: var(--text-1);
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 
 .option:hover {
@@ -106,7 +106,7 @@
   flex-shrink: 0;
   color: var(--text-3);
   font-size: 0.95rem;
-  transition: transform var(--dur-fast), color var(--dur-fast);
+  transition: transform var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .option:hover .optionArrow {
@@ -125,7 +125,7 @@
   font-size: 0.9rem;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .input:focus {
@@ -152,7 +152,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color var(--dur-fast), color var(--dur-fast);
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .cancel:hover {
@@ -164,13 +164,13 @@
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--on-accent);
   padding: 0.45rem 0.95rem;
   font-size: 0.82rem;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: filter var(--dur-fast), opacity var(--dur-fast);
+  transition: filter var(--dur-fast) var(--motion-ease), opacity var(--dur-fast) var(--motion-ease);
 }
 
 .confirm:hover:not(:disabled) {
