@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useRef } from 'react'
+import { Bot, FileUp, Mic, Search, SquarePen, Star } from 'lucide-react'
 import styles from './Dashboard.module.css'
 import { preview, relativeTime } from './format'
 import { useWheelHorizontal } from './useWheelHorizontal'
@@ -47,11 +48,11 @@ export function HeroSection({ data }: { data: DashboardData }) {
 export function QuickActionsSection({ actions }: SectionProps) {
   return (
     <div className={styles.quickGrid}>
-      <QuickActionButton icon="✏️" label="New Note" onClick={actions.newNote} />
-      <QuickActionButton icon="🎤" label="Record Audio" onClick={actions.recordAudio} />
-      <QuickActionButton icon="📄" label="Import File" onClick={actions.importFile} />
-      <QuickActionButton icon="🔍" label="Search Vault" onClick={() => actions.goto('/search')} />
-      <QuickActionButton icon="🤖" label="AI Chat" onClick={() => actions.goto('/ai')} />
+      <QuickActionButton icon={<SquarePen size={22} />} label="New Note" onClick={actions.newNote} />
+      <QuickActionButton icon={<Mic size={22} />} label="Record Audio" onClick={actions.recordAudio} />
+      <QuickActionButton icon={<FileUp size={22} />} label="Import File" onClick={actions.importFile} />
+      <QuickActionButton icon={<Search size={22} />} label="Search Vault" onClick={() => actions.goto('/search')} />
+      <QuickActionButton icon={<Bot size={22} />} label="AI Chat" onClick={() => actions.goto('/ai')} />
     </div>
   )
 }
@@ -105,7 +106,7 @@ export function ContinueLearningSection({ data, actions }: SectionProps) {
               {item.readingTimeMin} min read
             </span>
             <span className={styles.progressBar}>
-              <span className={styles.progressFill} style={{ width: `${pct}%` }} />
+              <span className={styles.progressFill} style={{ transform: `scaleX(${pct / 100})` }} />
             </span>
             <span className={styles.learnProgress}>{pct}% read</span>
           </button>
@@ -125,7 +126,7 @@ export function FavouritesSection({ data, actions }: SectionProps) {
       {data.favourites.map((n) => (
         <button key={n.id} type="button" className={styles.favCard} onClick={() => actions.openNote(n)}>
           <span className={styles.favStar} aria-hidden="true">
-            ★
+            <Star size={16} fill="currentColor" />
           </span>
           <span className={styles.favBody}>
             <span className={styles.favTitle}>{n.title || 'Untitled'}</span>

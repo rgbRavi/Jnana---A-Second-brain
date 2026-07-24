@@ -20,11 +20,11 @@
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
   transform: translateY(-1px);
 }
@@ -83,7 +83,7 @@
   border: 1px solid var(--border);
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: transform var(--dur-fast);
 }
 
 .swatch:hover {
@@ -105,7 +105,7 @@
   background: conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red);
   -webkit-appearance: none;
   appearance: none;
-  transition: transform 0.1s;
+  transition: transform var(--dur-fast);
 }
 
 .customSwatch:hover {

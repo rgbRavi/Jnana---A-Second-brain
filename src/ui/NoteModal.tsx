@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useRef, useEffect } from 'react'
+import { Download, Maximize2, Minimize2, MoreVertical, SquarePen, Star, X } from 'lucide-react'
 import { NoteView } from './editor/NoteRenderer'
 import { getNoteType } from '../lib/noteTypes'
 import type { Note } from '../types'
@@ -108,7 +109,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
               aria-label="More options"
               title="More options"
             >
-              ⋮
+              <MoreVertical size={16} />
             </button>
             {menuOpen && (
               <div className={`${NoteModalStyles.noteModalDropdown} ${NoteModalStyles.dropdownLeft}`}>
@@ -125,7 +126,9 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                     }
                   }}
                 >
-                  {isFavourite ? '★ Remove from favourites' : '☆ Add to favourites'}
+                  {isFavourite
+                    ? <><Star size={14} fill="currentColor" /> Remove from favourites</>
+                    : <><Star size={14} /> Add to favourites</>}
                 </button>
                 <button
                   className={NoteModalStyles.noteModalDropdownItem}
@@ -139,7 +142,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                     }
                   }}
                 >
-                  ⤓ Download/Export
+                  <Download size={14} /> Download/Export
                 </button>
               </div>
             )}
@@ -153,10 +156,10 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             aria-label={expanded ? 'Restore' : 'Expand to full screen'}
             title={expanded ? 'Restore' : 'Expand to full screen'}
           >
-            {expanded ? '⤡' : '⤢'}
+            {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
           <button className={NoteModalStyles.noteModalClose} onClick={onClose} aria-label="Close">
-            ✕
+            <X size={16} />
           </button>
         </div>
 
@@ -172,7 +175,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 aria-label="Edit in Working Notes"
                 title="Edit in Working Notes"
               >
-                ✎↗
+                <SquarePen size={16} />
               </button>
             </div>
           </div>

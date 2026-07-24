@@ -5,7 +5,16 @@
 // design_handoff_theme_studio/studio-helpers.jsx. No React, no invoke().
 
 import type { Theme } from '../../types'
-import { DENSITY_SCALE } from './tokens'
+import { DENSITY_SCALE, FONTS } from './tokens'
+import { installedStack } from '../fonts/registry'
+
+/** Font id → CSS stack for a role: built-in catalog, then user-installed families,
+ *  then the role's default. */
+function fontStack(role: 'body' | 'mono' | 'reading', id: string): string {
+  const builtin = FONTS[role].find((f) => f.id === id)
+  if (builtin) return builtin.stack
+  return installedStack(id) ?? FONTS[role][0].stack
+}
 
 /** localStorage key for the boot-time mirror of the active theme — read
  *  synchronously by main.tsx before first paint, and kept in sync by useTheme. */
@@ -68,15 +77,29 @@ export function resolveVars(theme: Theme): Record<string, string> {
   const acc = deriveAccent(theme.tokens['--accent'], theme.base)
   const density = DENSITY_SCALE[theme.density] ?? 1
   const surfaceRgb = hexToRgb(theme.tokens['--surface'])
+  const dark = theme.base === 'dark'
   return {
     ...theme.tokens,
     '--accent-hover': acc.hover,
     '--accent-active': acc.active,
     '--accent-soft': acc.soft,
     '--accent-softer': acc.softer,
+    // Base-dependent Layer-2 tokens: the elevation-wash colour inverts to
+    // dark-on-light so washes read correctly on the light/sepia/rosé presets
+    // (sites supply their own alpha via rgba(var(--wash-rgb), α)). The
+    // primitive-following state tokens (--surface-hover, --control-grip, …) stay
+    // as var() aliases in main.css and need no per-theme value here.
+    '--wash-rgb': dark ? '255, 255, 255' : '0, 0, 0',
+    '--scrim': dark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(15, 18, 24, 0.4)',
     '--reading-scale': String(theme.readingScale),
     '--density': String(density),
     '--surface-rgb': surfaceRgb ? `${surfaceRgb.r}, ${surfaceRgb.g}, ${surfaceRgb.b}` : '20, 20, 23',
+    // Font stacks are now applied (previously omitted). The primary faces aren't
+    // bundled, so each stack renders via its OS fallback (serif reader → Georgia,
+    // etc.); vendoring woff2 later activates the exact faces with no code change.
+    '--font-body': fontStack('body', theme.fonts.body),
+    '--font-mono': fontStack('mono', theme.fonts.mono),
+    '--font-reading': fontStack('reading', theme.fonts.reading),
   }
 }
 

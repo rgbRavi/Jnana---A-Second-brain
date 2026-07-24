@@ -2,7 +2,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.25rem 1.5rem 3rem;
+  padding: 1.25rem var(--space-xl) 3rem;
 }
 
 .tabs {
@@ -17,11 +17,11 @@
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--text-2);
-  padding: 0.5rem 0.85rem;
+  padding: var(--space-sm) 0.85rem;
   font-size: 0.9rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
 }
 
 .tab:hover {

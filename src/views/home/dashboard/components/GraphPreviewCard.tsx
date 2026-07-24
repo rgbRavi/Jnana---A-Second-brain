@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import ForceGraph2D from 'react-force-graph-2d'
+import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d'
 import styles from '../Dashboard.module.css'
 import type { SnapshotNode } from '../useDashboardData'
 
@@ -16,17 +16,41 @@ interface Props {
 /** A small, live force-graph snapshot of the vault + headline graph stats. */
 export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
+  const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
+  const framedOnce = useRef(false)
   const [size, setSize] = useState({ w: 0, h: 0 })
 
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    // Only push a genuinely new size — a same-dimension update would still make
+    // force-graph re-run adjustCanvasSize (which clears the canvas) for nothing.
+    const measure = () =>
+      setSize((prev) => {
+        const w = el.clientWidth
+        const h = el.clientHeight
+        return prev.w === w && prev.h === h ? prev : { w, h }
+      })
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     measure()
     return () => ro.disconnect()
   }, [])
+
+  // Resizing the canvas (force-graph's adjustCanvasSize) resets the 2D context
+  // transform and leaves the viewport panned/scaled off the new bounds once the
+  // simulation has cooled — the card goes blank though the nodes still exist.
+  // Re-fit after each size change to reframe the graph and force a repaint (the
+  // zoom event re-applies the transform). Skip the first frame so the initial
+  // auto-framing is kept.
+  useEffect(() => {
+    if (size.w <= 0 || size.h <= 0) return
+    if (!framedOnce.current) {
+      framedOnce.current = true
+      return
+    }
+    fgRef.current?.zoomToFit(0, 24)
+  }, [size.w, size.h])
 
   // react-force-graph mutates the objects it's given (adds x/y/vx/vy) and re-runs
   // its simulation whenever `graphData` is a new reference — so memoize on the
@@ -42,6 +66,7 @@ export function GraphPreviewCard({ nodes, links, stats, onOpen }: Props) {
       <div className={styles.graphCanvas} ref={wrapRef} onClick={onOpen}>
         {size.w > 0 && size.h > 0 && nodes.length > 0 ? (
           <ForceGraph2D
+            ref={fgRef}
             graphData={data}
             width={size.w}
             height={size.h}

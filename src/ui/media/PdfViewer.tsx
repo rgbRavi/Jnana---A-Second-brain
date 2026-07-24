@@ -3,6 +3,7 @@
 
 // src/ui/media/PdfViewer.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Eraser, Highlighter, MousePointer2, Pen, Plus } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { usePdfAnnotations } from '../../hooks/usePdfAnnotations'
 import { toast } from '../../lib/toast'
@@ -431,11 +432,11 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
     text: 'text',
   }
 
-  const toolButtons: { tool: Tool; label: string; title: string }[] = [
-    { tool: 'select', label: '⇱ Select', title: 'Select / edit annotations' },
-    { tool: 'highlight', label: '🖍 Highlight', title: 'Drag to highlight' },
-    { tool: 'pen', label: '✎ Pen', title: 'Draw freehand ink' },
-    { tool: 'eraser', label: '⌫ Erase', title: 'Erase ink strokes' },
+  const toolButtons: { tool: Tool; label: React.ReactNode; title: string }[] = [
+    { tool: 'select', label: <><MousePointer2 size={14} /> Select</>, title: 'Select / edit annotations' },
+    { tool: 'highlight', label: <><Highlighter size={14} /> Highlight</>, title: 'Drag to highlight' },
+    { tool: 'pen', label: <><Pen size={14} /> Pen</>, title: 'Draw freehand ink' },
+    { tool: 'eraser', label: <><Eraser size={14} /> Erase</>, title: 'Erase ink strokes' },
   ]
 
   return (
@@ -498,7 +499,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
               </button>
             ))}
             <button title="Add a text box at the page centre" onClick={() => viewport && createTextAt(viewport.width / 2, viewport.height / 2)} className={styles.toolBtn}>
-              ＋ Text
+              <Plus size={14} /> Text
             </button>
             {tool === 'pen' && (
               <span className={styles.penControls}>

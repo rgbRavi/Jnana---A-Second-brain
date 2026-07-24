@@ -4,18 +4,18 @@
   flex-shrink: 0;
   /* Frosted translucent glass: a faint top-down sheen over a see-through surface. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.012) 30%),
+    linear-gradient(180deg, rgba(var(--wash-rgb), 0.05), rgba(var(--wash-rgb), 0.012) 30%),
     rgba(var(--surface-rgb), 0.55);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   backdrop-filter: blur(18px) saturate(140%);
-  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  border-right: 1px solid rgba(var(--wash-rgb), 0.07);
   display: flex;
   flex-direction: column;
-  padding: 1rem 0;
+  padding: var(--space-lg) 0;
   overflow-x: hidden;
   overflow-y: auto;
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.02), inset -1px 0 0 rgba(255, 255, 255, 0.02);
-  transition: width 0.2s cubic-bezier(0.33, 1, 0.68, 1);
+  box-shadow: inset 1px 0 0 rgba(var(--wash-rgb), 0.02), inset -1px 0 0 rgba(var(--wash-rgb), 0.02);
+  transition: width var(--dur-base) cubic-bezier(0.33, 1, 0.68, 1);
   will-change: width;
 }
 
@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .logoBrand {
@@ -92,7 +92,7 @@
   font-size: 0.8rem;
   line-height: 1;
   cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s, border-color 0.15s;
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), color var(--dur-fast), border-color var(--dur-fast);
 }
 
 .collapseToggle:hover {
@@ -130,12 +130,12 @@
 }
 
 .collapsed .sidebarBottom {
-  padding: 0.5rem 0.4rem 0;
+  padding: var(--space-sm) 0.4rem 0;
 }
 
 .collapsed .transcribeToggle {
   justify-content: center;
-  padding: 0.5rem 0;
+  padding: var(--space-sm) 0;
 }
 
 /* ─── Nav ─── */
@@ -179,11 +179,11 @@
   font-family: var(--font-body);
   text-decoration: none;
   cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s, color 0.15s;
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast), color var(--dur-fast);
 }
 
 .sidebarNavItem:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash-rgb), 0.05);
   color: var(--text-1);
 }
 
@@ -195,6 +195,19 @@
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--text-1);
   font-weight: 500;
+}
+
+/* Quick Note is the primary capture action, so it reads one shade brighter than
+   the other nav buttons (which rest at --text-2). Dynamic + themeable: override
+   --sidebar-quicknote-color to give it its own colour later. The icon inherits
+   currentColor, so this brightens both the glyph and the label. */
+.quickNoteItem {
+  color: var(--sidebar-quicknote-color, var(--text-1));
+}
+
+.quickNoteItem:hover,
+.quickNoteItem.active {
+  color: var(--sidebar-quicknote-color, var(--text-1));
 }
 
 /* accent rail on the active item */
@@ -243,18 +256,18 @@
   border-radius: var(--radius-sm);
   color: var(--text-3);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
 .wsDisclosure:hover {
   color: var(--text-1);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash-rgb), 0.06);
 }
 
 .wsDisclosure svg {
   width: 14px;
   height: 14px;
-  transition: transform 0.18s ease;
+  transition: transform var(--dur-fast) var(--motion-ease);
 }
 
 .wsDisclosureCollapsed svg {
@@ -320,7 +333,7 @@
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
 }
 
 .openWsRow:hover .openWsClose,
@@ -329,7 +342,7 @@
 }
 
 .openWsClose:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--wash-rgb), 0.06);
   color: var(--danger);
 }
 
@@ -357,28 +370,28 @@
 /* ─── Bottom-pinned area (transcription tray + settings) ─── */
 .sidebarBottom {
   margin-top: auto;
-  padding: 0.5rem 0.6rem 0;
+  padding: var(--space-sm) 0.6rem 0;
 }
 
 .transcribeFooter {
   position: relative;
-  padding: 0.25rem 0 0.5rem;
+  padding: var(--space-2xs) 0 var(--space-sm);
 }
 
 .transcribeToggle {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.7rem;
+  padding: var(--space-sm) 0.7rem;
   font-size: 0.8rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), all 0.15s;
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), all var(--dur-fast);
 }
 
 .transcribeToggle:hover {
@@ -401,7 +414,7 @@
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  animation: transcribePulse 1.2s ease-in-out infinite;
+  animation: transcribePulse 1var(--dur-base) ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -419,7 +432,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
-  padding: 0.5rem;
+  padding: var(--space-sm);
   max-height: 260px;
   overflow-y: auto;
   display: flex;
@@ -438,7 +451,7 @@
 
 .transcribeItem {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   padding: 0.35rem 0.2rem;
 }
 

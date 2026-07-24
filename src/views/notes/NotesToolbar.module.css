@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.7rem 2rem;
+  padding: 0.7rem var(--space-2xl);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -35,7 +35,7 @@
   font-size: 0.85rem;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
 .search:focus {
@@ -51,7 +51,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
   flex-shrink: 0;
 }
 
@@ -78,7 +78,7 @@
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem var(--space-sm);
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
@@ -107,15 +107,15 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-3);
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem var(--space-sm);
   line-height: 1;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
 .modeBtn:hover {
   color: var(--text-1);
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
 }
 
 .modeBtnActive {
@@ -167,7 +167,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
   flex-shrink: 0;
 }
 
@@ -184,7 +184,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  padding: 0.85rem 2rem;
+  padding: 0.85rem var(--space-2xl);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   flex-shrink: 0;
@@ -219,11 +219,11 @@
   border: 1px solid var(--border);
   color: var(--text-2);
   border-radius: 999px;
-  padding: 0.25rem 0.65rem;
+  padding: var(--space-2xs) 0.65rem;
   font-size: 0.76rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
 }
 
 .chip:hover {
@@ -255,7 +255,7 @@
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
-  padding: 0.25rem 0.4rem;
+  padding: var(--space-2xs) 0.4rem;
   font-size: 0.76rem;
   font-family: var(--font-body);
   outline: none;

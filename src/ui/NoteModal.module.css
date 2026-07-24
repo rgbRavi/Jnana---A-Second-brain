@@ -2,14 +2,14 @@
 .noteModalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 10, 12, 0.65);
+  background: var(--scrim);
   backdrop-filter: blur(12px) saturate(180%);
   -webkit-backdrop-filter: blur(12px) saturate(180%);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes fadeIn {
@@ -33,8 +33,8 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(var(--wash-rgb), 0.1);
+  animation: slideUp var(--dur-slow) cubic-bezier(0.16, 1, 0.3, 1) forwards;
   overflow: hidden;
 }
 
@@ -67,7 +67,7 @@
   top: 1.25rem;
   right: 1.25rem;
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   z-index: 1001;
 }
 
@@ -76,7 +76,7 @@
   top: 1.25rem;
   left: 1.25rem;
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   align-items: center;
   z-index: 1001;
 }
@@ -94,12 +94,12 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
   backdrop-filter: blur(8px);
 }
 
 .noteModalClose:hover, .noteModalExpand:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
   transform: scale(1.05);
   border-color: var(--border-hover);
@@ -120,7 +120,7 @@
 .noteModalTitleWrapper {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .noteModalTitle {
@@ -142,8 +142,11 @@
   overflow-y: auto;
   color: var(--text-2);
   line-height: 1.7;
-  font-size: 1rem;
-  padding-right: 1rem;
+  /* Note content is read matter — use the Reading font/scale, like the Working
+     Notes reader (.readBody), not the interface font. */
+  font-family: var(--font-reading);
+  font-size: calc(1rem * var(--reading-scale));
+  padding-right: var(--space-lg);
   margin-top: 1rem;
 }
 
@@ -169,12 +172,12 @@
 }
 
 .noteModalBody::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--control-grip);
   border-radius: 4px;
 }
 
 .noteModalBody::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--control-grip-hover);
 }
 
 .noteModalTime {
@@ -182,7 +185,7 @@
   font-family: var(--font-mono);
   color: var(--text-3);
   margin-top: 1.5rem;
-  padding-top: 1rem;
+  padding-top: var(--space-lg);
   border-top: 1px solid var(--border);
 }
 
@@ -192,7 +195,7 @@
   flex-direction: column;
   overflow: hidden;
   flex: 1;
-  padding: 2rem;
+  padding: var(--space-2xl);
   padding-right: 3rem;
 }
 
@@ -205,7 +208,7 @@
 
 .noteModalHeaderActions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   align-items: center;
 }
 
@@ -221,12 +224,12 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
 .noteModalEditBtn:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
   border-color: var(--border-hover);
   transform: translateY(-1px);
@@ -244,11 +247,11 @@
   border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.4rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
   z-index: 1002;
   min-width: 180px;
   backdrop-filter: blur(8px);
-  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownFadeIn var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dropdownLeft {
@@ -279,14 +282,14 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: 0.5rem;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .noteModalDropdownItem:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   color: var(--text-1);
 }
 
@@ -296,9 +299,9 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding: 2rem;
+  padding: var(--space-2xl);
   padding-right: 3rem;
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .noteModalTitleInput {
@@ -308,7 +311,7 @@
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.75rem;
+  padding: var(--space-md);
   font-family: var(--font-body);
   width: 100%;
 }
@@ -323,7 +326,7 @@
   background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.75rem;
+  padding: var(--space-md);
   color: var(--text-2);
   font-family: var(--font-body);
   font-size: 0.95rem;
@@ -368,7 +371,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0.75rem;
+  padding: var(--space-md);
   color: var(--text-2);
   font-family: var(--font-body);
   font-size: 0.95rem;
@@ -379,7 +382,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 .noteModalToolbar {
@@ -389,7 +392,7 @@
 
 .noteModalSaveRow {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 .noteModalBtn {
@@ -402,11 +405,11 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-body);
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
 }
 
 .noteModalBtn:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   border-color: var(--border-hover);
 }
 

@@ -8,7 +8,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 0.25rem;
+  padding: var(--space-2xs);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -42,7 +42,7 @@
 }
 
 .item:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 
 .itemActive,

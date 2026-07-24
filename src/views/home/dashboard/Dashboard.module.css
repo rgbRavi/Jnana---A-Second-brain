@@ -4,7 +4,7 @@
   margin: 0 auto;
   width: 100%;
   min-width: 0;
-  padding: 1.5rem 2rem 7rem;
+  padding: var(--space-xl) var(--space-2xl) 7rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -14,7 +14,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .dashTitle {
@@ -37,7 +37,7 @@
 .dashboardActions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 
@@ -57,10 +57,10 @@
   font-family: var(--font-body);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  transition: background-color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .customizeBtn:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   border-color: var(--accent);
   color: var(--text-1);
 }
@@ -80,7 +80,7 @@
   box-shadow: var(--shadow-sm);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 .customizeBtn:hover .customizeLbl,
 .customizeBtn:focus-visible .customizeLbl {
@@ -106,11 +106,11 @@
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: 999px;
-  padding: 0.5rem 0.95rem;
+  padding: var(--space-sm) 0.95rem;
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 .layoutBtn:hover {
   border-color: var(--accent);
@@ -132,7 +132,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 0.3rem;
-  animation: popIn 0.14s ease-out;
+  animation: popIn var(--dur-fast) ease-out;
 }
 .layoutItem {
   display: flex;
@@ -140,7 +140,7 @@
   border-radius: var(--radius-sm);
 }
 .layoutItem:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 .layoutItemActive {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -155,7 +155,7 @@
   border: none;
   color: var(--text-1);
   text-align: left;
-  padding: 0.45rem 0.5rem;
+  padding: 0.45rem var(--space-sm);
   font-size: 0.875rem;
   cursor: pointer;
 }
@@ -186,13 +186,13 @@
   border: none;
   color: var(--text-3);
   cursor: pointer;
-  padding: 0.25rem 0.35rem;
+  padding: var(--space-2xs) 0.35rem;
   border-radius: var(--radius-sm);
   font-size: 0.75rem;
 }
 .layoutMini:hover {
   color: var(--text-1);
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
 }
 .layoutSaveAs {
   margin-top: 0.2rem;
@@ -203,11 +203,11 @@
   text-align: left;
   cursor: pointer;
   font-size: 0.82rem;
-  padding: 0.5rem;
+  padding: var(--space-sm);
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 .layoutSaveAs:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 
 /* ── Draggable / resizable grid (custom DashboardGrid) ───────────────────── */
@@ -217,7 +217,10 @@
 }
 .gridItem {
   box-sizing: border-box;
-  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+  /* Position via transform so reflow animates on the compositor (no layout
+     thrash); size changes only ever happen on the actively-resized card, which
+     opts out via .gridItemMoving { transition: none }. */
+  transition: transform var(--dur-fast) var(--motion-ease);
 }
 /* The card being dragged/resized tracks the cursor instantly (no lag). */
 .gridItemMoving {
@@ -238,9 +241,9 @@
 .rgHandle::after {
   content: '';
   position: absolute;
-  background: var(--border-hover);
+  background: var(--control-grip-hover);
   border-radius: var(--radius-xs);
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .rgHandle_e {
   top: 50%;
@@ -286,8 +289,8 @@
   width: 9px;
   height: 9px;
   background: transparent;
-  border-right: 2px solid var(--border-hover);
-  border-bottom: 2px solid var(--border-hover);
+  border-right: 2px solid var(--control-grip-hover);
+  border-bottom: 2px solid var(--control-grip-hover);
   border-radius: 0 0 4px 0;
 }
 .gridItem:hover .rgHandle::after {
@@ -307,7 +310,7 @@
 
 .stat {
   position: relative;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.03), transparent 60%), var(--surface);
+  background: linear-gradient(160deg, rgba(var(--wash-rgb), 0.03), transparent 60%), var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 1.1rem 1.2rem;
@@ -315,7 +318,7 @@
   flex-direction: column;
   gap: 0.15rem;
   overflow: hidden;
-  transition: border-color 0.18s, transform 0.18s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
 .stat:hover {
   border-color: var(--border-hover);
@@ -361,7 +364,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
-  transition: border-color 0.18s;
+  transition: border-color var(--dur-fast);
 }
 .card:hover {
   border-color: var(--border-hover);
@@ -371,7 +374,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   padding: 0.7rem 0.85rem 0.7rem 0.7rem;
   border-bottom: 1px solid var(--border);
 }
@@ -392,14 +395,14 @@
   cursor: grab;
   font-size: 0.95rem;
   line-height: 1;
-  padding: 0.25rem 0.3rem;
+  padding: var(--space-2xs) 0.3rem;
   border-radius: var(--radius-sm);
   touch-action: none;
-  transition: color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 .dragHandle:hover {
   color: var(--text-1);
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 .dragHandle:active {
   cursor: grabbing;
@@ -408,7 +411,7 @@
 .cardTitle {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   background: none;
   border: none;
   color: var(--text-1);
@@ -428,7 +431,7 @@
   display: inline-block;
   font-size: 0.7rem;
   color: var(--text-3);
-  transition: transform 0.18s;
+  transition: transform var(--dur-fast);
 }
 .cardIcon {
   font-size: 0.875rem;
@@ -448,15 +451,15 @@
   cursor: pointer;
   padding: 0.3rem 0.45rem;
   border-radius: var(--radius-sm);
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
 .cardBtn:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   color: var(--text-1);
 }
 
 .cardBody {
-  padding: 1rem;
+  padding: var(--space-lg);
   min-width: 0;
   /* fill the card and scroll; flex column so a fill-height child (graph) stretches */
   flex: 1;
@@ -480,8 +483,8 @@
   width: 30px;
   height: 3px;
   border-radius: var(--radius-xs);
-  background: var(--border);
-  transition: background 0.15s, transform 0.15s ease;
+  background: var(--control-grip);
+  transition: background var(--dur-fast), transform var(--dur-fast) var(--motion-ease);
 }
 .resizeHandle:hover::after {
   background: var(--accent);
@@ -492,7 +495,7 @@
   font-size: 0.84rem;
   color: var(--text-3);
   font-family: var(--font-mono);
-  padding: 0.5rem 0.2rem;
+  padding: var(--space-sm) 0.2rem;
 }
 
 /* ── Quick actions ───────────────────────────────────────────────────────── */
@@ -511,12 +514,12 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1rem 0.5rem;
+  padding: var(--space-lg) var(--space-sm);
   color: var(--text-1);
   font-family: var(--font-body);
   font-size: 0.8rem;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.2s cubic-bezier(0.25, 1, 0.5, 1), background 0.15s;
+  transition: border-color var(--dur-fast), transform var(--dur-base) cubic-bezier(0.25, 1, 0.5, 1), background var(--dur-fast);
 }
 /* A soft violet "lamp" glow blooms behind the icon on hover — the Quiet Study
  * North Star: the accent lights the one thing you're reaching for. */
@@ -533,7 +536,7 @@
   filter: blur(6px);
   pointer-events: none;
   z-index: 0;
-  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: opacity var(--dur-base) var(--motion-ease), transform var(--dur-slow) cubic-bezier(0.25, 1, 0.5, 1);
 }
 .quickIcon,
 .quickLabel {
@@ -543,7 +546,7 @@
 .quickIcon {
   font-size: 1.25rem;
   display: inline-block;
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: transform var(--dur-base) cubic-bezier(0.25, 1, 0.5, 1);
 }
 .quickLabel {
   font-weight: 500;
@@ -603,9 +606,9 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 0.9rem 1rem;
+  padding: 0.9rem var(--space-lg);
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
 .learnCard:hover {
   border-color: var(--accent);
@@ -633,10 +636,14 @@
 }
 .progressFill {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, white));
-  transition: width 0.3s ease;
+  /* Fill is full-width and scaled on the X axis (compositor-only) rather than
+     animating `width`; transform-origin keeps it anchored to the left edge. */
+  transform-origin: left center;
+  transition: transform var(--dur-base) var(--motion-ease);
 }
 .learnProgress {
   font-size: 0.7rem;
@@ -658,9 +665,9 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 0.75rem 0.85rem;
+  padding: var(--space-md) 0.85rem;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
 .favCard:hover {
   border-color: var(--accent);
@@ -713,11 +720,11 @@
   border-radius: var(--radius-lg);
   padding: 0.8rem 0.9rem;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s, background 0.15s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast), background var(--dur-fast);
 }
 .insight[data-clickable='true']:hover {
   transform: translateY(-2px);
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
 }
 .insight:disabled {
   cursor: default;
@@ -776,7 +783,7 @@
 .graphStats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 .graphStat {
   display: flex;
@@ -786,7 +793,7 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.5rem 0.3rem;
+  padding: var(--space-sm) 0.3rem;
 }
 .graphStatVal {
   font-size: 1.1rem;
@@ -811,7 +818,7 @@
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dur-fast);
 }
 .openGraphBtn:hover {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
@@ -831,9 +838,9 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 0.75rem 0.9rem;
+  padding: var(--space-md) 0.9rem;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.12s;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
 }
 .project:hover {
   border-color: var(--border-hover);
@@ -879,12 +886,12 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-sm) 0.6rem;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .importItem:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   border-color: var(--border);
 }
 .importIcon {
@@ -915,7 +922,7 @@
 .taskList {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 .task {
   display: flex;
@@ -972,7 +979,7 @@
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
-  animation: taskSlide 1.3s ease-in-out infinite;
+  animation: taskSlide 1var(--dur-base) ease-in-out infinite;
 }
 @keyframes taskSlide {
   0% { transform: translateX(-100%); }
@@ -1020,7 +1027,7 @@
 .skeleton {
   background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
   background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  animation: shimmer 1var(--dur-slow) ease-in-out infinite;
 }
 .skeletonRows {
   display: flex;
@@ -1037,13 +1044,13 @@
   position: fixed;
   inset: 0;
   z-index: 1100;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
-  animation: fadeIn 0.18s ease-out;
+  padding: var(--space-xl);
+  animation: fadeIn var(--dur-fast) ease-out;
 }
 .customizePanel {
   width: 100%;
@@ -1052,8 +1059,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
-  padding: 1.2rem 1.25rem 1rem;
-  animation: popIn 0.2s ease-out;
+  padding: 1.2rem 1.25rem var(--space-lg);
+  animation: popIn var(--dur-base) ease-out;
 }
 .customizeHead {
   display: flex;
@@ -1080,15 +1087,15 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.5rem 0.4rem;
+  padding: var(--space-sm) 0.4rem;
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   color: var(--text-1);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
 .customizeRow:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 .customizeRow input {
   accent-color: var(--accent);
@@ -1106,7 +1113,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   margin-top: 1rem;
   padding-top: 0.8rem;
   border-top: 1px solid var(--border);
@@ -1119,7 +1126,7 @@
   padding: 0.4rem 0.85rem;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast), color var(--dur-fast);
 }
 .resetBtn:hover {
   border-color: var(--accent);

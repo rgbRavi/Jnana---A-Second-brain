@@ -3,10 +3,10 @@
 .jnana-workspace {
   max-width: 720px;
   margin: 0 auto;
-  padding: 2rem 1.5rem;
+  padding: var(--space-2xl) var(--space-xl);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: var(--space-2xl);
 }
 
 /* Composer */
@@ -23,7 +23,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border, #2e2e2e);
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary, #f0f0f0);
@@ -39,7 +39,7 @@
 .composer-body {
   background: transparent;
   border: none;
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   font-size: 0.95rem;
   line-height: 1.7;
   color: var(--text-primary, #f0f0f0);
@@ -59,7 +59,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1.25rem;
+  padding: var(--space-md) 1.25rem;
   border-top: 1px solid var(--border, #2e2e2e);
   background: var(--surface-raised, #222);
 }
@@ -74,11 +74,11 @@
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: 0.5rem 1.25rem;
+  padding: var(--space-sm) 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity var(--dur-fast);
 }
 
 .composer-save:hover:not(:disabled) {
@@ -94,13 +94,13 @@
 .note-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 .note-list-empty {
   color: var(--text-muted, #555);
   text-align: center;
-  padding: 2rem 0;
+  padding: var(--space-2xl) 0;
   font-size: 0.9rem;
 }
 
@@ -108,11 +108,11 @@
   background: var(--surface, #1a1a1a);
   border: 1px solid var(--border, #2e2e2e);
   border-radius: 10px;
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
 .note-card:hover {
@@ -139,8 +139,8 @@
   font-size: 1.2rem;
   cursor: pointer;
   line-height: 1;
-  padding: 0 0 0 0.5rem;
-  transition: color 0.1s;
+  padding: 0 0 0 var(--space-sm);
+  transition: color var(--dur-fast);
 }
 
 .note-card-delete:hover {

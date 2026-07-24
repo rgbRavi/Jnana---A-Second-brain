@@ -10,7 +10,7 @@ import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
-import { Home, PenLine, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
+import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
 import SidebarStyles from "./Sidebar.module.css"
 
 const ICONS = {
@@ -101,7 +101,7 @@ export function Sidebar() {
 
         <button
           type="button"
-          className={SidebarStyles.sidebarNavItem}
+          className={`${SidebarStyles.sidebarNavItem} ${SidebarStyles.quickNoteItem}`}
           onClick={handleQuickNote}
           title={collapsed ? "Quick Note" : undefined}
         >
@@ -143,7 +143,7 @@ export function Sidebar() {
               }}
               title={collapsed ? "Working Notes" : undefined}
             >
-              <span className={SidebarStyles.navIcon} aria-hidden="true"><PenLine size={16} /></span>
+              <span className={SidebarStyles.navIcon} aria-hidden="true"><PanelsTopLeft size={16} /></span>
               <span className={`${SidebarStyles.label} ${SidebarStyles.workingLabel}`}>
                 Working Notes
                 <span className={SidebarStyles.workingBadge}>

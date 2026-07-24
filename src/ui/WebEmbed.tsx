@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { ExternalLink, X } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fetchLinkPreview, domainOf, type LinkPreview } from '../core/linkPreview'
 import { useInView } from '../hooks/useInView'
@@ -61,8 +62,8 @@ export function WebEmbed({ url, compact = false, lazy = false }: Props) {
         <div className={styles.liveBar}>
           <span className={styles.liveDomain}>{domain}</span>
           <span className={styles.liveActions}>
-            <button className={styles.barBtn} onClick={open} title="Open in browser">Open ↗</button>
-            <button className={styles.barBtn} onClick={() => setLive(false)} title="Back to card">✕ Card</button>
+            <button className={styles.barBtn} onClick={open} title="Open in browser" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>Open <ExternalLink size={12} /></button>
+            <button className={styles.barBtn} onClick={() => setLive(false)} title="Back to card" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><X size={12} /> Card</button>
           </span>
         </div>
         <iframe
@@ -95,7 +96,7 @@ export function WebEmbed({ url, compact = false, lazy = false }: Props) {
         <div className={styles.title}>{loading ? 'Loading preview…' : title}</div>
         {!compact && preview?.description && <div className={styles.desc}>{preview.description}</div>}
         <div className={styles.actions}>
-          <button className={styles.actionBtn} onClick={open}>Open ↗</button>
+          <button className={styles.actionBtn} onClick={open} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>Open <ExternalLink size={12} /></button>
           <button className={styles.actionBtn} onClick={() => setLive(true)}>Live view</button>
         </div>
       </div>

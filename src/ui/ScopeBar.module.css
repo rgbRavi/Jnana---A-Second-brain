@@ -1,7 +1,7 @@
 .bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 
@@ -30,7 +30,7 @@
   font-family: var(--font-body);
   padding: 0.3rem 0.7rem;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
 
 .segBtn:not(:last-child) {
@@ -66,11 +66,11 @@
   color: var(--text-1);
   font-size: 0.78rem;
   font-family: var(--font-body);
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem var(--space-sm);
   cursor: pointer;
   outline: none;
   max-width: 180px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--dur-base) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .select:focus {

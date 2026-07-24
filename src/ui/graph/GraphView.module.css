@@ -1,0 +1,61 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+/* Optional "glowing gradient" backdrop for the graph (Display → Glowing
+   background). A soft, accent-tinted set of radial glows that slowly drift and
+   pulse — a rippling wash behind the nodes. It sits behind the (transparent)
+   graph canvas as the container's first child; painted in tree order it stays
+   under the graph but above the container background. Theme-reactive: the glow
+   is color-mixed from --accent, so it tracks Theme Studio. */
+.rippleBg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--graph-bg, #0d0d0f);
+}
+
+.rippleBg::before,
+.rippleBg::after {
+  content: '';
+  position: absolute;
+  inset: -35%;
+  will-change: transform, opacity;
+  filter: blur(48px);
+}
+
+/* Two offset layers with different drifts read as an organic ripple rather than
+   a single sloshing blob. */
+.rippleBg::before {
+  background:
+    radial-gradient(38% 38% at 28% 32%, color-mix(in srgb, var(--accent) 32%, transparent), transparent 70%),
+    radial-gradient(30% 30% at 72% 68%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%);
+  animation: graphRippleA 15s ease-in-out infinite;
+}
+
+.rippleBg::after {
+  background:
+    radial-gradient(34% 34% at 68% 30%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 72%),
+    radial-gradient(28% 28% at 40% 78%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  mix-blend-mode: screen;
+  animation: graphRippleB 21s ease-in-out infinite;
+}
+
+@keyframes graphRippleA {
+  0%, 100% { transform: translate(-4%, -3%) scale(1);    opacity: 0.55; }
+  50%      { transform: translate(5%, 4%)   scale(1.15); opacity: 0.9; }
+}
+
+@keyframes graphRippleB {
+  0%, 100% { transform: translate(4%, 3%)   scale(1.08); opacity: 0.4; }
+  50%      { transform: translate(-5%, -4%) scale(0.94); opacity: 0.72; }
+}
+
+/* Respect reduced-motion: keep the glow, drop the drift/pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .rippleBg::before,
+  .rippleBg::after {
+    animation: none;
+  }
+}

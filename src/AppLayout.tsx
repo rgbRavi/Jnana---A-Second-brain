@@ -24,6 +24,7 @@ import { setVaultScope } from "./core/ai";
 import { DEFAULT_VAULT_ID } from "./types";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
 import { useTheme } from "./hooks/useTheme";
+import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
@@ -47,6 +48,9 @@ function AppInner() {
     // theme (source of truth) and seeds built-in presets on first run — runs
     // once regardless of whether the user ever opens Settings → Appearance.
     useTheme()
+    // Load user-installed @font-face rules at boot so a theme using a custom
+    // family renders without opening Settings (mirrors useTheme's boot mount).
+    useInstalledFonts()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()

@@ -69,7 +69,7 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .btn,
@@ -80,7 +80,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s, opacity 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast), opacity var(--dur-fast);
 }
 
 .btn {
@@ -138,7 +138,7 @@
 .pickRow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   font-size: 0.84rem;
   color: var(--text-1);
   cursor: pointer;

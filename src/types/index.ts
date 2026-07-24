@@ -416,6 +416,9 @@ export interface ThemeTokens {
   '--text-2': string
   '--text-3': string
   '--danger': string
+  '--success': string
+  '--warning': string
+  '--star': string
   '--radius-sm': string
   '--radius-md': string
   '--radius-lg': string

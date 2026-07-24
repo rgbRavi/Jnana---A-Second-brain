@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -75,12 +75,12 @@
   color: var(--text-1);
   font-size: 0.88rem;
   font-family: var(--font-body);
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-sm) 0.6rem;
   cursor: pointer;
 }
 
 .itemActive {
-  background: var(--surface-2);
+  background: var(--surface-selected);
 }
 
 .itemIcon {
@@ -113,8 +113,8 @@
 
 .footer {
   display: flex;
-  gap: 1rem;
-  padding: 0.5rem 0.9rem;
+  gap: var(--space-lg);
+  padding: var(--space-sm) 0.9rem;
   border-top: 1px solid var(--border);
   font-size: 0.72rem;
   color: var(--text-3);

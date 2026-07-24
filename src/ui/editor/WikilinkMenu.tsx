@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link2, Plus } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { normalizeTitle, type TitledNote } from '../../core/markdown/wikilinks'
 import styles from './SlashMenu.module.css'
@@ -92,7 +93,7 @@ export function WikilinkMenu({ items, activeIndex, coords, onPick, onHover, onCl
           onPointerDown={(e) => { e.preventDefault(); onPick(item) }}
           onMouseEnter={() => onHover(i)}
         >
-          <span className={styles.icon} aria-hidden="true">{item.kind === 'note' ? '🔗' : '＋'}</span>
+          <span className={styles.icon} aria-hidden="true">{item.kind === 'note' ? <Link2 size={15} /> : <Plus size={15} />}</span>
           <span className={styles.label}>
             {item.kind === 'note' ? (item.title || 'Untitled') : <>Create “{item.title}”</>}
           </span>

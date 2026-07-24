@@ -21,15 +21,15 @@
   justify-content: center;
   gap: 0.35rem;
   padding: 0.4rem 0.6rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash-rgb), 0.04);
+  border: 1px solid rgba(var(--wash-rgb), 0.05);
   border-radius: 0.5rem;
   color: var(--text-2);
   font-size: 0.8rem;
   font-family: var(--font-body);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
 }
 
@@ -49,15 +49,15 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(var(--wash-rgb), 0.04);
+  border: 1px solid rgba(var(--wash-rgb), 0.05);
   color: var(--text-2);
   border-radius: 0.5rem;
   padding: 0.35rem 0.6rem;
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .iconBtn:hover:not(:disabled),
@@ -83,7 +83,7 @@
   overflow: hidden;
   white-space: nowrap;
   opacity: 0;
-  transition: max-width 0.18s ease, opacity 0.18s ease;
+  transition: max-width var(--dur-fast) var(--motion-ease), opacity var(--dur-fast) var(--motion-ease);
 }
 
 .iconBtn:hover .label,
@@ -119,7 +119,7 @@
 .check {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   padding: 0.4rem 0.45rem;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -128,7 +128,7 @@
 }
 
 .check:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
 }
 
 .check input {
@@ -178,8 +178,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.4rem 0.5rem;
+  gap: var(--space-sm);
+  padding: 0.4rem var(--space-sm);
   border-top: 1px solid var(--border);
 }
 

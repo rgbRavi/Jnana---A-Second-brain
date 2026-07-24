@@ -40,7 +40,7 @@
   position: absolute;
   z-index: 5;
   background: transparent;
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
 .dividerV {
   top: 0;
@@ -74,7 +74,7 @@
   margin: 0.35rem;
   background: var(--surface);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
 .groupActive {
@@ -110,7 +110,7 @@
 .tabStrip {
   display: flex;
   align-items: stretch;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
   min-height: 38px;
@@ -137,11 +137,11 @@
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
 
 .tab:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
 }
 
@@ -173,7 +173,7 @@
 }
 
 .tabClose:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   color: var(--danger);
 }
 
@@ -205,7 +205,7 @@
 }
 
 .tabActionBtn:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
 }
 
@@ -220,7 +220,7 @@
   gap: 0.4rem;
   color: var(--text-3);
   text-align: center;
-  padding: 1.5rem;
+  padding: var(--space-xl);
 }
 
 .emptyGroupTitle {
@@ -240,7 +240,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: var(--space-2xl);
 }
 
 .emptyInner {

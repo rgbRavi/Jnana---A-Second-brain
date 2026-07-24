@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import styles from './ContextMenu.module.css'
 
@@ -87,7 +88,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
             }}
           >
             <span className={styles.itemLabel}>{item.label}</span>
-            {item.children && <span className={styles.submenuArrow} aria-hidden="true">▸</span>}
+            {item.children && <span className={styles.submenuArrow} aria-hidden="true"><ChevronRight size={14} /></span>}
           </button>
           {item.children && openSubmenu === i && (
             <div className={styles.submenu}>

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronsLeft, ChevronsRight, Pencil, Plus, X } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown } from 'lucide-react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
@@ -29,9 +29,13 @@ export function ChatHistory({ mode }: { mode: string }) {
   const [activeProjectId] = useViewState('ai.free.projectId', '')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameText, setRenameText] = useState('')
+  const [expandedChats, setExpandedChats] = useState(false)
+  const [aiMode, setAiMode] = useViewState('ai.mode', 'focused')
+  const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
 
-  const visible =
+  const allVisible =
     mode === 'chat' ? list.filter((c) => (c.projectId ?? '') === (activeProjectId ?? '')) : list
+  const visible = expandedChats ? allVisible : allVisible.slice(0, 5)
 
   const refresh = useCallback(() => {
     listConversations(mode, activeVaultId)
@@ -89,11 +93,15 @@ export function ChatHistory({ mode }: { mode: string }) {
           paddingRight: '0.6rem',
         }}
       >
-        <button onClick={() => setCollapsed(false)} title="Show chat history" aria-label="Show chat history" style={iconBtn}>
+        <button onClick={() => setCollapsed(false)} title="Expand side toolbar" aria-label="Expand side toolbar" style={iconBtn}>
           <ChevronsRight size={16} />
         </button>
         <button onClick={newChat} title="New chat" aria-label="New chat" style={{ ...iconBtn, color: '#fff', background: 'var(--accent)', border: 'none' }}>
           <Plus size={16} />
+        </button>
+        <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+        <button onClick={() => { setForceOpenProject(''); setAiMode('projects') }} title="Projects" aria-label="Projects" style={{ ...iconBtn, background: aiMode === 'projects' ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: aiMode === 'projects' ? 'var(--accent)' : 'var(--text-2)' }}>
+          <FolderKanban size={16} />
         </button>
       </div>
     )
@@ -129,7 +137,7 @@ export function ChatHistory({ mode }: { mode: string }) {
       }}
     >
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <button onClick={() => setCollapsed(true)} title="Collapse history" aria-label="Collapse history" style={iconBtn}>
+        <button onClick={() => setCollapsed(true)} title="Collapse side toolbar" aria-label="Collapse side toolbar" style={iconBtn}>
           <ChevronsLeft size={16} />
         </button>
         <button
@@ -148,6 +156,36 @@ export function ChatHistory({ mode }: { mode: string }) {
         >
           <Plus size={15} /> New chat
         </button>
+      </div>
+
+      <div style={{ marginTop: '0.2rem' }}>
+        <button
+          onClick={() => {
+            setForceOpenProject('')
+            setAiMode('projects')
+          }}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '0.5rem 0.6rem',
+            background: aiMode === 'projects' ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            color: aiMode === 'projects' ? 'var(--text-1)' : 'var(--text-2)',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: aiMode === 'projects' ? 600 : 500,
+            textAlign: 'left',
+          }}
+        >
+          <FolderKanban size={16} color={aiMode === 'projects' ? 'var(--accent)' : 'var(--text-2)'} /> Projects
+        </button>
+      </div>
+      
+      <div style={{ margin: '0.5rem 0 0.2rem', padding: '0 0.2rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Recent Chats
       </div>
 
       <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px', minHeight: 0 }}>
@@ -236,6 +274,30 @@ export function ChatHistory({ mode }: { mode: string }) {
             </div>
           )
         })}
+        
+        {allVisible.length > 5 && (
+          <button
+            onClick={() => setExpandedChats(!expandedChats)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              width: '100%',
+              padding: '0.4rem',
+              marginTop: '4px',
+              background: 'transparent',
+              border: '1px solid color-mix(in srgb, var(--border) 60%, transparent)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-2)',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            <ChevronDown size={14} style={{ transform: expandedChats ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            {expandedChats ? 'Show less' : `View more (${allVisible.length - 5})`}
+          </button>
+        )}
       </div>
     </div>
   )

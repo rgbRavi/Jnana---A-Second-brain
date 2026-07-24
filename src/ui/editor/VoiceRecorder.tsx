@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { Mic, Square } from 'lucide-react'
 import { toast } from '../../lib/toast'
 
 export interface VoiceRecorderHandle {
@@ -123,9 +124,10 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, Props>(function Voi
       onClick={recording ? stop : start}
       disabled={disabled}
       title={recording ? 'Stop recording' : 'Record audio'}
-      style={recording ? { color: 'var(--danger, #e5484d)' } : undefined}
+      aria-label={recording ? 'Stop recording' : 'Record audio'}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', ...(recording ? { color: 'var(--danger, #e5484d)' } : null) }}
     >
-      {recording ? `⏹ ${fmtElapsed(elapsed)}` : '🎙️'}
+      {recording ? <><Square size={13} fill="currentColor" /> {fmtElapsed(elapsed)}</> : <Mic size={16} />}
     </button>
   )
 })

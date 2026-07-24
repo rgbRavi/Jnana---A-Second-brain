@@ -12,11 +12,12 @@ import { setRetrievalScope } from '../../core/ai'
 import { AiChat } from '../../ui/ai/AiChat'
 import { FreeChat } from '../../ui/ai/FreeChat'
 import { ChatHistory } from '../../ui/ai/ChatHistory'
+import { ProjectsView } from './ProjectsView'
 import { ScopeBar } from '../../ui/ScopeBar'
 import { NoteModal } from '../../ui/NoteModal'
 import styles from '../../ui/ai/Ai.module.css'
 
-type AiMode = 'focused' | 'chat'
+type AiMode = 'focused' | 'chat' | 'projects'
 
 function Ai() {
   const { notes, update, updateTags } = useNotesContext()
@@ -74,7 +75,9 @@ function Ai() {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: '1rem', padding: '1rem 1.5rem', overflow: 'hidden' }}>
         <ChatHistory mode={mode} />
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          {mode === 'focused' ? (
+          {mode === 'projects' ? (
+            <ProjectsView />
+          ) : mode === 'focused' ? (
             <AiChat config={config} notes={notes} onOpenNote={setOpenNoteId} />
           ) : (
             <FreeChat config={config} notes={notes} />

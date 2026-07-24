@@ -11,6 +11,7 @@ pub mod data;
 pub mod embeddings;
 pub mod export;
 pub mod folders;
+pub mod fonts;
 pub mod notes;
 pub mod media;
 pub mod plugins;

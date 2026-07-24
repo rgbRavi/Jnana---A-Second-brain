@@ -4,13 +4,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-sm) var(--space-md);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   cursor: text;
   min-height: 38px;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
 .tagEditor:focus-within {
@@ -21,7 +21,7 @@
 .tagEditor.disabled {
   background: transparent;
   border-color: transparent;
-  padding: 0.5rem 0;
+  padding: var(--space-sm) 0;
   min-height: auto;
 }
 
@@ -63,7 +63,7 @@
   opacity: 0.6;
   display: flex;
   align-items: center;
-  transition: opacity 0.1s;
+  transition: opacity var(--dur-fast);
 }
 
 .tagChipRemove:hover {
