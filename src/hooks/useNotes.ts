@@ -4,7 +4,7 @@
 // src/hooks/useNotes.ts
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Note } from '../types/index'
-import { getAllNotes, saveNote, deleteNote, syncLinksForNote } from '../core/notes'
+import { getAllNotes, saveNote, trashNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
 import { getActiveVaultId } from './useVaults'
 import { getGeneralSettings } from './useGeneralSettings'
@@ -153,8 +153,8 @@ export function useNotes() {
     }
     // Optimistic — remove immediately
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    await deleteNote(id)
-    // deleteNote already emits 'note:deleted' in core/notes.ts —
+    await trashNote(id)
+    // trashNote already emits 'note:deleted' in core/notes.ts —
     // we don't emit again here to avoid double-fire.
     return true
   }, [])
