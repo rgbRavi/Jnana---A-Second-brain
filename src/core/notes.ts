@@ -24,6 +24,38 @@ export async function deleteNote(id: string): Promise<void> {
   eventBus.emit('note:deleted', { id })
 }
 
+export interface TrashedNote {
+  id: string
+  title: string
+  deletedAt: number
+}
+
+/** Soft-delete: move a note to Trash. Emits `note:deleted` so open tabs, the
+ *  graph, and other views drop it — same app-facing effect as a hard delete. */
+export async function trashNote(id: string): Promise<void> {
+  await invoke<void>('trash_note', { id })
+  eventBus.emit('note:deleted', { id })
+}
+
+/** Restore a trashed note; returns the full note so callers can re-surface it. */
+export async function restoreNote(id: string): Promise<Note> {
+  return invoke<Note>('restore_note', { id })
+}
+
+export async function listTrashedNotes(): Promise<TrashedNote[]> {
+  return invoke<TrashedNote[]>('list_trashed_notes')
+}
+
+/** Permanently delete every trashed note. Returns the count removed. */
+export async function emptyTrash(): Promise<number> {
+  return invoke<number>('empty_trash')
+}
+
+/** Purge trashed notes older than `retentionDays` (<=0 = keep forever). Count removed. */
+export async function purgeExpiredTrash(retentionDays: number): Promise<number> {
+  return invoke<number>('purge_expired_trash', { retentionDays })
+}
+
 export async function getLinks(noteId: string): Promise<string[]> {
   return invoke<string[]>('get_links', { noteId })
 }
