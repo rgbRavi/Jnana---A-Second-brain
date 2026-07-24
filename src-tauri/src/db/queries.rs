@@ -48,7 +48,7 @@ pub fn insert_or_update_note(conn: &Connection, note: &NoteRow) -> Result<()> {
 pub fn fetch_all_notes(conn: &Connection) -> Result<Vec<NoteRow>> {
     let mut stmt = conn.prepare(
         "SELECT id, title, content, tags, created_at, updated_at, folder_id, vault_id, kind
-         FROM notes ORDER BY updated_at DESC",
+         FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(NoteRow {
@@ -100,6 +100,48 @@ pub fn remove_note(conn: &Connection, id: &str) -> Result<()> {
     // deleting the note automatically cleans up links, media_refs, and annotations.
     conn.execute("DELETE FROM notes WHERE id = ?1", params![id])?;
     Ok(())
+}
+
+// ─── Trash (soft-delete) ────────────────────────────────
+
+/// Soft-delete: mark a note trashed. No-op if already trashed or missing.
+pub fn trash_note(conn: &Connection, id: &str, at: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE notes SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
+        params![id, at],
+    )?;
+    Ok(())
+}
+
+/// Restore a trashed note (clears deleted_at).
+pub fn restore_note(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("UPDATE notes SET deleted_at = NULL WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// Trashed notes, newest-deleted first: (id, title, deleted_at).
+pub fn fetch_trashed_notes(conn: &Connection) -> Result<Vec<(String, String, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, deleted_at FROM notes
+         WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    rows.collect()
+}
+
+/// All trashed note ids (for Empty Trash).
+pub fn fetch_trashed_ids(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT id FROM notes WHERE deleted_at IS NOT NULL")?;
+    let rows = stmt.query_map([], |r| r.get(0))?;
+    rows.collect()
+}
+
+/// Trashed note ids deleted before `cutoff` (for the retention sweep).
+pub fn fetch_expired_trash_ids(conn: &Connection, cutoff: i64) -> Result<Vec<String>> {
+    let mut stmt =
+        conn.prepare("SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?1")?;
+    let rows = stmt.query_map(params![cutoff], |r| r.get(0))?;
+    rows.collect()
 }
 
 // ─── Links ──────────────────────────────────────────────
@@ -1296,6 +1338,38 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         run_migrations(&mut conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn trash_hides_then_restore_shows() {
+        let conn = setup_db();
+        conn.execute(
+            "INSERT INTO notes (id, title, content, tags, created_at, updated_at)
+             VALUES ('n1', 'T', 'body', '[]', 1, 1)",
+            [],
+        )
+        .unwrap();
+
+        // Live note is listed, trash is empty.
+        assert_eq!(fetch_all_notes(&conn).unwrap().len(), 1);
+        assert_eq!(fetch_trashed_notes(&conn).unwrap().len(), 0);
+
+        // Trash it: gone from live, present in trash.
+        trash_note(&conn, "n1", 5000).unwrap();
+        assert_eq!(fetch_all_notes(&conn).unwrap().len(), 0);
+        let trashed = fetch_trashed_notes(&conn).unwrap();
+        assert_eq!(trashed.len(), 1);
+        assert_eq!(trashed[0].0, "n1");
+        assert_eq!(trashed[0].2, 5000);
+
+        // Expiry: cutoff after 5000 selects it; before does not.
+        assert_eq!(fetch_expired_trash_ids(&conn, 6000).unwrap(), vec!["n1"]);
+        assert!(fetch_expired_trash_ids(&conn, 4000).unwrap().is_empty());
+
+        // Restore: back in live, empty trash.
+        restore_note(&conn, "n1").unwrap();
+        assert_eq!(fetch_all_notes(&conn).unwrap().len(), 1);
+        assert_eq!(fetch_trashed_notes(&conn).unwrap().len(), 0);
     }
 
     #[test]
