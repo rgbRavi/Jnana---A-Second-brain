@@ -7,7 +7,7 @@
 // app's conventions (no UI library — see CLAUDE.md React-19 / pointer-event
 // notes). Low-chrome and thin-stroked to sit alongside the lucide iconography.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown } from 'lucide-react'
 import styles from './SettingControls.module.css'
@@ -219,6 +219,49 @@ function Row({
       <span className={styles.selectRowLabel}>{option.label}</span>
       {selected && <Check size={14} strokeWidth={2} className={styles.selectCheck} />}
     </button>
+  )
+}
+
+// ─── Toggle (switch) ─────────────────────────────────────────────────────────
+
+export function SettingToggle({
+  checked,
+  onChange,
+  label,
+  hint,
+  ariaLabel,
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  /** Text beside the switch; clicking it toggles. Omit for a bare switch. */
+  label?: ReactNode
+  /** Trailing muted clause (rendered after an em dash). */
+  hint?: string
+  ariaLabel?: string
+}) {
+  const id = useId()
+  const button = (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      className={`${styles.switch} ${checked ? styles.switchOn : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className={styles.switchKnob} />
+    </button>
+  )
+  if (label == null) return button
+  return (
+    <div className={styles.toggleRow}>
+      {button}
+      <label htmlFor={id} className={styles.toggleLabel}>
+        {label}
+        {hint && <span className={styles.toggleHint}> — {hint}</span>}
+      </label>
+    </div>
   )
 }
 

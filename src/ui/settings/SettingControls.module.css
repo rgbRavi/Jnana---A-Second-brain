@@ -114,6 +114,58 @@
   color: var(--accent);
 }
 
+/* ── Toggle (switch) — matches the Plugins panel switch idiom ────────────── */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+}
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.switchOn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.switchKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-1);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-fast) var(--motion-ease);
+}
+.switchOn .switchKnob {
+  transform: translateX(16px);
+}
+
+/* Row wrapper: switch on the left, a clickable label + hint on the right. */
+.toggleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+.toggleLabel {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-1);
+  cursor: pointer;
+}
+.toggleHint {
+  color: var(--text-3);
+}
+
 /* ── Slider ─────────────────────────────────────────────────────────────── */
 .slider {
   position: relative;
@@ -130,7 +182,7 @@
 .sliderTrack {
   width: 100%;
   height: 4px;
-  border-radius: var(--radius-pill, 999px);
+  border-radius: 999px;
   background: var(--surface-3);
   overflow: hidden;
 }

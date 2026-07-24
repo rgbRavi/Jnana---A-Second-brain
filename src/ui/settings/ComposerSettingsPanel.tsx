@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useComposerOptions } from '../../hooks/useComposerOptions'
-import { SettingSelect, SettingSlider, type SelectOption } from './SettingControls'
+import { SettingSelect, SettingSlider, SettingToggle, type SelectOption } from './SettingControls'
 import styles from './ComposerSettingsPanel.module.css'
 
 const TABLE_MODE_OPTIONS: SelectOption[] = [
@@ -37,25 +37,21 @@ export function ComposerSettingsPanel() {
         <span className={styles.hint}>How see-through the collapsed pill is (0 = solid, 100 = clear).</span>
       </div>
 
-      <label className={styles.toggle}>
-        <input type="checkbox" checked={opts.glass} onChange={(e) => setOpts({ glass: e.target.checked })} />
-        <span>
-          Glass effect
-          <span className={styles.hint}> — frost/blur whatever is behind the pill</span>
-        </span>
-      </label>
+      <SettingToggle
+        checked={opts.glass}
+        onChange={(glass) => setOpts({ glass })}
+        label="Glass effect"
+        hint="frost/blur whatever is behind the pill"
+        ariaLabel="Glass effect"
+      />
 
-      <label className={styles.toggle}>
-        <input
-          type="checkbox"
-          checked={opts.rememberState}
-          onChange={(e) => setOpts({ rememberState: e.target.checked })}
-        />
-        <span>
-          Remember last state
-          <span className={styles.hint}> — reopen expanded or collapsed as you left it</span>
-        </span>
-      </label>
+      <SettingToggle
+        checked={opts.rememberState}
+        onChange={(rememberState) => setOpts({ rememberState })}
+        label="Remember last state"
+        hint="reopen expanded or collapsed as you left it"
+        ariaLabel="Remember last state"
+      />
 
       <div className={styles.field}>
         <div className={styles.fieldHead}>

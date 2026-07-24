@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useGeneralSettings } from '../../hooks/useGeneralSettings'
-import { SettingSelect, type SelectOption } from './SettingControls'
+import { SettingSelect, SettingToggle, type SelectOption } from './SettingControls'
 import styles from './GeneralSettingsPanel.module.css'
 
 const STARTUP_OPTIONS: SelectOption[] = [
@@ -46,14 +46,13 @@ export function GeneralSettingsPanel() {
         <span className={styles.hint}>"Last view" reopens wherever you left off.</span>
       </div>
 
-      <label className={styles.toggle}>
-        <input
-          type="checkbox"
-          checked={opts.confirmBeforeDelete}
-          onChange={(e) => setOpts({ confirmBeforeDelete: e.target.checked })}
-        />
-        <span>Confirm before deleting a note<span className={styles.hint}> — show a prompt so a stray click can't erase a note.</span></span>
-      </label>
+      <SettingToggle
+        checked={opts.confirmBeforeDelete}
+        onChange={(confirmBeforeDelete) => setOpts({ confirmBeforeDelete })}
+        label="Confirm before deleting a note"
+        hint="show a prompt so a stray click can't erase a note"
+        ariaLabel="Confirm before deleting a note"
+      />
 
       <div className={styles.field}>
         <label htmlFor="general-dateformat">Date format</label>

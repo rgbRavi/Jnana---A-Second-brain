@@ -24,23 +24,6 @@
   color: var(--text-1);
 }
 
-.toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  font-size: 0.85rem;
-  color: var(--text-1);
-  cursor: pointer;
-  line-height: 1.45;
-}
-
-.toggle input {
-  margin-top: 0.2rem;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
 .hint {
   font-size: 0.76rem;
   color: var(--text-3);
