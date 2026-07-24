@@ -12,6 +12,7 @@ import {
   rememberModel,
   type ModelKind,
 } from '../../core/ai'
+import { SettingSelect } from '../settings/SettingControls'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -64,13 +65,7 @@ function ProviderSection(p: ProviderSectionProps) {
       <div className={styles.fields}>
         <div className={styles.field}>
           <label className={styles.label}>Backend</label>
-          <select className={styles.select} value={p.provider} onChange={(e) => p.onProvider(e.target.value)}>
-            {p.options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <SettingSelect ariaLabel="Backend" value={p.provider} options={p.options} onChange={p.onProvider} />
         </div>
 
         <div className={styles.field}>

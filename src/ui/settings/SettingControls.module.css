@@ -1,0 +1,163 @@
+/* Theme-native Select + Slider for Settings. Low-chrome, thin-stroked. All
+   colour/space/radius from design tokens so they re-theme with everything else. */
+
+/* ── Select ─────────────────────────────────────────────────────────────── */
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.selectTrigger:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+.selectTrigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectChevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+}
+.selectTrigger:hover .selectChevron {
+  color: var(--text-2);
+}
+.selectChevronOpen {
+  transform: rotate(180deg);
+}
+
+.selectMenu {
+  position: fixed;
+  z-index: 1200;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: var(--space-3xs);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: settingMenuIn var(--dur-fast) var(--motion-ease);
+}
+@keyframes settingMenuIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.selectGroup {
+  display: flex;
+  flex-direction: column;
+}
+.selectGroupLabel {
+  padding: 0.4rem 0.55rem 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.selectRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0.42rem 0.55rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.selectRowActive {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+.selectRowSelected {
+  color: var(--accent);
+}
+.selectRowLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selectCheck {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* ── Slider ─────────────────────────────────────────────────────────────── */
+.slider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 20px;
+  cursor: pointer;
+  touch-action: none;
+}
+.slider:focus-visible {
+  outline: none;
+}
+
+.sliderTrack {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.sliderFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.sliderThumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-1);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(var(--wash-rgb), 0.12);
+  transform: translate(-50%, -50%);
+  transition: transform var(--dur-fast) var(--motion-ease), box-shadow var(--dur-fast) var(--motion-ease);
+  pointer-events: none;
+}
+.slider:hover .sliderThumb {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+.slider:active .sliderThumb {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+.slider:focus-visible .sliderThumb {
+  box-shadow: var(--shadow-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}

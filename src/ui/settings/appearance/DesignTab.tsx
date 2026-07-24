@@ -7,6 +7,7 @@ import type { UseThemeApi } from '../../../hooks/useTheme'
 import { useInstalledFonts } from '../../../hooks/useInstalledFonts'
 import type { ThemeFonts } from '../../../types'
 import { ColorField, Segmented, SliderField } from './controls'
+import { SettingSelect, type SelectOption, type SelectGroup } from '../SettingControls'
 import { FontManager } from './FontManager'
 import styles from './Appearance.module.css'
 
@@ -31,6 +32,7 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         <span className={styles.derivedSwatch} style={{ background: derived.hover }} title="Hover" />
         <span className={styles.derivedSwatch} style={{ background: derived.active }} title="Active" />
       </div>
+      <p className={styles.hint}>The highlight colour for buttons, links, and selections. Hover and active shades are derived automatically (swatches above).</p>
 
       <div className={styles.field}>
         <label>Base mode</label>
@@ -42,6 +44,7 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
             { value: 'light', label: 'Light' },
           ]}
         />
+        <p className={styles.hint}>Light or dark foundation for every surface and text colour.</p>
       </div>
 
       <div className={styles.field}>
@@ -58,39 +61,41 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         <p className={styles.hint}>Scales padding and gaps across the app.</p>
       </div>
 
-      <SliderField label="Corner radius" value={radius} min={0} max={22} suffix="px" onChange={setRadius} />
+      <SliderField
+        label="Corner radius"
+        value={radius}
+        min={0}
+        max={22}
+        suffix="px"
+        hint="Roundness of cards, buttons, inputs, and menus. 0 = sharp corners."
+        onChange={setRadius}
+      />
 
-      {FONT_ROLES.map(({ role, label }) => (
-        <div key={role} className={styles.field}>
-          <label>{label} font</label>
-          <select
-            className={styles.select}
-            value={theme.fonts[role]}
-            onChange={(e) => setFont(role, e.target.value)}
-          >
-            <optgroup label="Built-in">
-              {FONTS[role].map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.label}
-                  {f.note ? ` — ${f.note}` : ''}
-                </option>
-              ))}
-            </optgroup>
-            {installed.length > 0 && (
-              <optgroup label="Installed">
-                {installed.map((f) => (
-                  <option key={f.id} value={f.family}>
-                    {f.family}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-      ))}
+      <p className={styles.hint}>Interface = menus, lists, and controls. Reading = note reader body text. Monospace = code blocks.</p>
+      {FONT_ROLES.map(({ role, label }) => {
+        const fontOptions: (SelectOption | SelectGroup)[] = [
+          {
+            label: 'Built-in',
+            options: FONTS[role].map((f) => ({ value: f.id, label: f.note ? `${f.label} — ${f.note}` : f.label })),
+          },
+          ...(installed.length > 0
+            ? [{ label: 'Installed', options: installed.map((f) => ({ value: f.family, label: f.family })) }]
+            : []),
+        ]
+        return (
+          <div key={role} className={styles.field}>
+            <label>{label} font</label>
+            <SettingSelect
+              ariaLabel={`${label} font`}
+              value={theme.fonts[role]}
+              options={fontOptions}
+              onChange={(v) => setFont(role, v)}
+            />
+          </div>
+        )
+      })}
 
       <FontManager installed={installed} onInstall={install} onRemove={remove} />
-      <p className={styles.hint}>The note reader uses the Reading font + scale below.</p>
 
       <SliderField
         label="Reading scale"
@@ -99,6 +104,7 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         max={READING_SCALE_MAX}
         step={READING_SCALE_STEP}
         suffix="×"
+        hint="Text size in the note reader only (Interface stays fixed). Pairs with the Reading font above."
         onChange={(v) => patch({ readingScale: v })}
       />
     </div>

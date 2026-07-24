@@ -2,7 +2,13 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useComposerOptions } from '../../hooks/useComposerOptions'
+import { SettingSelect, SettingSlider, type SelectOption } from './SettingControls'
 import styles from './ComposerSettingsPanel.module.css'
+
+const TABLE_MODE_OPTIONS: SelectOption[] = [
+  { value: 'widget', label: 'Live table (grid with Edit button)' },
+  { value: 'inline', label: 'Raw CSV block' },
+]
 
 /** Settings → Composer: appearance & behavior of the floating note composer. */
 export function ComposerSettingsPanel() {
@@ -19,15 +25,14 @@ export function ComposerSettingsPanel() {
           <label htmlFor="composer-transparency">Transparency</label>
           <span className={styles.value}>{opts.transparency}%</span>
         </div>
-        <input
+        <SettingSlider
           id="composer-transparency"
-          type="range"
           min={0}
           max={100}
           step={5}
           value={opts.transparency}
-          className={styles.slider}
-          onChange={(e) => setOpts({ transparency: Number(e.target.value) })}
+          ariaLabel="Transparency"
+          onChange={(transparency) => setOpts({ transparency })}
         />
         <span className={styles.hint}>How see-through the collapsed pill is (0 = solid, 100 = clear).</span>
       </div>
@@ -56,15 +61,12 @@ export function ComposerSettingsPanel() {
         <div className={styles.fieldHead}>
           <label htmlFor="composer-table-mode">Tables while editing</label>
         </div>
-        <select
+        <SettingSelect
           id="composer-table-mode"
-          className={styles.select}
           value={opts.tableEditMode}
-          onChange={(e) => setOpts({ tableEditMode: e.target.value as typeof opts.tableEditMode })}
-        >
-          <option value="widget">Live table (grid with Edit button)</option>
-          <option value="inline">Raw CSV block</option>
-        </select>
+          options={TABLE_MODE_OPTIONS}
+          onChange={(v) => setOpts({ tableEditMode: v as typeof opts.tableEditMode })}
+        />
         <span className={styles.hint}>
           How a table looks in the editor. Read view always shows a rendered table either way.
         </span>

@@ -2,9 +2,10 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useGeneralSettings } from '../../hooks/useGeneralSettings'
+import { SettingSelect, type SelectOption } from './SettingControls'
 import styles from './GeneralSettingsPanel.module.css'
 
-const STARTUP_OPTIONS: { value: string; label: string }[] = [
+const STARTUP_OPTIONS: SelectOption[] = [
   { value: 'last', label: 'Last view I was on' },
   { value: '/', label: 'Home' },
   { value: '/notes', label: 'Notes' },
@@ -12,6 +13,18 @@ const STARTUP_OPTIONS: { value: string; label: string }[] = [
   { value: '/ai', label: 'AI' },
   { value: '/graph', label: 'Graph' },
   { value: '/workspaces', label: 'Workspaces' },
+]
+
+const DATE_OPTIONS: SelectOption[] = [
+  { value: 'locale', label: 'System default' },
+  { value: 'iso', label: '2026-03-09 (ISO)' },
+  { value: 'us', label: '3/9/2026 (US)' },
+  { value: 'eu', label: '9/3/2026 (EU)' },
+]
+
+const WEEK_OPTIONS: SelectOption[] = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'sunday', label: 'Sunday' },
 ]
 
 /** Settings → General: app-wide behaviour (startup, delete safety, dates). */
@@ -24,16 +37,12 @@ export function GeneralSettingsPanel() {
 
       <div className={styles.field}>
         <label htmlFor="general-startup">On launch, open</label>
-        <select
+        <SettingSelect
           id="general-startup"
-          className={styles.select}
           value={opts.startupView}
-          onChange={(e) => setOpts({ startupView: e.target.value as typeof opts.startupView })}
-        >
-          {STARTUP_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+          options={STARTUP_OPTIONS}
+          onChange={(v) => setOpts({ startupView: v as typeof opts.startupView })}
+        />
         <span className={styles.hint}>"Last view" reopens wherever you left off.</span>
       </div>
 
@@ -48,30 +57,22 @@ export function GeneralSettingsPanel() {
 
       <div className={styles.field}>
         <label htmlFor="general-dateformat">Date format</label>
-        <select
+        <SettingSelect
           id="general-dateformat"
-          className={styles.select}
           value={opts.dateFormat}
-          onChange={(e) => setOpts({ dateFormat: e.target.value as typeof opts.dateFormat })}
-        >
-          <option value="locale">System default</option>
-          <option value="iso">2026-03-09 (ISO)</option>
-          <option value="us">3/9/2026 (US)</option>
-          <option value="eu">9/3/2026 (EU)</option>
-        </select>
+          options={DATE_OPTIONS}
+          onChange={(v) => setOpts({ dateFormat: v as typeof opts.dateFormat })}
+        />
       </div>
 
       <div className={styles.field}>
         <label htmlFor="general-weekstart">Week starts on</label>
-        <select
+        <SettingSelect
           id="general-weekstart"
-          className={styles.select}
           value={opts.weekStart}
-          onChange={(e) => setOpts({ weekStart: e.target.value as typeof opts.weekStart })}
-        >
-          <option value="monday">Monday</option>
-          <option value="sunday">Sunday</option>
-        </select>
+          options={WEEK_OPTIONS}
+          onChange={(v) => setOpts({ weekStart: v as typeof opts.weekStart })}
+        />
       </div>
     </div>
   )
