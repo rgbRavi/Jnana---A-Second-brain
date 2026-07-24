@@ -10,6 +10,7 @@ import Search from "./views/search/Search";
 import Home from "./views/home/Home"
 import Ai from "./views/ai/Ai";
 import Settings from "./views/settings/Settings";
+import TrashView from "./views/trash/TrashView";
 import Workspaces from "./views/workspaces/Workspaces";
 import Workspace from "./views/workspaces/Workspace";
 
@@ -29,6 +30,7 @@ function App() {
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>
                                     <Route path = "/settings" element = {<Settings />}/>
+                                    <Route path = "/trash" element = {<TrashView />}/>
                             </Route>
                         </Routes>
                     </HashRouter>
