@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { eventBus } from "./lib/eventBus";
 import { log } from "./lib/logger";
@@ -174,7 +174,9 @@ function AppInner() {
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>
-                <Outlet />
+                <Suspense fallback={null}>
+                    <Outlet />
+                </Suspense>
                 {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
             {!inSettings && <RightRail />}
