@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { useActiveVaultId } from '../../hooks/useVaults'
@@ -40,6 +41,7 @@ function Notes() {
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
   const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
+  const navigate = useNavigate()
   const [search, setSearch] = useViewState('notes.search', '')
   const [filtersOpen, setFiltersOpen] = useViewState('notes.filtersOpen', false)
 
@@ -174,13 +176,22 @@ function Notes() {
         onToggleFilters={() => setFiltersOpen((v) => !v)}
         prefsKey={NOTES_PREFS_KEY}
         extraActions={
-          <button 
-            className={NoteStyles.workingBtn} 
-            onClick={() => setNotesSubView('working')}
-            title="Open Working Notes"
-          >
-            Working Notes
-          </button>
+          <>
+            <button
+              className={NoteStyles.workingBtn}
+              onClick={() => navigate('/trash')}
+              title="Open Trash"
+            >
+              Trash
+            </button>
+            <button
+              className={NoteStyles.workingBtn}
+              onClick={() => setNotesSubView('working')}
+              title="Open Working Notes"
+            >
+              Working Notes
+            </button>
+          </>
         }
       />
       {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
