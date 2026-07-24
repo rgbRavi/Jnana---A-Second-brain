@@ -14,6 +14,7 @@ describe('useGeneralSettings store', () => {
     expect(g.confirmBeforeDelete).toBe(true)
     expect(g.dateFormat).toBe('locale')
     expect(g.weekStart).toBe('monday')
+    expect(g.trashRetentionDays).toBe(30)
   })
 
   it('merges a partial patch and persists it', () => {

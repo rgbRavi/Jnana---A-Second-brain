@@ -19,6 +19,8 @@ export interface GeneralOptions {
   dateFormat: DateFormat
   /** First day of the week for any calendar/among-week UI. */
   weekStart: 'sunday' | 'monday'
+  /** Days a trashed note is kept before automatic purge. 0 = keep forever. */
+  trashRetentionDays: number
 }
 
 const STORAGE_KEY = 'jnana.general.options'
@@ -27,6 +29,7 @@ const DEFAULTS: GeneralOptions = {
   confirmBeforeDelete: true,
   dateFormat: 'locale',
   weekStart: 'monday',
+  trashRetentionDays: 30,
 }
 
 function load(): GeneralOptions {
