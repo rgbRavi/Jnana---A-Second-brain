@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-19T18:00:00Z",
+  "generatedAt": "2026-07-24T21:30:00Z",
   "title": "Design System: Jnana",
   "extensions": {
     "colorMeta": {
@@ -71,7 +71,7 @@
       "refersTo": "input",
       "description": "Single-line text field. Sits on --bg, below its surface; focus shifts the border to accent (no glow).",
       "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search notes…\" />",
-      "css": ".ds-input { width: 100%; background: var(--bg, #0d0d0f); border: 1px solid var(--border, #2a2a32); border-radius: var(--radius-sm, 6px); color: var(--text-1, #f0eff5); padding: 0.6rem 0.7rem; font-family: Inter, sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.15s; } .ds-input::placeholder { color: var(--text-3, #55535f); } .ds-input:focus { border-color: var(--accent, #7c6af7); }"
+      "css": ".ds-input { width: 100%; background: var(--bg, #0d0d0f); border: 1px solid var(--border, #2a2a32); border-radius: var(--radius-sm, 6px); color: var(--text-1, #f0eff5); padding: 0.6rem 0.7rem; font-family: Inter, sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.15s; } .ds-input::placeholder { color: var(--text-3, #6d6b75); } .ds-input:focus { border-color: var(--accent, #7c6af7); }"
     },
     {
       "name": "Content Card",
