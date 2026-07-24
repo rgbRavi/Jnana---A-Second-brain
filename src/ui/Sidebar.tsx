@@ -10,7 +10,6 @@ import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
-import { setViewState } from "../hooks/useViewState"
 import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
 import SidebarStyles from "./Sidebar.module.css"
 
@@ -269,20 +268,10 @@ export function Sidebar() {
           </div>
         )}
 
-        <button
-          type="button"
-          className={itemClass(pathname === "/settings")}
-          title={collapsed ? "Settings" : undefined}
-          onClick={() => {
-            // Remember where we came from so Settings' Back button returns there.
-            // Never record /settings itself (reopening from within must not trap).
-            if (pathname !== "/settings") setViewState<string>("settings.returnTo", pathname)
-            navigate("/settings")
-          }}
-        >
+        <NavLink to="/settings" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Settings" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.settings}</span>
           <span className={SidebarStyles.label}>Settings</span>
-        </button>
+        </NavLink>
       </div>
     </aside>
   )

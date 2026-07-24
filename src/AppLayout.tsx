@@ -83,6 +83,16 @@ function AppInner() {
             /* storage unavailable */
         }
     }, [pathname])
+    // Capture the route we came from whenever Settings opens, from ANY entry point
+    // (sidebar, command palette, dashboard, in-view links) — so Settings' Back
+    // button returns there. Central so no entry point has to remember to do it.
+    const prevPathRef = useRef(pathname)
+    useEffect(() => {
+        if (pathname === "/settings" && prevPathRef.current !== "/settings") {
+            setViewState<string>("settings.returnTo", prevPathRef.current)
+        }
+        prevPathRef.current = pathname
+    }, [pathname])
     // Ctrl/⌘+Shift+E — jump to the Working Notes desk from anywhere; when already
     // on /notes it toggles back to the gallery. Non-intrusive (no existing binding)
     // and intuitive ("E" for the editor desk).
