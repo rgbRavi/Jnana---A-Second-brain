@@ -27,6 +27,13 @@ const WEEK_OPTIONS: SelectOption[] = [
   { value: 'sunday', label: 'Sunday' },
 ]
 
+const RETENTION_OPTIONS: SelectOption[] = [
+  { value: '7', label: '7 days' },
+  { value: '14', label: '14 days' },
+  { value: '30', label: '30 days' },
+  { value: '0', label: 'Forever' },
+]
+
 /** Settings → General: app-wide behaviour (startup, delete safety, dates). */
 export function GeneralSettingsPanel() {
   const [opts, setOpts] = useGeneralSettings()
@@ -72,6 +79,17 @@ export function GeneralSettingsPanel() {
           options={WEEK_OPTIONS}
           onChange={(v) => setOpts({ weekStart: v as typeof opts.weekStart })}
         />
+      </div>
+
+      <div className={styles.field}>
+        <label htmlFor="general-trash-retention">Keep deleted notes for</label>
+        <SettingSelect
+          id="general-trash-retention"
+          value={String(opts.trashRetentionDays)}
+          options={RETENTION_OPTIONS}
+          onChange={(v) => setOpts({ trashRetentionDays: Number(v) })}
+        />
+        <span className={styles.hint}>Notes in Trash are permanently deleted after this long. Restore them any time before then.</span>
       </div>
     </div>
   )
