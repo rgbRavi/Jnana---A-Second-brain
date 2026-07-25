@@ -72,7 +72,7 @@ Jnana is a local-first desktop knowledge app for students and researchers, built
 ### Notes
 - Everything is local-first; no user data is uploaded unless configured for cloud AI providers.
 - AI and transcription are optional; local Whisper server and Ollama support are available.
-- Current schema version is 12, with migrations supporting themes, media layout, workspace, and AI features.
+- Current schema version is 18, with migrations supporting themes, media layout, workspaces, AI features, folders/vaults, plugins, and Trash/soft-delete.
 
 ---
 

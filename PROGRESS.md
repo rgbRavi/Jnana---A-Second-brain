@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Next up:** Trash / soft-delete + retention ([plan](docs/superpowers/plans/2026-07-24-trash-soft-delete.md)); further settings features (auto-backup, storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **Next up:** auto-backup; further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
 
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
 ---
 
@@ -247,9 +247,11 @@ Notes:
 - foreign keys are enabled; child + junction rows cascade on delete (removing a note/workspace only
   drops association rows — notes themselves stay global)
 - WAL mode is enabled
-- schema versioning is **currently at v12** — migrations: v2 favourites, v3 embeddings, v4
+- schema versioning is **currently at v18** — migrations: v2 favourites, v3 embeddings, v4
   conversations, v5 ai_presets, v6 ai_projects(+knowledge, conversations.project_id), v7 note_progress,
-  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes, v12 note_media_layout. The
+  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes, v12 note_media_layout,
+  v13 folders (notes.folder_id), v14 vaults (notes/folders.vault_id), v15 workspaces/ai_projects.vault_id,
+  v16 conversations.vault_id, v17 notes.kind + plugin_kv, v18 notes.deleted_at (Trash/soft-delete). The
   migration test in `db/schema.rs` asserts this version + expected tables.
 - `themes.json` is an opaque blob the frontend owns (like canvas `data` / conversation `messages`) —
   Rust never parses it. The active theme lives in a sentinel row (`id = '__active__'`) so it
