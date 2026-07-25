@@ -26,6 +26,7 @@ const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
     (17, migrate_v17),
     (18, migrate_v18),
     (19, migrate_v19),
+    (20, migrate_v20),
 ];
 
 /// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
@@ -37,7 +38,7 @@ pub const DEFAULT_VAULT_ID: &str = "vault-default";
 /// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
 /// decide whether an existing DB is about to be upgraded (and so should be
 /// snapshotted first). Bump this when you add a `migrate_vN`.
-pub const LATEST_VERSION: i32 = 19;
+pub const LATEST_VERSION: i32 = 20;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -614,6 +615,27 @@ fn migrate_v19(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V20: Searchable attachment text. Extracted plain text from a note's PDF
+/// (and, later, other document) attachments, so PDF contents become findable by
+/// keyword and semantic search. One row per (note, file); re-extraction replaces
+/// it. Keyed by note so it cascades on note delete. `text` is opaque to Rust.
+fn migrate_v20(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS attachment_text (
+            note_id    TEXT NOT NULL,
+            filename   TEXT NOT NULL,
+            text       TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (note_id, filename),
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (20);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -631,7 +653,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
-        assert_eq!(LATEST_VERSION, 19);
+        assert_eq!(LATEST_VERSION, 20);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -657,6 +679,7 @@ mod tests {
         assert!(tables.contains(&"folders".to_string()));
         assert!(tables.contains(&"vaults".to_string()));
         assert!(tables.contains(&"plugin_kv".to_string()));
+        assert!(tables.contains(&"attachment_text".to_string()));
 
         // v18 added notes.deleted_at
         let has_deleted_at: bool = conn
