@@ -1328,6 +1328,57 @@ pub fn set_media_layout(conn: &Connection, note_id: &str, media_key: &str, json:
     Ok(())
 }
 
+/// Insert or replace the extracted text for one (note, file) attachment.
+pub fn upsert_attachment_text(
+    conn: &Connection,
+    note_id: &str,
+    filename: &str,
+    text: &str,
+    updated_at: i64,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO attachment_text (note_id, filename, text, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(note_id, filename) DO UPDATE SET text = ?3, updated_at = ?4",
+        params![note_id, filename, text, updated_at],
+    )?;
+    Ok(())
+}
+
+/// All extracted attachment text for a single note, concatenated (one file's
+/// text per paragraph). Empty string when the note has no attachments.
+pub fn fetch_attachment_text_for_note(
+    conn: &Connection,
+    note_id: &str,
+) -> Result<String> {
+    let mut stmt = conn.prepare(
+        "SELECT text FROM attachment_text WHERE note_id = ?1 ORDER BY filename",
+    )?;
+    let rows = stmt.query_map([note_id], |r| r.get::<_, String>(0))?;
+    let mut parts: Vec<String> = Vec::new();
+    for r in rows {
+        parts.push(r?);
+    }
+    Ok(parts.join("\n\n"))
+}
+
+/// Every note's aggregated attachment text, for a bulk index build. Returns
+/// `(note_id, joined_text)` with one entry per note that has any attachment text.
+pub fn fetch_all_attachment_text(
+    conn: &Connection,
+) -> Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT note_id, GROUP_CONCAT(text, '\n\n') AS text
+         FROM attachment_text GROUP BY note_id",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let mut out: Vec<(String, String)> = Vec::new();
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
