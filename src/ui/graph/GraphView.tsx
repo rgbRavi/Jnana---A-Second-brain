@@ -724,6 +724,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     }
     const pseudoNodes = new Map<string, any>()
     for (const n of visibleNodes) {
+      // Typed notes (e.g. canvas) store non-markdown JSON — never scan for wikilinks.
+      if (n.kind) continue
       for (const title of extractWikilinkTitles(n.content)) {
         const key = normalizeTitle(title)
         if (!key || titleToId.has(key)) continue
@@ -875,7 +877,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       if (!ok) return
       const key = normalizeTitle(name)
       const referencing = graphData.nodes.filter((n) =>
-        extractWikilinkTitles(n.content).some((t) => normalizeTitle(t) === key),
+        !n.kind && extractWikilinkTitles(n.content).some((t) => normalizeTitle(t) === key),
       )
       try {
         const created = await onCreate(name, '')

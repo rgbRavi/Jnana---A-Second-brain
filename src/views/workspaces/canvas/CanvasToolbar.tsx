@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import {
   ChevronDown,
+  Download,
   Eraser,
   Hand,
   ImageUp,
@@ -41,6 +42,11 @@ interface Props {
   onEraserSize: (s: number) => void
   interactWhileDrawing: boolean
   onInteractWhileDrawing: (v: boolean) => void
+  snapEnabled: boolean
+  onToggleSnap: (v: boolean) => void
+  showWikilinkEdges: boolean
+  onToggleWikilinkEdges: (v: boolean) => void
+  onExport: () => void
   canUndo: boolean
   canRedo: boolean
   onUndo: () => void
@@ -63,6 +69,7 @@ type PopoverKey = 'color' | 'size' | 'eraser' | 'settings'
 export function CanvasToolbar({
   mode, onSetMode, drawTool, onSetDrawTool, color, onColor, penSize, onPenSize,
   eraserMode, onEraserMode, eraserSize, onEraserSize, interactWhileDrawing, onInteractWhileDrawing,
+  snapEnabled, onToggleSnap, showWikilinkEdges, onToggleWikilinkEdges, onExport,
   canUndo, canRedo, onUndo, onRedo,
   onAddText, onAddNote, onAddMedia, onAddWeb, scale, onZoom, onFit,
   background, onSetBackgroundColor, onUploadBackgroundImage, onResetBackground,
@@ -239,6 +246,7 @@ export function CanvasToolbar({
       <span className={styles.zoomLabel}>{Math.round(scale * 100)}%</span>
       <button className={styles.toolBtn} onClick={() => onZoom(1)} title="Zoom in" aria-label="Zoom in"><Plus size={16} /></button>
       <button className={styles.toolBtn} onClick={onFit} title="Fit to content"><Maximize size={15} /> Fit</button>
+      <button className={styles.toolBtn} onClick={onExport} title="Export as PNG"><Download size={15} /> Export</button>
 
       <span className={styles.toolSep} />
 
@@ -253,6 +261,14 @@ export function CanvasToolbar({
                 onChange={(e) => onInteractWhileDrawing(e.target.checked)}
               />
               Allow move &amp; resize while drawing
+            </label>
+            <label className={styles.popoverRow}>
+              <input type="checkbox" checked={snapEnabled} onChange={(e) => onToggleSnap(e.target.checked)} />
+              Snap &amp; align while dragging
+            </label>
+            <label className={styles.popoverRow}>
+              <input type="checkbox" checked={showWikilinkEdges} onChange={(e) => onToggleWikilinkEdges(e.target.checked)} />
+              Show wikilink connections (dotted)
             </label>
 
             <div className={styles.popoverSep} />

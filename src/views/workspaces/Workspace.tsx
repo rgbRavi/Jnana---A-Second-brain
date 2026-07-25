@@ -26,7 +26,7 @@ import { WorkspaceNotes } from './WorkspaceNotes'
 import { WorkspaceDashboard } from './WorkspaceDashboard'
 import { WorkspaceInsights } from './WorkspaceInsights'
 import { WorkspaceEditDialog } from './WorkspaceEditDialog'
-import { CanvasBoard } from './canvas/CanvasBoard'
+import { WorkspaceCanvasList } from './canvas/WorkspaceCanvasList'
 import styles from './Workspaces.module.css'
 
 function Workspace() {
@@ -177,7 +177,7 @@ function Workspace() {
         {tab === 'graph' && (
           <GraphView onCreate={create} onUpdate={update} onRemove={remove} scopeIds={scopeIds} instanceKey={`ws:${id}`} />
         )}
-        {tab === 'canvas' && <CanvasBoard workspaceId={id} />}
+        {tab === 'canvas' && <WorkspaceCanvasList workspaceId={id} />}
         {tab === 'insights' && <WorkspaceInsights workspaceId={id} />}
       </div>
 

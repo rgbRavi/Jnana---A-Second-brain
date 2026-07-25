@@ -19,6 +19,8 @@ import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
 import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
 import { setNotesSubView } from './working/useWorkingLayout'
+import { CANVAS_NOTE_KIND } from '../../plugins/canvas'
+import { EMPTY_CANVAS_CONTENT } from '../../plugins/canvas/canvasNote'
 
 import NoteStyles from './Notes.module.css'
 
@@ -28,7 +30,7 @@ import NoteStyles from './Notes.module.css'
 const PAGE = 24
 
 function Notes() {
-  const { notes: allNotes, loading, error, update, remove, updateTags } = useNotesContext()
+  const { notes: allNotes, loading, error, update, remove, updateTags, create } = useNotesContext()
   // The gallery is scoped to the active vault (Obsidian-style) — switching vaults
   // in the file explorer swaps which notes appear here.
   const activeVaultId = useActiveVaultId()
@@ -42,6 +44,16 @@ function Notes() {
 
   const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
   const navigate = useNavigate()
+
+  const newCanvas = useCallback(async () => {
+    try {
+      const note = await create('Canvas', EMPTY_CANVAS_CONTENT, undefined, [], CANVAS_NOTE_KIND)
+      eventBus.emit('note:navigate', note)
+    } catch {
+      /* NotesContext surfaces its own errors */
+    }
+  }, [create])
+
   const [search, setSearch] = useViewState('notes.search', '')
   const [filtersOpen, setFiltersOpen] = useViewState('notes.filtersOpen', false)
 
@@ -177,6 +189,13 @@ function Notes() {
         prefsKey={NOTES_PREFS_KEY}
         extraActions={
           <>
+            <button
+              className={NoteStyles.workingBtn}
+              onClick={() => void newCanvas()}
+              title="Create a canvas note"
+            >
+              New canvas
+            </button>
             <button
               className={NoteStyles.workingBtn}
               onClick={() => navigate('/trash')}

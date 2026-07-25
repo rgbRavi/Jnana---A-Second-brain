@@ -28,6 +28,8 @@ import { showChoiceDialog } from '../../lib/dialog'
 import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { DEFAULT_VAULT_ID, type Folder, type Note } from '../../types'
+import { CANVAS_NOTE_KIND } from '../../plugins/canvas'
+import { EMPTY_CANVAS_CONTENT } from '../../plugins/canvas/canvasNote'
 import { Folder as FolderIcon, FolderOpen, FileText, ChevronRight, Plus } from 'lucide-react'
 import styles from './FolderTree.module.css'
 
@@ -182,23 +184,33 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
   )
 
   const handleNewNote = useCallback(
-    async (folderId: string) => {
+    async (folderId: string, kind?: string) => {
       try {
-        const note = await create('Untitled', '')
+        const isCanvas = kind === CANVAS_NOTE_KIND
+        const note = await create(
+          isCanvas ? 'Canvas' : 'Untitled',
+          isCanvas ? EMPTY_CANVAS_CONTENT : '',
+          undefined,
+          [],
+          kind,
+        )
         await setNoteFolder(note.id, folderId, vaultId)
         setFolderExpanded(folderId, true)
-        beginEdit('note', note.id, note.title)
+        // A canvas is edited on its board, not by renaming its tree label — open it.
+        if (isCanvas) openNote(note)
+        else beginEdit('note', note.id, note.title)
       } catch (e) {
         log.error('Failed to create note in folder', e)
         toast.error('Could not create note')
       }
     },
-    [create, vaultId, beginEdit],
+    [create, vaultId, beginEdit, openNote],
   )
 
   const folderMenu = useCallback(
     (folder: Folder): MenuItem[] => [
       { label: 'New note here', onClick: () => void handleNewNote(folder.id) },
+      { label: 'New canvas here', onClick: () => void handleNewNote(folder.id, CANVAS_NOTE_KIND) },
       { label: 'New sub-folder', onClick: () => void handleNewFolder(folder.id) },
       { label: 'Rename', onClick: () => beginEdit('folder', folder.id, folder.name) },
       { label: 'Delete', danger: true, separator: true, onClick: () => void handleDelete(folder) },

@@ -638,6 +638,77 @@
   text-align: center;
 }
 
+/* ── Read-only preview (canvas note View: gallery cards + modal peek) ── */
+.staticPreview {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle, var(--border) 1px, transparent 1px) 0 0 / 22px 22px;
+  background-color: var(--surface-2);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.staticEmpty {
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
+
+.wikilinkEdge {
+  opacity: 0.7;
+}
+
+/* ── Fullscreen canvas (note-type board only) ── */
+.boardFullscreen {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* `left` is set inline from the nav-sidebar width so the sidebar stays visible. */
+  z-index: 200;
+}
+
+.fsToggle {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  padding: 0.4rem;
+  cursor: pointer;
+}
+
+.fsToggle:hover {
+  color: var(--text-1);
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+
+.staticNode {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--text-1);
+  overflow: hidden;
+}
+
 /* ── Note picker ── */
 .overlay {
   position: fixed;

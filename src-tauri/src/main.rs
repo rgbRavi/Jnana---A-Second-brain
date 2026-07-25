@@ -308,6 +308,7 @@ fn main() {
             import_file,
             export_notes,
             write_text_file,
+            write_binary_file,
             export_assets,
             get_storage_stats,
             create_backup,

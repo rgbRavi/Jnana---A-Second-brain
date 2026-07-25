@@ -27,6 +27,37 @@
   gap: 0.9rem;
 }
 
+/* Canvas lens (workspace Canvas tab) */
+.tabHeaderRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.9rem;
+}
+
+.canvasCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--motion-ease),
+    background var(--dur-fast) var(--motion-ease);
+}
+
+.canvasCard:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+}
+
+.canvasCard .cardName {
+  padding: 0 var(--space-2xs) var(--space-2xs);
+}
+
 .card {
   position: relative;
   display: flex;

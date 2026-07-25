@@ -273,7 +273,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
 
       {mode === 'edit' ? (
         noteType ? (
-          <div className={Styles.readBody}>
+          <div className={Styles.typedFill}>
             <NoteTypeEditor note={note} value={content} onChange={setContent} />
           </div>
         ) : (

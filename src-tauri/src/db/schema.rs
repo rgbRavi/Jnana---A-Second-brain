@@ -25,6 +25,7 @@ const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
     (16, migrate_v16),
     (17, migrate_v17),
     (18, migrate_v18),
+    (19, migrate_v19),
 ];
 
 /// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
@@ -36,7 +37,7 @@ pub const DEFAULT_VAULT_ID: &str = "vault-default";
 /// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
 /// decide whether an existing DB is about to be upgraded (and so should be
 /// snapshotted first). Bump this when you add a `migrate_vN`.
-pub const LATEST_VERSION: i32 = 18;
+pub const LATEST_VERSION: i32 = 19;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -588,6 +589,31 @@ fn migrate_v18(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V19: Unify canvases into notes. Each per-workspace `canvases` row becomes a
+/// `notes` row with `kind='canvas'` (content = the board JSON) plus a
+/// `workspace_notes` junction row, so a canvas rides folders/vaults/search/export/
+/// trash like any note and can be created anywhere. The canvas id is reused as the
+/// note id (both UUIDs — no collision). The `canvases` table is intentionally left
+/// intact as a rollback net; removal is deferred to a later migration + command
+/// cleanup once this is proven in the field. Guards make the batch safe to re-run.
+fn migrate_v19(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        INSERT INTO notes (id, title, content, tags, kind, vault_id, folder_id, created_at, updated_at)
+        SELECT c.id, c.title, c.data, '[]', 'canvas',
+               COALESCE((SELECT w.vault_id FROM workspaces w WHERE w.id = c.workspace_id), 'vault-default'),
+               NULL, c.created_at, c.updated_at
+        FROM canvases c
+        WHERE NOT EXISTS (SELECT 1 FROM notes n WHERE n.id = c.id);
+
+        INSERT OR IGNORE INTO workspace_notes (workspace_id, note_id, pinned, added_at)
+        SELECT c.workspace_id, c.id, 0, c.created_at FROM canvases c;
+
+        INSERT INTO schema_version (version) VALUES (19);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,7 +631,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
-        assert_eq!(LATEST_VERSION, 18);
+        assert_eq!(LATEST_VERSION, 19);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -687,5 +713,48 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM favourites WHERE note_id='n1'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(fav, 1);
+    }
+
+    /// V19: a pre-existing per-workspace canvas becomes a `kind='canvas'` note
+    /// filed into its workspace (junction row), reusing the canvas id.
+    #[test]
+    fn test_v19_canvas_becomes_note() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        // Old install stopped at v18 (canvases + workspaces exist; kind column present).
+        migrate_to(&mut conn, 18).unwrap();
+
+        conn.execute(
+            "INSERT INTO workspaces (id, name, created_at, updated_at) VALUES ('ws1','WS',1,1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO canvases (id, workspace_id, title, data, created_at, updated_at)
+             VALUES ('cv1','ws1','My Board','{\"nodes\":[],\"edges\":[],\"drawings\":[]}',1,1)",
+            [],
+        )
+        .unwrap();
+
+        // Apply v19.
+        run_migrations(&mut conn).unwrap();
+
+        let (kind, content): (String, String) = conn
+            .query_row(
+                "SELECT kind, content FROM notes WHERE id='cv1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(kind, "canvas");
+        assert!(content.contains("nodes"), "canvas JSON should carry over as note content");
+
+        let junction: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM workspace_notes WHERE workspace_id='ws1' AND note_id='cv1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(junction, 1);
     }
 }
