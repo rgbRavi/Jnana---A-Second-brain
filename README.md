@@ -67,6 +67,9 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Full-text search** (MiniSearch) across titles, tags, and content, with sensible boosting
 - **Tags** — your own tags plus automatic ones (`has:image`, `has:pdf`, `long-form`, …)
 - **Favourites** for quick access
+- **Trash** — deleting a note moves it to the Trash (soft-delete) instead of destroying it; **Restore**
+  it, **Delete forever**, or **Empty Trash** from the Trash view, with a configurable auto-purge retention
+  (Settings → General)
 
 ### Knowledge graph
 - Interactive force-directed graph of your notes and their links
