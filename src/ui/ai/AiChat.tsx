@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useMemo, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
 import { useViewState, getViewState } from '../../hooks/useViewState'
@@ -181,6 +182,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
   const [input, setInput] = useViewState('ai.input', '')
   const [busy, setBusy] = useViewState('ai.busy', false)
   const [error, setError] = useViewState<string | null>('ai.error', null)
+  
+  // Check if history sidebar is collapsed to widen the chat.
+  const [collapsed] = useViewState('ai.history.collapsed', false)
+
+  const [filterPickerOpen, setFilterPickerOpen] = useState(false)
+  const [modePickerOpen, setModePickerOpen] = useState(false)
 
   // ── History wiring (load/new from the drawer; persist after each turn) ──
   const loadConv = useCallback(
@@ -393,22 +400,87 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       {/* ── Scope bar (fixed header) ── */}
       <div className={styles.scopeBar}>
         <div className={styles.scopeChips}>
-          <span className={styles.scopeLabel}>Scope</span>
-          {(
-            [
-              ['topic', 'Topic'],
-              ['time', 'Time'],
-              ['note', 'Note'],
-            ] as [ScopeKind, string][]
-          ).map(([k, label]) => (
+          <span className={styles.scopeLabel}>Filter by</span>
+          <div style={{ position: 'relative' }}>
             <button
-              key={k}
-              className={`${styles.btn} ${scopeKind === k ? styles.btnActive : ''}`}
-              onClick={() => switchScope(k)}
+              className={styles.btn}
+              onClick={() => setFilterPickerOpen(!filterPickerOpen)}
             >
-              {label}
+              {scopeKind === 'topic' ? 'Topic' : scopeKind === 'time' ? 'Time' : 'Note'} <ChevronDown size={14} style={{ opacity: 0.5, marginLeft: '4px' }} />
             </button>
-          ))}
+            {filterPickerOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                zIndex: 60,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                minWidth: '120px',
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
+                {(
+                  [
+                    ['topic', 'Topic'],
+                    ['time', 'Time'],
+                    ['note', 'Note'],
+                  ] as [ScopeKind, string][]
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: scopeKind === k ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer' }}
+                    onClick={() => { switchScope(k); setFilterPickerOpen(false) }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span className={styles.scopeLabel} style={{ marginLeft: '1rem' }}>Mode</span>
+          <div style={{ position: 'relative' }}>
+            <button
+              className={styles.btn}
+              onClick={() => setModePickerOpen(!modePickerOpen)}
+            >
+              {responseMode === 'analyze' ? 'Analyze' : responseMode === 'chat' ? 'Chat' : 'Quiz'} <ChevronDown size={14} style={{ opacity: 0.5, marginLeft: '4px' }} />
+            </button>
+            {modePickerOpen && (
+              <div style={{
+                position: 'absolute',
+                top: 'calc(100% + 4px)',
+                left: 0,
+                zIndex: 60,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+                minWidth: '120px',
+                display: 'flex',
+                flexDirection: 'column',
+              }}>
+                {(
+                  [
+                    ['analyze', 'Analyze'],
+                    ['chat', 'Chat'],
+                    ['quiz', 'Quiz'],
+                  ] as [ResponseMode, string][]
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: responseMode === k ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer' }}
+                    onClick={() => { setResponseMode(k); setModePickerOpen(false) }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {scopeKind === 'topic' && (
@@ -481,7 +553,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
 
       {/* ── Thread + status (scrolls) ── */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingTop: '1rem' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
       {thread.length > 0 && (
         <div className={styles.thread}>
           {thread.map((m, i) =>
@@ -524,30 +596,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
         </div>
       </div>
 
-      {/* ── Bottom bar: mode toggle + composer (pinned) ── */}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-      <div className={styles.modeToggle}>
-        <span className={styles.scopeLabel}>Mode</span>
-        <button
-          className={`${styles.btn} ${responseMode === 'analyze' ? styles.btnActive : ''}`}
-          onClick={() => setResponseMode('analyze')}
-        >
-          Analyze
-        </button>
-        <button
-          className={`${styles.btn} ${responseMode === 'chat' ? styles.btnActive : ''}`}
-          onClick={() => setResponseMode('chat')}
-        >
-          Chat
-        </button>
-        <button
-          className={`${styles.btn} ${responseMode === 'quiz' ? styles.btnActive : ''}`}
-          onClick={() => setResponseMode('quiz')}
-        >
-          Quiz
-        </button>
-      </div>
+      {/* ── Bottom bar: composer (pinned) ── */}
+      <div style={{ paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
 
       <div className={styles.chatInputRow}>
         <textarea

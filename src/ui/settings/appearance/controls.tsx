@@ -5,6 +5,7 @@
 // here rather than in src/ui/ since they're shaped specifically for the
 // Theme Studio editor (and aren't yet needed elsewhere).
 
+import { SettingSlider } from '../SettingControls'
 import styles from './Appearance.module.css'
 
 export function Segmented<T extends string>({
@@ -39,6 +40,7 @@ export function SliderField({
   max,
   step = 1,
   suffix = '',
+  hint,
   onChange,
 }: {
   label: string
@@ -47,6 +49,7 @@ export function SliderField({
   max: number
   step?: number
   suffix?: string
+  hint?: string
   onChange: (v: number) => void
 }) {
   return (
@@ -58,15 +61,8 @@ export function SliderField({
           {suffix}
         </span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        className={styles.slider}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
+      <SettingSlider min={min} max={max} step={step} value={value} onChange={onChange} ariaLabel={label} />
+      {hint && <p className={styles.hint}>{hint}</p>}
     </div>
   )
 }

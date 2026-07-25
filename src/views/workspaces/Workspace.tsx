@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Download, Pencil, Pin, PinOff, Trash2, X } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
@@ -98,7 +99,7 @@ function Workspace() {
     return (
       <div className={styles.page}>
         <button className={styles.backLink} onClick={() => navigate('/workspaces')}>
-          ← Workspaces
+          <ArrowLeft size={15} /> Workspaces
         </button>
         <p className={styles.empty}>Workspace not found.</p>
       </div>
@@ -111,14 +112,14 @@ function Workspace() {
     <div className={styles.page}>
       <div className={styles.topBar}>
         <button className={styles.backLink} onClick={() => navigate('/workspaces')}>
-          ← Workspaces
+          <ArrowLeft size={15} /> Workspaces
         </button>
         <button
           className={styles.closeLink}
           onClick={handleClose}
           title="Close workspace (remove from sidebar) and return"
         >
-          ✕ Close
+          <X size={15} /> Close
         </button>
       </div>
 
@@ -136,17 +137,18 @@ function Workspace() {
             className={styles.iconBtn}
             onClick={() => togglePinnedWorkspace(id)}
             title={pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
+            aria-label={pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
           >
-            {pinned ? '📌' : '📍'}
+            {pinned ? <Pin size={16} /> : <PinOff size={16} />}
           </button>
-          <button className={styles.iconBtn} onClick={handleExport} title="Export workspace notes">
-            ⤓
+          <button className={styles.iconBtn} onClick={handleExport} title="Export workspace notes" aria-label="Export workspace notes">
+            <Download size={16} />
           </button>
-          <button className={styles.iconBtn} onClick={() => setEditing(true)} title="Edit workspace">
-            ✎
+          <button className={styles.iconBtn} onClick={() => setEditing(true)} title="Edit workspace" aria-label="Edit workspace">
+            <Pencil size={16} />
           </button>
-          <button className={styles.iconBtn} onClick={handleDelete} title="Delete workspace">
-            🗑
+          <button className={styles.iconBtn} onClick={handleDelete} title="Delete workspace" aria-label="Delete workspace">
+            <Trash2 size={16} />
           </button>
         </div>
       </div>

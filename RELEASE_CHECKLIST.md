@@ -30,6 +30,10 @@ release; **High** before a public release; **Medium/Low** are non-blocking.
   native error dialog (open data folder / quit) then exits cleanly ([main.rs](src-tauri/src/main.rs)).
 - ✅ **CI pipeline** — GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
   `tsc --noEmit` + `vitest`, and a win/mac/linux matrix of `cargo test` + `cargo build` + `tauri build`.
+- ✅ **Installer workflow** — [.github/workflows/installers.yml](.github/workflows/installers.yml) builds
+  the packaged installers for **Linux (.deb/.rpm/.AppImage), Windows (.msi/.exe), and macOS (universal
+  .dmg)** on every push to `main` (and on-demand via *Run workflow*), uploading each platform's bundle
+  as a downloadable artifact. Still **unsigned** (see the signing blocker below).
 - ✅ **Edge-case panics fixed** — 0-byte-asset range underflow guarded ([main.rs](src-tauri/src/main.rs));
   `convert_to_pdf` no longer unwraps file-name / non-UTF-8 paths, and `import_media` sanitizes its
   extension like `save_asset`/`import_file` ([commands/media.rs](src-tauri/src/commands/media.rs)).
@@ -56,7 +60,10 @@ release; **High** before a public release; **Medium/Low** are non-blocking.
 ## High priority — before a public release
 
 - ✅ **CI pipeline** — added this pass ([.github/workflows/ci.yml](.github/workflows/ci.yml)): all four
-  checks + `tauri build` on a win/mac/linux matrix. First push validates it end-to-end.
+  checks + `tauri build` on a win/mac/linux matrix. First push validates it end-to-end. A separate
+  [installers.yml](.github/workflows/installers.yml) publishes the per-platform installers as artifacts
+  on each push to `main`. *(Ubuntu builds use `libayatana-appindicator3-dev` only — the Tauri-v1
+  `libappindicator3-dev` Conflicts with it and breaks apt on `ubuntu-latest`.)*
 - 🟡 **Update story documented; auto-updater still pending.** Manual-update path (data survives; where
   it lives) is now in the README "Updating" section, and the pre-migration auto-backup makes upgrades
   reversible. A real Tauri updater still needs a signing keypair + hosted endpoint — see

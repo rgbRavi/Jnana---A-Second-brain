@@ -1,9 +1,9 @@
 .contentContainer {
   /* extra bottom padding clears the floating composer pill */
-  padding: 1rem 2rem 7rem;
+  padding: var(--space-lg) var(--space-2xl) 7rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--space-xl);
 }
 
 .contentContainer h1 {
@@ -24,11 +24,11 @@
 
 .recentCards {
   display: flex;                 /* switch from grid → flex */
-  gap: 0.75rem;
+  gap: var(--space-md);
   overflow-x: auto;              /* enable horizontal scroll */
   overflow-y: hidden;
   scroll-behavior: smooth;
-  padding-bottom: 0.5rem;
+  padding-bottom: var(--space-sm);
   scroll-snap-type: x mandatory;
 }
 
@@ -40,12 +40,12 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1rem;
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease), box-shadow var(--dur-fast) var(--motion-ease);
 }
 
 .recentCard:hover {
@@ -85,7 +85,7 @@
 .scrollButtons {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   margin-top: 0.25rem;
 }
 
@@ -97,7 +97,7 @@
   cursor: pointer;
   color: var(--text-2);
   font-size: 0.85rem;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .scrollButtons button:hover {
@@ -109,7 +109,7 @@
   font-size: 0.8rem;
   font-family: var(--font-mono);
   color: var(--text-3);
-  padding: 0.5rem 0;
+  padding: var(--space-sm) 0;
 }
 
 /* ── Favourites widget ──────────────────────────────────────────────────────── */
@@ -123,13 +123,13 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem var(--space-md);
   font-size: 0.8rem;
   font-family: var(--font-body);
   color: var(--text-1);
   outline: none;
   width: 200px;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 .favouriteSearch:focus { border-color: var(--accent); }
 .favouriteSearch::placeholder { color: var(--text-3); }
@@ -137,7 +137,7 @@
 .favouriteCards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
+  gap: var(--space-md);
 }
 
 /* Override horizontal-scroll sizing from recentCard when inside the grid */
@@ -156,6 +156,6 @@
   font-family: var(--font-mono);
   color: var(--text-2);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .showMoreBtn:hover { border-color: var(--accent); color: var(--text-1); }

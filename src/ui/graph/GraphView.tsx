@@ -3,6 +3,7 @@
 
 // src/ui/graph/GraphView.tsx
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { Link2, Plus, RotateCcw, SlidersHorizontal, Unlink, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { useGraph } from '../../hooks/useGraph'
@@ -14,6 +15,7 @@ import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/
 import { toast } from '../../lib/toast'
 import { eventBus } from '../../lib/eventBus'
 import type { Note } from '../../types'
+import styles from './GraphView.module.css'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
 function escapeHtml(s: string): string {
@@ -42,11 +44,18 @@ const TAG_PALETTE = [
   '#56d4bc', '#ff8c42', '#d29922', '#6cb6ff', '#e5484d', '#8bd450',
 ]
 
-const DEFAULT_NODE_COLOR = '#55535f'
-const ORPHAN_COLOR = '#e3b341'
-const CONNECT_COLOR = '#3fb950'
+// Structural / label colors — re-themed live off design tokens on the same
+// `theme:changed` beat as the accent bindings below (readGraphColors reads them
+// from :root). Seeded with the dark-theme values so the first paint (before any
+// theme resolves) matches.
+let DEFAULT_NODE_COLOR = '#55535f' // --text-3
+let ORPHAN_COLOR = '#e3b341' // --warning
+let CONNECT_COLOR = '#3fb950' // --success
 // Faded outline for a pseudo-node (an unresolved `[[wikilink]]` target).
-const PSEUDO_COLOR = '#8b8794'
+let PSEUDO_COLOR = '#8b8794' // --text-2
+let PSEUDO_FILL = 'rgba(139, 135, 148, 0.25)' // translucent --text-2
+let LABEL_COLOR = '#f0eff5' // --text-1
+let LABEL_DIM_COLOR = '#9896a4' // --text-2
 
 // Accent-derived node colors — re-themed live. `nodeCanvasObject` below reads
 // these on every canvas paint (it's called continuously by react-force-graph,
@@ -56,16 +65,40 @@ const PSEUDO_COLOR = '#8b8794'
 // GraphView instances (main + per-workspace) can be mounted at once.
 let HUB_COLOR = '#7c6af7'
 let FOCUS_COLOR = '#7c6af7'
+// Translucent accent for link strokes. Canvas 2D can't resolve `var(--accent)`,
+// so we derive a concrete rgba() from the resolved accent (via the browser's own
+// parser) and re-derive it on `theme:changed`, same as HUB/FOCUS above.
+let LINK_COLOR = 'rgba(124, 106, 247, 0.4)'
 
-function readAccentColor(): void {
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
+function accentToRgba(color: string, alpha: number): string | null {
+  const probe = document.createElement('span')
+  probe.style.color = color
+  document.body.appendChild(probe)
+  const computed = getComputedStyle(probe).color
+  probe.remove()
+  const m = computed.match(/-?\d+(?:\.\d+)?/g)
+  return m && m.length >= 3 ? `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${alpha})` : null
+}
+
+function readGraphColors(): void {
+  const cs = getComputedStyle(document.documentElement)
+  const g = (k: string) => cs.getPropertyValue(k).trim()
+  const accent = g('--accent')
   if (accent) {
     HUB_COLOR = accent
     FOCUS_COLOR = accent
+    LINK_COLOR = accentToRgba(accent, 0.4) ?? accent
   }
+  DEFAULT_NODE_COLOR = g('--text-3') || DEFAULT_NODE_COLOR
+  ORPHAN_COLOR = g('--warning') || ORPHAN_COLOR
+  CONNECT_COLOR = g('--success') || CONNECT_COLOR
+  PSEUDO_COLOR = g('--text-2') || PSEUDO_COLOR
+  PSEUDO_FILL = accentToRgba(PSEUDO_COLOR, 0.25) ?? PSEUDO_FILL
+  LABEL_COLOR = g('--text-1') || LABEL_COLOR
+  LABEL_DIM_COLOR = g('--text-2') || LABEL_DIM_COLOR
 }
-readAccentColor()
-eventBus.on('theme:changed', readAccentColor)
+readGraphColors()
+eventBus.on('theme:changed', readGraphColors)
 
 // A note linked to this many or more notes (in + out) counts as a hub.
 const HUB_DEGREE = 4
@@ -140,6 +173,27 @@ function makeRadialForce(initial: number) {
   return force
 }
 
+// Gentle perpetual-motion force (Display → Keep nodes moving). Each tick it nudges
+// every node with a tiny random impulse. It's alpha-INDEPENDENT so the wiggle
+// persists after the layout settles; the existing charge/link/centre forces (run
+// with d3AlphaDecay=0, so they stay at full strength) net to ~zero at equilibrium
+// and gently restore each nudge, giving a bounded living-graph wiggle instead of a
+// random walk. Pinned nodes (fx/fy set) ignore velocity, so they stay put.
+const WIGGLE_STRENGTH = 0.45
+function makeWiggleForce(strength: number) {
+  let nodes: any[] = []
+  const force = () => {
+    for (const n of nodes) {
+      n.vx = (n.vx || 0) + (Math.random() - 0.5) * strength
+      n.vy = (n.vy || 0) + (Math.random() - 0.5) * strength
+    }
+  }
+  force.initialize = (n: any[]) => {
+    nodes = n
+  }
+  return force
+}
+
 type DatePreset = 'all' | 'week' | 'month' | 'year'
 type SectionKey = 'filters' | 'groups' | 'display' | 'forces'
 
@@ -159,7 +213,7 @@ interface Props {
   // GraphView never calls useNotes() directly — that would create a second
   // desynchronised state array alongside App's.
   onUpdate: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
-  onRemove: (id: string) => void
+  onRemove: (id: string) => Promise<boolean>
   /** Create a note (used to materialize a pseudo-node's `[[title]]` on click). */
   onCreate: (title: string, content: string) => Promise<Note>
   /** When set, restrict the graph to these note ids (and the links among them) —
@@ -179,7 +233,7 @@ const presetBtnStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-sm)',
   color: 'var(--text-1)',
-  fontSize: '0.74rem',
+  fontSize: '0.75rem',
   padding: '0.4rem 0.5rem',
   cursor: 'pointer',
 }
@@ -225,7 +279,7 @@ function Section({
             background: 'none',
             border: 'none',
             color: 'var(--text-1)',
-            fontSize: '0.9rem',
+            fontSize: '0.875rem',
             fontWeight: 600,
             padding: '0.7rem 0.1rem',
             cursor: 'pointer',
@@ -337,7 +391,7 @@ function Slider({
 /** A color swatch + label row for the hub/orphan mini-legend. */
 function LegendRow({ color, size = 10, label }: { color: string; size?: number; label: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.6, fontSize: '0.74rem', color: 'var(--text-2)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.6, fontSize: '0.75rem', color: 'var(--text-2)' }}>
       <span style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', background: color, flexShrink: 0 }} />
       <span>{label}</span>
     </div>
@@ -482,6 +536,21 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [textFade, setTextFade] = useViewState('graph.textFade', DEFAULT_DISPLAY.textFade)
   const [nodeSize, setNodeSize] = useViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
   const [linkThickness, setLinkThickness] = useViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
+  // Optional ambience: keep nodes gently drifting, and a rippling accent glow behind the graph.
+  const [perpetualMotion, setPerpetualMotion] = useViewState('graph.perpetualMotion', false)
+  const [rippleBackground, setRippleBackground] = useViewState('graph.rippleBackground', false)
+  // The canvas backgroundColor is a prop (not painted in the continuous loop), so
+  // unlike the node/link bindings it needs a re-render to re-theme. Track --bg.
+  const [canvasBg, setCanvasBg] = useState(
+    () => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d0f',
+  )
+  useEffect(() => {
+    const read = () =>
+      setCanvasBg(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0d0d0f')
+    read()
+    eventBus.on('theme:changed', read)
+    return () => eventBus.off('theme:changed', read)
+  }, [])
 
   // Forces — persisted to localStorage so a user's tuning survives a restart.
   const forces = useGraphForces()
@@ -723,6 +792,16 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     fg.d3ReheatSimulation()
   }, [centerForce, repelForce, linkForce, linkDistance, forceData])
 
+  // Perpetual motion: register/remove the wiggle force and reheat so nodes either
+  // start drifting forever (cooldown props are lifted to Infinity below) or settle
+  // and stop. Re-applied on forceData changes so a data swap keeps the force.
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!fg) return
+    fg.d3Force('wiggle', perpetualMotion ? (makeWiggleForce(WIGGLE_STRENGTH) as any) : null)
+    fg.d3ReheatSimulation()
+  }, [perpetualMotion, forceData])
+
   // ── Link editing ────────────────────────────────────────
 
   // Append [[target title]] to the source note's content. That's what makes the
@@ -898,21 +977,15 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [onUpdate],
   )
 
-  // Uses the native Tauri dialog (the WebView's window.confirm doesn't reliably
-  // honour Cancel here), so cancelling truly aborts the delete.
+  // `onRemove` (useNotes().remove) confirms centrally when confirmBeforeDelete
+  // is on — no separate dialog here (would double-prompt).
   const handleRemoveNote = useCallback(
     async (id: string) => {
-      const node = graphData.nodes.find((n) => n.id === id)
-      const title = node?.title || 'this note'
-      const ok = await ask(`Delete "${title}"? This cannot be undone.`, {
-        title: 'Delete note',
-        kind: 'warning',
-      })
+      const ok = await onRemove(id)
       if (!ok) return
-      onRemove(id)
       if (focusNodeId === id) setFocusNodeId(null)
     },
-    [onRemove, focusNodeId, graphData.nodes],
+    [onRemove, focusNodeId],
   )
 
   // ── Panel actions ───────────────────────────────────────
@@ -972,8 +1045,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setTextFade(DEFAULT_DISPLAY.textFade)
     setNodeSize(DEFAULT_DISPLAY.nodeSize)
     setLinkThickness(DEFAULT_DISPLAY.linkThickness)
+    setPerpetualMotion(false)
+    setRippleBackground(false)
     resetForces()
-  }, [clearFilters, togglePin, resetForces])
+  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground])
 
   const focusedNode = focusNodeId ? graphData.nodes.find((n) => n.id === focusNodeId) : null
 
@@ -1006,6 +1081,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   return (
     <div ref={containerRef} onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
+      {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {scopedNodes.length === 0 && (
         <div className="note-empty" style={{ position: 'absolute', width: '100%', zIndex: 10 }}>
           {scopeIds
@@ -1120,7 +1197,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             ctx.globalAlpha = hoverNodeId === node.id ? 0.7 : 0.4
             ctx.beginPath()
             ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
-            ctx.fillStyle = 'rgba(139, 135, 148, 0.25)'
+            ctx.fillStyle = PSEUDO_FILL
             ctx.fill()
             ctx.setLineDash([3 / globalScale, 2 / globalScale])
             ctx.lineWidth = 1 / globalScale
@@ -1164,7 +1241,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ctx.fill()
 
           if (hoverNodeId === node.id || isConnectSource || isHub || isOrphan) {
-            ctx.strokeStyle = isConnectSource ? CONNECT_COLOR : isOrphan ? ORPHAN_COLOR : '#f0eff5'
+            ctx.strokeStyle = isConnectSource ? CONNECT_COLOR : isOrphan ? ORPHAN_COLOR : LABEL_COLOR
             ctx.lineWidth = (isConnectSource || isHub ? 2 : 1) / globalScale
             ctx.stroke()
           }
@@ -1176,12 +1253,14 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             ctx.globalAlpha = labelAlpha
             ctx.textAlign = 'center'
             ctx.textBaseline = 'top'
-            ctx.fillStyle = isFocus ? '#f0eff5' : '#9896a4'
+            ctx.fillStyle = isFocus ? LABEL_COLOR : LABEL_DIM_COLOR
             ctx.fillText(label, node.x, node.y + radius + 3)
             ctx.restore()
           }
         }}
-        cooldownTicks={100}
+        cooldownTicks={perpetualMotion ? Infinity : 100}
+        cooldownTime={perpetualMotion ? Infinity : 15000}
+        d3AlphaDecay={perpetualMotion ? 0 : 0.0228}
         onZoomEnd={() => {
           // Remember where the user is looking (zoom + graph-space center) so we
           // can restore it after a view switch. Stored in graph coords so it's
@@ -1206,11 +1285,11 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           fg.zoom(vp.k, 0)
           fg.centerAt(vp.x, vp.y, 0)
         }}
-        linkColor={() => 'rgba(124, 106, 247, 0.4)'}
+        linkColor={() => LINK_COLOR}
         linkWidth={linkThickness}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
-        backgroundColor="#0d0d0f"
+        backgroundColor={rippleBackground ? 'rgba(0,0,0,0)' : canvasBg}
       />
 
       {/* Settings panel (top-right). Hidden while the note panel is open. */}
@@ -1240,10 +1319,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               right={
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                   <button onClick={resetAllSettings} title="Reset all graph settings" aria-label="Reset all graph settings" style={iconBtnStyle}>
-                    ↺
+                    <RotateCcw size={15} />
                   </button>
                   <button onClick={() => setShowPanel(false)} title="Close settings" aria-label="Close settings" style={iconBtnStyle}>
-                    ✕
+                    <X size={15} />
                   </button>
                 </div>
               }
@@ -1287,7 +1366,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                               border: '1px solid ' + (on ? (tagColors.get(tag) as string) : 'var(--border)'),
                               borderRadius: '999px',
                               padding: '0.25rem 0.6rem',
-                              fontSize: '0.74rem',
+                              fontSize: '0.75rem',
                               cursor: 'pointer',
                             }}
                           >
@@ -1299,7 +1378,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                   </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
                   <span>
                     Showing {forceData.nodes.length} of {graphData.nodes.length}
                   </span>
@@ -1334,12 +1413,12 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                       style={{ ...inputStyle, flex: 1, minWidth: 0 }}
                     />
                     <button onClick={() => removeGroup(g.id)} title="Remove group" aria-label="Remove group" style={iconBtnStyle}>
-                      ✕
+                      <X size={15} />
                     </button>
                   </div>
                 ))}
-                <button onClick={addGroup} style={{ ...presetBtnStyle, flex: 'unset' }}>
-                  + Add group
+                <button onClick={addGroup} style={{ ...presetBtnStyle, flex: 'unset', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  <Plus size={14} /> Add group
                 </button>
               </div>
             </Section>
@@ -1361,6 +1440,18 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                   </div>
                 )}
                 <Toggle label="Pin dragged nodes" checked={pinOnDrag} onChange={togglePin} title="Keep dragged nodes where you drop them" />
+                <Toggle
+                  label="Keep nodes moving"
+                  checked={perpetualMotion}
+                  onChange={setPerpetualMotion}
+                  title="Nodes gently drift forever instead of settling to a stop"
+                />
+                <Toggle
+                  label="Glowing background"
+                  checked={rippleBackground}
+                  onChange={setRippleBackground}
+                  title="A soft accent-coloured gradient that slowly ripples behind the graph"
+                />
                 <Slider
                   label="Text fade threshold"
                   value={textFade}
@@ -1484,7 +1575,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               color: 'var(--text-1)',
-              fontSize: '1.05rem',
+              fontSize: '1.125rem',
               cursor: 'pointer',
               boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
               display: 'flex',
@@ -1492,7 +1583,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               justifyContent: 'center',
             }}
           >
-            🎛
+            <SlidersHorizontal size={16} />
           </button>
         ))}
 
@@ -1527,7 +1618,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             <div
               style={{
                 padding: '6px 8px 8px',
-                fontSize: '0.78rem',
+                fontSize: '0.75rem',
                 fontWeight: 600,
                 color: 'var(--text-1)',
                 borderBottom: '1px solid var(--border)',
@@ -1547,7 +1638,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                 setContextMenu(null)
               }}
             >
-              🔗 Connect to a note
+              <Link2 size={14} /> Connect to a note
             </ContextMenuItem>
 
             {(degrees.get(contextMenu.nodeId) ?? 0) >= 1 && (
@@ -1557,7 +1648,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                   setContextMenu(null)
                 }}
               >
-                ✂️ Disconnect all links
+                <Unlink size={14} /> Disconnect all links
               </ContextMenuItem>
             )}
 

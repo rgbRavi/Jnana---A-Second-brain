@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, FileUp, Plus, Settings, X } from 'lucide-react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import type { AiProject, Note, ProjectKnowledge } from '../../types'
 import {
@@ -21,13 +22,15 @@ const pill: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '5px',
-  background: 'var(--surface-2)',
+  background: 'color-mix(in srgb, var(--surface-2) 90%, transparent)',
+  backdropFilter: 'blur(8px)',
   color: 'var(--text-2)',
-  border: '1px solid var(--border)',
+  border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
   borderRadius: '999px',
   padding: '0.3rem 0.7rem',
-  fontSize: '0.78rem',
+  fontSize: '0.75rem',
   cursor: 'pointer',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
 }
 
 interface BarProps {
@@ -43,28 +46,58 @@ export function ProjectBar({ projects, projectId, onProjectId, notes, onChanged 
   const [managing, setManaging] = useState(false)
   const active = projects.some((p) => p.id === projectId)
 
+  const [pickerOpen, setPickerOpen] = useState(false)
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-      <select
-        value={active ? projectId : ''}
-        onChange={(e) => onProjectId(e.target.value)}
-        title="Ground this chat in a project"
-        style={{
-          ...pill,
-          appearance: 'auto',
-          color: active ? 'var(--accent)' : 'var(--text-2)',
-          borderColor: active ? 'var(--accent)' : 'var(--border)',
-        }}
-      >
-        <option value="">📁 No project</option>
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setPickerOpen(!pickerOpen)}
+          title="Ground this chat in a project"
+          style={{
+            ...pill,
+            color: active ? 'var(--accent)' : 'var(--text-2)',
+            borderColor: active ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'color-mix(in srgb, var(--border) 80%, transparent)',
+          }}
+        >
+          📁 {active ? projects.find(p => p.id === projectId)?.name || 'Project' : 'No project'} <ChevronDown size={14} style={{ opacity: 0.5, marginLeft: '4px' }} />
+        </button>
+        {pickerOpen && (
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            zIndex: 60,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+            minWidth: '160px',
+            maxHeight: '220px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <button
+              style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: !active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer' }}
+              onClick={() => { onProjectId(''); setPickerOpen(false) }}
+            >
+              📁 No project
+            </button>
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: p.id === projectId ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                onClick={() => { onProjectId(p.id); setPickerOpen(false) }}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <button style={pill} onClick={() => setManaging(true)} title="Create and edit projects">
-        ⚙ Manage
+        <Settings size={14} /> Manage
       </button>
 
       {managing && (
@@ -89,7 +122,7 @@ const field: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   color: 'var(--text-1)',
   padding: '0.5rem 0.6rem',
-  fontSize: '0.85rem',
+  fontSize: '0.875rem',
   fontFamily: 'var(--font-body)',
   outline: 'none',
 }
@@ -217,13 +250,13 @@ function ProjectManager({
         {/* Left: project list */}
         <div style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '6px', borderRight: '1px solid var(--border)', paddingRight: '0.85rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <strong style={{ color: 'var(--text-1)', fontSize: '0.9rem' }}>Projects</strong>
-            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', fontSize: '1rem' }}>
-              ✕
+            <strong style={{ color: 'var(--text-1)', fontSize: '0.875rem' }}>Projects</strong>
+            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }}>
+              <X size={15} />
             </button>
           </div>
           <button style={{ ...pill, justifyContent: 'center' }} onClick={createNew}>
-            + New project
+            <Plus size={14} /> New project
           </button>
           <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {projects.map((p) => (
@@ -233,7 +266,7 @@ function ProjectManager({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  background: editing?.id === p.id ? 'rgba(124,106,247,0.15)' : 'transparent',
+                  background: editing?.id === p.id ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
                   borderRadius: 'var(--radius-sm)',
                   padding: '0.35rem 0.4rem',
                 }}
@@ -241,19 +274,19 @@ function ProjectManager({
                 <button onClick={() => openProject(p)} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-1)', cursor: 'pointer', fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {p.name}
                 </button>
-                <button onClick={() => removeProject(p)} title="Delete" style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
-                  ✕
+                <button onClick={() => removeProject(p)} title="Delete" style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'inline-flex' }}>
+                  <X size={14} />
                 </button>
               </div>
             ))}
-            {projects.length === 0 && <p style={{ fontSize: '0.76rem', color: 'var(--text-3)' }}>No projects yet.</p>}
+            {projects.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>No projects yet.</p>}
           </div>
         </div>
 
         {/* Right: editor */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {!editing ? (
-            <p style={{ color: 'var(--text-3)', fontSize: '0.85rem' }}>Select a project, or create one.</p>
+            <p style={{ color: 'var(--text-3)', fontSize: '0.875rem' }}>Select a project, or create one.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
               <input style={field} placeholder="Project name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} onBlur={() => persistProject(editing)} />
@@ -277,16 +310,16 @@ function ProjectManager({
                     <div key={k.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem' }}>
                       <span aria-hidden>{k.kind === 'note' ? '📝' : '📄'}</span>
                       <span style={{ flex: 1, minWidth: 0, fontSize: '0.82rem', color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{k.label || k.refId}</span>
-                      <button onClick={() => removeKnowledge(k.id)} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>
-                        ✕
+                      <button onClick={() => removeKnowledge(k.id)} title="Remove" style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', display: 'inline-flex' }}>
+                        <X size={14} />
                       </button>
                     </div>
                   ))}
-                  {knowledge.length === 0 && <p style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>No knowledge yet — attach notes or files to ground this project.</p>}
+                  {knowledge.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>No knowledge yet — attach notes or files to ground this project.</p>}
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button style={pill} onClick={addFileKnowledge}>📄 Add file</button>
+                  <button style={pill} onClick={addFileKnowledge}><FileUp size={14} /> Add file</button>
                   <div style={{ position: 'relative', flex: 1, minWidth: '160px' }}>
                     <input style={field} placeholder="Search notes to add…" value={noteQuery} onChange={(e) => setNoteQuery(e.target.value)} />
                     {noteMatches.length > 0 && (

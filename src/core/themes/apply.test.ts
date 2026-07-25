@@ -33,7 +33,7 @@ describe('apply.ts', () => {
   })
 
   describe('resolveVars', () => {
-    it('adds derived accent vars + density + reading-scale + surface-rgb, without font stacks', () => {
+    it('adds derived accent vars + density + reading-scale + surface-rgb + font stacks', () => {
       const theme = themeFromPreset('dark')
       const vars = resolveVars(theme)
       expect(vars['--accent-hover']).toBeDefined()
@@ -43,7 +43,32 @@ describe('apply.ts', () => {
       expect(vars['--density']).toBe('1') // cozy
       expect(vars['--reading-scale']).toBe('1')
       expect(vars['--surface-rgb']).toBe('20, 20, 23') // #141417
-      expect(vars['--font-body']).toBeUndefined()
+    })
+
+    it('resolves font stacks from the catalog (body sans, reading serif)', () => {
+      const vars = resolveVars(themeFromPreset('dark'))
+      expect(vars['--font-body']).toContain('DM Sans')
+      expect(vars['--font-mono']).toContain('DM Mono')
+      expect(vars['--font-reading']).toContain('serif')
+    })
+
+    it('promotes status colors into the stored token set', () => {
+      const vars = resolveVars(themeFromPreset('dark'))
+      expect(vars['--success']).toBe('#3fb950')
+      expect(vars['--warning']).toBe('#e3b341')
+      expect(vars['--star']).toBe('#ffcc00')
+    })
+
+    it('derives a light-on-dark wash channel + dark scrim for a dark base', () => {
+      const vars = resolveVars(themeFromPreset('dark'))
+      expect(vars['--wash-rgb']).toBe('255, 255, 255')
+      expect(vars['--scrim']).toBe('rgba(0, 0, 0, 0.6)')
+    })
+
+    it('inverts the wash channel to dark-on-light for a light base', () => {
+      const vars = resolveVars(themeFromPreset('light'))
+      expect(vars['--wash-rgb']).toBe('0, 0, 0')
+      expect(vars['--scrim']).toBe('rgba(15, 18, 24, 0.4)')
     })
   })
 

@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "createdAt": "2026-07-19T12:27:56.854Z",
+        "reason": "User confirmed: intentional tactile press-feedback on .pressable:active, documented in .impeccable/design.json motion"
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-07-19T12:28:03.743Z",
+        "reason": "User confirmed: Inter is Jnana's established app-wide body font, committed in DESIGN.md"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/views/home/dashboard/Dashboard.module.css"
+        ],
+        "createdAt": "2026-07-20T02:57:34.128Z",
+        "reason": "Flagged .rgHandle_se::after is the SE resize-handle corner grip (9x9px chevron via border-right/border-bottom), not a card side-tab accent"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.6)",
+        "createdAt": "2026-07-20T02:57:39.567Z",
+        "reason": "Modal-scrim overlay; matches the app-wide convention (identical to DialogHost.module.css scrim rgba(0,0,0,0.6)+blur(4px)); no scrim token exists in the design system"
+      }
+    ]
+  }
+}

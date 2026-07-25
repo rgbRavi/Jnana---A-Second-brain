@@ -8,7 +8,7 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
 }
 
 .appName {
@@ -65,7 +65,7 @@
 }
 
 .button {
-  padding: 0.5rem 0.9rem;
+  padding: var(--space-sm) 0.9rem;
   font-size: 0.82rem;
   border-radius: var(--radius-sm, 6px);
   border: 1px solid var(--border);
@@ -75,5 +75,5 @@
 }
 
 .button:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
 }

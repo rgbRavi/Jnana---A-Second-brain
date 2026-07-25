@@ -5,6 +5,7 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
   type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent,
 } from 'react'
+import { Check, Link2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl, openPath } from '@tauri-apps/plugin-opener'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
@@ -844,7 +845,9 @@ export function CanvasBoard({ workspaceId }: Props) {
               onClick={() => !selEdge.linkedInGraph && linkInGraph(selEdge)}
               title="Insert a [[wikilink]] so this connection appears in the graph"
             >
-              {selEdge.linkedInGraph ? '✓ Linked' : '🔗 Link in graph'}
+              {selEdge.linkedInGraph
+                ? <><Check size={14} /> Linked</>
+                : <><Link2 size={14} /> Link in graph</>}
             </button>
           )}
           <button className={styles.edgeMenuBtn} onClick={() => { removeEdge(selEdge.id); setSelectedEdge(null) }}>

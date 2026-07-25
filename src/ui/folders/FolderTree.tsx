@@ -170,7 +170,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
       if (!choice) return
       try {
         if (choice === 'folder-notes') {
-          for (const n of containedNotes) await remove(n.id)
+          for (const n of containedNotes) await remove(n.id, { confirm: false })
         }
         await deleteFolder(folder.id)
       } catch (e) {

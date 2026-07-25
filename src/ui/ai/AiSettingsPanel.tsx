@@ -12,6 +12,7 @@ import {
   rememberModel,
   type ModelKind,
 } from '../../core/ai'
+import { SettingSelect, SettingToggle } from '../settings/SettingControls'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -64,13 +65,7 @@ function ProviderSection(p: ProviderSectionProps) {
       <div className={styles.fields}>
         <div className={styles.field}>
           <label className={styles.label}>Backend</label>
-          <select className={styles.select} value={p.provider} onChange={(e) => p.onProvider(e.target.value)}>
-            {p.options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <SettingSelect ariaLabel="Backend" value={p.provider} options={p.options} onChange={p.onProvider} />
         </div>
 
         <div className={styles.field}>
@@ -130,14 +125,13 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
   return (
     <>
       <div className={styles.row}>
-        <label className={styles.toggle}>
-          <input type="checkbox" checked={config.enabled} onChange={(e) => set('enabled', e.target.checked)} />
-          Enable AI
-        </label>
-        <label className={styles.toggle}>
-          <input type="checkbox" checked={config.autoIndex} onChange={(e) => set('autoIndex', e.target.checked)} />
-          Auto-index on save
-        </label>
+        <SettingToggle checked={config.enabled} onChange={(v) => set('enabled', v)} label="Enable AI" ariaLabel="Enable AI" />
+        <SettingToggle
+          checked={config.autoIndex}
+          onChange={(v) => set('autoIndex', v)}
+          label="Auto-index on save"
+          ariaLabel="Auto-index on save"
+        />
       </div>
 
       <ProviderSection

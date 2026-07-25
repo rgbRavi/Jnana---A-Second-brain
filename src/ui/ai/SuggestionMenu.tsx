@@ -6,8 +6,8 @@ import { createPortal } from 'react-dom'
 import styles from './Suggestions.module.css'
 
 interface Props<T> {
-  /** Emoji/glyph shown on the collapsed button. */
-  icon: string
+  /** Icon shown on the collapsed button (a Lucide icon element). */
+  icon: ReactNode
   /** Hover-revealed label + accessible name (e.g. "Suggest tags"). */
   label: string
   /** Stable key per item — used for checkbox identity + the selection set. */

@@ -4,7 +4,7 @@
     font-size: 1.15rem;
     cursor: pointer;
     color: var(--star);
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all var(--dur-base) var(--motion-ease);
     padding: 0;
     width: 36px;
     height: 36px;

@@ -138,6 +138,7 @@ export function CommandPalette() {
       { key: 'cmd:search', icon: '🔍', label: 'Open Search', run: () => goto('/search') },
       { key: 'cmd:ai', icon: '🤖', label: 'Open AI Chat', run: () => goto('/ai') },
       { key: 'cmd:settings', icon: '⚙️', label: 'Open Settings', run: () => goto('/settings') },
+      { key: 'cmd:trash', icon: '🗑️', label: 'Open Trash', run: () => goto('/trash') },
       // Commands contributed by plugins via ctx.ui.registerCommand.
       ...listCommands().map((c) => ({
         key: `plugincmd:${c.id}`,

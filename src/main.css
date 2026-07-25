@@ -1,5 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
+/* No remote @font-face: the app CSP (style-src/font-src) blocks fonts.googleapis
+   / fonts.gstatic, so faces are supplied by the OS via the generic fallbacks in
+   each --font-* stack (resolved per theme from the font catalog in resolveVars).
+   Vendoring woff2 + a `font-src 'self'` CSP entry is the future upgrade path. */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -17,20 +19,22 @@
   --accent:       #7c6af7;
   --text-1:       #f0eff5;
   --text-2:       #9896a4;
-  --text-3:       #55535f;
+  --text-3:       #6d6b75;
   --danger:       #e05252;
-  /* Semantic status colours — tokenized so surfaces stop hardcoding literals.
-     (Not themed per-preset yet; success/warning read consistently everywhere.) */
+  /* Semantic status colours — stored, themeable tokens (each preset tunes them;
+     light bases darken them for contrast). These are the dark-default fallbacks. */
   --success:      #3fb950;
   --warning:      #e3b341;
   --star:         #ffcc00; /* favourite / starred accent */
-  --font-body:    'Inter', sans-serif;
-  --font-mono:    'JetBrains Mono', monospace;
+  /* Font stacks — resolveVars overwrites these per theme from the catalog; these
+     are the boot defaults (DM Sans/Mono per DESIGN.md, serif reader). */
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --font-reading: 'Newsreader', Georgia, serif;
   --radius-sm:    6px;
   --radius-md:    10px;
   --radius-lg:    14px;
   --radius-xl:    16px; /* hero/section cards — the tier above --radius-lg */
-  --max-btn: #F0C24C;
 
   /* Elevation scale — menus, popovers, cards and modals share these instead of
      each hand-rolling a bespoke rgba() shadow. */
@@ -48,6 +52,64 @@
   --accent-active: color-mix(in srgb, var(--accent) 88%, black 12%);
   --accent-soft:   color-mix(in srgb, var(--accent) 18%, var(--bg) 82%);
   --accent-softer: color-mix(in srgb, var(--accent) 10%, var(--bg) 90%);
+
+  /* ── Layer 2: interaction & control state ────────────────────────────────
+     Derived semantics with a single responsibility each. They default to the
+     elevation/stroke primitives (a pure visual no-op) but are now independent
+     knobs — retuning a hover no longer repaints resting surfaces, and vice
+     versa. `--wash`/`--scrim` are base-dependent, so resolveVars (apply.ts)
+     overwrites them per theme; the values here are the pre-hydration boot
+     fallbacks (also used by detached CM6 editor roots). */
+  --surface-hover:        var(--surface-2);    /* hover fill for elements resting on --bg / --surface */
+  --surface-hover-strong: var(--surface-3);    /* hover fill for elements already resting on --surface-2 */
+  --surface-selected:     var(--surface-2);    /* selected / active fill */
+  --border-strong:        var(--border-hover); /* resting emphasis stroke (dashed drop-zones, composer outline) */
+  --control-grip:         var(--border);       /* scrollbar thumbs + drag/resize grips (resting) */
+  --control-grip-hover:   var(--border-hover); /* their hover */
+  /* Elevation-wash channel — sites keep their own alpha via
+     rgba(var(--wash-rgb), α); the colour flips to dark-on-light per theme, so a
+     wash that lifted a dark surface correctly deepens a light one. Mirrors the
+     --surface-rgb pattern. */
+  --wash-rgb:    255, 255, 255;
+  --scrim:       rgba(0, 0, 0, 0.6);           /* modal / overlay backdrop */
+
+  /* ── Layer 3: spacing scale ──────────────────────────────────────────────
+     Drives the Density control: every step is base × --density, so Compact /
+     Cozy / Comfortable rescale padding and gaps app-wide. resolveVars sets
+     --density; this default keeps spacing sane before hydration. */
+  --density: 1;
+  --reading-scale: 1;
+
+  /* ── Motion ──────────────────────────────────────────────────────────────
+     resolveVars/applyVars overwrite --motion-* per theme (and force
+     --motion-scale to 0 under prefers-reduced-motion). --dur-* are the
+     ready-to-use scaled durations components transition against, so the Motion
+     control retimes the whole app; the fallbacks below keep motion sane at boot. */
+  --motion-scale: 1;
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 220ms;
+  --motion-duration-slow: 420ms;
+  --motion-ease: var(--motion-ease);
+  --dur-fast: calc(var(--motion-duration-fast) * var(--motion-scale));
+  --dur-base: calc(var(--motion-duration-base) * var(--motion-scale));
+  --dur-slow: calc(var(--motion-duration-slow) * var(--motion-scale));
+
+  --space-3xs: calc(2px  * var(--density));
+  --space-2xs: calc(4px  * var(--density));
+  --space-xs:  calc(6px  * var(--density));
+  --space-sm:  calc(8px  * var(--density));
+  --space-md:  calc(12px * var(--density));
+  --space-lg:  calc(16px * var(--density));
+  --space-xl:  calc(24px * var(--density));
+  --space-2xl: calc(32px * var(--density));
+}
+
+/* Light-based themes flip the elevation wash to dark-on-light and lighten the
+   scrim; applyVars stamps data-base on <html>. resolveVars also sets these
+   inline per theme, but the attribute rules keep them correct at boot. */
+:root[data-base='light'] {
+  --wash-rgb: 0, 0, 0;
+  --scrim:    rgba(15, 18, 24, 0.4);
 }
 
 html { height: 100%; }
@@ -119,7 +181,7 @@ body {
   width: 100%;
   max-width: 820px;
   margin: 0 auto;
-  padding: 1.25rem 1.5rem 2rem;
+  padding: 1.25rem var(--space-xl) var(--space-2xl);
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -137,28 +199,29 @@ body {
 /* Muted, centered empty/loading caption (search results, graph loading, …). */
 .note-empty {
   color: var(--text-3);
-  font-size: 0.85rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   font-family: var(--font-mono);
   text-align: center;
 }
 
 /* Placeholder shown while a note image is loading. */
 .image-loading {
-  font-size: 0.8rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   font-family: var(--font-mono);
   color: var(--text-3);
 }
 
-/* PDF viewer error state. */
+/* PDF viewer error state. Danger is carried by a full tinted border + a soft
+   danger fill (both color-mix, so they track a re-theme) — not a >1px side
+   stripe, which the design system bans on callouts/alerts. */
 .pdf-error {
   margin: 1rem 0;
-  padding: 1rem 1.25rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--danger);
+  padding: var(--space-lg) 1.25rem;
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
   border-radius: var(--radius-md);
   color: var(--text-2);
-  font-size: 0.88rem;
+  font-size: 0.8125rem; /* caption step (DESIGN.md typography.caption) */
   line-height: 1.5;
 }
 
@@ -168,7 +231,7 @@ body {
 
 /* Global press/click animation utility */
 .pressable {
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s, color 0.15s;
+  transition: transform var(--dur-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .pressable:active {
@@ -200,9 +263,9 @@ select:focus-visible {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.var(--dur-fast) !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.var(--dur-fast) !important;
     scroll-behavior: auto !important;
   }
 }

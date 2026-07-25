@@ -9,6 +9,7 @@
 // land in note_media_layout — the markdown text itself is never touched.
 
 import { useRef, useState, type ReactNode } from 'react'
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
 import { setMediaLayoutDebounced, type MediaAlignment, type MediaLayout } from '../../core/mediaLayout'
 import styles from './ResizableMediaFrame.module.css'
 
@@ -96,7 +97,7 @@ export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMove
               aria-label="Drag to move media"
               onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); onDragStart(e) }}
             >
-              ⠿
+              <GripVertical size={14} />
             </button>
             <span className={styles.toolbarSep} />
           </>
@@ -105,25 +106,28 @@ export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMove
           type="button"
           className={`${styles.alignBtn} ${effective?.alignment === 'left' ? styles.alignBtnActive : ''}`}
           title="Align left"
+          aria-label="Align left"
           onClick={(e) => setAlignment(e, 'left')}
         >
-          ⯇
+          <AlignLeft size={14} />
         </button>
         <button
           type="button"
           className={`${styles.alignBtn} ${effective?.alignment === 'center' ? styles.alignBtnActive : ''}`}
           title="Align center"
+          aria-label="Align center"
           onClick={(e) => setAlignment(e, 'center')}
         >
-          ▣
+          <AlignCenter size={14} />
         </button>
         <button
           type="button"
           className={`${styles.alignBtn} ${effective?.alignment === 'right' ? styles.alignBtnActive : ''}`}
           title="Align right"
+          aria-label="Align right"
           onClick={(e) => setAlignment(e, 'right')}
         >
-          ⯈
+          <AlignRight size={14} />
         </button>
         {(onMoveUp ?? onMoveDown) && <span className={styles.toolbarSep} />}
         {onMoveUp && (
@@ -131,9 +135,10 @@ export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMove
             type="button"
             className={styles.alignBtn}
             title="Move up"
+            aria-label="Move up"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMoveUp() }}
           >
-            ▲
+            <ArrowUp size={14} />
           </button>
         )}
         {onMoveDown && (
@@ -141,9 +146,10 @@ export function ResizableMediaFrame({ noteId, mediaKey, layout, children, onMove
             type="button"
             className={styles.alignBtn}
             title="Move down"
+            aria-label="Move down"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onMoveDown() }}
           >
-            ▼
+            <ArrowDown size={14} />
           </button>
         )}
       </span>

@@ -118,7 +118,7 @@ export function WorkspaceDashboard({ workspaceId, onGotoNotes }: Props) {
   return (
     <div className={styles.dashScroll}>
       <div className={styles.statGrid}>
-        <StatCard icon="📝" label="Notes" value={stats.notes} accent="#7c6af7" />
+        <StatCard icon="📝" label="Notes" value={stats.notes} accent="var(--accent)" />
         <StatCard icon="🔗" label="Links within" value={stats.links} accent="#3ba7f7" />
         <StatCard icon="📕" label="PDFs" value={stats.pdfs} accent="#e5484d" />
         <StatCard icon="🎵" label="Audio" value={stats.audio} accent="#3fb950" />

@@ -2,6 +2,22 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import {
+  ChevronDown,
+  Eraser,
+  Hand,
+  ImageUp,
+  Maximize,
+  Minus,
+  MousePointer2,
+  Pen,
+  Pencil,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Settings,
+  Undo2,
+} from 'lucide-react'
 import type { EraserMode } from './useCanvasPrefs'
 import type { CanvasBackground } from '../../../core/canvas'
 import { CANVAS_PALETTE } from './palette'
@@ -72,8 +88,8 @@ export function CanvasToolbar({
 
   return (
     <div className={styles.toolbar}>
-      <button className={styles.toolBtn} onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶</button>
-      <button className={styles.toolBtn} onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">↷</button>
+      <button className={styles.toolBtn} onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={16} /></button>
+      <button className={styles.toolBtn} onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo2 size={16} /></button>
 
       <span className={styles.toolSep} />
 
@@ -82,21 +98,21 @@ export function CanvasToolbar({
         onClick={() => onSetMode('select')}
         title="Select / move (V)"
       >
-        ↖ Select
+        <MousePointer2 size={15} /> Select
       </button>
       <button
         className={`${styles.toolBtn} ${mode === 'pan' ? styles.toolBtnOn : ''}`}
         onClick={() => onSetMode('pan')}
         title="Pan (H)"
       >
-        🖐 Pan
+        <Hand size={15} /> Pan
       </button>
       <button
         className={`${styles.toolBtn} ${mode === 'draw' ? styles.toolBtnOn : ''}`}
         onClick={() => onSetMode('draw')}
         title="Draw (D)"
       >
-        ✏️ Draw
+        <Pencil size={15} /> Draw
       </button>
 
       {mode === 'draw' && (
@@ -105,15 +121,17 @@ export function CanvasToolbar({
             className={`${styles.toolBtn} ${drawTool === 'pen' ? styles.toolBtnOn : ''}`}
             onClick={() => onSetDrawTool('pen')}
             title="Pen"
+            aria-label="Pen"
           >
-            🖊
+            <Pen size={15} />
           </button>
           <button
             className={`${styles.toolBtn} ${drawTool === 'eraser' ? styles.toolBtnOn : ''}`}
             onClick={() => onSetDrawTool('eraser')}
             title="Eraser"
+            aria-label="Eraser"
           >
-            🧽
+            <Eraser size={15} />
           </button>
 
           {drawTool === 'pen' && (
@@ -145,7 +163,7 @@ export function CanvasToolbar({
 
               <div className={styles.popoverWrap} data-popover>
                 <button className={styles.toolBtn} onClick={() => togglePopover('size')} title="Pen size">
-                  {penSize}px ▾
+                  {penSize}px <ChevronDown size={13} />
                 </button>
                 {openPopover === 'size' && (
                   <div className={styles.popover} data-popover>
@@ -168,7 +186,7 @@ export function CanvasToolbar({
           {drawTool === 'eraser' && (
             <div className={styles.popoverWrap} data-popover>
               <button className={styles.toolBtn} onClick={() => togglePopover('eraser')} title="Eraser">
-                {eraserMode === 'touch' ? 'Touch' : 'Stroke'} · {eraserSize}px ▾
+                {eraserMode === 'touch' ? 'Touch' : 'Stroke'} · {eraserSize}px <ChevronDown size={13} />
               </button>
               {openPopover === 'eraser' && (
                 <div className={styles.popover} data-popover>
@@ -210,22 +228,22 @@ export function CanvasToolbar({
 
       <span className={styles.toolSep} />
 
-      <button className={styles.toolBtn} onClick={onAddText} title="Add a text card">＋ Text</button>
-      <button className={styles.toolBtn} onClick={onAddNote} title="Add a note card">＋ Note</button>
-      <button className={styles.toolBtn} onClick={onAddMedia} title="Add an image / media file">＋ Media</button>
-      <button className={styles.toolBtn} onClick={onAddWeb} title="Add a web page">＋ Web</button>
+      <button className={styles.toolBtn} onClick={onAddText} title="Add a text card"><Plus size={15} /> Text</button>
+      <button className={styles.toolBtn} onClick={onAddNote} title="Add a note card"><Plus size={15} /> Note</button>
+      <button className={styles.toolBtn} onClick={onAddMedia} title="Add an image / media file"><Plus size={15} /> Media</button>
+      <button className={styles.toolBtn} onClick={onAddWeb} title="Add a web page"><Plus size={15} /> Web</button>
 
       <span className={styles.toolSep} />
 
-      <button className={styles.toolBtn} onClick={() => onZoom(-1)} title="Zoom out">－</button>
+      <button className={styles.toolBtn} onClick={() => onZoom(-1)} title="Zoom out" aria-label="Zoom out"><Minus size={16} /></button>
       <span className={styles.zoomLabel}>{Math.round(scale * 100)}%</span>
-      <button className={styles.toolBtn} onClick={() => onZoom(1)} title="Zoom in">＋</button>
-      <button className={styles.toolBtn} onClick={onFit} title="Fit to content">⤢ Fit</button>
+      <button className={styles.toolBtn} onClick={() => onZoom(1)} title="Zoom in" aria-label="Zoom in"><Plus size={16} /></button>
+      <button className={styles.toolBtn} onClick={onFit} title="Fit to content"><Maximize size={15} /> Fit</button>
 
       <span className={styles.toolSep} />
 
       <div className={styles.popoverWrap} data-popover>
-        <button className={styles.toolBtn} onClick={() => togglePopover('settings')} title="Canvas settings">⚙</button>
+        <button className={styles.toolBtn} onClick={() => togglePopover('settings')} title="Canvas settings" aria-label="Canvas settings"><Settings size={16} /></button>
         {openPopover === 'settings' && (
           <div className={styles.popover} data-popover>
             <label className={styles.popoverRow}>
@@ -258,9 +276,9 @@ export function CanvasToolbar({
                 />
               </label>
             </div>
-            <button className={styles.popoverBtn} onClick={onUploadBackgroundImage}>🖼 Upload image…</button>
+            <button className={styles.popoverBtn} onClick={onUploadBackgroundImage}><ImageUp size={15} /> Upload image…</button>
             <button className={styles.popoverBtn} onClick={onResetBackground} disabled={!background}>
-              ↺ Revert to original background
+              <RotateCcw size={15} /> Revert to original background
             </button>
           </div>
         )}

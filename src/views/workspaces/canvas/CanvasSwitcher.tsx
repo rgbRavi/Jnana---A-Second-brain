@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'
 import type { Canvas } from '../../../core/canvas'
 import styles from './canvas.module.css'
@@ -45,9 +46,9 @@ export function CanvasSwitcher({ canvases, activeId, onSelect, onNew, onRename, 
           <option key={c.id} value={c.id}>{c.title}</option>
         ))}
       </select>
-      <button className={styles.switchBtn} onClick={handleNew} title="New canvas">＋</button>
-      <button className={styles.switchBtn} onClick={handleRename} title="Rename canvas" disabled={!active}>✎</button>
-      <button className={styles.switchBtn} onClick={handleDelete} title="Delete canvas" disabled={!active}>🗑</button>
+      <button className={styles.switchBtn} onClick={handleNew} title="New canvas" aria-label="New canvas"><Plus size={16} /></button>
+      <button className={styles.switchBtn} onClick={handleRename} title="Rename canvas" aria-label="Rename canvas" disabled={!active}><Pencil size={15} /></button>
+      <button className={styles.switchBtn} onClick={handleDelete} title="Delete canvas" aria-label="Delete canvas" disabled={!active}><Trash2 size={15} /></button>
     </div>
   )
 }

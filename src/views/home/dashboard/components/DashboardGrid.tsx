@@ -167,7 +167,17 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
           <div
             key={item.i}
             className={`${styles.gridItem} ${moving ? styles.gridItemMoving : ''}`}
-            style={{ position: 'absolute', ...rect }}
+            // Position via transform (not left/top) so the reflow animation runs
+            // on the compositor instead of thrashing layout — matches the
+            // transform-only transition in .gridItem.
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: rect.width,
+              height: rect.height,
+              transform: `translate(${rect.left}px, ${rect.top}px)`,
+            }}
             onPointerDown={(e) => onItemPointerDown(e, item)}
           >
             {contents[item.i]}

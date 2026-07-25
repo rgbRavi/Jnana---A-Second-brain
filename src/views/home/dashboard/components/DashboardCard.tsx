@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { ReactNode } from 'react'
+import { ChevronDown, GripVertical, RotateCw, X } from 'lucide-react'
 import styles from '../Dashboard.module.css'
 
 interface Props {
@@ -25,7 +26,7 @@ export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide
       <header className={styles.cardHeader}>
         <div className={styles.cardHeaderLeft}>
           <span className={`${styles.dragHandle} dashboard-drag-handle`} title="Drag to move" aria-hidden="true">
-            ⠿
+            <GripVertical size={15} />
           </span>
           <button
             type="button"
@@ -39,7 +40,7 @@ export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide
               style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
               aria-hidden="true"
             >
-              ⌄
+              <ChevronDown size={15} />
             </span>
             {icon && (
               <span className={styles.cardIcon} aria-hidden="true">
@@ -52,13 +53,13 @@ export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide
         <div className={styles.cardActions}>
           {action}
           {onRefresh && (
-            <button type="button" className={styles.cardBtn} onClick={onRefresh} title="Refresh">
-              ↻
+            <button type="button" className={styles.cardBtn} onClick={onRefresh} title="Refresh" aria-label="Refresh">
+              <RotateCw size={15} />
             </button>
           )}
           {onHide && (
-            <button type="button" className={styles.cardBtn} onClick={onHide} title="Hide section">
-              ✕
+            <button type="button" className={styles.cardBtn} onClick={onHide} title="Hide section" aria-label="Hide section">
+              <X size={15} />
             </button>
           )}
         </div>

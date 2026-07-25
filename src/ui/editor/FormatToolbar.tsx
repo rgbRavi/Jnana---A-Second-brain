@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { Link2, Quote } from 'lucide-react'
 import type { FormatKind } from '../../core/markdown/format'
 import { COLOR_PALETTE } from '../../core/markdown/colors'
 import type { LiveEditorHandle } from './LiveEditor'
@@ -12,7 +13,7 @@ interface Props {
   disabled?: boolean
 }
 
-const BUTTONS: { kind: FormatKind; label: string; title: string; style?: CSSProperties }[] = [
+const BUTTONS: { kind: FormatKind; label: ReactNode; title: string; style?: CSSProperties }[] = [
   { kind: 'bold', label: 'B', title: 'Bold', style: { fontWeight: 700 } },
   { kind: 'italic', label: 'I', title: 'Italic', style: { fontStyle: 'italic' } },
   { kind: 'strike', label: 'S', title: 'Strikethrough', style: { textDecoration: 'line-through' } },
@@ -21,9 +22,9 @@ const BUTTONS: { kind: FormatKind; label: string; title: string; style?: CSSProp
   { kind: 'h2', label: 'H2', title: 'Heading 2' },
   { kind: 'ul', label: '•', title: 'Bullet list' },
   { kind: 'ol', label: '1.', title: 'Numbered list' },
-  { kind: 'quote', label: '❝', title: 'Quote' },
+  { kind: 'quote', label: <Quote size={15} />, title: 'Quote' },
   { kind: 'codeblock', label: '{ }', title: 'Code block' },
-  { kind: 'link', label: '🔗', title: 'Link' },
+  { kind: 'link', label: <Link2 size={15} />, title: 'Link' },
 ]
 
 /** A row of markdown formatting buttons that wrap/prefix the live editor's

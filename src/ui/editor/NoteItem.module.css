@@ -1,15 +1,15 @@
 .noteCard {
   background: var(--surface);
-  background-image: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  background-image: linear-gradient(135deg, rgba(var(--wash-rgb),0.03), rgba(var(--wash-rgb),0));
   border: 1px solid var(--border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
   border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s, border-color 0.25s, background 0.25s;
+  transition: transform var(--dur-base) cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--dur-base) var(--motion-ease), border-color var(--dur-base) var(--motion-ease), background var(--dur-base) var(--motion-ease);
   flex-shrink: 0;
   contain: layout paint;
   content-visibility: auto;
@@ -18,21 +18,21 @@
 
 .noteCard:hover { 
   border-color: var(--border-hover); 
-  background-color: var(--surface-2); 
+  background-color: var(--surface-hover); 
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
 }
 
 .noteCardHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .noteCardActions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   align-items: center;
 }
 
@@ -43,7 +43,7 @@
   cursor: pointer;
   line-height: 1;
   padding: 0;
-  transition: all 0.2s;
+  transition: all var(--dur-base) var(--motion-ease);
   flex-shrink: 0;
   opacity: 0;
 }
@@ -66,7 +66,7 @@
   cursor: pointer;
   line-height: 1;
   padding: 0;
-  transition: all 0.2s;
+  transition: all var(--dur-base) var(--motion-ease);
   flex-shrink: 0;
   opacity: 0;
 }
@@ -149,7 +149,7 @@
 /* .card is the default look defined by .noteCard above. */
 .noteCard.compact {
   padding: 0.55rem 0.9rem;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
 }
 
 .noteCard.compact .noteCardTitle {
@@ -157,8 +157,8 @@
 }
 
 .noteCard.comfortable {
-  padding: 1.3rem 1.5rem;
-  gap: 0.5rem;
+  padding: 1.3rem var(--space-xl);
+  gap: var(--space-sm);
 }
 
 .noteCard.comfortable .noteCardTitle {
@@ -208,7 +208,7 @@
   width: 100%;
   background: transparent;
   border: none;
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   font-size: 0.9rem;
   font-family: var(--font-body);
   color: var(--text-1);
@@ -231,7 +231,7 @@
 }
 
 .composerBodyBorderlessEditor :global(.cm-scroller) {
-  padding: 1rem 1.25rem;
+  padding: var(--space-lg) 1.25rem;
   line-height: 1.7;
 }
 
@@ -247,7 +247,7 @@
 .composerActions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .composerHint {
@@ -266,14 +266,14 @@
   font-weight: 500;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur-fast) var(--motion-ease);
 }
 
-.composerCancel:hover { background: var(--surface-2); color: var(--text-1); }
+.composerCancel:hover { background: var(--surface-hover); color: var(--text-1); }
 
 .composerSave {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.45rem 1.1rem;
@@ -281,7 +281,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 
 .composerSave:hover:not(:disabled) { opacity: 0.88; }

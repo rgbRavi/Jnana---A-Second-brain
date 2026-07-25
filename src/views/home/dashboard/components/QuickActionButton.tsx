@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import type { ReactNode } from 'react'
 import styles from '../Dashboard.module.css'
 
 interface Props {
-  icon: string
+  icon: ReactNode
   label: string
   onClick: () => void
 }

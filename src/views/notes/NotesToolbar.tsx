@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { ReactNode } from 'react'
+import { ArrowDown, ArrowUp, Pencil, Search } from 'lucide-react'
 import { openComposer } from '../../ui/editor/NoteCreator'
 import { useNotesViewPrefs, setNotesViewPrefs, activeFilterCount, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import type { DisplayMode, SortBy } from './filterNotes'
@@ -15,12 +16,28 @@ const SORT_OPTIONS: [SortBy, string][] = [
   ['links', 'Links'],
 ]
 
-const MODES: [DisplayMode, string, string][] = [
-  ['card', '▦', 'Cards'],
-  ['comfortable', '▥', 'Comfortable'],
-  ['compact', '☰', 'Compact'],
-  ['grid', '⊞', 'Grid'],
+const MODES: [DisplayMode, string][] = [
+  ['card', 'Cards'],
+  ['comfortable', 'Comfortable'],
+  ['compact', 'Compact'],
+  ['grid', 'Grid'],
 ]
+
+/** Lucide icon per display mode (stroke + size come from CSS `.modeBtn svg`). */
+const MODE_ICON: Record<DisplayMode, ReactNode> = {
+  card: (
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+  ),
+  comfortable: (
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M21 9H3" /><path d="M21 15H3" /></svg>
+  ),
+  compact: (
+    <svg viewBox="0 0 24 24"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
+  ),
+  grid: (
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 12h18" /><path d="M12 3v18" /></svg>
+  ),
+}
 
 interface Props {
   count: number
@@ -34,7 +51,7 @@ interface Props {
   /** Optional extra controls rendered before the "New note" button. */
   extraActions?: ReactNode
   /** Label for the create button (default "New note"). */
-  newLabel?: string
+  newLabel?: ReactNode
   /** Override the create action (default opens the global composer). */
   onNew?: () => void
 }
@@ -48,7 +65,7 @@ export function NotesToolbar({
   onToggleFilters,
   prefsKey = NOTES_PREFS_KEY,
   extraActions,
-  newLabel = '✎ New note',
+  newLabel = <><Pencil size={15} /> New note</>,
   onNew,
 }: Props) {
   const prefs = useNotesViewPrefs(prefsKey)
@@ -57,7 +74,7 @@ export function NotesToolbar({
   return (
     <div className={Styles.toolbar}>
       <div className={Styles.searchWrap}>
-        <span className={Styles.searchIcon} aria-hidden="true">⌕</span>
+        <span className={Styles.searchIcon} aria-hidden="true"><Search size={15} /></span>
         <input
           className={Styles.search}
           type="search"
@@ -95,12 +112,12 @@ export function NotesToolbar({
           title={prefs.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
           aria-label="Toggle sort order"
         >
-          {prefs.sortOrder === 'asc' ? '↑' : '↓'}
+          {prefs.sortOrder === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
         </button>
       </div>
 
       <div className={Styles.modes} role="group" aria-label="Display mode">
-        {MODES.map(([m, glyph, label]) => (
+        {MODES.map(([m, label]) => (
           <button
             key={m}
             className={`${Styles.modeBtn} ${prefs.displayMode === m ? Styles.modeBtnActive : ''}`}
@@ -109,7 +126,8 @@ export function NotesToolbar({
             aria-label={label}
             aria-pressed={prefs.displayMode === m}
           >
-            {glyph}
+            {MODE_ICON[m]}
+            <span className={Styles.modeLabel}>{label}</span>
           </button>
         ))}
       </div>

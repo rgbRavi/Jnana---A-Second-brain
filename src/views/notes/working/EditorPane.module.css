@@ -13,7 +13,7 @@
 .header {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: var(--space-lg);
 }
 
 .titleInput {
@@ -26,20 +26,20 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-sm) var(--space-md);
   font-family: var(--font-body);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
   margin-left: -0.75rem; /* align with content padding visually */
 }
 
 .titleInput:hover {
-  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
   border-color: var(--border);
 }
 
 .titleInput:focus {
   outline: none;
-  background: var(--surface-2);
+  background: var(--surface-hover);
   border-color: var(--accent);
   box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
@@ -50,7 +50,7 @@
   gap: 0.4rem;
   flex-shrink: 0;
   background: var(--surface-2);
-  padding: 0.35rem 0.5rem;
+  padding: 0.35rem var(--space-sm);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -63,7 +63,7 @@
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
   user-select: none;
-  transition: all 0.2s ease;
+  transition: all var(--dur-base) var(--motion-ease);
   margin-right: 0.5rem;
 }
 
@@ -94,11 +94,11 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .iconBtn:hover {
-  background: var(--surface-3);
+  background: var(--surface-hover-strong);
   color: var(--text-1);
   transform: translateY(-1px);
 }
@@ -122,7 +122,7 @@
   flex: 1;
   min-height: 0;
   box-shadow: var(--shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color var(--dur-base) var(--motion-ease), box-shadow var(--dur-base) var(--motion-ease);
 }
 
 .editor:focus-within {
@@ -141,7 +141,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.5rem;
+  padding: var(--space-xl);
   color: var(--text-1);
   font-family: var(--font-body);
   font-size: 1.05rem;
@@ -154,7 +154,7 @@
   gap: 0.6rem;
   flex-wrap: wrap;
   margin-top: 0.5rem;
-  padding: 0 0.5rem;
+  padding: 0 var(--space-sm);
 }
 
 .recording {
@@ -177,8 +177,10 @@
   overflow-y: auto;
   color: var(--text-2);
   line-height: 1.7;
-  font-size: 1.05rem;
-  padding: 0 1rem 0 0;
+  /* The reader honours the Reading-scale and Reading-font theme controls. */
+  font-size: calc(1.05rem * var(--reading-scale));
+  font-family: var(--font-reading);
+  padding: 0 var(--space-lg) 0 0;
 }
 
 /* Custom scrollbar for read body */
@@ -189,11 +191,11 @@
   background: transparent;
 }
 .readBody::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: var(--control-grip);
   border-radius: 4px;
 }
 .readBody::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--control-grip-hover);
 }
 
 .time {
@@ -202,7 +204,7 @@
   font-family: var(--font-mono);
   color: var(--text-3);
   margin-top: 2rem;
-  padding-top: 1rem;
+  padding-top: var(--space-lg);
   border-top: 1px dashed var(--border);
 }
 
@@ -225,11 +227,11 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 0.4rem;
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
   z-index: 1002;
   min-width: 200px;
   backdrop-filter: blur(8px);
-  animation: dropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: dropdownFadeIn var(--dur-base) var(--motion-ease);
 }
 
 .dropdownRight {
@@ -260,13 +262,13 @@
   font-weight: 500;
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: all 0.15s;
+  transition: all var(--dur-fast) var(--motion-ease);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .dropdownItem:hover {
-  background: var(--surface-2);
+  background: var(--surface-hover);
   color: var(--text-1);
 }

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import { deleteWorkspace, listWorkspaceCounts, workspaceColor } from '../../core/workspaces'
@@ -47,7 +48,7 @@ function Workspaces() {
       <div className={styles.managerHead}>
         <h1 className={styles.managerTitle}>Workspaces</h1>
         <button className={styles.createBtn} onClick={() => setCreating(true)}>
-          ＋ New workspace
+          <Plus size={16} /> New workspace
         </button>
       </div>
 
@@ -72,10 +73,10 @@ function Workspaces() {
           >
             <div className={styles.cardActions} onClick={(e) => e.stopPropagation()}>
               <button className={styles.iconBtn} onClick={() => setEditing(ws)} title="Edit" aria-label="Edit workspace">
-                ✎
+                <Pencil size={15} />
               </button>
               <button className={styles.iconBtn} onClick={() => handleDelete(ws)} title="Delete" aria-label="Delete workspace">
-                🗑
+                <Trash2 size={15} />
               </button>
             </div>
             <div className={styles.cardTop}>
@@ -92,7 +93,7 @@ function Workspaces() {
         ))}
 
         <button className={styles.addTile} onClick={() => setCreating(true)}>
-          ＋ New workspace
+          <Plus size={16} /> New workspace
         </button>
       </div>
 

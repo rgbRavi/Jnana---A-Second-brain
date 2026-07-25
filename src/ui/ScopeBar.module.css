@@ -1,7 +1,7 @@
 .bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 
@@ -14,9 +14,12 @@
 
 .seg {
   display: inline-flex;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(8px);
   border-radius: var(--radius-sm);
   overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .segBtn {
@@ -27,7 +30,7 @@
   font-family: var(--font-body);
   padding: 0.3rem 0.7rem;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .segBtn:not(:last-child) {
@@ -45,24 +48,29 @@
 
 .segOn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .segOn:hover {
-  color: #fff;
+  color: var(--on-accent);
+  filter: brightness(1.1);
 }
 
 .select {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-size: 0.78rem;
   font-family: var(--font-body);
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem var(--space-sm);
   cursor: pointer;
   outline: none;
   max-width: 180px;
+  transition: all var(--dur-base) var(--motion-ease);
 }
 
 .select:focus {

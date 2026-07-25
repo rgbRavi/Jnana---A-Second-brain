@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Pencil, Plus } from 'lucide-react'
 import { useNotesContext } from '../../context/NotesContext'
 import type { Note } from '../../types'
 import { NoteItem } from '../../ui/editor/NoteItem'
@@ -142,11 +143,11 @@ export function WorkspaceNotes({ workspaceId, onNewNote }: Props) {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen((v) => !v)}
         prefsKey={PREFS_KEY}
-        newLabel="✎ New note"
+        newLabel={<><Pencil size={15} /> New note</>}
         onNew={onNewNote}
         extraActions={
           <button className={NoteStyles.addBtn} onClick={() => setPicking(true)}>
-            ＋ Add notes
+            <Plus size={15} /> Add notes
           </button>
         }
       />

@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-24T21:30:00Z",
+  "title": "Design System: Jnana",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Violet Lamp", "canonical": "#7c6af7", "tonalRamp": ["#151233", "#241d5c", "#332a86", "#4438af", "#5749d4", "#7c6af7", "#9c8ffa", "#c3b8fc"] },
+      "bg": { "role": "neutral", "displayName": "Ink", "canonical": "#0d0d0f", "tonalRamp": ["#0d0d0f", "#141417", "#1c1c21", "#26262e", "#33333d", "#44444f", "#5a5a66", "#74747f"] },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#141417", "tonalRamp": ["#0d0d0f", "#141417", "#1c1c21", "#26262e", "#33333d", "#44444f", "#5a5a66", "#74747f"] },
+      "text-1": { "role": "neutral", "displayName": "Ink Text", "canonical": "#f0eff5", "tonalRamp": ["#55535f", "#6b6976", "#84828f", "#9896a4", "#b3b1bd", "#cfced6", "#e3e2e9", "#f0eff5"] },
+      "danger": { "role": "semantic", "displayName": "Danger Red", "canonical": "#e05252", "tonalRamp": ["#3a1515", "#5c2020", "#872e2e", "#af3d3d", "#cc4747", "#e05252", "#ea7a7a", "#f3a8a8"] },
+      "success": { "role": "semantic", "displayName": "Success Green", "canonical": "#3fb950", "tonalRamp": ["#0f2e14", "#17451f", "#1f5c2a", "#2a7a38", "#329445", "#3fb950", "#6bcd78", "#9ce0a5"] },
+      "warning": { "role": "semantic", "displayName": "Warning Amber", "canonical": "#e3b341", "tonalRamp": ["#3a2c0f", "#5c4517", "#87651f", "#af832a", "#cc9a32", "#e3b341", "#ecc86e", "#f3dc9c"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "View and section titles (dashboard heading, panel titles)." },
+      "title": { "displayName": "Title", "purpose": "Card titles, note titles, dialog headers." },
+      "body": { "displayName": "Body", "purpose": "Note content and reading surfaces; cap prose at 65-75ch." },
+      "caption": { "displayName": "Caption", "purpose": "Small supporting text between label and body — empty states, loading text, inline error callouts (0.8125rem/13px)." },
+      "small": { "displayName": "Small", "purpose": "Dense UI text — chips, pills, secondary meta (0.75rem/12px)." },
+      "compact": { "displayName": "Compact", "purpose": "Just under body — list rows, dense labels, sub-text (0.875rem/14px)." },
+      "heading-sm": { "displayName": "Heading (small)", "purpose": "Sub-section headings, panel titles (1.25rem/20px)." },
+      "heading": { "displayName": "Heading", "purpose": "Section headings (1.375rem/22px)." },
+      "display": { "displayName": "Display", "purpose": "Hero/stat numbers, largest headings (1.75rem/28px)." },
+      "label": { "displayName": "Label", "purpose": "Small uppercase mono kickers/captions; a deliberate system voice, not on every block." }
+    },
+    "shadows": [
+      { "name": "shadow-sm", "value": "0 2px 8px rgba(0,0,0,0.3)", "purpose": "Subtle lift — chips, small popovers, hover raises." },
+      { "name": "shadow-md", "value": "0 8px 24px rgba(0,0,0,0.22)", "purpose": "Dropdowns, the composer pill, inline menus." },
+      { "name": "shadow-lg", "value": "0 12px 36px rgba(0,0,0,0.45)", "purpose": "Floating panels, the command palette." },
+      { "name": "shadow-xl", "value": "0 20px 60px rgba(0,0,0,0.5)", "purpose": "Modals and the note peek." },
+      { "name": "shadow-2xl", "value": "0 24px 70px rgba(0,0,0,0.55)", "purpose": "Heaviest overlays (fullscreen viewers)." }
+    ],
+    "motion": [
+      { "name": "duration-fast", "value": "120ms", "purpose": "Micro-feedback: color/border shifts on hover and focus." },
+      { "name": "duration-base", "value": "220ms", "purpose": "Default state transitions (open/close, reveal)." },
+      { "name": "duration-slow", "value": "420ms", "purpose": "Larger surface transitions; used sparingly." },
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions." },
+      { "name": "ease-press", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "The .pressable scale(0.97) press response — the one place a slight spring is allowed." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single strong call to action in a dialog or action bar. Accent is spent here and nowhere else nearby.",
+      "html": "<button class=\"ds-btn-primary\">Save</button>",
+      "css": ".ds-btn-primary { background: var(--accent, #7c6af7); color: #fff; border: 1px solid var(--accent, #7c6af7); border-radius: var(--radius-sm, 6px); padding: 0.45rem 0.95rem; font-family: Inter, sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: filter 0.15s, opacity 0.15s; } .ds-btn-primary:hover { filter: brightness(1.08); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent, #7c6af7); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "The default quiet button (cancel, secondary action). Border over fill; no accent at rest.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { background: transparent; color: var(--text-2, #9896a4); border: 1px solid var(--border, #2a2a32); border-radius: var(--radius-sm, 6px); padding: 0.45rem 0.9rem; font-family: Inter, sans-serif; font-size: 0.82rem; cursor: pointer; transition: border-color 0.15s, color 0.15s; } .ds-btn-secondary:hover { border-color: var(--border-hover, #3d3d4a); color: var(--text-1, #f0eff5); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent, #7c6af7); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive confirms only (delete, restore). Same shape as primary, danger color.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { background: var(--danger, #e05252); color: #fff; border: 1px solid var(--danger, #e05252); border-radius: var(--radius-sm, 6px); padding: 0.45rem 0.95rem; font-family: Inter, sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: filter 0.15s; } .ds-btn-danger:hover { filter: brightness(1.08); } .ds-btn-danger:focus-visible { outline: 2px solid var(--danger, #e05252); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Single-line text field. Sits on --bg, below its surface; focus shifts the border to accent (no glow).",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search notes…\" />",
+      "css": ".ds-input { width: 100%; background: var(--bg, #0d0d0f); border: 1px solid var(--border, #2a2a32); border-radius: var(--radius-sm, 6px); color: var(--text-1, #f0eff5); padding: 0.6rem 0.7rem; font-family: Inter, sans-serif; font-size: 0.9rem; outline: none; transition: border-color 0.15s; } .ds-input::placeholder { color: var(--text-3, #6d6b75); } .ds-input:focus { border-color: var(--accent, #7c6af7); }"
+    },
+    {
+      "name": "Content Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A note/content card. Flat at rest — tonal surface + hairline border, no shadow. Never nest a card in a card.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Note title</h3><p class=\"ds-card-body\">A calm surface that lets the note's own content stand forward.</p></div>",
+      "css": ".ds-card { background: var(--surface, #141417); border: 1px solid var(--border, #2a2a32); border-radius: var(--radius-lg, 14px); padding: 1.25rem; transition: border-color 0.15s; } .ds-card:hover { border-color: var(--border-hover, #3d3d4a); } .ds-card-title { margin: 0 0 0.5rem; font-family: Inter, sans-serif; font-size: 1.125rem; font-weight: 600; color: var(--text-1, #f0eff5); } .ds-card-body { margin: 0; font-family: Inter, sans-serif; font-size: 0.9375rem; line-height: 1.6; color: var(--text-2, #9896a4); }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "A left-rail nav item. Quiet at rest (--text-2); active state lights text/icon violet over a soft accent wash — the Violet Lamp marking 'you are here'.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" href=\"#\">Notes</a><a class=\"ds-nav-item ds-nav-item--active\" href=\"#\" aria-current=\"page\">Graph</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 2px; } .ds-nav-item { display: block; padding: 0.4rem 0.6rem; border-radius: var(--radius-sm, 6px); color: var(--text-2, #9896a4); font-family: Inter, sans-serif; font-size: 0.9rem; text-decoration: none; transition: background 0.15s, color 0.15s; } .ds-nav-item:hover { color: var(--text-1, #f0eff5); background: var(--surface-2, #1c1c21); } .ds-nav-item--active { color: var(--accent, #7c6af7); background: var(--accent-soft, #22202b); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent, #7c6af7); outline-offset: 2px; }"
+    },
+    {
+      "name": "Composer Pill",
+      "kind": "custom",
+      "refersTo": "button-secondary",
+      "description": "Jnana's signature control: a floating 'take a note' pill at the foot of the content area. It floats, so it casts a real shadow; hovering warms its border to accent.",
+      "html": "<button class=\"ds-pill\"><span class=\"ds-pill-icon\">+</span> Take a note…</button>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 0.55rem; padding: 0.7rem 1.5rem; background: var(--surface, #141417); border: 1px solid var(--border-hover, #3d3d4a); border-radius: 999px; color: var(--text-2, #9896a4); font-family: Inter, sans-serif; font-size: 0.9rem; cursor: text; box-shadow: 0 8px 28px rgba(0,0,0,0.4); transition: color 0.15s, border-color 0.15s, transform 0.2s; } .ds-pill:hover { color: var(--text-1, #f0eff5); border-color: var(--accent, #7c6af7); } .ds-pill-icon { color: var(--accent, #7c6af7); font-size: 0.95rem; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Study",
+    "overview": "Jnana is a dim, focused desk at night. The room is a deep neutral dark; a single violet lamp throws the only warm light, and everything the user isn't touching recedes into the surfaces. The interface is not the subject — the notes, the graph, the marked-up PDF, the connections between ideas are. Depth is tonal, not dramatic: four stacked neutrals separated by hairline borders do the layering, and real shadows are spent only on things that genuinely float. Type is a single well-tuned sans (Inter) with a mono (JetBrains Mono) reserved for small uppercase labels. The violet accent is rare on purpose — primary actions, current selection, links, and focus, nothing decorative. It rejects loud SaaS marketing UI, sterile enterprise gray, cluttered panel storms, and toy-like gimmickry; warmth is earned through restraint and opt-in themes/plugins.",
+    "keyCharacteristics": [
+      "Deep neutral-dark canvas; tonal layering over shadow for depth",
+      "One violet accent used sparingly as a signal, never as decoration",
+      "Single sans (Inter) + mono labels (JetBrains Mono); fixed rem scale, tight ratio",
+      "Calm and low-chrome at rest; density, speed, and power reveal on demand",
+      "Fully user-themeable (Theme Studio) — every color is a token, nothing hardcoded",
+      "WCAG 2.1 AA, with a live contrast guardrail across themes"
+    ],
+    "rules": [
+      { "name": "The Violet Lamp Rule", "body": "The accent lights one thing at a time — the primary action, the current selection, a link, or focus — and nothing else. If a screen has violet on more than a small fraction of its surface, it has become decoration; pull it back to a soft neutral wash (accent-soft).", "section": "colors" },
+      { "name": "The Token-Only Rule", "body": "Every color on screen is a CSS custom property. Hardcoding #7c6af7, an rgba(124,106,247,·) wash, or a hex shadow is forbidden — Theme Studio re-themes by swapping tokens, so a literal silently breaks on the light, sepia, and high-contrast presets.", "section": "colors" },
+      { "name": "The Fixed-Scale Rule", "body": "Type sizes are fixed rem, never fluid clamp(). Users work at a consistent DPI in a desktop window; a heading that shrinks inside a narrow sidebar looks broken, not responsive.", "section": "typography" },
+      { "name": "The Mono-Is-A-Label Rule", "body": "JetBrains Mono is for small uppercase labels, captions, timestamps, and code — never body prose or headings. Overusing it makes the UI read as a terminal, which this isn't.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest; a shadow appears only because something is floating or responding to state. Never hand-roll a bespoke rgba(0,0,0,·) shadow — pick a --shadow-* step so every floating surface shares one depth language.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do route every color through a token (var(--accent), var(--surface), var(--text-1)) so Theme Studio can re-theme the whole app in one repaint.",
+      "Do convey depth with tonal layering (bg -> surface -> surface-2 -> surface-3) plus 1px hairline borders; reserve --shadow-* for things that actually float.",
+      "Do spend the violet accent on one thing at a time — primary action, current selection, link, or focus — and let soft accent-soft washes carry everything accent-adjacent.",
+      "Do keep the resting state calm and minimal; reveal density, keyboard power, and advanced controls on demand (command palette, rails, hover chrome).",
+      "Do use fixed rem type sizes and a single sans (Inter); keep JetBrains Mono for small uppercase labels and captions only.",
+      "Do give every interactive control its full state set (default, hover, :focus-visible, active, disabled, loading, error) and keep the same button/input vocabulary on every screen.",
+      "Do verify AA contrast across all Theme Studio presets — including placeholder text — using the built-in guardrail."
+    ],
+    "donts": [
+      "Don't ship loud SaaS marketing UI: no gradient-drenched hero-metric dashboards, no purple-on-purple washes, no confetti, no growth-hacky nudges or upsells.",
+      "Don't let it read as a sterile enterprise tool — no cold, joyless corporate gray; the dark is warm-neutral and lamp-lit.",
+      "Don't crowd the default view into a cluttered, overwhelming Notion/Obsidian-at-its-busiest panel storm; minimum surface is the resting state, density is opt-in.",
+      "Don't make it toy-like or gimmicky: no rounded-everything, no oversized playful illustrations, no gamified badges.",
+      "Don't hardcode #7c6af7, an rgba(124,106,247,·) wash, or a bespoke rgba(0,0,0,·) shadow — literals break re-theming and fragment the depth language.",
+      "Don't use border-left/border-right greater than 1px as a colored accent stripe on cards, list items, or callouts; use a full hairline border or a soft tonal fill.",
+      "Don't use gradient text (background-clip: text), fluid clamp() UI headings, or display fonts in labels, buttons, and data.",
+      "Don't reach for a modal as the first thought — exhaust inline and progressive alternatives; and never nest a card inside a card."
+    ]
+  }
+}

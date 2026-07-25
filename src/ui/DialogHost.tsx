@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { subscribeDialog, getDialog, resolveDialog, type ActiveDialog } from '../lib/dialog'
 import styles from './DialogHost.module.css'
 
@@ -96,7 +97,7 @@ function ChoiceBody({ dialog }: { dialog: Extract<ActiveDialog, { kind: 'choice'
               {opt.description && <span className={styles.optionDesc}>{opt.description}</span>}
             </span>
             <span className={styles.optionArrow} aria-hidden="true">
-              →
+              <ChevronRight size={16} />
             </span>
           </button>
         ))}

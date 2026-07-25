@@ -2,7 +2,7 @@
   flex: 1;
   overflow-y: auto;
   /* extra bottom padding clears the floating composer pill */
-  padding: 1rem 2rem 7rem;
+  padding: var(--space-lg) var(--space-2xl) 7rem;
   display: flex;
   flex-direction: column;
 }
@@ -64,5 +64,5 @@ p {
 .gettingStarted h2 {
     margin-bottom: 0.5em;   
     margin-left: -1em;
-    color: #BAC7D5;
+    color: var(--text-2);
 }

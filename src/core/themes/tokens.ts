@@ -52,6 +52,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     tokens: [
       { k: '--accent', label: 'Accent', kind: 'color' },
       { k: '--danger', label: 'Danger', kind: 'color' },
+      { k: '--success', label: 'Success', kind: 'color' },
+      { k: '--warning', label: 'Warning', kind: 'color' },
+      { k: '--star', label: 'Star / favourite', kind: 'color' },
     ],
   },
   {
@@ -106,24 +109,16 @@ export interface FontDef {
   note?: string
 }
 
+// No font faces are bundled (the app CSP blocks remote fonts), so each built-in
+// stack renders via its OS fallback — every sans option would look identical, so
+// only one distinct look is offered per role (System sans / mono, and both a
+// serif and a sans for reading). Users add real faces via the font installer, and
+// picking the matching built-in id (e.g. "DM Sans") uses it once installed.
 export const FONTS: Record<'body' | 'mono' | 'reading', FontDef[]> = {
-  body: [
-    { id: 'DM Sans', label: 'DM Sans', stack: "'DM Sans', sans-serif", note: 'default' },
-    { id: 'Geist', label: 'Geist', stack: "'Geist', sans-serif" },
-    { id: 'Public Sans', label: 'Public Sans', stack: "'Public Sans', sans-serif" },
-    { id: 'Figtree', label: 'Figtree', stack: "'Figtree', sans-serif" },
-    { id: 'Schibsted Grotesk', label: 'Schibsted', stack: "'Schibsted Grotesk', sans-serif" },
-  ],
-  mono: [
-    { id: 'DM Mono', label: 'DM Mono', stack: "'DM Mono', monospace", note: 'default' },
-    { id: 'JetBrains Mono', label: 'JetBrains', stack: "'JetBrains Mono', monospace" },
-    { id: 'Space Mono', label: 'Space Mono', stack: "'Space Mono', monospace" },
-    { id: 'IBM Plex Mono', label: 'IBM Plex', stack: "'IBM Plex Mono', monospace" },
-  ],
+  body: [{ id: 'DM Sans', label: 'System Sans', stack: "'DM Sans', sans-serif", note: 'default' }],
+  mono: [{ id: 'DM Mono', label: 'System Mono', stack: "'DM Mono', monospace", note: 'default' }],
   reading: [
-    { id: 'Newsreader', label: 'Newsreader', stack: "'Newsreader', Georgia, serif", note: 'serif' },
-    { id: 'Source Serif 4', label: 'Source Serif 4', stack: "'Source Serif 4', Georgia, serif", note: 'serif' },
-    { id: 'Spectral', label: 'Spectral', stack: "'Spectral', Georgia, serif", note: 'serif' },
-    { id: 'DM Sans', label: 'DM Sans', stack: "'DM Sans', sans-serif", note: 'sans' },
+    { id: 'Newsreader', label: 'System Serif', stack: "'Newsreader', Georgia, serif", note: 'serif' },
+    { id: 'DM Sans', label: 'System Sans', stack: "'DM Sans', sans-serif", note: 'sans' },
   ],
 }
