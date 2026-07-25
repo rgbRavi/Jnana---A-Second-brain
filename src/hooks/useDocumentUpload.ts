@@ -9,6 +9,8 @@ import { parseCsv, serializeCsv, buildTableBlock } from '../core/table'
 import { toast } from '../lib/toast'
 import { showChoiceDialog } from '../lib/dialog'
 import { log } from '../lib/logger'
+import { extractPdfText } from '../core/media/pdfText'
+import { saveAttachmentText } from '../core/attachmentText'
 
 // The inline table grid stays pleasant up to roughly this size; past it we warn
 // in the import dialog (mirrors the grid's own caps in NoteEmbeds).
@@ -32,6 +34,17 @@ export function useDocumentUpload({
 }: UseDocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
 
+  // Extract a freshly-imported PDF's text and persist it so keyword + semantic
+  // search can find its contents. Best-effort + fire-and-forget: never block or
+  // fail the import on it (scanned PDFs simply yield no text).
+  const indexPdfText = (filename: string) => {
+    void extractPdfText(filename)
+      .then((text) => {
+        if (text.trim()) return saveAttachmentText(noteId, filename, text)
+      })
+      .catch((e) => log.error('indexPdfText failed', e))
+  }
+
   const handleDocumentUpload = async () => {
     try {
       onUploadStart()
@@ -53,6 +66,7 @@ export function useDocumentUpload({
           registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
         }
         onInsertMarkdown(`\n\n![pdf](jnana-asset://${filename})`)
+        indexPdfText(filename)
       } else if (['doc', 'docx', 'odt'].includes(ext)) {
         // Ask how to handle the document via an in-app modal.
         const choice = await showChoiceDialog({
@@ -76,6 +90,7 @@ export function useDocumentUpload({
               registerMediaRef(noteId, 'pdf', filename).catch((e) => log.error('registerMediaRef failed', e))
             }
             onInsertMarkdown(`\n\n![pdf](jnana-asset://${filename})`)
+            indexPdfText(filename)
           } catch (err) {
             toast.error(`PDF conversion failed: ${err}\n\nPlease ensure LibreOffice or Pandoc is installed.`)
           }
