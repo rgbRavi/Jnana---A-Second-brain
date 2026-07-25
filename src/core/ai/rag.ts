@@ -6,6 +6,7 @@ import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../
 import { chunkNote } from './chunk'
 import { getEmbeddingProvider } from './provider'
 import { log } from '../../lib/logger'
+import { getAttachmentText } from '../attachmentText'
 
 /**
  * Embed a note's chunks and persist them to the local vector store.
@@ -13,7 +14,15 @@ import { log } from '../../lib/logger'
  * Returns the number of chunks indexed.
  */
 export async function indexNote(note: Note, config: AiConfig): Promise<number> {
-  const chunks = chunkNote(note)
+  // Fold in any extracted attachment (PDF) text so it is embedded alongside the
+  // note body. Best-effort: a lookup failure must not block indexing the note.
+  let extra = ''
+  try {
+    extra = await getAttachmentText(note.id)
+  } catch {
+    extra = ''
+  }
+  const chunks = chunkNote(note, extra)
 
   if (chunks.length === 0) {
     // Note has no embeddable text — clear any stale vectors and stop.

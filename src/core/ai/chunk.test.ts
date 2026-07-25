@@ -50,4 +50,11 @@ describe('chunkNote', () => {
       expect(c.chunkText.startsWith('My Note\n\n')).toBe(true)
     })
   })
+
+  it('includes extra attachment text in the chunked output', () => {
+    const note = { id: 'n1', title: 'Doc', content: 'body one', tags: [], createdAt: 0, updatedAt: 0 } as Note
+    const chunks = chunkNote(note, 'text pulled from a pdf about photosynthesis')
+    const all = chunks.map((c) => c.chunkText).join('\n')
+    expect(all).toContain('photosynthesis')
+  })
 })
