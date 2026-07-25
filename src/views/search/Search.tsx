@@ -4,16 +4,21 @@
 import { useNotesContext } from "../../context/NotesContext";
 import { useMemo, useState } from "react";
 import { SearchDocs } from "../../ui/SearchDocs";
+import { AiSearchDocs } from "../../ui/ai/AiSearchDocs";
 import { ScopeBar } from "../../ui/ScopeBar";
 import { NoteModal } from "../../ui/NoteModal";
 import { useScopedNoteIds } from "../../hooks/useScopedNoteIds";
 import { useActiveVaultId } from "../../hooks/useVaults";
+import { useViewState } from "../../hooks/useViewState";
 import { DEFAULT_VAULT_ID } from "../../types";
+
+type SearchMode = 'keyword' | 'ai'
 
 function Search(){
     const { notes, update, updateTags } = useNotesContext()
     const { noteIds } = useScopedNoteIds()
     const activeVaultId = useActiveVaultId()
+    const [mode, setMode] = useViewState<SearchMode>('search:mode', 'keyword')
     const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
     const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
@@ -28,16 +33,47 @@ function Search(){
         [notes, noteIds, activeVaultId],
     )
 
+    const tab = (m: SearchMode, label: string) => (
+        <button
+            type="button"
+            onClick={() => setMode(m)}
+            aria-pressed={mode === m}
+            style={{
+                background: mode === m ? 'var(--surface-selected)' : 'transparent',
+                color: mode === m ? 'var(--text-1)' : 'var(--text-2)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.4rem 0.8rem',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontSize: '0.82rem',
+            }}
+        >
+            {label}
+        </button>
+    )
+
     return(
         <div className="search-view">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
             <p className="section-label">Search</p>
             <ScopeBar />
           </div>
-          <SearchDocs
-            notes={scopedNotes}
-            onOpenNote={(noteId) => setExpandedNoteId(noteId)}
-          />
+          <div style={{ display: 'flex', gap: '0.5rem', margin: '0.5rem 0 0.9rem' }}>
+            {tab('keyword', 'Keyword')}
+            {tab('ai', 'AI')}
+          </div>
+          {mode === 'keyword' ? (
+            <SearchDocs
+              notes={scopedNotes}
+              onOpenNote={(noteId) => setExpandedNoteId(noteId)}
+            />
+          ) : (
+            <AiSearchDocs
+              notes={scopedNotes}
+              onOpenNote={(noteId) => setExpandedNoteId(noteId)}
+            />
+          )}
           {expandedNote && (
             <NoteModal
               note={expandedNote}
