@@ -64,7 +64,10 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   quick read view; **Edit in Working Notes ↗** jumps it to the desk. Expand it to fill the content
   area with the ⤢/⤡ toggle.
 - **Wikilinks** (`[[Title]]`) that become graph edges, kept in sync efficiently on the Rust side
-- **Full-text search** (MiniSearch) across titles, tags, and content, with sensible boosting
+- **Search, two ways** — a **Keyword** mode (MiniSearch across titles, tags, and content, with
+  sensible boosting) and an **AI** mode (ask in plain language; semantic retrieval over the local
+  vector store, ranked by meaning). Both also search **text extracted from your PDFs** — type a phrase
+  that lives *inside* a PDF and the note surfaces
 - **Tags** — your own tags plus automatic ones (`has:image`, `has:pdf`, `long-form`, …)
 - **Favourites** for quick access
 - **Trash** — deleting a note moves it to the Trash (soft-delete) instead of destroying it; **Restore**
