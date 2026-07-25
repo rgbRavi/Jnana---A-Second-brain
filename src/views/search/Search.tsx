@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useNotesContext } from "../../context/NotesContext";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SearchDocs } from "../../ui/SearchDocs";
 import { AiSearchDocs } from "../../ui/ai/AiSearchDocs";
 import { ScopeBar } from "../../ui/ScopeBar";
@@ -11,12 +11,21 @@ import { useScopedNoteIds } from "../../hooks/useScopedNoteIds";
 import { useActiveVaultId } from "../../hooks/useVaults";
 import { useViewState } from "../../hooks/useViewState";
 import { DEFAULT_VAULT_ID } from "../../types";
+import { setRetrievalScope } from "../../core/ai";
 
 type SearchMode = 'keyword' | 'ai'
 
 function Search(){
     const { notes, update, updateTags } = useNotesContext()
     const { noteIds } = useScopedNoteIds()
+
+    // Constrain semantic (AI-mode) retrieval to the active workspace scope so
+    // retrieve() over-fetches/filters to it before slicing — mirrors Ai.tsx.
+    useEffect(() => {
+        setRetrievalScope(noteIds)
+        return () => setRetrievalScope(null)
+    }, [noteIds])
+
     const activeVaultId = useActiveVaultId()
     const [mode, setMode] = useViewState<SearchMode>('search:mode', 'keyword')
     const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)

@@ -28,6 +28,7 @@ import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
 import { getGeneralSettings } from "./hooks/useGeneralSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useInstalledFonts } from "./hooks/useInstalledFonts";
+import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
@@ -54,6 +55,9 @@ function AppInner() {
     // Load user-installed @font-face rules at boot so a theme using a custom
     // family renders without opening Settings (mirrors useTheme's boot mount).
     useInstalledFonts()
+    // Extract text from notes' PDF attachments after save (note row exists by
+    // then) so PDF contents are searchable in keyword + AI search.
+    usePdfTextIndex()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()
