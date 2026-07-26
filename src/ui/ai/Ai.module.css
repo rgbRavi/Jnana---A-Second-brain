@@ -656,3 +656,71 @@
   color: var(--text-3);
   line-height: 1.5;
 }
+
+/* Quiz controls — compact toolbar + settings popover */
+.quizToolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.quizToolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.quizToolbarCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.quizPopover {
+  position: fixed;
+  z-index: 10000;
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.quizPopoverRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+.quizPopoverSection {
+  margin-top: var(--space-xs);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.quizWeightInput {
+  width: 3.5rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.82rem;
+}
