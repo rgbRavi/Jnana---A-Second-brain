@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizAttempt, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
@@ -256,6 +256,26 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     }
     void persist(thread, scope, focusedTitle(thread, scope))
   }, [persist])
+
+  // Debounced persist for quiz answer edits — persistNow does an un-debounced
+  // Tauri IPC + SQLite upsert, so calling it on every keystroke of a
+  // descriptive answer would fire one round-trip per character. Same 800ms
+  // shape as the Working Notes autosave (EditorPane.tsx AUTOSAVE_MS).
+  const persistTimer = useRef<number | null>(null)
+
+  const persistSoon = useCallback(() => {
+    if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
+    persistTimer.current = window.setTimeout(() => {
+      persistTimer.current = null
+      persistNow()
+    }, 800)
+  }, [persistNow])
+
+  useEffect(() => {
+    return () => {
+      if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
+    }
+  }, [])
 
   const rangeDays = useMemo(() => {
     const diff = Math.round((startOfDay(toStr) - startOfDay(fromStr)) / DAY) + 1
@@ -589,10 +609,16 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
                 config={config}
                 reason={m.reason}
                 onChange={(next) => {
+                  // A scoring event (a grade landing, or immediate-mode auto-score)
+                  // changes total/max — flush that right away, a graded attempt is
+                  // worth not losing. A plain answer edit (typing, picking an option
+                  // in end-mode) only touches responses, so debounce those.
+                  const scored = next.total !== m.attempt.total || next.max !== m.attempt.max
                   setThread((prev) =>
                     prev.map((msg, j) => (j === i && msg.kind === 'quiz' ? { ...msg, attempt: next } : msg)),
                   )
-                  persistNow()
+                  if (scored) persistNow()
+                  else persistSoon()
                 }}
               />
             ) : m.kind === 'question' ? (
