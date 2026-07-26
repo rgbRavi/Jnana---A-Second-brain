@@ -52,14 +52,19 @@ export function QuizNoteView({ note }: NoteViewProps) {
   const graded = attempt.marks.some((m) => m !== null)
   const settings = graded ? { ...getQuizSettings(), feedback: 'immediate' as const } : getQuizSettings()
   return (
-    <QuizRunner
-      attempt={attempt}
-      settings={settings}
-      config={config}
-      onChange={() => {
-        /* read mode — answers aren't persisted */
-      }}
-    />
+    // Read mode is a record of a finished attempt, not a place to take it again.
+    // A disabled fieldset cascades to every control inside, so nothing can be
+    // clicked or focused — including a blur that would trigger a live re-grade.
+    <fieldset disabled style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <QuizRunner
+        attempt={attempt}
+        settings={settings}
+        config={config}
+        onChange={() => {
+          /* read mode — answers aren't persisted */
+        }}
+      />
+    </fieldset>
   )
 }
 
