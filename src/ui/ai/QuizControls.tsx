@@ -10,7 +10,7 @@
 // viewport-clamped for the same reason SuggestionMenu is — the chat column
 // scrolls and would otherwise clip it.
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Settings2 } from 'lucide-react'
 import type { QuizFormat } from '../../types'
@@ -32,24 +32,79 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
   const [settings, setSettings] = useQuizSettings()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLButtonElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [weightDraft, setWeightDraft] = useState<Partial<Record<QuizFormat, string>>>({})
 
-  // Clamp the popover into the viewport once it has an anchor rect.
+  // Close on outside press / Escape — the button and the portaled popover both
+  // count as "inside" (capture phase, matching SuggestionMenu pattern).
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (popoverRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // Position the portaled popover under the button, clamped to the viewport (flip
+  // above if it would overflow the bottom). Re-run when content changes height.
   useLayoutEffect(() => {
-    if (!open || !anchorRef.current) return
+    if (!open || !anchorRef.current || !popoverRef.current) return
     const r = anchorRef.current.getBoundingClientRect()
     const width = 320
-    setPos({
-      top: Math.min(r.bottom + 6, window.innerHeight - 40),
-      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
-    })
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+    const popoverH = popoverRef.current.getBoundingClientRect().height ?? 0
+    const below = r.bottom + 6
+    const top = popoverH && below + popoverH > window.innerHeight - 8
+      ? Math.max(8, r.top - popoverH - 6)
+      : below
+    setPos({ top, left })
+  }, [open, settings.negativeMarking])
+
+  // Re-position on window resize while popover is open.
+  useEffect(() => {
+    if (!open) return
+    const onResize = () => {
+      if (!anchorRef.current || !popoverRef.current) return
+      const r = anchorRef.current.getBoundingClientRect()
+      const width = 320
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+      const popoverH = popoverRef.current.getBoundingClientRect().height ?? 0
+      const below = r.bottom + 6
+      const top = popoverH && below + popoverH > window.innerHeight - 8
+        ? Math.max(8, r.top - popoverH - 6)
+        : below
+      setPos({ top, left })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [open])
 
   const toggleFormat = (f: QuizFormat, on: boolean) =>
     setSettings({ formats: { ...settings.formats, [f]: on } })
 
-  const setWeight = (f: QuizFormat, value: number) =>
-    setSettings({ weights: { ...settings.weights, [f]: Math.max(0.5, value) } })
+  const commitWeight = (f: QuizFormat) => {
+    const raw = weightDraft[f]
+    if (raw === undefined) return
+    const n = Number(raw)
+    setSettings({
+      weights: {
+        ...settings.weights,
+        [f]: Number.isFinite(n) && n > 0 ? Math.max(0.5, n) : settings.weights[f],
+      },
+    })
+    setWeightDraft((d) => ({ ...d, [f]: undefined }))
+  }
 
   return (
     <>
@@ -110,18 +165,13 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
 
       {open &&
         createPortal(
-          <>
-            {/* Click-away layer; Escape is handled by the button losing focus. */}
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
-              onPointerDown={() => setOpen(false)}
-            />
-            <div
-              className={styles.quizPopover}
-              style={{ top: pos.top, left: pos.left }}
-              role="dialog"
-              aria-label="Quiz settings"
-            >
+          <div
+            ref={popoverRef}
+            className={styles.quizPopover}
+            style={{ top: pos.top, left: pos.left }}
+            role="dialog"
+            aria-label="Quiz settings"
+          >
               <div className={styles.quizPopoverSection}>Question types</div>
               {FORMAT_LABELS.map(([f, label]) => (
                 <div key={f} className={styles.quizPopoverRow}>
@@ -134,9 +184,14 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
                     className={styles.quizWeightInput}
                     type="number"
                     min={0.5}
+                    max={100}
                     step={0.5}
-                    value={settings.weights[f]}
-                    onChange={(e) => setWeight(f, Number(e.target.value))}
+                    value={weightDraft[f] ?? String(settings.weights[f])}
+                    onChange={(e) => setWeightDraft((d) => ({ ...d, [f]: e.target.value }))}
+                    onBlur={() => commitWeight(f)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitWeight(f)
+                    }}
                     aria-label={`${label} marks per question`}
                     title={`${label} marks per question`}
                   />
@@ -216,8 +271,7 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
               >
                 Forget asked questions
               </button>
-            </div>
-          </>,
+            </div>,
           document.body,
         )}
     </>
