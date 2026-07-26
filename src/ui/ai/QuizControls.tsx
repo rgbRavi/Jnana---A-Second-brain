@@ -28,6 +28,22 @@ const FORMAT_LABELS: [QuizFormat, string][] = [
 
 const COUNT_OPTIONS = [3, 5, 6, 10, 15, 20].map((n) => ({ value: String(n), label: `${n}` }))
 
+function calcPopoverPos(
+  anchorRef: React.RefObject<HTMLButtonElement | null>,
+  popoverRef: React.RefObject<HTMLDivElement | null>,
+): { top: number; left: number } {
+  if (!anchorRef.current || !popoverRef.current) return { top: 0, left: 0 }
+  const r = anchorRef.current.getBoundingClientRect()
+  const width = 320
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+  const popoverH = popoverRef.current.getBoundingClientRect().height ?? 0
+  const below = r.bottom + 6
+  const top = popoverH && below + popoverH > window.innerHeight - 8
+    ? Math.max(8, r.top - popoverH - 6)
+    : below
+  return { top, left }
+}
+
 export function QuizControls({ vaultId }: { vaultId: string }) {
   const [settings, setSettings] = useQuizSettings()
   const [open, setOpen] = useState(false)
@@ -41,8 +57,13 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node
+      const target = e.target as HTMLElement | null
+      if (!target) return
       if (popoverRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      // A SettingSelect inside this popover portals its listbox to document.body,
+      // so an option row is a DOM sibling, not a descendant — picking one must not
+      // dismiss the popover that owns the select.
+      if (target.closest('[role="listbox"]')) return
       setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
@@ -59,33 +80,14 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
   // Position the portaled popover under the button, clamped to the viewport (flip
   // above if it would overflow the bottom). Re-run when content changes height.
   useLayoutEffect(() => {
-    if (!open || !anchorRef.current || !popoverRef.current) return
-    const r = anchorRef.current.getBoundingClientRect()
-    const width = 320
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
-    const popoverH = popoverRef.current.getBoundingClientRect().height ?? 0
-    const below = r.bottom + 6
-    const top = popoverH && below + popoverH > window.innerHeight - 8
-      ? Math.max(8, r.top - popoverH - 6)
-      : below
-    setPos({ top, left })
+    if (!open) return
+    setPos(calcPopoverPos(anchorRef, popoverRef))
   }, [open, settings.negativeMarking])
 
   // Re-position on window resize while popover is open.
   useEffect(() => {
     if (!open) return
-    const onResize = () => {
-      if (!anchorRef.current || !popoverRef.current) return
-      const r = anchorRef.current.getBoundingClientRect()
-      const width = 320
-      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
-      const popoverH = popoverRef.current.getBoundingClientRect().height ?? 0
-      const below = r.bottom + 6
-      const top = popoverH && below + popoverH > window.innerHeight - 8
-        ? Math.max(8, r.top - popoverH - 6)
-        : below
-      setPos({ top, left })
-    }
+    const onResize = () => setPos(calcPopoverPos(anchorRef, popoverRef))
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [open])
@@ -100,7 +102,7 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
     setSettings({
       weights: {
         ...settings.weights,
-        [f]: Number.isFinite(n) && n > 0 ? Math.max(0.5, n) : settings.weights[f],
+        [f]: Number.isFinite(n) && n > 0 ? Math.min(100, Math.max(0.5, n)) : settings.weights[f],
       },
     })
     setWeightDraft((d) => ({ ...d, [f]: undefined }))
