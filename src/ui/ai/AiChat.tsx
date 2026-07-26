@@ -588,11 +588,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
                 settings={quizSettings}
                 config={config}
                 reason={m.reason}
-                onChange={(next) =>
+                onChange={(next) => {
                   setThread((prev) =>
                     prev.map((msg, j) => (j === i && msg.kind === 'quiz' ? { ...msg, attempt: next } : msg)),
                   )
-                }
+                  persistNow()
+                }}
               />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
