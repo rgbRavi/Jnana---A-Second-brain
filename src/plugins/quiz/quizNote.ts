@@ -19,11 +19,22 @@ export function parseAttempt(content: string): QuizAttempt | null {
   try {
     const parsed = JSON.parse(content) as Partial<QuizAttempt>
     if (!parsed || !Array.isArray(parsed.questions)) return null
+    const n = parsed.questions.length
+    // Normalize arrays to exactly n entries, padding with same defaults emptyAttempt uses.
+    const responses = (parsed.responses ?? parsed.questions.map(() => [])).slice(0, n)
+    while (responses.length < n) {
+      const q = parsed.questions[responses.length]
+      responses.push(q.format === 'descriptive' ? '' : [])
+    }
+    const marks = (parsed.marks ?? parsed.questions.map(() => null)).slice(0, n)
+    while (marks.length < n) marks.push(null)
+    const feedback = (parsed.feedback ?? parsed.questions.map(() => '')).slice(0, n)
+    while (feedback.length < n) feedback.push('')
     return {
       questions: parsed.questions,
-      responses: parsed.responses ?? parsed.questions.map(() => []),
-      marks: parsed.marks ?? parsed.questions.map(() => null),
-      feedback: parsed.feedback ?? parsed.questions.map(() => ''),
+      responses,
+      marks,
+      feedback,
       total: parsed.total ?? 0,
       max: parsed.max ?? 0,
       scopeLabel: parsed.scopeLabel ?? '',

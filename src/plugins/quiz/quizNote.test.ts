@@ -77,4 +77,27 @@ describe('quiz note content', () => {
   it('exports a placeholder for an empty quiz note', () => {
     expect(quizToExportMarkdown(EMPTY_QUIZ_CONTENT)).toContain('_Empty quiz._')
   })
+
+  it('pads arrays when parsing stored attempts with mismatched lengths', () => {
+    const shortAttempt = {
+      questions: attempt.questions,
+      responses: [[1]], // Only 1 entry for 2 questions
+      marks: [1], // Only 1 entry for 2 questions
+      feedback: [''], // Only 1 entry for 2 questions
+      total: 1,
+      max: 3,
+      scopeLabel: 'Test',
+      takenAt: 1_000_000,
+    }
+    const parsed = parseAttempt(JSON.stringify(shortAttempt))
+    expect(parsed).not.toBeNull()
+    expect(parsed?.responses).toHaveLength(2)
+    expect(parsed?.marks).toHaveLength(2)
+    expect(parsed?.marks?.[1]).toBe(null) // Second mark should be null
+    expect(parsed?.feedback).toHaveLength(2)
+    expect(parsed?.feedback?.[1]).toBe('')
+    // Export should show the second question as ungraded
+    const md = quizToExportMarkdown(JSON.stringify(shortAttempt))
+    expect(md).toContain('**Marks awarded:** ungraded')
+  })
 })
