@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+   Copyright (c) 2026 Jnana Project */
+
+/* The typed-editor host (.typedFill) is overflow:hidden so a canvas board can
+   own its space. A quiz is a long document, so it brings its own scroller. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.retakeBtn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-2);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--motion-ease),
+    color var(--dur-fast) var(--motion-ease),
+    background var(--dur-fast) var(--motion-ease);
+}
+.retakeBtn:hover {
+  color: var(--text-1);
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+
+.hint {
+  font-size: 0.76rem;
+  color: var(--text-3);
+}
+
+/* Practice run — answers live in memory only, so say so plainly. */
+.practiceNote {
+  flex: 1 1 12rem;
+  font-size: 0.76rem;
+  color: var(--text-2);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+}
