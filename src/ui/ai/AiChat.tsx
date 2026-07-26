@@ -3,8 +3,13 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote, StoredConversation } from '../../types'
+import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizAttempt, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
+import { emptyAttempt } from '../../core/ai/quizGrade'
+import { useQuizSettings } from '../../hooks/useQuizSettings'
+import { useActiveVaultId } from '../../hooks/useVaults'
+import { QuizControls } from './QuizControls'
+import { QuizRunner } from './QuizRunner'
 import { useViewState, getViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import styles from './Ai.module.css'
@@ -23,7 +28,7 @@ type ChatMessage =
   | { kind: 'question'; text: string }
   | { kind: 'answer'; text: string; sources: SourceNote[] }
   | { kind: 'analysis'; result: AnalysisResult }
-  | { kind: 'quiz'; questions: QuizQuestion[] }
+  | { kind: 'quiz'; attempt: QuizAttempt; reason?: 'empty-index' | 'empty-scope' }
 
 const DAY = 24 * 60 * 60 * 1000
 const MAX_RANGE_DAYS = 90
@@ -189,11 +194,22 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
   const [filterPickerOpen, setFilterPickerOpen] = useState(false)
   const [modePickerOpen, setModePickerOpen] = useState(false)
 
+  const [quizSettings] = useQuizSettings()
+  const vaultId = useActiveVaultId()
+
   // ── History wiring (load/new from the drawer; persist after each turn) ──
   const loadConv = useCallback(
     (c: StoredConversation) => {
       try {
-        setThread(JSON.parse(c.messages) as ChatMessage[])
+        const parsed = JSON.parse(c.messages) as ChatMessage[]
+        const restored = parsed.map((m) => {
+          const legacy = m as unknown as { kind: string; questions?: QuizQuestion[] }
+          if (legacy.kind === 'quiz' && Array.isArray(legacy.questions)) {
+            return { kind: 'quiz', attempt: emptyAttempt(legacy.questions, 'Saved quiz') } as ChatMessage
+          }
+          return m
+        })
+        setThread(restored)
       } catch {
         setThread([])
       }
@@ -347,8 +363,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       setThread(base)
       setLastScopeKey(key)
       try {
-        const questions = await generateQuiz(scope, config, notes)
-        setThread([...base, { kind: 'quiz', questions }])
+        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId)
+        const label = scope.mode === 'topic' ? `Topic: ${scope.query}` : scope.mode === 'window' ? scope.label : 'Selected note'
+        setThread([...base, { kind: 'quiz', attempt: emptyAttempt(questions, label), reason }])
         persistNow()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Quiz generation failed.')
@@ -392,8 +409,11 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     )
   }
 
+  const noFormatsEnabled = !quizSettings.formats.mcq && !quizSettings.formats.mcma && !quizSettings.formats.descriptive
   const sendDisabled =
-    busy || (responseMode === 'chat' ? !input.trim() : !(input.trim() || buildScope()))
+    busy ||
+    (responseMode === 'quiz' && noFormatsEnabled) ||
+    (responseMode === 'chat' ? !input.trim() : !(input.trim() || buildScope()))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -481,6 +501,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
               </div>
             )}
           </div>
+
+          {responseMode === 'quiz' && <QuizControls vaultId={vaultId} />}
         </div>
 
         {scopeKind === 'topic' && (
@@ -560,7 +582,18 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
             m.kind === 'analysis' ? (
               <AnalysisCard key={i} result={m.result} onOpenNote={onOpenNote} />
             ) : m.kind === 'quiz' ? (
-              <QuizCard key={i} questions={m.questions} />
+              <QuizRunner
+                key={i}
+                attempt={m.attempt}
+                settings={quizSettings}
+                config={config}
+                reason={m.reason}
+                onChange={(next) =>
+                  setThread((prev) =>
+                    prev.map((msg, j) => (j === i && msg.kind === 'quiz' ? { ...msg, attempt: next } : msg)),
+                  )
+                }
+              />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
                 {m.text}
@@ -600,6 +633,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       <div style={{ paddingTop: '0.75rem', marginTop: '0.5rem' }}>
         <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
 
+      {responseMode === 'quiz' && noFormatsEnabled && (
+        <p className={styles.hint}>Enable at least one question type in quiz settings.</p>
+      )}
       <div className={styles.chatInputRow}>
         <textarea
           className={styles.chatInput}
@@ -758,41 +794,3 @@ function AnalysisCard({
   )
 }
 
-/** A generated quiz — each question reveals its answer + explanation on click. */
-function QuizCard({ questions }: { questions: QuizQuestion[] }) {
-  const [revealed, setRevealed] = useState<Set<number>>(new Set())
-  const toggle = (i: number) =>
-    setRevealed((prev) => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-
-  if (questions.length === 0) {
-    return <p className={styles.hint}>Not enough in these notes to build a quiz.</p>
-  }
-
-  return (
-    <div className={styles.analysisCard}>
-      <span className={styles.sectionTitle}>Quiz · {questions.length} questions</span>
-      {questions.map((q, i) => (
-        <div key={i} className={styles.quizItem}>
-          <p className={styles.quizQ}>
-            <span className={styles.quizKind}>{q.kind}</span>
-            {i + 1}. {q.question}
-          </p>
-          <button className={styles.quizReveal} onClick={() => toggle(i)}>
-            {revealed.has(i) ? 'Hide answer' : 'Show answer'}
-          </button>
-          {revealed.has(i) && (
-            <div className={styles.quizAnswer}>
-              <p className={styles.quizA}>{q.answer}</p>
-              {q.explanation && <p className={styles.quizExpl}>{q.explanation}</p>}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
