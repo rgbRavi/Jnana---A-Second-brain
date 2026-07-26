@@ -210,14 +210,16 @@ export function QuizControls({ vaultId }: { vaultId: string }) {
               {settings.negativeMarking && (
                 <div className={styles.quizPopoverRow}>
                   <span>Penalty: {settings.negativeFraction}× marks</span>
-                  <SettingSlider
-                    value={settings.negativeFraction}
-                    min={0.1}
-                    max={1}
-                    step={0.05}
-                    onChange={(v) => setSettings({ negativeFraction: v })}
-                    ariaLabel="Negative marking fraction"
-                  />
+                  <span className={styles.quizSliderCell}>
+                    <SettingSlider
+                      value={settings.negativeFraction}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      onChange={(v) => setSettings({ negativeFraction: v })}
+                      ariaLabel="Negative marking fraction"
+                    />
+                  </span>
                 </div>
               )}
               <div className={styles.quizPopoverRow}>

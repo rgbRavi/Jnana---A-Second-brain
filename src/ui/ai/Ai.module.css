@@ -684,7 +684,10 @@
 
 .quizPopover {
   position: fixed;
-  z-index: 10000;
+  /* Must stay BELOW SettingControls' portaled .selectMenu (z-index 1200), or the
+     selects inside this popover render behind it and can't be picked. Both are
+     fixed-position siblings of <body>, so paint order is z-index alone. */
+  z-index: 1100;
   width: 320px;
   max-height: 70vh;
   overflow-y: auto;
@@ -705,6 +708,17 @@
   gap: var(--space-sm);
   font-size: 0.82rem;
   color: var(--text-2);
+}
+
+/* SettingSlider sizes itself from its parent. In a space-between row the label
+   takes all the width and the track collapses to 0px — nothing to drag, and the
+   pointer maths divides by a zero-width rect. Give it a real share of the row. */
+.quizSliderCell {
+  flex: 1 1 auto;
+  min-width: 110px;
+}
+.quizSliderCell > * {
+  width: 100%;
 }
 
 .quizPopoverSection {
