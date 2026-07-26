@@ -28,6 +28,8 @@ function parseQuiz(raw: string): QuizQuestion[] {
       const item = x as Record<string, unknown>
       return {
         kind: typeof item.kind === 'string' ? item.kind : 'recall',
+        format: 'descriptive' as const, // Placeholder until the format-aware generator lands.
+        marks: 1,
         question: typeof item.question === 'string' ? item.question : '',
         answer: typeof item.answer === 'string' ? item.answer : '',
         explanation: typeof item.explanation === 'string' ? item.explanation : '',
