@@ -239,7 +239,27 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     setError(null)
   }, [setThread, setLastScopeKey, setInput, setError])
 
-  const { persist } = useChatHistory('focused', loadConv, resetChat)
+  // persistNow/persistSoon are defined below (they need `persist`, which
+  // useChatHistory returns) but useChatHistory needs a *flush* callback to
+  // invoke — before it switches the active id — so the outgoing
+  // conversation's pending debounced edit is saved under its own id instead
+  // of firing later, either as a no-op (thread already reset) or, worse,
+  // under the newly-loaded conversation's id. Break that ordering cycle with
+  // a ref: flushPersist has a stable identity and calls through to whatever
+  // persistNow currently is.
+  const persistTimer = useRef<number | null>(null)
+  const persistNowRef = useRef<() => void>(() => {})
+
+  /** Write any pending debounced edit immediately — call before the thread is
+   *  replaced, or the timer fires against the wrong conversation. */
+  const flushPersist = useCallback(() => {
+    if (persistTimer.current === null) return
+    window.clearTimeout(persistTimer.current)
+    persistTimer.current = null
+    persistNowRef.current()
+  }, [])
+
+  const { persist } = useChatHistory('focused', loadConv, resetChat, flushPersist)
 
   /** Snapshot the live thread + scope from the store and upsert the conversation. */
   const persistNow = useCallback(() => {
@@ -256,13 +276,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     }
     void persist(thread, scope, focusedTitle(thread, scope))
   }, [persist])
+  persistNowRef.current = persistNow
 
   // Debounced persist for quiz answer edits — persistNow does an un-debounced
   // Tauri IPC + SQLite upsert, so calling it on every keystroke of a
   // descriptive answer would fire one round-trip per character. Same 800ms
   // shape as the Working Notes autosave (EditorPane.tsx AUTOSAVE_MS).
-  const persistTimer = useRef<number | null>(null)
-
   const persistSoon = useCallback(() => {
     if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
     persistTimer.current = window.setTimeout(() => {
@@ -271,11 +290,15 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     }, 800)
   }, [persistNow])
 
+  // Flush (not merely clear) on unmount — closing the view within the 800ms
+  // window must not drop the pending edit. In dev, StrictMode's mount→
+  // cleanup→remount fires this once extra; flushPersist no-ops when nothing
+  // is pending and is otherwise a harmless redundant save, never a lost one.
   useEffect(() => {
     return () => {
-      if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
+      flushPersist()
     }
-  }, [])
+  }, [flushPersist])
 
   const rangeDays = useMemo(() => {
     const diff = Math.round((startOfDay(toStr) - startOfDay(fromStr)) / DAY) + 1

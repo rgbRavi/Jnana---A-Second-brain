@@ -28,6 +28,15 @@ export function useChatHistory(
   mode: string,
   onLoad: (conv: StoredConversation) => void,
   onNew: () => void,
+  /**
+   * Called synchronously right before the active id (and thread) switches to
+   * the incoming conversation — the caller's chance to flush any debounced
+   * write for the OUTGOING conversation while its id is still active. Without
+   * this, a pending debounced persist fires after the switch and either
+   * no-ops (thread already reset) or, worse, saves the outgoing content under
+   * the new conversation's id.
+   */
+  flushPending?: () => void,
 ) {
   // The active conversation id is tracked per (mode, vault) so switching vaults
   // starts a fresh chat rather than carrying another vault's conversation over.
@@ -40,10 +49,13 @@ export function useChatHistory(
   onLoadRef.current = onLoad
   const onNewRef = useRef(onNew)
   onNewRef.current = onNew
+  const flushRef = useRef(flushPending)
+  flushRef.current = flushPending
 
   useEffect(() => {
     const handleNew = (p: { mode: string }) => {
       if (p.mode !== mode) return
+      flushRef.current?.()
       setActiveId(newId())
       onNewRef.current()
     }
@@ -51,6 +63,7 @@ export function useChatHistory(
       if (p.mode !== mode) return
       getConversation(p.id)
         .then((c) => {
+          flushRef.current?.()
           setActiveId(c.id)
           onLoadRef.current(c)
         })
