@@ -10,6 +10,7 @@ import type {
   QuizQuestion,
   QuizSettings,
 } from '../../types'
+import { DEFAULT_VAULT_ID } from '../../types'
 import { contextBlockFor, resolveContextNotes } from './analyze'
 import { extractJsonArray } from './jsonish'
 import { getAskedQuestions, normalizeQuestion, rememberQuestions } from './quizMemory'
@@ -36,9 +37,22 @@ function enabledFormats(settings: QuizSettings): QuizFormat[] {
   return (['mcq', 'mcma', 'descriptive'] as QuizFormat[]).filter((f) => settings.formats[f])
 }
 
+/** A one-question JSON exemplar matching the given format, for the prompt's shape example. */
+function exampleFor(format: QuizFormat): string {
+  if (format === 'descriptive') {
+    return '{"kind":"recall","format":"descriptive","question":"…","answer":"…","explanation":"…"}'
+  }
+  const correct = format === 'mcma' ? '[0,2]' : '[1]'
+  return `{"kind":"recall","format":"${format}","question":"…","options":["…","…","…","…"],"correct":${correct},"answer":"…","explanation":"…"}`
+}
+
 /** The system prompt for one generation, shaped by the user's quiz settings. */
 export function buildQuizSystemPrompt(settings: QuizSettings): string {
   const formats = enabledFormats(settings)
+  // The exemplar must itself be one of the allowed formats — showing "mcq" while
+  // mcq is disabled contradicts the allowed-formats list above and gets MCQs
+  // generated that parseQuiz then drops, burning a retry round-trip.
+  const example = exampleFor(formats[0] ?? 'descriptive')
   return `You are a study quiz generator for a personal knowledge app. Using ONLY the provided
 notes (never outside facts), write exactly ${settings.count} questions that test understanding.
 Difficulty: ${DIFFICULTY_GUIDE[settings.difficulty]}.
@@ -51,7 +65,7 @@ on why it is right). Distractor options must be plausible and drawn from the not
 If the notes are too thin to quiz, return an empty array.
 
 Respond with ONLY a JSON array, no prose:
-[{"kind":"recall","format":"mcq","question":"…","options":["…","…","…","…"],"correct":[1],"answer":"…","explanation":"…"}]`
+[${example}]`
 }
 
 /** The "don't ask these again" block, or '' when nothing has been asked yet. */
@@ -180,10 +194,15 @@ export async function generateQuiz(
   settings: QuizSettings,
   vaultId: string,
 ): Promise<QuizGeneration> {
+  // rawScopeNotes bypasses retrieve()'s own vault scope by substring-matching
+  // notes directly — without this filter it crosses vault boundaries (another
+  // vault's notes could get quizzed here, and their questions remembered
+  // under this vault's key).
+  const vaultNotes = notes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId)
   const contextNotes =
     settings.source === 'raw'
-      ? rawScopeNotes(input, notes)
-      : await resolveContextNotes(input, config, notes)
+      ? rawScopeNotes(input, vaultNotes)
+      : await resolveContextNotes(input, config, vaultNotes)
 
   if (contextNotes.length === 0) {
     // Retrieval coming back empty usually means an unbuilt index, which the UI

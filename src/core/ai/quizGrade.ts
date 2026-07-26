@@ -4,7 +4,7 @@
 // src/core/ai/quizGrade.ts
 //
 // Scoring. Objective questions are graded here, deterministically and offline;
-// only descriptive answers cost a model call (added in the next task). Kept
+// only descriptive answers cost a model call. Kept
 // pure and IO-free so the marking rules are unit-testable, in the same spirit
 // as views/notes/filterNotes.ts.
 

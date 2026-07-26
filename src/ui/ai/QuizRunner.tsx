@@ -68,8 +68,13 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
     )
   }
 
-  /** True once question `i` is locked (immediate mode after answering, or after submit). */
-  const isRevealed = (i: number) => submitted || (settings.feedback === 'immediate' && attempt.marks[i] !== null)
+  // The attempt (not local state) is the source of truth for whether this quiz
+  // is "done" — it rides the chat thread and survives remount, so a graded
+  // quiz reopened after navigation must not revert to a live, re-gradable form.
+  const anyGraded = attempt.marks.some((m) => m !== null)
+  const done = submitted || (settings.feedback === 'end' && anyGraded)
+  /** True once question `i` is locked (graded already, or the whole quiz is done). */
+  const isRevealed = (i: number) => done || attempt.marks[i] !== null
 
   const setResponse = (i: number, value: number[] | string) => {
     const responses = [...attempt.responses]
@@ -165,9 +170,20 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
     setResponse(i, next)
   }
 
-  const answeredAll = attempt.questions.every((q, i) =>
-    q.format === 'descriptive' ? textOf(attempt, i).trim().length > 0 : pickedOf(attempt, i).length > 0,
-  )
+  // Score every unanswered OBJECTIVE question as a real 0 before handing the
+  // attempt off to be saved — recomputeTotals excludes null marks from both
+  // total and max, so a skipped objective question must not shrink the
+  // denominator (that would raise the percentage for skipping). A null
+  // descriptive mark stays null: that's a grader failure, not a skip.
+  const finalize = (a: QuizAttempt): QuizAttempt =>
+    recomputeTotals({
+      ...a,
+      marks: a.marks.map((m, i) =>
+        m === null && a.questions[i].format !== 'descriptive'
+          ? scoreObjective(a.questions[i], pickedOf(a, i), settings)
+          : m,
+      ),
+    })
 
   return (
     <div className={styles.analysisCard}>
@@ -257,13 +273,13 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
       })}
 
       <div className={styles.quizActions}>
-        {settings.feedback === 'end' && !submitted && (
-          <button className={styles.btn} onClick={() => void submitAll()} disabled={grading || !answeredAll}>
+        {settings.feedback === 'end' && !done && (
+          <button className={styles.btn} onClick={() => void submitAll()} disabled={grading}>
             {grading ? 'Grading…' : 'Submit answers'}
           </button>
         )}
-        {onSave && (submitted || settings.feedback === 'immediate') && (
-          <button className={styles.btn} onClick={() => onSave(attempt)}>
+        {onSave && (done || settings.feedback === 'immediate') && (
+          <button className={styles.btn} onClick={() => onSave(finalize(attempt))}>
             Save quiz
           </button>
         )}

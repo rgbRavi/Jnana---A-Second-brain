@@ -47,10 +47,10 @@ export function QuizNoteView({ note }: NoteViewProps) {
   if (attempt.questions.length === 0) return <p>Take a quiz in AI chat, then save it here.</p>
   if (failed) return <p>AI settings could not be loaded.</p>
   if (!config) return <p>Loading…</p>
-  // When a quiz is already graded, force immediate feedback mode so each question's
-  // reveal is keyed off its own marks[i], preventing re-grading on submit.
-  const graded = attempt.marks.some((m) => m !== null)
-  const settings = graded ? { ...getQuizSettings(), feedback: 'immediate' as const } : getQuizSettings()
+  // QuizRunner now derives "revealed"/"done" from attempt.marks itself, so a
+  // graded attempt stays revealed and locked regardless of the current
+  // feedback setting — no override needed here.
+  const settings = getQuizSettings()
   return (
     // Read mode is a record of a finished attempt, not a place to take it again.
     // A disabled fieldset cascades to every control inside, so nothing can be
@@ -76,10 +76,10 @@ export function QuizNoteEditor({ value, onChange }: NoteEditorProps) {
   if (attempt.questions.length === 0) return <p>Take a quiz in AI chat, then save it here.</p>
   if (failed) return <p>AI settings could not be loaded.</p>
   if (!config) return <p>Loading…</p>
-  // When a quiz is already graded, force immediate feedback mode so each question's
-  // reveal is keyed off its own marks[i], preventing re-grading on submit.
-  const graded = attempt.marks.some((m) => m !== null)
-  const settings = graded ? { ...getQuizSettings(), feedback: 'immediate' as const } : getQuizSettings()
+  // QuizRunner now derives "revealed"/"done" from attempt.marks itself, so a
+  // graded attempt stays revealed and locked regardless of the current
+  // feedback setting — no override needed here.
+  const settings = getQuizSettings()
   return (
     <>
       <button

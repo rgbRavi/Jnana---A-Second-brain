@@ -1,23 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { describe, expect, it } from 'vitest'
-import type { AnalyzeInput, Note, QuizSettings } from '../../types'
+import { describe, expect, it, vi } from 'vitest'
+import type { AiConfig, AnalyzeInput, Note, QuizSettings } from '../../types'
 import { QUIZ_SETTINGS_DEFAULTS } from '../../hooks/useQuizSettings'
-import { buildQuizSystemPrompt, parseQuiz, rawScopeNotes } from './quiz'
+
+// Mock the provider so generateQuiz's vault-filtering can be exercised without
+// a real backend — mirrors agent/run.test.ts's pattern.
+const { complete } = vi.hoisted(() => ({ complete: vi.fn() }))
+vi.mock('./provider', () => ({ getChatProvider: () => ({ complete }) }))
+
+import { buildQuizSystemPrompt, generateQuiz, parseQuiz, rawScopeNotes } from './quiz'
 
 const settings = (patch: Partial<QuizSettings> = {}): QuizSettings => ({
   ...QUIZ_SETTINGS_DEFAULTS,
   ...patch,
 })
 
-const note = (id: string, title: string, content: string, updatedAt = 1000): Note => ({
+const note = (id: string, title: string, content: string, updatedAt = 1000, vaultId?: string): Note => ({
   id,
   title,
   content,
   tags: [],
   createdAt: updatedAt,
   updatedAt,
+  ...(vaultId ? { vaultId } : {}),
 })
 
 describe('buildQuizSystemPrompt', () => {
@@ -130,5 +137,24 @@ describe('rawScopeNotes', () => {
   it('substring-matches title and body in topic mode', () => {
     const input: AnalyzeInput = { mode: 'topic', query: 'TENSOR' }
     expect(rawScopeNotes(input, notes).map((n) => n.id)).toEqual(['1'])
+  })
+})
+
+describe('generateQuiz — raw source stays inside the active vault', () => {
+  const config = { chatProvider: 'openai', chatModel: 'gpt-4o' } as unknown as AiConfig
+
+  it('excludes another vault\'s notes even when their content matches the topic', async () => {
+    complete.mockReset().mockResolvedValue('[]')
+    const notes = [
+      note('1', 'Vault A note', 'shared-topic content', 1000, 'vault-a-test'),
+      note('2', 'Vault B note', 'shared-topic content', 1000, 'vault-b-test'),
+    ]
+    const input: AnalyzeInput = { mode: 'topic', query: 'shared-topic' }
+    await generateQuiz(input, config, notes, settings({ source: 'raw' }), 'vault-a-test')
+
+    expect(complete).toHaveBeenCalled()
+    const prompt = complete.mock.calls[0][0] as string
+    expect(prompt).toContain('Vault A note')
+    expect(prompt).not.toContain('Vault B note')
   })
 })

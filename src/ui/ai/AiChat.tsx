@@ -12,6 +12,7 @@ import { useNotesContext } from '../../context/NotesContext'
 import { serializeAttempt } from '../../plugins/quiz/quizNote'
 import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
 import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import { QuizControls } from './QuizControls'
 import { QuizRunner } from './QuizRunner'
 import { useViewState, getViewState } from '../../hooks/useViewState'
@@ -211,7 +212,12 @@ export function AiChat({ config, notes, onOpenNote, onReindexAll }: Props) {
         const restored = parsed.map((m) => {
           const legacy = m as unknown as { kind: string; questions?: QuizQuestion[] }
           if (legacy.kind === 'quiz' && Array.isArray(legacy.questions)) {
-            return { kind: 'quiz', attempt: emptyAttempt(legacy.questions, 'Saved quiz') } as ChatMessage
+            // Pre-branch saved threads have no format/marks — default them so
+            // the runner doesn't render `0 / NaN` (see final-review FIX 1).
+            const questions = legacy.questions.map((q) => ({
+              ...q, format: q.format ?? 'descriptive', marks: q.marks ?? 1,
+            }))
+            return { kind: 'quiz', attempt: emptyAttempt(questions, 'Saved quiz') } as ChatMessage
           }
           return m
         })
@@ -651,8 +657,13 @@ export function AiChat({ config, notes, onOpenNote, onReindexAll }: Props) {
                 }}
                 onSave={async (finished) => {
                   const title = `Quiz — ${finished.scopeLabel || 'Untitled'}`
-                  await create(title, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
-                  toast.success('Quiz saved as a note.')
+                  try {
+                    await create(title, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
+                    toast.success('Quiz saved as a note.')
+                  } catch (err) {
+                    log.error('Failed to save quiz note', err)
+                    toast.error('Could not save the quiz. Try again.')
+                  }
                 }}
                 onIndexNow={() => void onReindexAll(notes)}
               />
