@@ -8,6 +8,11 @@ import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
 import { emptyAttempt } from '../../core/ai/quizGrade'
 import { useQuizSettings } from '../../hooks/useQuizSettings'
 import { useActiveVaultId } from '../../hooks/useVaults'
+import { useRag } from '../../hooks/useRag'
+import { useNotesContext } from '../../context/NotesContext'
+import { serializeAttempt } from '../../plugins/quiz/quizNote'
+import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
+import { toast } from '../../lib/toast'
 import { QuizControls } from './QuizControls'
 import { QuizRunner } from './QuizRunner'
 import { useViewState, getViewState } from '../../hooks/useViewState'
@@ -196,6 +201,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
 
   const [quizSettings] = useQuizSettings()
   const vaultId = useActiveVaultId()
+  const { create } = useNotesContext()
+  const { reindexAll } = useRag()
 
   // ── History wiring (load/new from the drawer; persist after each turn) ──
   const loadConv = useCallback(
@@ -643,6 +650,12 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
                   if (scored) persistNow()
                   else persistSoon()
                 }}
+                onSave={async (finished) => {
+                  const title = `Quiz — ${finished.scopeLabel || 'Untitled'}`
+                  await create(title, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
+                  toast.success('Quiz saved as a note.')
+                }}
+                onIndexNow={() => void reindexAll(notes)}
               />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
