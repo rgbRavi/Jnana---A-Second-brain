@@ -8,7 +8,6 @@ import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
 import { emptyAttempt } from '../../core/ai/quizGrade'
 import { useQuizSettings } from '../../hooks/useQuizSettings'
 import { useActiveVaultId } from '../../hooks/useVaults'
-import { useRag } from '../../hooks/useRag'
 import { useNotesContext } from '../../context/NotesContext'
 import { serializeAttempt } from '../../plugins/quiz/quizNote'
 import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
@@ -23,6 +22,7 @@ interface Props {
   config: AiConfig
   notes: Note[]
   onOpenNote: (noteId: string) => void
+  onReindexAll: (notes: Note[]) => Promise<void>
 }
 
 type ScopeKind = 'topic' | 'time' | 'note'
@@ -171,7 +171,7 @@ function toHistory(msgs: ChatMessage[]): AskTurn[] {
   return turns
 }
 
-export function AiChat({ config, notes, onOpenNote }: Props) {
+export function AiChat({ config, notes, onOpenNote, onReindexAll }: Props) {
   // Scope, mode, inputs and the conversation persist across view switches so the
   // chat isn't lost when navigating away. (busy/error are transient — plain state.)
   const [scopeKind, setScopeKind] = useViewState<ScopeKind>('ai.scopeKind', 'topic')
@@ -202,7 +202,6 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
   const [quizSettings] = useQuizSettings()
   const vaultId = useActiveVaultId()
   const { create } = useNotesContext()
-  const { reindexAll } = useRag()
 
   // ── History wiring (load/new from the drawer; persist after each turn) ──
   const loadConv = useCallback(
@@ -655,7 +654,7 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
                   await create(title, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
                   toast.success('Quiz saved as a note.')
                 }}
-                onIndexNow={() => void reindexAll(notes)}
+                onIndexNow={() => void onReindexAll(notes)}
               />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
