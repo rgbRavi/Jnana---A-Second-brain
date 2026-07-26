@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { GitFork, ListX, Pencil, RotateCcw, Trash2, ChevronDown, Star, EyeOff, FolderMinus, Trash, FolderInput } from 'lucide-react'
 import type { AiConfig, Note, ProjectKnowledge, StoredConversation } from '../../types'
 import {
   streamChat,
@@ -18,6 +19,7 @@ import {
   type AgentStep,
   type ProposedAction,
 } from '../../core/ai'
+import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { useViewState, getViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
@@ -27,7 +29,6 @@ import { useNotesContext } from '../../context/NotesContext'
 import { eventBus } from '../../lib/eventBus'
 import { ChatComposer } from './ChatComposer'
 import { PresetPicker } from './PresetPicker'
-import { ProjectBar } from './ProjectBar'
 import { AgentSteps } from './AgentSteps'
 import { ProposalCard } from './ProposalCard'
 import styles from './Ai.module.css'
@@ -85,8 +86,11 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const [styleId, setStyleId] = useViewState('ai.free.styleId', '')
   const [skillIds, setSkillIds] = useViewState<string[]>('ai.free.skillIds', [])
 
+  // Check if history sidebar is collapsed to widen the chat.
+  const [collapsed] = useViewState('ai.history.collapsed', false)
+
   // Projects — the active project grounds the chat with its instructions + knowledge.
-  const { projects, refresh: refreshProjects } = useProjects()
+  const { projects } = useProjects()
   const [projectId, setProjectId] = useViewState('ai.free.projectId', '')
   const [projectKnowledge, setProjectKnowledge] = useState<ProjectKnowledge[]>([])
   useEffect(() => {
@@ -103,6 +107,17 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const [msgMenu, setMsgMenu] = useState<{ index: number; x: number; y: number } | null>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editText, setEditText] = useState('')
+
+  // Breadcrumb state
+  const [, setAiMode] = useViewState('ai.mode', 'focused')
+  const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
+  const [chatTitle, setChatTitle] = useState('New chat')
+  const [isRenamingChat, setIsRenamingChat] = useState(false)
+  const [chatTitleInput, setChatTitleInput] = useState('')
+  const [isChatMenuOpen, setIsChatMenuOpen] = useState(false)
+  const [showProjectSubmenu, setShowProjectSubmenu] = useState(false)
+  const [starredChats, setStarredChats] = useViewState<Record<string, boolean>>('ai.chat.starred', {})
+  const [unreadChats, setUnreadChats] = useViewState<Record<string, boolean>>('ai.chat.unread', {})
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -132,12 +147,50 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     [setMessages, setError, setInput, setAttachments],
   )
 
-  const { persist, setActiveId } = useChatHistory('chat', loadConv, resetChat)
+  const { persist, setActiveId, activeId } = useChatHistory('chat', loadConv, resetChat)
 
   const persistNow = useCallback(() => {
     const m = getViewState<FreeMessage[]>('ai.free.messages') ?? []
     void persist(m, null, titleFrom(m), getViewState<string>('ai.free.projectId') || null)
   }, [persist])
+
+  useEffect(() => {
+    getConversation(activeId)
+      .then(c => setChatTitle(c.title || 'Untitled'))
+      .catch(() => setChatTitle(titleFrom(messages)))
+  }, [activeId, messages])
+
+  const commitChatRename = async () => {
+    const title = chatTitleInput.trim()
+    setIsRenamingChat(false)
+    if (!title || title === chatTitle) return
+    await renameConversation(activeId, title, Date.now()).catch(e => console.error(e))
+    setChatTitle(title)
+    eventBus.emit('ai:conversationSaved', { mode: 'chat' })
+  }
+
+  const handleDeleteChat = async () => {
+    await deleteConversation(activeId).catch(e => console.error(e))
+    setIsChatMenuOpen(false)
+    resetChat()
+    eventBus.emit('ai:conversationDeleted', { mode: 'chat' })
+    eventBus.emit('ai:newChat', { mode: 'chat' })
+  }
+
+  const handleChangeProject = async (newProjectId: string | null) => {
+    try {
+      const c = await getConversation(activeId)
+      c.projectId = newProjectId
+      c.updatedAt = Date.now()
+      await saveConversation(c)
+      setProjectId(newProjectId || '')
+      setIsChatMenuOpen(false)
+      setShowProjectSubmenu(false)
+      eventBus.emit('ai:conversationSaved', { mode: 'chat' })
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
@@ -167,9 +220,6 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
 
   const toggleThread = (id: string) =>
     setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, includeThread: !a.includeThread } : a)))
-
-  // Route through the bus so the history hook resets the active id too.
-  const newChat = () => eventBus.emit('ai:newChat', { mode: 'chat' })
 
   const send = async (opts?: { text?: string; atts?: ChatAttachment[] }) => {
     if (busy) return
@@ -456,26 +506,165 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     )
   }
 
+  const activeProject = projects.find((p) => p.id === projectId)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      {/* Header: project + model + new chat */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', paddingBottom: '0.6rem', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-          <ProjectBar projects={projects} projectId={projectId} onProjectId={setProjectId} notes={notes} onChanged={refreshProjects} />
-          <span className={styles.scopeLabel}>
-            {config.chatProvider} · {config.chatModel || 'no model set'}
-          </span>
+      {/* Header: breadcrumb + model */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.6rem', paddingBottom: '0.6rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
+          {activeProject ? (
+            <>
+              <button 
+                onClick={() => {
+                  setForceOpenProject(activeProject.id)
+                  setAiMode('projects')
+                }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', padding: 0, fontWeight: 500 }}
+              >
+                {activeProject.name}
+              </button>
+              <span style={{ color: 'var(--text-3)' }}>/</span>
+            </>
+          ) : null}
+          
+          {isRenamingChat ? (
+            <input
+              autoFocus
+              value={chatTitleInput}
+              onChange={e => setChatTitleInput(e.target.value)}
+              onBlur={commitChatRename}
+              onKeyDown={e => {
+                if (e.key === 'Enter') commitChatRename()
+                if (e.key === 'Escape') setIsRenamingChat(false)
+              }}
+              style={{
+                background: 'var(--bg)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                color: 'var(--text-1)',
+                fontSize: '0.9rem',
+                padding: '0.1rem 0.3rem',
+                width: '180px'
+              }}
+            />
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}
+                style={{
+                  background: isChatMenuOpen ? 'var(--surface-2)' : 'none',
+                  border: 'none',
+                  color: 'var(--text-1)',
+                  cursor: 'pointer',
+                  padding: '4px 6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontWeight: 500,
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => !isChatMenuOpen && (e.currentTarget.style.background = 'var(--surface-2)')}
+                onMouseLeave={e => !isChatMenuOpen && (e.currentTarget.style.background = 'none')}
+              >
+                {chatTitle} <ChevronDown size={14} color="var(--text-3)" />
+              </button>
+
+              {isChatMenuOpen && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => { setIsChatMenuOpen(false); setShowProjectSubmenu(false) }} />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '4px',
+                      zIndex: 50,
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '4px',
+                      minWidth: '220px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                      boxShadow: '0 10px 38px -10px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    <MenuItem onClick={() => { setStarredChats(p => ({ ...p, [activeId]: !p[activeId] })); setIsChatMenuOpen(false) }}>
+                      <Star size={14} fill={starredChats[activeId] ? 'var(--text-1)' : 'none'} /> {starredChats[activeId] ? 'Unstar' : 'Star'}
+                    </MenuItem>
+                    <MenuItem onClick={() => { setUnreadChats(p => ({ ...p, [activeId]: !p[activeId] })); setIsChatMenuOpen(false) }}>
+                      <EyeOff size={14} /> {unreadChats[activeId] ? 'Mark as read' : 'Mark as unread'}
+                    </MenuItem>
+                    <MenuItem onClick={() => { setIsChatMenuOpen(false); setChatTitleInput(chatTitle); setIsRenamingChat(true) }}>
+                      <Pencil size={14} /> Rename
+                    </MenuItem>
+                    
+                    <div style={{ position: 'relative' }} onMouseEnter={() => setShowProjectSubmenu(true)} onMouseLeave={() => setShowProjectSubmenu(false)}>
+                      <MenuItem onClick={() => {}}>
+                        <FolderInput size={14} /> Change project <span style={{ marginLeft: 'auto', fontSize: '0.7rem' }}>▶</span>
+                      </MenuItem>
+                      {showProjectSubmenu && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: '100%',
+                            marginLeft: '4px',
+                            zIndex: 51,
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: '4px',
+                            minWidth: '180px',
+                            maxHeight: '200px',
+                            overflowY: 'auto',
+                            boxShadow: '0 10px 38px -10px rgba(0,0,0,0.5)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2px',
+                          }}
+                        >
+                          {projects.length === 0 ? (
+                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: 'var(--text-3)' }}>No projects</div>
+                          ) : (
+                            projects.map(p => (
+                              <MenuItem key={p.id} onClick={() => handleChangeProject(p.id)}>
+                                {p.name}
+                              </MenuItem>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {activeProject && (
+                      <MenuItem onClick={() => handleChangeProject(null)}>
+                        <FolderMinus size={14} /> Remove from project
+                      </MenuItem>
+                    )}
+                    
+                    <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
+                    <MenuItem danger onClick={handleDeleteChat}>
+                      <Trash size={14} /> Delete
+                    </MenuItem>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        {messages.length > 0 && (
-          <button className={styles.btn} onClick={newChat} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}>
-            + New chat
-          </button>
-        )}
+
+        <span className={styles.scopeLabel}>
+          {config.chatProvider} · {config.chatModel || 'no model set'}
+        </span>
       </div>
 
       {/* Scrollable message area */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingBottom: '0.5rem' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingBottom: '0.5rem', transition: 'max-width 0.3s ease' }}>
           {messages.length === 0 ? (
             <p className={styles.hint} style={{ textAlign: 'center', padding: '2rem 1rem' }}>
               Ask anything, or attach a document/image/audio or one of your notes. This is a normal chatbot —
@@ -537,12 +726,12 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
                           border: 'none',
                           color: 'var(--text-3)',
                           cursor: busy ? 'not-allowed' : 'pointer',
-                          fontSize: '0.9rem',
                           lineHeight: 1,
                           padding: '2px 4px',
+                          display: 'inline-flex',
                         }}
                       >
-                        ↻
+                        <RotateCcw size={15} />
                       </button>
                     </>
                   )}
@@ -596,14 +785,14 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       </div>
 
       {error && (
-        <p className={styles.error} style={{ maxWidth: '760px', margin: '0.25rem auto 0', width: '100%' }}>
+        <p className={styles.error} style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0.25rem auto 0', width: '100%', transition: 'max-width 0.3s ease' }}>
           {error}
         </p>
       )}
 
       {/* Composer pinned to the bottom */}
-      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
+      <div style={{ paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
           <ChatComposer
             value={input}
             onChange={setInput}
@@ -661,11 +850,11 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
             }}
           >
             {messages[msgMenu.index]?.role === 'user' && (
-              <MenuItem onClick={() => startEdit(msgMenu.index)}>✎ Edit &amp; retry</MenuItem>
+              <MenuItem onClick={() => startEdit(msgMenu.index)}><Pencil size={14} /> Edit &amp; retry</MenuItem>
             )}
-            <MenuItem onClick={() => forkFrom(msgMenu.index)}>⑂ Fork from here</MenuItem>
-            <MenuItem onClick={() => deleteFrom(msgMenu.index)}>⤓ Delete from here</MenuItem>
-            <MenuItem danger onClick={() => deleteMessage(msgMenu.index)}>🗑 Delete message</MenuItem>
+            <MenuItem onClick={() => forkFrom(msgMenu.index)}><GitFork size={14} /> Fork from here</MenuItem>
+            <MenuItem onClick={() => deleteFrom(msgMenu.index)}><ListX size={14} /> Delete from here</MenuItem>
+            <MenuItem danger onClick={() => deleteMessage(msgMenu.index)}><Trash2 size={14} /> Delete message</MenuItem>
           </div>
         </>
       )}

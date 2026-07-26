@@ -161,3 +161,45 @@ pub fn get_index_stats(state: State<'_, DbState>) -> Result<IndexStats, String> 
         .len();
     Ok(IndexStats { chunk_count, indexed_note_count })
 }
+
+/// Aggregated extracted text for one note (used to re-index a single note).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentText {
+    pub note_id: String,
+    pub text: String,
+}
+
+/// Persist extracted text for a note's attachment (PDF, etc.). Replaces any
+/// previous text for the same (note, file).
+#[command]
+pub fn save_attachment_text(
+    state: State<'_, DbState>,
+    note_id: String,
+    filename: String,
+    text: String,
+) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::upsert_attachment_text(&conn, &note_id, &filename, &text, now_ms())
+        .map_err(|e| format!("Failed to save attachment text: {}", e))
+}
+
+/// All extracted attachment text for one note, concatenated.
+#[command]
+pub fn get_attachment_text(state: State<'_, DbState>, note_id: String) -> Result<String, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::fetch_attachment_text_for_note(&conn, &note_id)
+        .map_err(|e| format!("Failed to load attachment text: {}", e))
+}
+
+/// Every note's aggregated attachment text — for a bulk keyword-index build.
+#[command]
+pub fn get_all_attachment_text(state: State<'_, DbState>) -> Result<Vec<AttachmentText>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let rows = queries::fetch_all_attachment_text(&conn)
+        .map_err(|e| format!("Failed to load attachment text: {}", e))?;
+    Ok(rows
+        .into_iter()
+        .map(|(note_id, text)| AttachmentText { note_id, text })
+        .collect())
+}

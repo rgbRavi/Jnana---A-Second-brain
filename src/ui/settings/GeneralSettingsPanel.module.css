@@ -1,0 +1,31 @@
+/* Matches ComposerSettingsPanel — the canonical settings-panel look — so every
+   Settings tab shares one field/select/toggle treatment. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-width: 480px;
+}
+
+.intro {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.field > label {
+  font-size: 0.85rem;
+  color: var(--text-1);
+}
+
+.hint {
+  font-size: 0.76rem;
+  color: var(--text-3);
+  line-height: 1.4;
+}

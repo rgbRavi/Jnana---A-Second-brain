@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect } from 'react'
+import { X } from 'lucide-react'
 import styles from './Dashboard.module.css'
 import { SECTIONS } from './registry'
 import { useDashboardPrefs } from './useDashboardPrefs'
@@ -32,7 +33,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
         <div className={styles.customizeHead}>
           <h2 className={styles.customizeTitle}>Customize dashboard</h2>
           <button type="button" className={styles.cardBtn} onClick={onClose} aria-label="Close">
-            ✕
+            <X size={15} />
           </button>
         </div>
         <p className={styles.customizeHint}>Choose which sections appear on your Home dashboard.</p>

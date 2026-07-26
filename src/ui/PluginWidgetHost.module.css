@@ -37,7 +37,7 @@
   padding: 0 4px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 10px;
   line-height: 16px;
   text-align: center;

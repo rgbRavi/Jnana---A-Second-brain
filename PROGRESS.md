@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Next up:** auto-backup; further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
 
-Last updated: 2026-07-18
+Last updated: 2026-07-26
 
 ---
 
@@ -10,8 +10,9 @@ Last updated: 2026-07-18
 
 Jnana is a local-first desktop knowledge app for students. It supports plain notes, PDFs, local
 video, audio (record + transcribe), YouTube, images, web-page embeds, and document import. Notes
-connect through wikilinks and a graph view, with full-text search (MiniSearch), auto/user tags, and
-favourites. **Workspaces** organize notes into named groups (notes stay global, many-to-many) — each
+connect through wikilinks and a graph view, with **keyword search (MiniSearch) and an AI/semantic
+search mode** over the local vector store — both of which also search **text extracted from PDF
+attachments** — plus auto/user tags and favourites. **Workspaces** organize notes into named groups (notes stay global, many-to-many) — each
 with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), Insights, and
 Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
 vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
@@ -247,9 +248,11 @@ Notes:
 - foreign keys are enabled; child + junction rows cascade on delete (removing a note/workspace only
   drops association rows — notes themselves stay global)
 - WAL mode is enabled
-- schema versioning is **currently at v12** — migrations: v2 favourites, v3 embeddings, v4
+- schema versioning is **currently at v18** — migrations: v2 favourites, v3 embeddings, v4
   conversations, v5 ai_presets, v6 ai_projects(+knowledge, conversations.project_id), v7 note_progress,
-  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes, v12 note_media_layout. The
+  v8 workspaces/collections, v9 canvases, v10 link_previews, v11 themes, v12 note_media_layout,
+  v13 folders (notes.folder_id), v14 vaults (notes/folders.vault_id), v15 workspaces/ai_projects.vault_id,
+  v16 conversations.vault_id, v17 notes.kind + plugin_kv, v18 notes.deleted_at (Trash/soft-delete). The
   migration test in `db/schema.rs` asserts this version + expected tables.
 - `themes.json` is an opaque blob the frontend owns (like canvas `data` / conversation `messages`) —
   Rust never parses it. The active theme lives in a sentinel row (`id = '__active__'`) so it

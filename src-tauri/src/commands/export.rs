@@ -68,3 +68,11 @@ pub fn export_notes(
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| format!("Failed to write {}: {}", path, e))
 }
+
+/// Write raw bytes to a user-chosen absolute path (from the native save dialog).
+/// Used for binary exports like a canvas PNG. Same authorisation model as
+/// `write_text_file` — the OS dialog already picked the path.
+#[command]
+pub fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path, e))
+}

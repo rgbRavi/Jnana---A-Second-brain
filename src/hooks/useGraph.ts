@@ -14,6 +14,9 @@ export interface GraphNode {
   tags: string[]
   createdAt: number
   updatedAt: number
+  /** Note-type id; typed notes store non-markdown content (e.g. a canvas's JSON),
+   *  so their content must not be scanned for `[[wikilinks]]`. */
+  kind?: string | null
 }
 
 export interface GraphEdge {
@@ -140,5 +143,6 @@ function noteToNode(note: Note): GraphNode {
     tags: note.tags ?? [],
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
+    kind: note.kind ?? null,
   }
 }

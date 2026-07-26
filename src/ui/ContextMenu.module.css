@@ -8,7 +8,7 @@
   min-width: 180px;
   display: flex;
   flex-direction: column;
-  padding: 0.25rem;
+  padding: var(--space-2xs);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   width: 100%;
   text-align: left;
   background: transparent;
@@ -38,7 +38,7 @@
 }
 
 .contextItem:hover:not(:disabled) {
-  background: var(--surface-2);
+  background: var(--surface-hover);
 }
 
 .contextItem:disabled {
@@ -64,7 +64,7 @@
 /* A hairline divider above grouped items. */
 .contextSep {
   margin-top: 0.25rem;
-  padding-top: 0.5rem;
+  padding-top: var(--space-sm);
   border-top: 1px solid var(--border);
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
@@ -76,7 +76,7 @@
   min-width: 180px;
   display: flex;
   flex-direction: column;
-  padding: 0.25rem;
+  padding: var(--space-2xs);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);

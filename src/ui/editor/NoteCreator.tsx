@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { ArrowRight, Maximize2, Minimize2, Pencil, Star, X } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Note } from '../../types'
 import { useViewState } from '../../hooks/useViewState'
@@ -213,7 +214,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
         inert={open}
       >
         <span className={Styles.pillIcon} aria-hidden="true">
-          ✎
+          <Pencil size={15} />
         </span>
         Click to take a note
       </button>
@@ -226,8 +227,9 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
             className={FavStyles.favouriteBtn}
             onClick={() => setSaveFavourite((v) => !v)}
             title={saveFavourite ? 'Remove from favourites on save' : 'Add to favourites on save'}
+            aria-label={saveFavourite ? 'Remove from favourites on save' : 'Add to favourites on save'}
           >
-            {saveFavourite ? '★' : '☆'}
+            {saveFavourite ? <Star size={16} fill="currentColor" /> : <Star size={16} />}
           </button>
           <div className={Styles.headerRight}>
             <button
@@ -235,16 +237,18 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
               className={Styles.headerBtn}
               onClick={() => setState((s) => (s === 'fullscreen' ? 'expanded' : 'fullscreen'))}
               title={state === 'fullscreen' ? 'Restore' : 'Maximize'}
+              aria-label={state === 'fullscreen' ? 'Restore' : 'Maximize'}
             >
-              {state === 'fullscreen' ? '⤡' : '⤢'}
+              {state === 'fullscreen' ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
             <button
               type="button"
               className={Styles.headerBtn}
               onClick={() => setState('collapsed')}
               title="Collapse"
+              aria-label="Collapse"
             >
-              ✕
+              <X size={16} />
             </button>
           </div>
         </div>
@@ -305,7 +309,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
               onClick={handleSave}
               disabled={saving || isRecording || (!content.trim() && !title.trim())}
             >
-              {saving ? 'Saving…' : "That's my note →"}
+              {saving ? 'Saving…' : <>That's my note <ArrowRight size={15} /></>}
             </button>
           </span>
         </div>

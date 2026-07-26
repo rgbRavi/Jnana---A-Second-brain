@@ -24,6 +24,9 @@ const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
     (15, migrate_v15),
     (16, migrate_v16),
     (17, migrate_v17),
+    (18, migrate_v18),
+    (19, migrate_v19),
+    (20, migrate_v20),
 ];
 
 /// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
@@ -35,7 +38,7 @@ pub const DEFAULT_VAULT_ID: &str = "vault-default";
 /// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
 /// decide whether an existing DB is about to be upgraded (and so should be
 /// snapshotted first). Bump this when you add a `migrate_vN`.
-pub const LATEST_VERSION: i32 = 17;
+pub const LATEST_VERSION: i32 = 20;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -575,6 +578,64 @@ fn migrate_v17(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V18: Soft-delete. A non-null `deleted_at` (epoch ms) marks a note as trashed;
+/// normal loads (`fetch_all_notes`) exclude those rows so the note vanishes
+/// app-wide while its row/links/assets stay intact for a lossless restore.
+fn migrate_v18(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        ALTER TABLE notes ADD COLUMN deleted_at INTEGER;
+        INSERT INTO schema_version (version) VALUES (18);
+        ",
+    )
+}
+
+/// V19: Unify canvases into notes. Each per-workspace `canvases` row becomes a
+/// `notes` row with `kind='canvas'` (content = the board JSON) plus a
+/// `workspace_notes` junction row, so a canvas rides folders/vaults/search/export/
+/// trash like any note and can be created anywhere. The canvas id is reused as the
+/// note id (both UUIDs — no collision). The `canvases` table is intentionally left
+/// intact as a rollback net; removal is deferred to a later migration + command
+/// cleanup once this is proven in the field. Guards make the batch safe to re-run.
+fn migrate_v19(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        INSERT INTO notes (id, title, content, tags, kind, vault_id, folder_id, created_at, updated_at)
+        SELECT c.id, c.title, c.data, '[]', 'canvas',
+               COALESCE((SELECT w.vault_id FROM workspaces w WHERE w.id = c.workspace_id), 'vault-default'),
+               NULL, c.created_at, c.updated_at
+        FROM canvases c
+        WHERE NOT EXISTS (SELECT 1 FROM notes n WHERE n.id = c.id);
+
+        INSERT OR IGNORE INTO workspace_notes (workspace_id, note_id, pinned, added_at)
+        SELECT c.workspace_id, c.id, 0, c.created_at FROM canvases c;
+
+        INSERT INTO schema_version (version) VALUES (19);
+        ",
+    )
+}
+
+/// V20: Searchable attachment text. Extracted plain text from a note's PDF
+/// (and, later, other document) attachments, so PDF contents become findable by
+/// keyword and semantic search. One row per (note, file); re-extraction replaces
+/// it. Keyed by note so it cascades on note delete. `text` is opaque to Rust.
+fn migrate_v20(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS attachment_text (
+            note_id    TEXT NOT NULL,
+            filename   TEXT NOT NULL,
+            text       TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (note_id, filename),
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO schema_version (version) VALUES (20);
+        ",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -592,7 +653,7 @@ mod tests {
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
-        assert_eq!(LATEST_VERSION, 17);
+        assert_eq!(LATEST_VERSION, 20);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();
@@ -618,6 +679,13 @@ mod tests {
         assert!(tables.contains(&"folders".to_string()));
         assert!(tables.contains(&"vaults".to_string()));
         assert!(tables.contains(&"plugin_kv".to_string()));
+        assert!(tables.contains(&"attachment_text".to_string()));
+
+        // v18 added notes.deleted_at
+        let has_deleted_at: bool = conn
+            .prepare("SELECT deleted_at FROM notes LIMIT 0")
+            .is_ok();
+        assert!(has_deleted_at, "notes.deleted_at column should exist");
 
         // Running again should be safe (idempotent)
         let result2 = run_migrations(&mut conn);
@@ -668,5 +736,48 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM favourites WHERE note_id='n1'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(fav, 1);
+    }
+
+    /// V19: a pre-existing per-workspace canvas becomes a `kind='canvas'` note
+    /// filed into its workspace (junction row), reusing the canvas id.
+    #[test]
+    fn test_v19_canvas_becomes_note() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        // Old install stopped at v18 (canvases + workspaces exist; kind column present).
+        migrate_to(&mut conn, 18).unwrap();
+
+        conn.execute(
+            "INSERT INTO workspaces (id, name, created_at, updated_at) VALUES ('ws1','WS',1,1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO canvases (id, workspace_id, title, data, created_at, updated_at)
+             VALUES ('cv1','ws1','My Board','{\"nodes\":[],\"edges\":[],\"drawings\":[]}',1,1)",
+            [],
+        )
+        .unwrap();
+
+        // Apply v19.
+        run_migrations(&mut conn).unwrap();
+
+        let (kind, content): (String, String) = conn
+            .query_row(
+                "SELECT kind, content FROM notes WHERE id='cv1'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(kind, "canvas");
+        assert!(content.contains("nodes"), "canvas JSON should carry over as note content");
+
+        let junction: i32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM workspace_notes WHERE workspace_id='ws1' AND note_id='cv1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(junction, 1);
     }
 }

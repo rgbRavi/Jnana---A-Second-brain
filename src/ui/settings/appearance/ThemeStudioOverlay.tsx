@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useTheme } from '../../../hooks/useTheme'
 import { useViewState } from '../../../hooks/useViewState'
 import { ThemeEditor } from './ThemeEditor'
@@ -39,7 +40,7 @@ export function ThemeStudioOverlay() {
             aria-label={collapsed ? 'Expand' : 'Collapse'}
             onClick={() => setCollapsed((v) => !v)}
           >
-            {collapsed ? '⌃' : '⌄'}
+            {collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
           <button type="button" className={styles.secondaryBtn} onClick={handleExit}>
             Exit

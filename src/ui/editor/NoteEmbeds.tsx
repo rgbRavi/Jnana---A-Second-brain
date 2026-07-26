@@ -19,6 +19,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import { ChevronDown, ChevronUp, GripHorizontal, GripVertical, Palette, Plus, Search, Trash2, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { invoke } from '@tauri-apps/api/core'
 import type { Note } from '../../types'
@@ -171,7 +172,7 @@ export function PdfEmbed({ url, noteId, lazy = true, layout }: { url: string; no
       {isFullscreen && createPortal(
         <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
           <div className={MdStyles.fullscreenContent} onClick={(e) => e.stopPropagation()}>
-            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)}>✕</button>
+            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)} aria-label="Close"><X size={18} /></button>
             <PdfViewer filename={filename} noteId={noteId} />
           </div>
         </div>,
@@ -259,7 +260,8 @@ export function TableView({
     const ta = alignToTextAlign(align?.[c])
     return ta ? { ...base, textAlign: ta } : base
   }
-  const sortArrow = (c: number) => (sort && sort.col === c ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '')
+  const sortArrow = (c: number) =>
+    sort && sort.col === c ? (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : null
   const aggActive = !!agg && /[sacnx]/.test(agg)
   const aggCell = (c: number) => {
     const code = agg?.[c]
@@ -360,7 +362,7 @@ export function TableEmbed({ csv, metaText = '' }: { csv: string; metaText?: str
             onClick={() => { setShowFilter((v) => !v); if (showFilter) setFilter('') }}
             title="Filter rows"
             aria-label="Filter rows"
-          >⌕</button>
+          ><Search size={14} /></button>
           {showFilter && (
             <input
               className={MdStyles.noteTableFilter}
@@ -371,7 +373,7 @@ export function TableEmbed({ csv, metaText = '' }: { csv: string; metaText?: str
             />
           )}
           {sort && (
-            <button type="button" className={MdStyles.noteTableToolBtn} onClick={() => setSort(null)} title="Clear sort">Clear sort ✕</button>
+            <button type="button" className={MdStyles.noteTableToolBtn} onClick={() => setSort(null)} title="Clear sort">Clear sort <X size={13} /></button>
           )}
         </span>
       )}
@@ -940,9 +942,9 @@ export function EditorTableWidget({
                 onPointerDown={(e) => startDrag('col', c, e)}
                 onPointerMove={moveDrag}
                 onPointerUp={endDrag}
-              >⋮⋮</button>
-              <button className={MdStyles.noteTableSort} onMouseDown={keepFocus} onClick={() => sortByCol(c, 'asc')} title="Sort ascending" aria-label={`Sort column ${c + 1} ascending`}>▲</button>
-              <button className={MdStyles.noteTableSort} onMouseDown={keepFocus} onClick={() => sortByCol(c, 'desc')} title="Sort descending" aria-label={`Sort column ${c + 1} descending`}>▼</button>
+              ><GripVertical size={13} /></button>
+              <button className={MdStyles.noteTableSort} onMouseDown={keepFocus} onClick={() => sortByCol(c, 'asc')} title="Sort ascending" aria-label={`Sort column ${c + 1} ascending`}><ChevronUp size={13} /></button>
+              <button className={MdStyles.noteTableSort} onMouseDown={keepFocus} onClick={() => sortByCol(c, 'desc')} title="Sort descending" aria-label={`Sort column ${c + 1} descending`}><ChevronDown size={13} /></button>
               <span
                 className={MdStyles.noteTableColResize}
                 title="Drag to resize column"
@@ -966,7 +968,7 @@ export function EditorTableWidget({
                 onPointerDown={(e) => startDrag('row', r, e)}
                 onPointerMove={moveDrag}
                 onPointerUp={endDrag}
-              >⋮⋮</button>
+              ><GripHorizontal size={13} /></button>
               <span
                 className={MdStyles.noteTableRowResize}
                 title="Drag to resize row"
@@ -1013,13 +1015,13 @@ export function EditorTableWidget({
       </span>
       <TableStickyScrollbar scrollRef={scrollRef} />
       <div className={MdStyles.noteTableBar}>
-        <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={addRow} disabled={atRowCap}>+ Row</button>
-        <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={addCol} disabled={atColCap}>+ Column</button>
+        <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={addRow} disabled={atRowCap}><Plus size={13} /> Row</button>
+        <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={addCol} disabled={atColCap}><Plus size={13} /> Column</button>
         <span className={MdStyles.noteTableColorWrap}>
-          <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={() => setPickingColor((v) => !v)} title="Header colour">🎨 Header</button>
+          <button className={MdStyles.noteTableBarBtn} onMouseDown={keepFocus} onClick={() => setPickingColor((v) => !v)} title="Header colour"><Palette size={14} /> Header</button>
           {pickingColor && (
             <span className={MdStyles.noteTableSwatches}>
-              <button className={MdStyles.noteTableSwatchNone} onMouseDown={keepFocus} onClick={() => pickHeader(undefined)} title="No colour">✕</button>
+              <button className={MdStyles.noteTableSwatchNone} onMouseDown={keepFocus} onClick={() => pickHeader(undefined)} title="No colour" aria-label="No colour"><X size={13} /></button>
               {COLOR_PALETTE.map((c) => (
                 <button
                   key={c.name}
@@ -1040,7 +1042,7 @@ export function EditorTableWidget({
           onMouseDown={keepFocus}
           onClick={() => void handleDelete()}
           title="Delete table"
-        >🗑 Delete</button>
+        ><Trash2 size={14} /> Delete</button>
       </div>
       {drag && ghost && createPortal(
         <div className={MdStyles.noteTableDragGhost} style={{ left: ghost.x + 14, top: ghost.y + 6 }}>
@@ -1086,7 +1088,7 @@ export function ImageEmbed({
       {isFullscreen && createPortal(
         <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
           <div className={MdStyles.lightboxContent} onClick={(e) => e.stopPropagation()}>
-            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)}>✕</button>
+            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)} aria-label="Close"><X size={18} /></button>
             {url.startsWith('jnana-asset://')
               ? <AsyncImage filename={url.replace('jnana-asset://', '')} alt={altText} className={MdStyles.lightboxImage} lazy={false} />
               : <img src={url} alt={altText} className={MdStyles.lightboxImage} />

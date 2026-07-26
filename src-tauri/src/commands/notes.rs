@@ -33,6 +33,15 @@ pub struct NoteProgressRow {
     pub updated_at: i64,
 }
 
+/// A trashed note's summary for the Trash view (id, title, when-deleted).
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TrashedNote {
+    pub id: String,
+    pub title: String,
+    pub deleted_at: i64,
+}
+
 fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -124,13 +133,23 @@ pub fn save_note(state: State<'_, DbState>, note: Note) -> Result<Note, String> 
 #[command]
 pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<(), String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    hard_delete_note(&conn, &id)
+}
 
+/// Permanently remove a note: strip its assets from disk, then delete the row
+/// (CASCADE removes links, media_refs, annotations). Shared by `delete_note`
+/// ("delete forever") and the trash sweeps (`empty_trash` / `purge_expired_trash`).
+/// Takes the already-locked guard so sweep callers reuse it without re-locking.
+fn hard_delete_note(
+    conn: &std::sync::MutexGuard<'_, rusqlite::Connection>,
+    id: &str,
+) -> Result<(), String> {
     // 1. Collect all asset filenames before deleting the note.
-    let asset_paths = queries::fetch_asset_paths_for_note(&conn, &id).unwrap_or_default();
+    let asset_paths = queries::fetch_asset_paths_for_note(conn, id).unwrap_or_default();
 
     // 2. Also extract inline jnana-asset:// filenames from note content.
     let mut all_files: Vec<String> = asset_paths;
-    if let Ok(row) = queries::fetch_note(&conn, &id) {
+    if let Ok(row) = queries::fetch_note(conn, id) {
         // Parse ![...](jnana-asset://filename) from content
         for cap in row.content.match_indices("jnana-asset://") {
             let start = cap.0 + "jnana-asset://".len();
@@ -144,8 +163,8 @@ pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<(), String> 
     }
 
     // 3. Delete the note (CASCADE removes links, media_refs, annotations).
-    queries::remove_note(&conn, &id).map_err(|e| {
-        log::error!("delete_note {} failed: {}", id, e);
+    queries::remove_note(conn, id).map_err(|e| {
+        log::error!("hard_delete_note {} failed: {}", id, e);
         format!("Failed to delete note {}: {}", id, e)
     })?;
 
@@ -159,6 +178,63 @@ pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<(), String> 
     }
 
     Ok(())
+}
+
+// ─── Trash (soft-delete) ────────────────────────────────
+
+#[command]
+pub fn trash_note(state: State<'_, DbState>, id: String) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::trash_note(&conn, &id, now_ms())
+        .map_err(|e| format!("Failed to trash note {}: {}", id, e))
+}
+
+#[command]
+pub fn restore_note(state: State<'_, DbState>, id: String) -> Result<Note, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::restore_note(&conn, &id).map_err(|e| format!("Failed to restore note {}: {}", id, e))?;
+    queries::fetch_note(&conn, &id)
+        .map(Note::from_row)
+        .map_err(|e| format!("Failed to fetch restored note {}: {}", id, e))
+}
+
+#[command]
+pub fn list_trashed_notes(state: State<'_, DbState>) -> Result<Vec<TrashedNote>, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::fetch_trashed_notes(&conn)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|(id, title, deleted_at)| TrashedNote { id, title, deleted_at })
+                .collect()
+        })
+        .map_err(|e| format!("Failed to list trash: {}", e))
+}
+
+#[command]
+pub fn empty_trash(state: State<'_, DbState>) -> Result<usize, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let ids = queries::fetch_trashed_ids(&conn).map_err(|e| format!("Failed to read trash: {}", e))?;
+    let n = ids.len();
+    for id in ids {
+        hard_delete_note(&conn, &id)?;
+    }
+    Ok(n)
+}
+
+#[command]
+pub fn purge_expired_trash(state: State<'_, DbState>, retention_days: i64) -> Result<usize, String> {
+    if retention_days <= 0 {
+        return Ok(0); // 0 / negative = keep forever
+    }
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let cutoff = now_ms() - retention_days * 24 * 60 * 60 * 1000;
+    let ids = queries::fetch_expired_trash_ids(&conn, cutoff)
+        .map_err(|e| format!("Failed to read expired trash: {}", e))?;
+    let n = ids.len();
+    for id in ids {
+        hard_delete_note(&conn, &id)?;
+    }
+    Ok(n)
 }
 
 // ─── Links ──────────────────────────────────────────────

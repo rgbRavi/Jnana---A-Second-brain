@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useMemo, useState } from 'react'
+import { Bot, Brain, Microscope, NotebookPen, Paperclip, Square, X } from 'lucide-react'
 import type { ChatAttachment } from '../../core/ai'
 import type { Note } from '../../types'
 import styles from './Ai.module.css'
@@ -46,13 +47,16 @@ const pill = (active: boolean): React.CSSProperties => ({
   display: 'inline-flex',
   alignItems: 'center',
   gap: '5px',
-  background: active ? 'rgba(124, 106, 247, 0.15)' : 'var(--surface-2)',
+  background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'color-mix(in srgb, var(--surface-2) 90%, transparent)',
+  backdropFilter: 'blur(8px)',
   color: active ? 'var(--accent)' : 'var(--text-2)',
-  border: '1px solid ' + (active ? 'var(--accent)' : 'var(--border)'),
+  border: '1px solid ' + (active ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'color-mix(in srgb, var(--border) 80%, transparent)'),
   borderRadius: '999px',
   padding: '0.3rem 0.7rem',
-  fontSize: '0.78rem',
+  fontSize: '0.75rem',
   cursor: 'pointer',
+  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+  boxShadow: active ? '0 0 10px color-mix(in srgb, var(--accent) 20%, transparent)' : 'var(--shadow-sm)',
 })
 
 /** A small inline note search → pick to attach. */
@@ -70,7 +74,7 @@ function NotePicker({ notes, onPick }: { notes: Note[]; onPick: (n: Note) => voi
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen((v) => !v)} style={pill(open)} title="Attach one of your notes">
-        📝 Add note
+        <NotebookPen size={14} /> Add note
       </button>
       {open && (
         <div
@@ -206,25 +210,28 @@ export function ChatComposer({
                 onClick={() => onRemoveAttachment(a.id)}
                 title="Remove"
                 aria-label={`Remove ${a.name}`}
-                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: '0.9rem', lineHeight: 1 }}
+                style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'inline-flex' }}
               >
-                ✕
+                <X size={14} />
               </button>
             </span>
           ))}
         </div>
       )}
 
-      {/* Composer card: textarea on top, toolbar row beneath. */}
       <div
         style={{
-          border: '1px solid var(--border)',
-          borderRadius: '14px',
-          background: 'var(--surface)',
-          padding: '0.6rem 0.7rem 0.5rem',
+          border: '1px solid color-mix(in srgb, var(--text-1) 12%, transparent)',
+          borderRadius: '28px',
+          background: 'color-mix(in srgb, var(--surface) 35%, transparent)',
+          backdropFilter: 'blur(24px) saturate(150%)',
+          boxShadow: '0 12px 36px rgba(0,0,0,0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent)',
+          padding: '0.85rem 1.25rem 0.75rem',
+          margin: '0 0.5rem 0.5rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.5rem',
+          gap: '0.6rem',
+          transition: 'box-shadow 0.2s',
         }}
       >
         <textarea
@@ -261,7 +268,7 @@ export function ChatComposer({
             title={vision ? 'Attach documents, images or audio' : 'Attach documents or audio (this model has no vision for images)'}
             style={pill(false)}
           >
-            📎 Attach
+            <Paperclip size={14} /> Attach
           </button>
           <NotePicker notes={notes} onPick={onAddNote} />
           {presetControls}
@@ -277,7 +284,7 @@ export function ChatComposer({
             }
             style={{ ...pill(canThink && think), opacity: canThink ? 1 : 0.5, cursor: canThink ? 'pointer' : 'not-allowed' }}
           >
-            🧠 Thinking {canThink ? (think ? 'on' : 'off') : 'n/a'}
+            <Brain size={14} /> Thinking {canThink ? (think ? 'on' : 'off') : 'n/a'}
           </button>
           <button
             onClick={() => onDeepResearchChange(!deepResearch)}
@@ -285,7 +292,7 @@ export function ChatComposer({
             title="Routes to your Deep-research endpoint if configured; otherwise adds a thorough-research directive"
             style={pill(deepResearch)}
           >
-            🔬 Deep research
+            <Microscope size={14} /> Deep research
           </button>
           <button
             onClick={() => onAgentChange(!agent)}
@@ -293,13 +300,13 @@ export function ChatComposer({
             title="Agent mode: the AI can search, read and propose changes to your notes (writes need your approval)"
             style={pill(agent)}
           >
-            🤖 Agent
+            <Bot size={14} /> Agent
           </button>
 
           <div style={{ marginLeft: 'auto' }}>
             {busy ? (
               <button className={styles.btn} onClick={onStop} title="Stop generating">
-                ■ Stop
+                <Square size={13} /> Stop
               </button>
             ) : (
               <button className={styles.btnPrimary} disabled={!canSend} onClick={onSend}>

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { eventBus } from "./lib/eventBus";
+import { log } from "./lib/logger";
+import { purgeExpiredTrash } from "./core/notes";
 import { openNoteInWorking, useNotesSubView, getNotesSubView, setNotesSubView } from "./views/notes/working/useWorkingLayout";
 import type { Note } from "./types";
 import { toast } from "./lib/toast";
@@ -23,7 +25,10 @@ import { useActiveVaultId } from "./hooks/useVaults";
 import { setVaultScope } from "./core/ai";
 import { DEFAULT_VAULT_ID } from "./types";
 import { useSaveLastOpened } from "./hooks/useSaveLastOpened";
+import { getGeneralSettings } from "./hooks/useGeneralSettings";
 import { useTheme } from "./hooks/useTheme";
+import { useInstalledFonts } from "./hooks/useInstalledFonts";
+import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
@@ -47,6 +52,12 @@ function AppInner() {
     // theme (source of truth) and seeds built-in presets on first run — runs
     // once regardless of whether the user ever opens Settings → Appearance.
     useTheme()
+    // Load user-installed @font-face rules at boot so a theme using a custom
+    // family renders without opening Settings (mirrors useTheme's boot mount).
+    useInstalledFonts()
+    // Extract text from notes' PDF attachments after save (note row exists by
+    // then) so PDF contents are searchable in keyword + AI search.
+    usePdfTextIndex()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()
@@ -63,18 +74,38 @@ function AppInner() {
     useEffect(() => {
         if (restoredRef.current) return
         restoredRef.current = true
-        if (initialRoute && initialRoute !== pathname) {
-            navigate(initialRoute, { replace: true })
+        const startup = getGeneralSettings().startupView
+        const target = startup === 'last' ? initialRoute : startup
+        if (target && target !== pathname) {
+            navigate(target, { replace: true })
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+    // Purge trash older than the retention window, once per launch. Fire-and-forget:
+    // a failure here must never block the app. 0 days = keep forever (command no-ops).
+    useEffect(() => {
+        void purgeExpiredTrash(getGeneralSettings().trashRetentionDays).catch((e) =>
+            log.error('trash purge failed', e),
+        )
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
     // Remember the current route for next launch.
     useEffect(() => {
         try {
-            localStorage.setItem(LAST_ROUTE_KEY, pathname)
+            if (pathname !== "/settings") localStorage.setItem(LAST_ROUTE_KEY, pathname)
         } catch {
             /* storage unavailable */
         }
+    }, [pathname])
+    // Capture the route we came from whenever Settings opens, from ANY entry point
+    // (sidebar, command palette, dashboard, in-view links) — so Settings' Back
+    // button returns there. Central so no entry point has to remember to do it.
+    const prevPathRef = useRef(pathname)
+    useEffect(() => {
+        if (pathname === "/settings" && prevPathRef.current !== "/settings") {
+            setViewState<string>("settings.returnTo", prevPathRef.current)
+        }
+        prevPathRef.current = pathname
     }, [pathname])
     // Ctrl/⌘+Shift+E — jump to the Working Notes desk from anywhere; when already
     // on /notes it toggles back to the gallery. Non-intrusive (no existing binding)
@@ -141,15 +172,18 @@ function AppInner() {
         (pathname === "/" || pathname === "/notes" || pathname.startsWith("/workspaces/")) &&
         !onCanvasTab &&
         !onWorkingDesk
+    const inSettings = pathname === "/settings"
     return (
         <div className={AppStyles.appShell}>
-            <Sidebar />
-            <FileExplorer />
+            {!inSettings && <Sidebar />}
+            {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>
-                <Outlet />
+                <Suspense fallback={null}>
+                    <Outlet />
+                </Suspense>
                 {showComposer && <NoteCreator onCreate={create} onUpdate={update} />}
             </main>
-            <RightRail />
+            {!inSettings && <RightRail />}
             <CommandPalette />
             <PluginWidgetHost />
             <Tooltip />

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
@@ -11,11 +12,12 @@ import { setRetrievalScope } from '../../core/ai'
 import { AiChat } from '../../ui/ai/AiChat'
 import { FreeChat } from '../../ui/ai/FreeChat'
 import { ChatHistory } from '../../ui/ai/ChatHistory'
+import { ProjectsView } from './ProjectsView'
 import { ScopeBar } from '../../ui/ScopeBar'
 import { NoteModal } from '../../ui/NoteModal'
 import styles from '../../ui/ai/Ai.module.css'
 
-type AiMode = 'focused' | 'chat'
+type AiMode = 'focused' | 'chat' | 'projects'
 
 function Ai() {
   const { notes, update, updateTags } = useNotesContext()
@@ -32,7 +34,7 @@ function Ai() {
   }, [noteIds])
 
   return (
-    <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg)', background: 'radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 50%), radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 50%), radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%)' }}>
       {/* Header: mode toggle + settings link */}
       <div
         style={{
@@ -63,11 +65,9 @@ function Ai() {
           </div>
           <ScopeBar />
         </div>
-        <NavLink to="/settings" className={styles.settingsBtn}>
-          <span className={`${styles.statusDot} ${config.enabled ? styles.statusOn : ''}`}>
-            {config.enabled ? `● ${config.chatProvider}` : '○ disabled'}
-          </span>
-          ⚙ Settings
+        <NavLink to="/settings" className={styles.settingsBtn} title="Settings">
+          <Settings size={16} />
+          <span className={styles.settingsText}>Settings</span>
         </NavLink>
       </div>
 
@@ -75,7 +75,9 @@ function Ai() {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: '1rem', padding: '1rem 1.5rem', overflow: 'hidden' }}>
         <ChatHistory mode={mode} />
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          {mode === 'focused' ? (
+          {mode === 'projects' ? (
+            <ProjectsView />
+          ) : mode === 'focused' ? (
             <AiChat config={config} notes={notes} onOpenNote={setOpenNoteId} />
           ) : (
             <FreeChat config={config} notes={notes} />

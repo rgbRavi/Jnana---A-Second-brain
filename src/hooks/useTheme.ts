@@ -75,9 +75,17 @@ async function hydrate(): Promise<void> {
   hydrated = true
   try {
     let rows = await listThemes()
-    if (rows.length === 0) {
+    // Seed built-in presets. On a fresh install nothing is stored, so seed all;
+    // on an existing install, add only the presets that aren't stored yet — this
+    // is how a new/updated built-in theme reaches users who seeded an older set
+    // (it never overwrites a stored theme, so user edits are untouched). A
+    // deliberately-deleted built-in will re-appear on next launch, which is the
+    // accepted trade-off for keeping the default lineup in sync.
+    const stored = new Set(rows.map((r) => r.id))
+    const missing = PRESETS.filter((p) => !stored.has(p.id))
+    if (missing.length > 0) {
       const now = Date.now()
-      for (const p of PRESETS) {
+      for (const p of missing) {
         await persistSavedTheme({ id: p.id, name: p.name, theme: themeFromPreset(p.id), isBuiltin: true, createdAt: now })
       }
       rows = await listThemes()
@@ -103,6 +111,13 @@ async function hydrate(): Promise<void> {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
+}
+
+/** Re-apply the active theme's vars onto :root. Used after installed fonts
+ *  hydrate so a theme referencing a user font resolves its `--font-*` once the
+ *  family becomes known (at boot the font registry is still empty). */
+export function reapplyActiveTheme(): void {
+  applyVars(document.documentElement, theme)
 }
 
 const getThemeSnapshot = () => theme

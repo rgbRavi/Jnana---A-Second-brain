@@ -20,6 +20,10 @@ export interface CanvasPrefs {
   eraserSize: number
   /** When true, notes/attachments can still be moved/resized while in Draw mode. */
   interactWhileDrawing: boolean
+  /** When true, dragging a node snaps to a grid + aligns to other nodes' edges/centers. */
+  snapEnabled: boolean
+  /** When true, placed note cards linked by a [[wikilink]] show a dotted connector. */
+  showWikilinkEdges: boolean
 }
 
 const STORAGE_KEY = 'jnana.canvas.prefs'
@@ -29,6 +33,8 @@ const DEFAULTS: CanvasPrefs = {
   eraserMode: 'touch',
   eraserSize: 28,
   interactWhileDrawing: true,
+  snapEnabled: true,
+  showWikilinkEdges: true,
 }
 
 function load(): CanvasPrefs {

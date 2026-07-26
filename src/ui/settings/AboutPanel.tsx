@@ -32,65 +32,47 @@ export function AboutPanel() {
 
   return (
     <div className={styles.panel}>
+      {/* 1 — Identity */}
       <div className={styles.header}>
         <p className={styles.appName}>Jnana</p>
         <span className={styles.version}>{version ? `Version ${version}` : ''}</span>
       </div>
+      <p className={styles.body}>A local-first "second brain": notes, media, a wikilink graph, workspaces, and an optional, locally-grounded AI layer.</p>
 
+      {/* 2 — Links */}
+      <div className={styles.section}>
+        <p className={styles.sectionTitle}>Links</p>
+        <div className={styles.actions}>
+          <button className={styles.button} onClick={() => open(SOURCE_URL)}>View source ↗</button>
+          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/releases`)}>Release notes ↗</button>
+          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/issues/new`)}>Report an issue ↗</button>
+        </div>
+      </div>
+
+      {/* 3 — Legal (AGPL Appropriate Legal Notice — do not remove) */}
       <div className={styles.section}>
         <p className={styles.sectionTitle}>License</p>
         <p className={styles.body}>
-          Copyright © 2026 Jnana Project. Jnana is free software: you can
-          redistribute it and/or modify it under the terms of the{' '}
-          <a
-            className={styles.link}
-            onClick={() => open('https://www.gnu.org/licenses/agpl-3.0.html')}
-          >
-            GNU Affero General Public License, version 3
-          </a>
-          . It is distributed in the hope that it will be useful, but{' '}
-          <strong>WITHOUT ANY WARRANTY</strong>; without even the implied warranty
-          of merchantability or fitness for a particular purpose.
+          Copyright © 2026 Jnana Project. Jnana is free software: you can redistribute it and/or modify it under the terms of the{' '}
+          <a className={styles.link} onClick={() => open('https://www.gnu.org/licenses/agpl-3.0.html')}>GNU Affero General Public License, version 3</a>
+          . It is distributed in the hope that it will be useful, but <strong>WITHOUT ANY WARRANTY</strong>; without even the implied warranty of merchantability or fitness for a particular purpose.
         </p>
         <p className={styles.body}>
-          If you modify Jnana and make it available to others — including over a
-          network — the AGPL requires you to publish your modified source under the
-          same license. You may charge for it, but the source must stay open.
+          If you modify Jnana and make it available to others — including over a network — the AGPL requires you to publish your modified source under the same license.
         </p>
-      </div>
-
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Plugins</p>
         <p className={styles.body}>
-          Plugins that interface with Jnana only through its documented plugin API
-          are exempt from the AGPL and may be released under any terms, including
-          proprietary and commercial ones. See the plugin exception in the source
-          repository for the exact conditions.
-        </p>
-      </div>
-
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Source code</p>
-        <p className={styles.body}>
-          The complete corresponding source for this version is available at:
+          Plugins that interface with Jnana only through its documented plugin API are exempt from the AGPL and may be released under any terms. See the plugin exception for exact conditions.
         </p>
         <div className={styles.actions}>
-          <button className={styles.button} onClick={() => open(SOURCE_URL)}>
-            View source ↗
-          </button>
-          <button
-            className={styles.button}
-            onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE`)}
-          >
-            AGPL-3.0 license ↗
-          </button>
-          <button
-            className={styles.button}
-            onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE-EXCEPTION.md`)}
-          >
-            Plugin exception ↗
-          </button>
+          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE`)}>AGPL-3.0 license ↗</button>
+          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE-EXCEPTION.md`)}>Plugin exception ↗</button>
         </div>
+      </div>
+
+      {/* 4 — Acknowledgements */}
+      <div className={styles.section}>
+        <p className={styles.sectionTitle}>Built with</p>
+        <p className={styles.body}>Tauri · React · TypeScript · SQLite (rusqlite) · CodeMirror 6 · pdf.js · lucide icons. Thanks to the maintainers of these projects.</p>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.7rem 2rem;
+  padding: 0.7rem var(--space-2xl);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -35,7 +35,7 @@
   font-size: 0.85rem;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .search:focus {
@@ -51,7 +51,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -78,7 +78,7 @@
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem var(--space-sm);
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
@@ -90,36 +90,63 @@
 }
 
 .modes {
-  display: flex;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
 .modeBtn {
-  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
   border: none;
-  border-left: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   color: var(--text-3);
-  padding: 0.4rem 0.55rem;
-  font-size: 0.95rem;
+  padding: 0.35rem var(--space-sm);
   line-height: 1;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-}
-
-.modeBtn:first-child {
-  border-left: none;
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .modeBtn:hover {
   color: var(--text-1);
+  background: var(--surface-hover-strong);
 }
 
 .modeBtnActive {
-  color: var(--text-1);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.modeBtn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The selected mode names itself (baked from the accepted Labels=Active knob). */
+.modeLabel {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.modeBtnActive .modeLabel {
+  max-width: 7rem;
+  opacity: 1;
 }
 
 .count {
@@ -132,7 +159,7 @@
 
 .newBtn {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border: none;
   border-radius: var(--radius-sm);
   padding: 0.45rem 0.85rem;
@@ -140,7 +167,7 @@
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
@@ -157,7 +184,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  padding: 0.85rem 2rem;
+  padding: 0.85rem var(--space-2xl);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   flex-shrink: 0;
@@ -192,11 +219,11 @@
   border: 1px solid var(--border);
   color: var(--text-2);
   border-radius: 999px;
-  padding: 0.25rem 0.65rem;
+  padding: var(--space-2xs) 0.65rem;
   font-size: 0.76rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 
 .chip:hover {
@@ -228,7 +255,7 @@
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
-  padding: 0.25rem 0.4rem;
+  padding: var(--space-2xs) 0.4rem;
   font-size: 0.76rem;
   font-family: var(--font-body);
   outline: none;

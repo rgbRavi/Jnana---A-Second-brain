@@ -2,70 +2,88 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import { getViewState } from '../../hooks/useViewState'
 import { useNotesContext } from '../../context/NotesContext'
 import { useRag } from '../../hooks/useRag'
 import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
+import { GeneralSettingsPanel } from '../../ui/settings/GeneralSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
 import { AboutPanel } from '../../ui/settings/AboutPanel'
 import styles from './Settings.module.css'
 
-type Tab = 'ai' | 'appearance' | 'composer' | 'data' | 'plugins' | 'about'
+type Tab = 'general' | 'composer' | 'appearance' | 'ai' | 'data' | 'plugins' | 'about'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'ai', label: 'AI Providers' },
-  { id: 'appearance', label: 'Appearance' },
+// Ordered by how often a user reaches for each: General & Composer first (daily
+// behaviour), Appearance & AI next (frequent tuning), Data/Plugins/About last.
+const SECTIONS: { id: Tab; label: string }[] = [
+  { id: 'general', label: 'General' },
   { id: 'composer', label: 'Composer' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'ai', label: 'AI Providers' },
   { id: 'data', label: 'Import / Export' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'about', label: 'About' },
 ]
 
 function Settings() {
-  const [tab, setTab] = useState<Tab>('ai')
+  const [tab, setTab] = useState<Tab>('general')
+  const navigate = useNavigate()
   const { notes } = useNotesContext()
   const { config, updateConfig, stats, indexing, stale, reindexAll, refreshStaleness } = useRag()
 
-  // Recompute "needs (re)indexing" when notes change or AI is toggled on.
   useEffect(() => {
     void refreshStaleness(notes)
   }, [notes, config.enabled, refreshStaleness])
 
+  const goBack = () => navigate(getViewState<string>('settings.returnTo') ?? '/')
+
   return (
     <div className={styles.settings}>
-      <p className="section-label">Settings</p>
+      <header className={styles.header}>
+        <button type="button" className={styles.backBtn} onClick={goBack}>
+          <ArrowLeft size={16} /> Back
+        </button>
+        <p className="section-label">Settings</p>
+      </header>
 
-      <div className={styles.tabs}>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`${styles.tab} ${tab === t.id ? styles.tabActive : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className={styles.shell}>
+        <nav className={styles.subNav}>
+          {SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`${styles.navItem} ${tab === s.id ? styles.navItemActive : ''}`}
+              onClick={() => setTab(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </nav>
 
-      <div className={styles.content}>
-        {tab === 'ai' && (
-          <AiSettingsPanel
-            config={config}
-            onChange={updateConfig}
-            stats={stats}
-            indexing={indexing}
-            notes={notes}
-            staleNotes={stale}
-            onReindex={reindexAll}
-          />
-        )}
-        {tab === 'appearance' && <AppearancePanel />}
-        {tab === 'composer' && <ComposerSettingsPanel />}
-        {tab === 'data' && <ImportExportPanel />}
-        {tab === 'plugins' && <PluginsPanel />}
-        {tab === 'about' && <AboutPanel />}
+        <div className={styles.content}>
+          {tab === 'general' && <GeneralSettingsPanel />}
+          {tab === 'composer' && <ComposerSettingsPanel />}
+          {tab === 'appearance' && <AppearancePanel />}
+          {tab === 'ai' && (
+            <AiSettingsPanel
+              config={config}
+              onChange={updateConfig}
+              stats={stats}
+              indexing={indexing}
+              notes={notes}
+              staleNotes={stale}
+              onReindex={reindexAll}
+            />
+          )}
+          {tab === 'data' && <ImportExportPanel />}
+          {tab === 'plugins' && <PluginsPanel />}
+          {tab === 'about' && <AboutPanel />}
+        </div>
       </div>
     </div>
   )

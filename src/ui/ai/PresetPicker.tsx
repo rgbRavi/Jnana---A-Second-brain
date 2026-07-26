@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { Palette, Pencil, Plus, Settings, Wrench, X } from 'lucide-react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import type { AiPreset, PresetKind } from '../../types'
 import { listPresets, savePreset, deletePreset, newPreset } from '../../core/aiWorkspace'
@@ -15,7 +16,7 @@ const pill: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: '999px',
   padding: '0.3rem 0.7rem',
-  fontSize: '0.78rem',
+  fontSize: '0.75rem',
   cursor: 'pointer',
 }
 
@@ -71,7 +72,7 @@ export function PresetPicker({ styles, skills, styleId, onStyleId, skillIds, onS
             borderColor: activeSkillCount ? 'var(--accent)' : 'var(--border)',
           }}
         >
-          🛠 Skills{activeSkillCount ? ` (${activeSkillCount})` : ''}
+          <Wrench size={14} /> Skills{activeSkillCount ? ` (${activeSkillCount})` : ''}
         </button>
         {skillsOpen && (
           <>
@@ -91,7 +92,7 @@ export function PresetPicker({ styles, skills, styleId, onStyleId, skillIds, onS
               }}
             >
               {skills.length === 0 && (
-                <p style={{ fontSize: '0.76rem', color: 'var(--text-3)', padding: '0.3rem' }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', padding: '0.3rem' }}>
                   No skills yet — use Manage to add one.
                 </p>
               )}
@@ -116,7 +117,7 @@ export function PresetPicker({ styles, skills, styleId, onStyleId, skillIds, onS
                 }}
                 style={{ ...pill, width: '100%', justifyContent: 'center', marginTop: '0.4rem' }}
               >
-                ⚙ Manage skills & styles
+                <Settings size={14} /> Manage skills & styles
               </button>
             </div>
           </>
@@ -173,13 +174,13 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
     borderRadius: 'var(--radius-sm)',
     color: 'var(--text-1)',
     padding: '0.5rem 0.6rem',
-    fontSize: '0.85rem',
+    fontSize: '0.875rem',
     fontFamily: 'var(--font-body)',
     outline: 'none',
   }
   const tab = (active: boolean): React.CSSProperties => ({
     ...pill,
-    background: active ? 'rgba(124,106,247,0.15)' : 'var(--surface-2)',
+    background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)',
     color: active ? 'var(--accent)' : 'var(--text-2)',
     borderColor: active ? 'var(--accent)' : 'var(--border)',
   })
@@ -203,18 +204,18 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-          <strong style={{ color: 'var(--text-1)', fontSize: '0.98rem' }}>Styles &amp; Skills</strong>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', fontSize: '1.1rem', cursor: 'pointer' }}>
-            ✕
+          <strong style={{ color: 'var(--text-1)', fontSize: '0.9375rem' }}>Styles &amp; Skills</strong>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }}>
+            <X size={17} />
           </button>
         </div>
 
         <div style={{ display: 'flex', gap: '6px', marginBottom: '0.85rem' }}>
           <button style={tab(kind === 'style')} onClick={() => { setKind('style'); setEditing(null) }}>
-            🎨 Styles
+            <Palette size={14} /> Styles
           </button>
           <button style={tab(kind === 'skill')} onClick={() => { setKind('skill'); setEditing(null) }}>
-            🛠 Skills
+            <Wrench size={14} /> Skills
           </button>
         </div>
 
@@ -242,7 +243,7 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
         ) : (
           <>
             <button style={{ ...pill, marginBottom: '0.6rem' }} onClick={() => setEditing(newPreset(kind))}>
-              + New {kind}
+              <Plus size={14} /> New {kind}
             </button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {items.length === 0 && <p style={{ fontSize: '0.8rem', color: 'var(--text-3)' }}>None yet.</p>}
@@ -252,14 +253,14 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.6rem' }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: 'var(--text-1)', fontSize: '0.86rem' }}>{p.name}</div>
-                    {p.description && <div style={{ color: 'var(--text-3)', fontSize: '0.74rem' }}>{p.description}</div>}
+                    <div style={{ color: 'var(--text-1)', fontSize: '0.875rem' }}>{p.name}</div>
+                    {p.description && <div style={{ color: 'var(--text-3)', fontSize: '0.75rem' }}>{p.description}</div>}
                   </div>
-                  <button style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer' }} title="Edit" onClick={() => setEditing(p)}>
-                    ✎
+                  <button style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }} title="Edit" onClick={() => setEditing(p)}>
+                    <Pencil size={14} />
                   </button>
-                  <button style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer' }} title="Delete" onClick={() => remove(p)}>
-                    ✕
+                  <button style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }} title="Delete" onClick={() => remove(p)}>
+                    <X size={14} />
                   </button>
                 </div>
               ))}

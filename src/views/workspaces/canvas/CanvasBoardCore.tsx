@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+// The controlled, doc-agnostic canvas board. It owns view transform, gestures,
+// undo/redo, all doc mutators, edge rendering, link-in-graph, and paste — but
+// takes its document (`doc`/`setDoc`), notes, and note-persistence callbacks as
+// props. It is driven by the canvas note-type editor (CanvasNoteEditor), which
+// feeds it a serialized CanvasDoc from the note's content.
+
 import {
   useCallback, useEffect, useMemo, useRef, useState,
-  type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent,
+  type ReactNode, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent,
 } from 'react'
+import { Check, Link2, Maximize2, Minimize2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl, openPath } from '@tauri-apps/plugin-opener'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
-import { useNotesContext } from '../../../context/NotesContext'
-import { useWorkspaceNotes } from '../../../hooks/useWorkspaceNotes'
-import { useCanvas } from '../../../hooks/useCanvas'
-import { useCanvasList } from '../../../hooks/useCanvasList'
 import { importMedia, getAssetPath } from '../../../core/media'
 import { uploadAsset } from '../../../core/notes'
 import {
@@ -21,19 +24,43 @@ import {
 import { showPromptDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
 import { NoteModal } from '../../../ui/NoteModal'
+import { useSidebarPrefs } from '../../../hooks/useSidebarPrefs'
 import type { Note } from '../../../types'
+import type { useNotes } from '../../../hooks/useNotes'
 import { CanvasNodeView } from './CanvasNodeView'
 import { CanvasToolbar, type CanvasMode, type DrawTool } from './CanvasToolbar'
 import { useCanvasPrefs } from './useCanvasPrefs'
 import { CanvasNotePicker } from './CanvasNotePicker'
-import { CanvasSwitcher } from './CanvasSwitcher'
 import { CanvasContextMenu, type MenuItem } from './CanvasContextMenu'
 import { CanvasColorPicker } from './CanvasColorPicker'
 import { DrawLayer } from './DrawLayer'
+import { nodesInMarquee, rectFromPoints, nodeRect, type Rect } from './canvasSelect'
+import { extractFragment, cloneFragment, type CanvasFragment } from './canvasClipboard'
+import { snapDrag } from './canvasSnap'
+import { deriveWikilinkEdges } from './canvasWikilinkEdges'
+import { renderCanvasToPng } from './canvasExport'
+import { savePngFile } from '../../../core/savePng'
 import styles from './canvas.module.css'
 
-interface Props {
-  workspaceId: string
+type NotesApi = ReturnType<typeof useNotes>
+
+export interface CanvasBoardCoreProps {
+  doc: CanvasDoc
+  setDoc: (updater: CanvasDoc | ((prev: CanvasDoc) => CanvasDoc)) => void
+  /** Candidate notes for the "add note card" picker (already vault/workspace-scoped by the caller). */
+  notesPool: Note[]
+  /** All notes, for resolving placed note-card ids + link-in-graph target titles. */
+  allNotes: Note[]
+  /** Persist a note edit — the NotesContext `update(id, title, content, userTags?)`. */
+  update: NotesApi['update']
+  /** Persist note tag changes — used by the read-peek NoteModal. */
+  updateTags: NotesApi['updateTags']
+  /** Chrome injected above the board (e.g. the workspace canvas switcher). */
+  headerSlot?: ReactNode
+  /** Shows a loading placeholder instead of the board (workspace canvas list load). */
+  loading?: boolean
+  /** When this changes, the undo/redo history resets (a different doc source). */
+  resetKey?: string
 }
 
 type Pt = { x: number; y: number }
@@ -42,9 +69,10 @@ type DocUpdater = CanvasDoc | ((prev: CanvasDoc) => CanvasDoc)
 
 type Gesture =
   | { kind: 'pan'; sx: number; sy: number; tx: number; ty: number }
-  | { kind: 'node'; id: string; sx: number; sy: number; ox: number; oy: number }
+  | { kind: 'node'; id: string; sx: number; sy: number; ox: number; oy: number; origins: Map<string, Pt> }
   | { kind: 'resize'; id: string; sx: number; sy: number; ow: number; oh: number }
   | { kind: 'edge'; from: string; fromSide: Side }
+  | { kind: 'marquee'; sx: number; sy: number }
   | { kind: 'draw' }
   | { kind: 'erase' }
 
@@ -154,19 +182,22 @@ async function readClipboardImage(): Promise<Uint8Array | null> {
   }
 }
 
-export function CanvasBoard({ workspaceId }: Props) {
-  const { canvases, activeId, setActiveId, loading: listLoading, create, rename, remove } = useCanvasList(workspaceId)
-  const { doc, setDoc } = useCanvas(activeId)
-  const { notes: allNotes, update, updateTags } = useNotesContext()
-  const { notes: wsNotes } = useWorkspaceNotes(workspaceId)
+export function CanvasBoardCore({
+  doc, setDoc, notesPool, allNotes, update, updateTags, headerSlot, loading = false, resetKey,
+}: CanvasBoardCoreProps) {
   const [prefs, setPrefs] = useCanvasPrefs()
+  const { collapsed: sidebarCollapsed } = useSidebarPrefs()
+  const [fullscreen, setFullscreen] = useState(false)
 
   const [view, setView] = useState<View>({ tx: 0, ty: 0, scale: 1 })
   const [mode, setMode] = useState<CanvasMode>('select')
   const [drawTool, setDrawTool] = useState<DrawTool>('pen')
   const [panning, setPanning] = useState(false)
-  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [selection, setSelection] = useState<Set<string>>(new Set())
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
+  // Live marquee rect (screen coords) + alignment guides (world coords) during a drag.
+  const [marquee, setMarquee] = useState<Rect | null>(null)
+  const [guides, setGuides] = useState<{ axis: 'x' | 'y'; at: number }[]>([])
   const [tempEdge, setTempEdge] = useState<{ from: string; fromSide: Side; x: number; y: number } | null>(null)
   const [live, setLive] = useState<{ points: [number, number, number][]; color: string; size: number } | null>(null)
   const [picking, setPicking] = useState(false)
@@ -184,20 +215,50 @@ export function CanvasBoard({ workspaceId }: Props) {
   liveRef.current = live
   const docRef = useRef(doc)
   docRef.current = doc
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+  // Internal node/edge clipboard for Ctrl+C / Ctrl+V / Ctrl+D (distinct from the
+  // system-clipboard paste). ponytail: per-board ref; make module-level if
+  // cross-canvas paste is ever wanted.
+  const clipboardRef = useRef<CanvasFragment | null>(null)
+  // A node press waiting to become a drag. We don't capture the pointer (which
+  // would swallow the native click/dblclick, breaking double-click-to-edit) until
+  // the pointer moves past a small threshold.
+  const pendingDragRef = useRef<{ id: string; sx: number; sy: number; origins: Map<string, Pt> } | null>(null)
+  // Frame the board's content once after the doc first loads (and again on a new
+  // doc source) so opening a canvas never leaves its cards off-screen / tiny.
+  const didFitRef = useRef(false)
+  const fullscreenRef = useRef(fullscreen)
+  fullscreenRef.current = fullscreen
+
+  const selectSingle = useCallback((id: string | null) => setSelection(id ? new Set([id]) : new Set()), [])
+  const toggleSelect = useCallback(
+    (id: string) =>
+      setSelection((prev) => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      }),
+    [],
+  )
 
   // ── Undo / redo history (snapshots kept in refs — no extra renders) ──
   const pastRef = useRef<CanvasDoc[]>([])
   const futureRef = useRef<CanvasDoc[]>([])
   const coalescingRef = useRef(false)
 
-  // Reset history when switching canvases — past snapshots from another board
-  // don't make sense here.
+  // Reset history when the doc source changes (switching canvases / notes) —
+  // past snapshots from another board don't make sense here.
   useEffect(() => {
     pastRef.current = []
     futureRef.current = []
     setCanUndo(false)
     setCanRedo(false)
-  }, [activeId])
+    setSelection(new Set())
+    setSelectedEdge(null)
+    didFitRef.current = false
+  }, [resetKey])
 
   const pushHistory = useCallback((snapshot: CanvasDoc) => {
     pastRef.current.push(snapshot)
@@ -302,6 +363,56 @@ export function CanvasBoard({ workspaceId }: Props) {
   )
 
   const onChangeText = useCallback((id: string, text: string) => updateNode(id, { text }), [updateNode])
+
+  // ── Multi-node ops (all undoable, one step each) ──
+  const removeSelected = useCallback(() => {
+    const ids = selectionRef.current
+    if (ids.size === 0) return
+    recordableSetDoc((d) => ({
+      ...d,
+      nodes: d.nodes.filter((n) => !ids.has(n.id)),
+      edges: d.edges.filter((e) => !ids.has(e.fromNode) && !ids.has(e.toNode)),
+    }))
+    setSelection(new Set())
+  }, [recordableSetDoc])
+
+  const insertFragment = useCallback(
+    (frag: CanvasFragment) => {
+      if (frag.nodes.length === 0) return
+      recordableSetDoc((d) => ({ ...d, nodes: [...d.nodes, ...frag.nodes], edges: [...d.edges, ...frag.edges] }))
+      setSelection(new Set(frag.nodes.map((n) => n.id)))
+    },
+    [recordableSetDoc],
+  )
+  const copySelection = useCallback(() => {
+    if (selectionRef.current.size > 0) clipboardRef.current = extractFragment(docRef.current, selectionRef.current)
+  }, [])
+  const pasteClipboard = useCallback(() => {
+    if (clipboardRef.current) insertFragment(cloneFragment(clipboardRef.current, 24, 24))
+  }, [insertFragment])
+  const duplicateSelection = useCallback(() => {
+    if (selectionRef.current.size === 0) return
+    insertFragment(cloneFragment(extractFragment(docRef.current, selectionRef.current), 24, 24))
+  }, [insertFragment])
+
+  // ── Derived (unstored) dotted edges between wikilinked note cards ──
+  const wikilinkEdges = useMemo(() => {
+    if (!prefs.showWikilinkEdges) return []
+    const cards = doc.nodes.filter((n) => n.type === 'note' && n.noteId)
+    if (cards.length < 2) return []
+    return deriveWikilinkEdges(doc.nodes, noteMap)
+  }, [prefs.showWikilinkEdges, doc.nodes, noteMap])
+
+  // ── PNG export ──
+  const handleExport = useCallback(async () => {
+    try {
+      const titles = new Map(allNotes.map((n) => [n.id, n.title]))
+      const blob = await renderCanvasToPng(docRef.current, { scale: 2, background: doc.background?.type === 'color' ? doc.background.value : undefined, titles })
+      await savePngFile('canvas.png', blob)
+    } catch (err) {
+      toast.error('Could not export canvas: ' + String(err))
+    }
+  }, [allNotes, doc.background])
 
   // ── Board background (color / image / revert to the default dot grid) ──
   const setBackgroundColor = useCallback(
@@ -411,8 +522,9 @@ export function CanvasBoard({ workspaceId }: Props) {
   // Ctrl/⌘-V paste anywhere on the board (image or text) at the viewport center.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? '').toLowerCase()
-      if (tag === 'input' || tag === 'textarea') return
+      const active = document.activeElement as HTMLElement | null
+      const tag = (active?.tagName ?? '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
       const dt = e.clipboardData
       if (!dt) return
       const imgItem = Array.from(dt.items).find((it) => it.type.startsWith('image/'))
@@ -465,6 +577,28 @@ export function CanvasBoard({ workspaceId }: Props) {
     const scale = clamp(Math.min(rect.width / w, rect.height / h), 0.2, 1.5)
     setView({ scale, tx: rect.width / 2 - (minX + (maxX - minX) / 2) * scale, ty: rect.height / 2 - (minY + (maxY - minY) / 2) * scale })
   }
+
+  // Center the view on the content the first time a non-empty doc is available,
+  // at natural scale (1) so text stays readable — the user pans for the rest and
+  // can hit "Fit" to zoom-to-all. (Auto-fitting would shrink a spread-out board.)
+  useEffect(() => {
+    if (loading || didFitRef.current || doc.nodes.length === 0) return
+    didFitRef.current = true
+    const raf = requestAnimationFrame(() => {
+      const rect = boardRef.current?.getBoundingClientRect()
+      if (!rect) return
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      for (const n of docRef.current.nodes) {
+        minX = Math.min(minX, n.x); minY = Math.min(minY, n.y)
+        maxX = Math.max(maxX, n.x + n.width); maxY = Math.max(maxY, n.y + n.height)
+      }
+      if (!isFinite(minX)) return
+      const cx = (minX + maxX) / 2
+      const cy = (minY + maxY) / 2
+      setView({ scale: 1, tx: rect.width / 2 - cx, ty: rect.height / 2 - cy })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [loading, doc.nodes.length])
 
   // ── Link a note↔note edge into the knowledge graph ──
   const linkInGraph = useCallback(
@@ -519,7 +653,7 @@ export function CanvasBoard({ workspaceId }: Props) {
       board.setPointerCapture(e.pointerId)
       beginGesture()
       gesture.current = { kind: 'resize', id: node.id, sx: e.clientX, sy: e.clientY, ow: node.width, oh: node.height }
-      setSelectedNode(node.id); setSelectedEdge(null)
+      selectSingle(node.id); setSelectedEdge(null)
       return
     }
     const sideEl = el.closest('[data-side]') as HTMLElement | null
@@ -531,10 +665,16 @@ export function CanvasBoard({ workspaceId }: Props) {
       return
     }
     if (allowManip && node && el.closest('[data-drag]') && !node.pinned && !el.closest('[data-nodrag]')) {
-      board.setPointerCapture(e.pointerId)
-      beginGesture()
-      gesture.current = { kind: 'node', id: node.id, sx: e.clientX, sy: e.clientY, ox: node.x, oy: node.y }
-      setSelectedNode(node.id); setSelectedEdge(null)
+      // Dragging a node that isn't in the current selection selects just it; a
+      // node already in a multi-selection drags the whole group together.
+      const groupIds = selectionRef.current.has(node.id) ? selectionRef.current : new Set([node.id])
+      if (!selectionRef.current.has(node.id)) selectSingle(node.id)
+      setSelectedEdge(null)
+      const origins = new Map<string, Pt>()
+      for (const n of docRef.current.nodes) if (groupIds.has(n.id) && !n.pinned) origins.set(n.id, { x: n.x, y: n.y })
+      // Defer the actual drag (capture + history snapshot) until movement, so a
+      // plain click / double-click on the node fires natively (double-click edits).
+      pendingDragRef.current = { id: node.id, sx: e.clientX, sy: e.clientY, origins }
       return
     }
 
@@ -556,7 +696,7 @@ export function CanvasBoard({ workspaceId }: Props) {
 
     // Pan tool: drag anywhere pans.
     const startPan = () => {
-      setSelectedNode(null); setSelectedEdge(null)
+      setSelection(new Set()); setSelectedEdge(null)
       board.setPointerCapture(e.pointerId)
       const v = viewRef.current
       gesture.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, tx: v.tx, ty: v.ty }
@@ -564,28 +704,74 @@ export function CanvasBoard({ workspaceId }: Props) {
     }
     if (mode === 'pan') { startPan(); return }
 
-    // Select mode: edge click → select edge; node body → select node; else pan.
+    // Select mode: edge click → select edge; node body → (shift-)select node;
+    // empty space → start a marquee (rubber-band) selection.
     const edgeEl = el.closest('[data-edge-id]') as HTMLElement | null
     if (edgeEl) {
       setSelectedEdge(edgeEl.dataset.edgeId!)
-      setSelectedNode(null)
+      setSelection(new Set())
       return
     }
     if (nodeId) {
-      setSelectedNode(nodeId); setSelectedEdge(null)
+      if (e.shiftKey) toggleSelect(nodeId)
+      else selectSingle(nodeId)
+      setSelectedEdge(null)
       return
     }
-    startPan()
+    // Empty space: begin a marquee. A tiny drag collapses to a click that clears.
+    board.setPointerCapture(e.pointerId)
+    setSelectedEdge(null)
+    gesture.current = { kind: 'marquee', sx: e.clientX, sy: e.clientY }
+    const w0 = screenToWorld(e.clientX, e.clientY)
+    setMarquee({ x: w0.x, y: w0.y, w: 0, h: 0 })
   }
 
   const onPointerMove = (e: ReactPointerEvent) => {
+    // Promote a pending node press into a real drag once it clears the threshold.
+    if (!gesture.current && pendingDragRef.current) {
+      const p = pendingDragRef.current
+      if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < 4) return
+      const primary = docRef.current.nodes.find((n) => n.id === p.id)
+      if (primary) {
+        try { boardRef.current?.setPointerCapture(e.pointerId) } catch { /* pointer already gone */ }
+        beginGesture()
+        gesture.current = { kind: 'node', id: p.id, sx: p.sx, sy: p.sy, ox: primary.x, oy: primary.y, origins: p.origins }
+      }
+      pendingDragRef.current = null
+    }
     const g = gesture.current
     if (!g) return
     if (g.kind === 'pan') {
       setView((v) => ({ ...v, tx: g.tx + (e.clientX - g.sx), ty: g.ty + (e.clientY - g.sy) }))
     } else if (g.kind === 'node') {
       const s = viewRef.current.scale
-      updateNode(g.id, { x: g.ox + (e.clientX - g.sx) / s, y: g.oy + (e.clientY - g.sy) / s })
+      let dx = (e.clientX - g.sx) / s
+      let dy = (e.clientY - g.sy) / s
+      let nextGuides: { axis: 'x' | 'y'; at: number }[] = []
+      if (prefs.snapEnabled) {
+        const primary = docRef.current.nodes.find((n) => n.id === g.id)
+        const origin = g.origins.get(g.id) ?? { x: g.ox, y: g.oy }
+        if (primary) {
+          const moved: Rect = { x: origin.x + dx, y: origin.y + dy, w: primary.width, h: primary.height }
+          const others = docRef.current.nodes.filter((n) => !g.origins.has(n.id)).map(nodeRect)
+          const res = snapDrag(moved, others, 8, 6 / s)
+          dx = res.x - origin.x
+          dy = res.y - origin.y
+          nextGuides = res.guides
+        }
+      }
+      recordableSetDoc((d) => ({
+        ...d,
+        nodes: d.nodes.map((n) => {
+          const o = g.origins.get(n.id)
+          return o ? { ...n, x: o.x + dx, y: o.y + dy } : n
+        }),
+      }))
+      setGuides(nextGuides)
+    } else if (g.kind === 'marquee') {
+      const a = screenToWorld(g.sx, g.sy)
+      const b = screenToWorld(e.clientX, e.clientY)
+      setMarquee(rectFromPoints(a.x, a.y, b.x, b.y))
     } else if (g.kind === 'resize') {
       const s = viewRef.current.scale
       updateNode(g.id, { width: Math.max(140, g.ow + (e.clientX - g.sx) / s), height: Math.max(90, g.oh + (e.clientY - g.sy) / s) })
@@ -601,6 +787,9 @@ export function CanvasBoard({ workspaceId }: Props) {
   }
 
   const onPointerUp = (e: ReactPointerEvent) => {
+    // A node press that never moved is a plain click — let the native click/
+    // dblclick through (selection was already applied on pointerdown).
+    pendingDragRef.current = null
     const g = gesture.current
     gesture.current = null
     try { boardRef.current?.releasePointerCapture(e.pointerId) } catch { /* already released */ }
@@ -615,7 +804,16 @@ export function CanvasBoard({ workspaceId }: Props) {
       const ls = liveRef.current
       if (ls && ls.points.length > 1) recordableSetDoc((d) => ({ ...d, drawings: [...d.drawings, { id: newId(), ...ls }] }))
       setLive(null)
+    } else if (g?.kind === 'marquee') {
+      const a = screenToWorld(g.sx, g.sy)
+      const b = screenToWorld(e.clientX, e.clientY)
+      const rect = rectFromPoints(a.x, a.y, b.x, b.y)
+      // A negligible drag is a click on empty space → clear the selection.
+      if (rect.w < 3 && rect.h < 3) setSelection(new Set())
+      else setSelection(new Set(nodesInMarquee(docRef.current.nodes, rect)))
+      setMarquee(null)
     }
+    if (g?.kind === 'node') setGuides([])
     if (g?.kind === 'node' || g?.kind === 'resize' || g?.kind === 'draw' || g?.kind === 'erase') endGesture()
   }
 
@@ -658,7 +856,8 @@ export function CanvasBoard({ workspaceId }: Props) {
     const nodeRoot = el.closest('[data-node-id]') as HTMLElement | null
     const node = nodeRoot ? nodeMap.get(nodeRoot.dataset.nodeId!) : null
     if (node) {
-      setSelectedNode(node.id); setSelectedEdge(null)
+      if (!selectionRef.current.has(node.id)) selectSingle(node.id)
+      setSelectedEdge(null)
       setMenu({ x: e.clientX, y: e.clientY, items: nodeMenuItems(node, { x: e.clientX, y: e.clientY }) })
     } else {
       setMenu({ x: e.clientX, y: e.clientY, items: emptyMenuItems(screenToWorld(e.clientX, e.clientY)) })
@@ -680,25 +879,57 @@ export function CanvasBoard({ workspaceId }: Props) {
 
   // Keyboard: tool shortcuts + undo/redo + delete the selected node / edge
   // (unless typing).
+  const nudgeSelection = useCallback((dx: number, dy: number) => {
+    const ids = selectionRef.current
+    if (ids.size === 0) return
+    recordableSetDoc((d) => ({
+      ...d,
+      nodes: d.nodes.map((n) => (ids.has(n.id) && !n.pinned ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+    }))
+  }, [recordableSetDoc])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? '').toLowerCase()
-      if (tag === 'input' || tag === 'textarea') return
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      const active = document.activeElement as HTMLElement | null
+      const tag = (active?.tagName ?? '').toLowerCase()
+      // Never hijack keys while typing — including a CM6 editor (contenteditable)
+      // in an adjacent Working Notes split.
+      if (tag === 'input' || tag === 'textarea' || active?.isContentEditable) return
+      const mod = e.ctrlKey || e.metaKey
+      if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         if (e.shiftKey) redo(); else undo()
         return
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+      if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
         return
       }
+      if (mod && e.key.toLowerCase() === 'c') { copySelection(); return }
+      if (mod && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return }
+      if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSelection(); return }
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNode) { e.preventDefault(); removeNode(selectedNode); setSelectedNode(null) }
+        if (selectionRef.current.size > 0) { e.preventDefault(); removeSelected() }
         else if (selectedEdge) { e.preventDefault(); removeEdge(selectedEdge); setSelectedEdge(null) }
         return
       }
+      if (e.key === 'Escape') {
+        if (fullscreenRef.current) { setFullscreen(false); return }
+        setSelection(new Set()); setSelectedEdge(null); return
+      }
+      // Arrow-key nudge of the selection (Shift = ×10). Only when something's selected.
+      if (selectionRef.current.size > 0 && e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        if (e.key === 'ArrowLeft') nudgeSelection(-step, 0)
+        else if (e.key === 'ArrowRight') nudgeSelection(step, 0)
+        else if (e.key === 'ArrowUp') nudgeSelection(0, -step)
+        else if (e.key === 'ArrowDown') nudgeSelection(0, step)
+        return
+      }
+      // Tool shortcuts — plain keys only, never while a modifier is held.
+      if (mod) return
       const k = e.key.toLowerCase()
       if (k === 'v') setMode('select')
       else if (k === 'h') setMode('pan')
@@ -706,7 +937,7 @@ export function CanvasBoard({ workspaceId }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedNode, selectedEdge, removeNode, removeEdge, undo, redo])
+  }, [selectedEdge, removeSelected, removeEdge, undo, redo, copySelection, pasteClipboard, duplicateSelection, nudgeSelection])
 
   // ── Edge geometry for rendering ──
   const edgeGeoms = useMemo(() => {
@@ -722,6 +953,20 @@ export function CanvasBoard({ workspaceId }: Props) {
     })
   }, [doc.edges, nodeMap])
 
+  // Dotted connectors between wikilinked note cards (derived, not stored).
+  const wikilinkGeoms = useMemo(
+    () =>
+      wikilinkEdges.flatMap((e) => {
+        const from = nodeMap.get(e.fromNode)
+        const to = nodeMap.get(e.toNode)
+        if (!from || !to) return []
+        const fs = sideToward(from, center(to))
+        const ts = sideToward(to, center(from))
+        return [{ key: `${e.fromNode}|${e.toNode}`, d: edgePath(anchor(from, fs), fs, anchor(to, ts), ts) }]
+      }),
+    [wikilinkEdges, nodeMap],
+  )
+
   const selEdge = selectedEdge ? doc.edges.find((e) => e.id === selectedEdge) ?? null : null
   const selEdgeGeom = selEdge ? edgeGeoms.find((g) => g.edge.id === selEdge.id) ?? null : null
   const selEdgeNotes = selEdge
@@ -736,7 +981,7 @@ export function CanvasBoard({ workspaceId }: Props) {
     return `M ${p1.x} ${p1.y} L ${tempEdge.x} ${tempEdge.y}`
   }, [tempEdge, nodeMap])
 
-  if (listLoading) return <div className={styles.loading}>Loading canvas…</div>
+  if (loading) return <div className={styles.loading}>Loading canvas…</div>
 
   const stroke = 2 / view.scale
   const isEmpty = doc.nodes.length === 0 && doc.drawings.length === 0
@@ -762,7 +1007,7 @@ export function CanvasBoard({ workspaceId }: Props) {
     <CanvasNodeView
       key={n.id}
       node={n}
-      selected={n.id === selectedNode}
+      selected={selection.has(n.id)}
       scale={view.scale}
       note={n.noteId ? noteMap.get(n.noteId) : undefined}
       onOpenNote={setOpenNote}
@@ -773,12 +1018,19 @@ export function CanvasBoard({ workspaceId }: Props) {
   return (
     <div
       ref={boardRef}
-      className={styles.board}
+      className={`${styles.board}${fullscreen ? ' ' + styles.boardFullscreen : ''}`}
+      tabIndex={0}
+      role="application"
+      aria-label="Canvas board — arrow keys nudge the selection, Delete removes it"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onContextMenu={onContextMenu}
-      style={boardStyle}
+      style={
+        fullscreen
+          ? { ...boardStyle, left: `var(${sidebarCollapsed ? '--sidebar-collapsed-width' : '--sidebar-width'})` }
+          : boardStyle
+      }
     >
       <div data-canvas-world className={styles.world} style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}>
         {/* Edges */}
@@ -810,6 +1062,43 @@ export function CanvasBoard({ workspaceId }: Props) {
               </g>
             )
           })}
+          {/* Derived wikilink connectors — dotted, non-interactive */}
+          {wikilinkGeoms.map(({ key, d }) => (
+            <path
+              key={key}
+              className={styles.wikilinkEdge}
+              d={d}
+              stroke="var(--accent)"
+              strokeWidth={stroke}
+              strokeDasharray={`${2 / view.scale} ${5 / view.scale}`}
+              fill="none"
+              pointerEvents="none"
+            />
+          ))}
+
+          {/* Alignment guides while dragging */}
+          {guides.map((g, i) =>
+            g.axis === 'x' ? (
+              <line key={`gx${i}`} x1={g.at} y1={-100000} x2={g.at} y2={100000} stroke="var(--accent)" strokeWidth={1 / view.scale} pointerEvents="none" />
+            ) : (
+              <line key={`gy${i}`} x1={-100000} y1={g.at} x2={100000} y2={g.at} stroke="var(--accent)" strokeWidth={1 / view.scale} pointerEvents="none" />
+            ),
+          )}
+
+          {/* Marquee (rubber-band) selection rect */}
+          {marquee && (
+            <rect
+              x={marquee.x}
+              y={marquee.y}
+              width={marquee.w}
+              height={marquee.h}
+              fill="color-mix(in srgb, var(--accent) 14%, transparent)"
+              stroke="var(--accent)"
+              strokeWidth={1 / view.scale}
+              pointerEvents="none"
+            />
+          )}
+
           {tempLine && <path className={styles.edgePath} d={tempLine} stroke="var(--accent)" strokeWidth={stroke} strokeDasharray={`${4 / view.scale}`} />}
         </svg>
 
@@ -844,7 +1133,9 @@ export function CanvasBoard({ workspaceId }: Props) {
               onClick={() => !selEdge.linkedInGraph && linkInGraph(selEdge)}
               title="Insert a [[wikilink]] so this connection appears in the graph"
             >
-              {selEdge.linkedInGraph ? '✓ Linked' : '🔗 Link in graph'}
+              {selEdge.linkedInGraph
+                ? <><Check size={14} /> Linked</>
+                : <><Link2 size={14} /> Link in graph</>}
             </button>
           )}
           <button className={styles.edgeMenuBtn} onClick={() => { removeEdge(selEdge.id); setSelectedEdge(null) }}>
@@ -853,14 +1144,16 @@ export function CanvasBoard({ workspaceId }: Props) {
         </div>
       )}
 
-      <CanvasSwitcher
-        canvases={canvases}
-        activeId={activeId}
-        onSelect={setActiveId}
-        onNew={create}
-        onRename={rename}
-        onDelete={remove}
-      />
+      {headerSlot}
+
+      <button
+        className={styles.fsToggle}
+        onClick={() => setFullscreen((v) => !v)}
+        title={fullscreen ? 'Exit fullscreen' : 'Fullscreen canvas'}
+        aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen canvas'}
+      >
+        {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+      </button>
 
       <CanvasToolbar
         mode={mode}
@@ -877,6 +1170,11 @@ export function CanvasBoard({ workspaceId }: Props) {
         onEraserSize={(s) => setPrefs({ eraserSize: s })}
         interactWhileDrawing={prefs.interactWhileDrawing}
         onInteractWhileDrawing={(v) => setPrefs({ interactWhileDrawing: v })}
+        snapEnabled={prefs.snapEnabled}
+        onToggleSnap={(v) => setPrefs({ snapEnabled: v })}
+        showWikilinkEdges={prefs.showWikilinkEdges}
+        onToggleWikilinkEdges={(v) => setPrefs({ showWikilinkEdges: v })}
+        onExport={() => void handleExport()}
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={undo}
@@ -900,7 +1198,7 @@ export function CanvasBoard({ workspaceId }: Props) {
 
       {picking && (
         <CanvasNotePicker
-          notes={wsNotes}
+          notes={notesPool}
           placedIds={placedNoteIds}
           onPick={handlePickNotes}
           onClose={() => setPicking(false)}

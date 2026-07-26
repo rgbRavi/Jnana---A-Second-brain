@@ -2,13 +2,13 @@
   position: fixed;
   inset: 0;
   z-index: 1100;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
-  animation: dialogFade 0.18s ease-out;
+  padding: var(--space-xl);
+  animation: dialogFade var(--dur-fast) var(--motion-ease);
 }
 
 .dialog {
@@ -18,8 +18,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
-  padding: 1.25rem 1.25rem 1rem;
-  animation: dialogPop 0.2s ease-out;
+  padding: 1.25rem 1.25rem var(--space-lg);
+  animation: dialogPop var(--dur-base) var(--motion-ease);
 }
 
 .header {
@@ -44,23 +44,23 @@
 .options {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .option {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-md);
   width: 100%;
   text-align: left;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.75rem 0.85rem;
+  padding: var(--space-md) 0.85rem;
   color: var(--text-1);
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, transform 0.05s;
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 
 .option:hover {
@@ -106,7 +106,7 @@
   flex-shrink: 0;
   color: var(--text-3);
   font-size: 0.95rem;
-  transition: transform 0.15s, color 0.15s;
+  transition: transform var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .option:hover .optionArrow {
@@ -125,7 +125,7 @@
   font-size: 0.9rem;
   font-family: var(--font-body);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
 .input:focus {
@@ -139,7 +139,7 @@
 .footer {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   margin-top: 1rem;
 }
 
@@ -152,7 +152,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
 .cancel:hover {
@@ -164,13 +164,13 @@
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--on-accent);
   padding: 0.45rem 0.95rem;
   font-size: 0.82rem;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: filter 0.15s, opacity 0.15s;
+  transition: filter var(--dur-fast) var(--motion-ease), opacity var(--dur-fast) var(--motion-ease);
 }
 
 .confirm:hover:not(:disabled) {

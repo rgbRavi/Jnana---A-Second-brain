@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Notes from './Notes'
 import { WorkingNotes } from './working/WorkingNotes'
@@ -37,7 +38,7 @@ export default function NotesView() {
             onClick={goBack}
             title={`Back to ${returnTo.startsWith('/workspaces/') ? 'workspace' : returnTo}`}
           >
-            ← Back
+            <ArrowLeft size={15} /> Back
           </button>
         </div>
       )}

@@ -12,17 +12,18 @@ type IndexedNote = {
   updatedAt: number
 }
 
-function toIndexedNote(note: Note): IndexedNote {
+function toIndexedNote(note: Note, extra = ''): IndexedNote {
+  const content = extra ? `${note.content ?? ''}\n\n${extra}` : note.content ?? ''
   return {
     id: note.id,
     title: note.title ?? '',
-    content: note.content ?? '',
+    content,
     tags: (note.tags || []).join(' '),
     updatedAt: note.updatedAt,
   }
 }
 
-export async function createNoteIndex(notes: Note[]) {
+export async function createNoteIndex(notes: Note[], attachmentText?: Map<string, string>) {
   const index = new MiniSearch<IndexedNote>({
     idField: 'id',
     fields: ['title', 'content', 'tags'],
@@ -34,12 +35,15 @@ export async function createNoteIndex(notes: Note[]) {
     },
   })
 
-  await index.addAllAsync(notes.map(toIndexedNote), { chunkSize: 200 })
+  await index.addAllAsync(
+    notes.map((n) => toIndexedNote(n, attachmentText?.get(n.id) ?? '')),
+    { chunkSize: 200 },
+  )
   return index
 }
 
-export function updateIndexedNote(index: MiniSearch<IndexedNote>, note: Note) {
-  const doc = toIndexedNote(note)
+export function updateIndexedNote(index: MiniSearch<IndexedNote>, note: Note, extra = '') {
+  const doc = toIndexedNote(note, extra)
 
   if (index.has(doc.id)) {
     index.replace(doc)

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { FileText, Film, Globe, Image, Mic, MonitorPlay, Music, Table } from 'lucide-react'
 import { VoiceRecorder, type VoiceRecorderHandle } from './VoiceRecorder'
 import { TableSizePicker } from './TableSizePicker'
 import { toast } from '../../lib/toast'
@@ -22,7 +23,7 @@ interface Props {
 }
 
 interface MenuItem {
-  icon: string
+  icon: ReactNode
   label: string
   run: () => void
 }
@@ -108,14 +109,14 @@ export function AddContentMenu({
   }
 
   const items: MenuItem[] = [
-    { icon: '📷', label: 'Image', run: () => fileInputRef.current?.click() },
-    { icon: '🎬', label: 'Video', run: onVideoUpload },
-    { icon: '🎵', label: 'Audio', run: onAudioUpload },
-    { icon: '🎙️', label: 'Voice recording', run: () => recorderRef.current?.start() },
-    { icon: '📄', label: 'Document / File', run: onDocumentUpload },
-    { icon: '▶️', label: 'YouTube embed', run: () => void handleYouTube() },
-    { icon: '🌐', label: 'Web page', run: () => void handleWebpage() },
-    { icon: '▦', label: 'Table', run: () => setTableOpen(true) },
+    { icon: <Image size={16} />, label: 'Image', run: () => fileInputRef.current?.click() },
+    { icon: <Film size={16} />, label: 'Video', run: onVideoUpload },
+    { icon: <Music size={16} />, label: 'Audio', run: onAudioUpload },
+    { icon: <Mic size={16} />, label: 'Voice recording', run: () => recorderRef.current?.start() },
+    { icon: <FileText size={16} />, label: 'Document / File', run: onDocumentUpload },
+    { icon: <MonitorPlay size={16} />, label: 'YouTube embed', run: () => void handleYouTube() },
+    { icon: <Globe size={16} />, label: 'Web page', run: () => void handleWebpage() },
+    { icon: <Table size={16} />, label: 'Table', run: () => setTableOpen(true) },
   ]
 
   return (

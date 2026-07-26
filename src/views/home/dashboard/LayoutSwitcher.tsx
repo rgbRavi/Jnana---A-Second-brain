@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, Pencil, Plus, X } from 'lucide-react'
 import styles from './Dashboard.module.css'
 import { useDashboardPrefs } from './useDashboardPrefs'
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'
@@ -60,7 +61,7 @@ export function LayoutSwitcher() {
     <div className={styles.layoutSwitch} ref={wrapRef}>
       <button type="button" className={styles.layoutBtn} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
         <span className={styles.layoutBtnLabel}>{active?.name ?? 'Layout'}</span>
-        <span aria-hidden="true">▾</span>
+        <ChevronDown size={14} aria-hidden="true" />
       </button>
 
       {open && (
@@ -76,25 +77,25 @@ export function LayoutSwitcher() {
                 }}
               >
                 <span className={styles.layoutCheck} aria-hidden="true">
-                  {l.id === prefs.activeId ? '✓' : ''}
+                  {l.id === prefs.activeId ? <Check size={14} /> : ''}
                 </span>
                 {l.name}
                 {l.builtin && <span className={styles.layoutTag}>preset</span>}
               </button>
               {!l.builtin && (
                 <span className={styles.layoutItemActions}>
-                  <button type="button" className={styles.layoutMini} title="Rename" onClick={() => rename(l.id, l.name)}>
-                    ✎
+                  <button type="button" className={styles.layoutMini} title="Rename" aria-label="Rename" onClick={() => rename(l.id, l.name)}>
+                    <Pencil size={13} />
                   </button>
-                  <button type="button" className={styles.layoutMini} title="Delete" onClick={() => remove(l.id, l.name)}>
-                    ✕
+                  <button type="button" className={styles.layoutMini} title="Delete" aria-label="Delete" onClick={() => remove(l.id, l.name)}>
+                    <X size={13} />
                   </button>
                 </span>
               )}
             </div>
           ))}
           <button type="button" className={styles.layoutSaveAs} onClick={saveAs}>
-            ＋ Save current as…
+            <Plus size={14} /> Save current as…
           </button>
         </div>
       )}

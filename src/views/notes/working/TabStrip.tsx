@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { useState } from 'react'
 import { Plus, PanelRight, PanelBottom, X } from 'lucide-react'
 import { useNotesContext } from '../../../context/NotesContext'
+import { ContextMenu } from '../../../ui/ContextMenu'
+import { CANVAS_NOTE_KIND } from '../../../plugins/canvas'
+import { EMPTY_CANVAS_CONTENT } from '../../../plugins/canvas/canvasNote'
 import type { GroupNode } from './layout'
 import {
   setWorkingActiveTab,
@@ -19,12 +23,14 @@ const DRAG_THRESHOLD = 5
 
 export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: boolean }) {
   const { notes, create } = useNotesContext()
+  const [newMenu, setNewMenu] = useState<{ x: number; y: number } | null>(null)
 
   const titleFor = (id: string) => notes.find((n) => n.id === id)?.title || 'Untitled'
 
-  const onNewNote = async () => {
+  const newOfKind = async (kind?: string) => {
     try {
-      const created = await create('', '')
+      const isCanvas = kind === CANVAS_NOTE_KIND
+      const created = await create(isCanvas ? 'Canvas' : '', isCanvas ? EMPTY_CANVAS_CONTENT : '', undefined, [], kind)
       openNoteInWorking(created.id)
     } catch {
       /* NotesContext surfaces its own errors */
@@ -105,7 +111,15 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
         ))}
       </div>
       <div className={Styles.tabActions}>
-        <button className={Styles.tabActionBtn} onClick={onNewNote} aria-label="New note" title="New note">
+        <button
+          className={Styles.tabActionBtn}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setNewMenu({ x: r.left, y: r.bottom + 4 })
+          }}
+          aria-label="New"
+          title="New note or canvas"
+        >
           <Plus size={16} />
         </button>
         <button
@@ -135,6 +149,18 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
           </button>
         )}
       </div>
+
+      {newMenu && (
+        <ContextMenu
+          x={newMenu.x}
+          y={newMenu.y}
+          items={[
+            { label: 'New note', onClick: () => void newOfKind() },
+            { label: 'New canvas', onClick: () => void newOfKind(CANVAS_NOTE_KIND) },
+          ]}
+          onClose={() => setNewMenu(null)}
+        />
+      )}
     </div>
   )
 }

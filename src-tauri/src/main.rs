@@ -16,6 +16,7 @@ use commands::data::*;
 use commands::embeddings::*;
 use commands::export::*;
 use commands::folders::*;
+use commands::fonts::*;
 use commands::media::*;
 use commands::media_layout::*;
 use commands::notes::*;
@@ -91,6 +92,10 @@ fn mime_from_ext(ext: &str) -> &'static str {
         "webp" => "image/webp",
         "svg" => "image/svg+xml",
         "pdf" => "application/pdf",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
         _ => "application/octet-stream",
     }
 }
@@ -261,6 +266,11 @@ fn main() {
             get_note,
             save_note,
             delete_note,
+            trash_note,
+            restore_note,
+            list_trashed_notes,
+            empty_trash,
+            purge_expired_trash,
             get_links,
             get_all_links,
             create_link,
@@ -298,6 +308,7 @@ fn main() {
             import_file,
             export_notes,
             write_text_file,
+            write_binary_file,
             export_assets,
             get_storage_stats,
             create_backup,
@@ -342,6 +353,9 @@ fn main() {
             get_indexed_note_ids,
             get_index_stats,
             get_index_times,
+            save_attachment_text,
+            get_attachment_text,
+            get_all_attachment_text,
             list_conversations,
             get_conversation,
             save_conversation,
@@ -361,6 +375,9 @@ fn main() {
             delete_theme,
             get_active_theme,
             set_active_theme,
+            install_fonts,
+            list_fonts,
+            remove_font,
             get_media_layout,
             set_media_layout,
             plugin_kv_get,

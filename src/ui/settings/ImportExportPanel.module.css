@@ -69,7 +69,7 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 .btn,
@@ -80,7 +80,7 @@
   font-size: 0.82rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s, opacity 0.15s;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease), opacity var(--dur-fast) var(--motion-ease);
 }
 
 .btn {
@@ -96,7 +96,7 @@
 .btnPrimary {
   background: var(--accent);
   border: none;
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   align-self: flex-start;
 }
@@ -138,16 +138,48 @@
 .pickRow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   font-size: 0.84rem;
   color: var(--text-1);
   cursor: pointer;
 }
 
 .pickRow input {
-  accent-color: var(--accent);
-  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+}
+.pickRow input:hover {
+  border-color: var(--border-hover);
+}
+.pickRow input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+/* CSS checkmark — a rotated open-corner border, no asset. */
+.pickRow input:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.pickRow input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .pickTitle {

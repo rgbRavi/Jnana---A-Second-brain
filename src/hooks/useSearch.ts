@@ -13,6 +13,7 @@ import {
   removeIndexedNote,
   searchNotes,
 } from '../core/search'
+import { getAllAttachmentText, getAttachmentText } from '../core/attachmentText'
 
 type IndexedNote = {
   id: string
@@ -50,7 +51,14 @@ export function useSearch(notes: Note[], persistKey = 'search:query') {
 
     async function buildIndex() {
       setReady(false)
-      const index = await createNoteIndex(notes)
+      // Best-effort: keyword search still builds if attachment text can't load.
+      let attach: Map<string, string> | undefined
+      try {
+        attach = await getAllAttachmentText()
+      } catch {
+        attach = undefined
+      }
+      const index = await createNoteIndex(notes, attach)
       if (cancelled) return
 
       indexRef.current = index
@@ -76,11 +84,14 @@ export function useSearch(notes: Note[], persistKey = 'search:query') {
       const index = indexRef.current
       if (!index) return
 
-      updateIndexedNote(index, note)
-
-      if (query.trim()) {
-        setResults(searchNotes(query, index))
-      }
+      // Pull this note's attachment text so a re-saved note keeps PDF content
+      // searchable; best-effort, don't block the index update on it.
+      void getAttachmentText(note.id)
+        .catch(() => '')
+        .then((extra) => {
+          updateIndexedNote(index, note, extra)
+          if (query.trim()) setResults(searchNotes(query, index))
+        })
     }
 
     const handleDeleted = ({ id }: { id: string }) => {
