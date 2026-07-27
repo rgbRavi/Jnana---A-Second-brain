@@ -153,7 +153,11 @@ through Rust to only the host you configured.
   with the exact source notes cited
 - **Grounded chat** — ask follow-up questions about the same scope; quick `/today`, `/week`,
   `@NoteTitle` commands to set scope
-- **Quiz generator** — recall / application / compare questions from a scope, with reveal-on-click answers
+- **Graded quizzes** — multiple-choice, multi-answer and written questions from a scope, with quiz
+  settings (how many, which formats, marks per format, negative marking, all-or-nothing / partial /
+  proportional multi-answer scoring, answers shown as you go or after submitting, difficulty). Choice
+  questions are marked locally; written ones are marked by the model. Questions you've already been
+  asked aren't repeated, and a finished quiz can be **saved as a note** to retake later
 - **Tag suggestions** — proposes tags (preferring your existing vocabulary), one click to apply
 - **Link suggestions** — finds related notes by semantic similarity and offers a `[[wikilink]]`,
   showing the matching passage as evidence
