@@ -32,6 +32,8 @@ interface Props {
   vision: boolean
   /** Style/Skills controls, injected by the parent (which owns preset state). */
   presetControls?: React.ReactNode
+  /** Adaptive Rules picker, injected by the parent (which owns rule selection state). */
+  rulesControl?: React.ReactNode
   disabled?: boolean
 }
 
@@ -165,6 +167,7 @@ export function ChatComposer({
   onAgentChange,
   vision,
   presetControls,
+  rulesControl,
   disabled,
 }: Props) {
   const canSend = !busy && (value.trim() !== '' || attachments.length > 0)
@@ -272,6 +275,7 @@ export function ChatComposer({
           </button>
           <NotePicker notes={notes} onPick={onAddNote} />
           {presetControls}
+          {rulesControl}
           <button
             onClick={() => onThinkChange(!think)}
             disabled={!canThink || busy}

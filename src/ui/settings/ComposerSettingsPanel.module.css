@@ -39,3 +39,25 @@
   color: var(--text-3);
   line-height: 1.4;
 }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.btn {
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  transition: border-color var(--dur-fast) var(--motion-ease);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}

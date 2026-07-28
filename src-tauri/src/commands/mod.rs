@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 pub mod ai;
+pub mod ai_rules;
 pub mod ai_workspace;
 pub mod annotations;
 pub mod assets;

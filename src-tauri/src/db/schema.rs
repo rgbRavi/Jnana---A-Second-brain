@@ -27,6 +27,7 @@ const MIGRATIONS: &[(i32, fn(&Connection) -> Result<()>)] = &[
     (18, migrate_v18),
     (19, migrate_v19),
     (20, migrate_v20),
+    (21, migrate_v21),
 ];
 
 /// Stable id of the auto-seeded default vault (migrate_v14). Existing notes and
@@ -38,7 +39,7 @@ pub const DEFAULT_VAULT_ID: &str = "vault-default";
 /// `MIGRATIONS` via a `debug_assert` in `run_migrations`, and used by `init_db` to
 /// decide whether an existing DB is about to be upgraded (and so should be
 /// snapshotted first). Bump this when you add a `migrate_vN`.
-pub const LATEST_VERSION: i32 = 20;
+pub const LATEST_VERSION: i32 = 21;
 
 /// Run all pending migrations in order.
 /// This is safe to call on every app launch — it only applies new migrations.
@@ -636,6 +637,30 @@ fn migrate_v20(conn: &Connection) -> Result<()> {
     )
 }
 
+/// V21: Storage foundation for Adaptive Rules — user-authored AI rules per vault
+/// (`ai_rules`), an optional many-to-many attachment of rules to AI projects
+/// (`ai_project_rules`), and a `conversations.rule_ids` column recording which
+/// rules applied to a given chat.
+fn migrate_v21(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ai_rules (
+            id TEXT PRIMARY KEY,
+            vault_id TEXT NOT NULL REFERENCES vaults(id) ON DELETE CASCADE,
+            name TEXT NOT NULL DEFAULT '',
+            text TEXT NOT NULL DEFAULT '',
+            critical INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ai_project_rules (
+            project_id TEXT NOT NULL REFERENCES ai_projects(id) ON DELETE CASCADE,
+            rule_id TEXT NOT NULL REFERENCES ai_rules(id) ON DELETE CASCADE,
+            PRIMARY KEY (project_id, rule_id)
+        );
+        ALTER TABLE conversations ADD COLUMN rule_ids TEXT;
+        INSERT INTO schema_version VALUES (21);",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -653,7 +678,17 @@ mod tests {
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, LATEST_VERSION);
-        assert_eq!(LATEST_VERSION, 20);
+        assert_eq!(LATEST_VERSION, 21);
+
+        // ai_rules + ai_project_rules exist
+        let n: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('ai_rules','ai_project_rules')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 2);
 
         // Verify tables exist
         let mut stmt = conn.prepare("SELECT name FROM sqlite_master WHERE type='table'").unwrap();

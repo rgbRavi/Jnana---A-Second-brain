@@ -95,6 +95,8 @@ export interface StoredConversation {
   vaultId: string
   createdAt: number
   updatedAt: number
+  /** Adaptive Rules selected for this conversation (session-scoped). */
+  ruleIds?: string[]
 }
 
 /** Lightweight conversation summary for the history list. */
@@ -144,6 +146,16 @@ export interface AiPreset {
   body: string
   createdAt: number
   updatedAt: number
+}
+
+/** A user-authored Adaptive Rule: a short instruction re-injected to keep long chats on track. */
+export interface AiRule {
+  id: string
+  vaultId: string
+  name: string
+  text: string
+  critical: boolean
+  createdAt: number
 }
 
 export interface MediaRef {

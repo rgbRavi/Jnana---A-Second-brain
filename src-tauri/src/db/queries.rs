@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+use crate::commands::ai_rules::RuleRow;
 use crate::commands::ai_workspace::{KnowledgeRow, PresetRow, ProjectRow};
 use crate::commands::canvas::CanvasRow;
 use crate::commands::folders::FolderRow;
@@ -242,22 +243,23 @@ pub fn fetch_all_links(conn: &Connection) -> Result<Vec<(String, String)>> {
 
 pub fn upsert_conversation(conn: &Connection, c: &ConversationRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, vault_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, vault_id, rule_ids, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
          ON CONFLICT(id) DO UPDATE SET
            title      = excluded.title,
            messages   = excluded.messages,
            scope      = excluded.scope,
            project_id = excluded.project_id,
+           rule_ids   = excluded.rule_ids,
            updated_at = excluded.updated_at",
-        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.vault_id, c.created_at, c.updated_at],
+        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.vault_id, c.rule_ids, c.created_at, c.updated_at],
     )?;
     Ok(())
 }
 
 pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow> {
     conn.query_row(
-        "SELECT id, mode, title, messages, scope, project_id, vault_id, created_at, updated_at
+        "SELECT id, mode, title, messages, scope, project_id, vault_id, rule_ids, created_at, updated_at
          FROM conversations WHERE id = ?1",
         params![id],
         |row| {
@@ -269,8 +271,9 @@ pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow
                 scope: row.get(4)?,
                 project_id: row.get(5)?,
                 vault_id: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                rule_ids: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
             })
         },
     )
@@ -336,6 +339,57 @@ pub fn rename_conversation(conn: &Connection, id: &str, title: &str, updated_at:
         "UPDATE conversations SET title = ?2, updated_at = ?3 WHERE id = ?1",
         params![id, title, updated_at],
     )?;
+    Ok(())
+}
+
+// ─── Adaptive rules ──────────────────────────────────────
+
+pub fn list_rules(conn: &Connection, vault_id: &str) -> Result<Vec<RuleRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, vault_id, name, text, critical, created_at FROM ai_rules WHERE vault_id = ?1 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![vault_id], |row| {
+        Ok(RuleRow {
+            id: row.get(0)?,
+            vault_id: row.get(1)?,
+            name: row.get(2)?,
+            text: row.get(3)?,
+            critical: row.get::<_, i64>(4)? != 0,
+            created_at: row.get(5)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn save_rule(conn: &Connection, r: &RuleRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO ai_rules (id, vault_id, name, text, critical, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, text = excluded.text, critical = excluded.critical",
+        params![r.id, r.vault_id, r.name, r.text, r.critical as i64, r.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_rule(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM ai_rules WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn list_project_rules(conn: &Connection, project_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT rule_id FROM ai_project_rules WHERE project_id = ?1")?;
+    let rows = stmt.query_map(params![project_id], |row| row.get(0))?;
+    rows.collect()
+}
+
+pub fn set_project_rules(conn: &Connection, project_id: &str, rule_ids: &[String]) -> Result<()> {
+    conn.execute("DELETE FROM ai_project_rules WHERE project_id = ?1", params![project_id])?;
+    for rid in rule_ids {
+        conn.execute(
+            "INSERT OR IGNORE INTO ai_project_rules (project_id, rule_id) VALUES (?1, ?2)",
+            params![project_id, rid],
+        )?;
+    }
     Ok(())
 }
 

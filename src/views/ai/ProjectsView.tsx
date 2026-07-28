@@ -19,7 +19,9 @@ import {
   removeProjectKnowledge,
   newKnowledge,
 } from '../../core/aiWorkspace'
+import { listProjectRules, setProjectRules } from '../../core/aiRules'
 import { pickAttachments as pickFiles } from '../../core/ai'
+import { RulesPicker } from '../../ui/ai/RulesPicker'
 import type { AiProject, Note, ProjectKnowledge, ConversationMeta } from '../../types'
 
 const field: React.CSSProperties = {
@@ -59,6 +61,7 @@ export function ProjectsView() {
   const [knowledge, setKnowledge] = useState<ProjectKnowledge[]>([])
   const [chats, setChats] = useState<ConversationMeta[]>([])
   const [noteQuery, setNoteQuery] = useState('')
+  const [projectRuleIds, setProjectRuleIds] = useState<string[]>([])
   const [, setAiMode] = useViewState('ai.mode', 'focused')
   const [, setActiveProjectId] = useViewState('ai.free.projectId', '')
   const [forceOpenProject, setForceOpenProject] = useViewState('ai.projects.openId', '')
@@ -101,6 +104,11 @@ export function ProjectsView() {
       setChats([])
     }
   }
+
+  useEffect(() => {
+    if (!editing) return
+    listProjectRules(editing.id).then(setProjectRuleIds).catch(() => setProjectRuleIds([]))
+  }, [editing?.id])
 
   const persistProject = async (p: AiProject) => {
     await saveProject({ ...p, updatedAt: Date.now() }).catch((e) => console.error(e))
@@ -271,6 +279,18 @@ export function ProjectsView() {
               value={editing.instructions}
               onChange={(e) => setEditing({ ...editing, instructions: e.target.value })}
               onBlur={() => persistProject(editing)}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rules (inherited by every chat in this project)</label>
+            <RulesPicker
+              vaultId={editing.vaultId}
+              selectedIds={projectRuleIds}
+              onSelectedIds={(ids) => {
+                setProjectRuleIds(ids)
+                void setProjectRules(editing.id, ids)
+              }}
             />
           </div>
 

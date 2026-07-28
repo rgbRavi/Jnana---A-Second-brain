@@ -37,7 +37,14 @@ export async function runAgent(
   userText: string,
   history: AgentMessage[],
   notes: Note[],
-  opts: { onStep?: (s: AgentStep) => void; maxSteps?: number; extraTools?: AgentTool[]; signal?: AbortSignal } = {},
+  opts: {
+    onStep?: (s: AgentStep) => void
+    maxSteps?: number
+    extraTools?: AgentTool[]
+    signal?: AbortSignal
+    /** Rendered adaptive-rules block (buildRulesSystem) — inserted after SYSTEM and again before the final user turn. */
+    rulesSystem?: string
+  } = {},
 ): Promise<AgentRunResult> {
   const tools = [...NATIVE_TOOLS, ...(opts.extraTools ?? [])]
   const maxSteps = opts.maxSteps ?? 8
@@ -77,9 +84,12 @@ export async function runAgent(
 
   const messages: AgentMessage[] = [
     { role: 'system', content: SYSTEM },
+    ...(opts.rulesSystem ? [{ role: 'system' as const, content: opts.rulesSystem }] : []),
     ...history,
     { role: 'user', content: userText },
   ]
+  // Tail-refresh: repeat rules right before the newest user turn.
+  if (opts.rulesSystem) messages.splice(messages.length - 1, 0, { role: 'system', content: opts.rulesSystem })
 
   for (let i = 0; i < maxSteps; i++) {
     if (opts.signal?.aborted) break

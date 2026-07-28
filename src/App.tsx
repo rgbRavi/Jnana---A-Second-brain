@@ -14,6 +14,7 @@ const Graph = lazy(() => import("./views/graph/Graph"))
 const Search = lazy(() => import("./views/search/Search"))
 const Ai = lazy(() => import("./views/ai/Ai"))
 const Settings = lazy(() => import("./views/settings/Settings"))
+const AiSettings = lazy(() => import("./ui/ai/AiSettingsPanel"))
 const TrashView = lazy(() => import("./views/trash/TrashView"))
 const Workspaces = lazy(() => import("./views/workspaces/Workspaces"))
 const Workspace = lazy(() => import("./views/workspaces/Workspace"))
@@ -34,6 +35,7 @@ function App() {
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>
                                     <Route path = "/settings" element = {<Settings />}/>
+                                    <Route path = "/settings/ai" element = {<AiSettings />}/>
                                     <Route path = "/trash" element = {<TrashView />}/>
                             </Route>
                         </Routes>
