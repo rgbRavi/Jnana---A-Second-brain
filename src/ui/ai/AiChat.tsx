@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizQuestion, SourceNote, StoredConversation } from '../../types'
+import type { AiConfig, AnalysisResult, AnalyzeInput, Note, QuizAttempt, QuizQuestion, SourceNote, StoredConversation } from '../../types'
 import { analyze, askNotes, generateQuiz, type AskTurn } from '../../core/ai'
+import { emptyAttempt } from '../../core/ai/quizGrade'
+import { useQuizSettings } from '../../hooks/useQuizSettings'
+import { useActiveVaultId } from '../../hooks/useVaults'
+import { useNotesContext } from '../../context/NotesContext'
+import { serializeAttempt } from '../../plugins/quiz/quizNote'
+import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
+import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
+import { QuizControls } from './QuizControls'
+import { QuizRunner } from './QuizRunner'
 import { useViewState, getViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import styles from './Ai.module.css'
@@ -13,6 +23,7 @@ interface Props {
   config: AiConfig
   notes: Note[]
   onOpenNote: (noteId: string) => void
+  onReindexAll: (notes: Note[]) => Promise<void>
 }
 
 type ScopeKind = 'topic' | 'time' | 'note'
@@ -23,7 +34,7 @@ type ChatMessage =
   | { kind: 'question'; text: string }
   | { kind: 'answer'; text: string; sources: SourceNote[] }
   | { kind: 'analysis'; result: AnalysisResult }
-  | { kind: 'quiz'; questions: QuizQuestion[] }
+  | { kind: 'quiz'; attempt: QuizAttempt; reason?: 'empty-index' | 'empty-scope' }
 
 const DAY = 24 * 60 * 60 * 1000
 const MAX_RANGE_DAYS = 90
@@ -161,7 +172,7 @@ function toHistory(msgs: ChatMessage[]): AskTurn[] {
   return turns
 }
 
-export function AiChat({ config, notes, onOpenNote }: Props) {
+export function AiChat({ config, notes, onOpenNote, onReindexAll }: Props) {
   // Scope, mode, inputs and the conversation persist across view switches so the
   // chat isn't lost when navigating away. (busy/error are transient — plain state.)
   const [scopeKind, setScopeKind] = useViewState<ScopeKind>('ai.scopeKind', 'topic')
@@ -189,11 +200,28 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
   const [filterPickerOpen, setFilterPickerOpen] = useState(false)
   const [modePickerOpen, setModePickerOpen] = useState(false)
 
+  const [quizSettings] = useQuizSettings()
+  const vaultId = useActiveVaultId()
+  const { create } = useNotesContext()
+
   // ── History wiring (load/new from the drawer; persist after each turn) ──
   const loadConv = useCallback(
     (c: StoredConversation) => {
       try {
-        setThread(JSON.parse(c.messages) as ChatMessage[])
+        const parsed = JSON.parse(c.messages) as ChatMessage[]
+        const restored = parsed.map((m) => {
+          const legacy = m as unknown as { kind: string; questions?: QuizQuestion[] }
+          if (legacy.kind === 'quiz' && Array.isArray(legacy.questions)) {
+            // Pre-branch saved threads have no format/marks — default them so
+            // the runner doesn't render `0 / NaN` (see final-review FIX 1).
+            const questions = legacy.questions.map((q) => ({
+              ...q, format: q.format ?? 'descriptive', marks: q.marks ?? 1,
+            }))
+            return { kind: 'quiz', attempt: emptyAttempt(questions, 'Saved quiz') } as ChatMessage
+          }
+          return m
+        })
+        setThread(restored)
       } catch {
         setThread([])
       }
@@ -223,7 +251,27 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     setError(null)
   }, [setThread, setLastScopeKey, setInput, setError])
 
-  const { persist } = useChatHistory('focused', loadConv, resetChat)
+  // persistNow/persistSoon are defined below (they need `persist`, which
+  // useChatHistory returns) but useChatHistory needs a *flush* callback to
+  // invoke — before it switches the active id — so the outgoing
+  // conversation's pending debounced edit is saved under its own id instead
+  // of firing later, either as a no-op (thread already reset) or, worse,
+  // under the newly-loaded conversation's id. Break that ordering cycle with
+  // a ref: flushPersist has a stable identity and calls through to whatever
+  // persistNow currently is.
+  const persistTimer = useRef<number | null>(null)
+  const persistNowRef = useRef<() => void>(() => {})
+
+  /** Write any pending debounced edit immediately — call before the thread is
+   *  replaced, or the timer fires against the wrong conversation. */
+  const flushPersist = useCallback(() => {
+    if (persistTimer.current === null) return
+    window.clearTimeout(persistTimer.current)
+    persistTimer.current = null
+    persistNowRef.current()
+  }, [])
+
+  const { persist } = useChatHistory('focused', loadConv, resetChat, flushPersist)
 
   /** Snapshot the live thread + scope from the store and upsert the conversation. */
   const persistNow = useCallback(() => {
@@ -240,6 +288,29 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     }
     void persist(thread, scope, focusedTitle(thread, scope))
   }, [persist])
+  persistNowRef.current = persistNow
+
+  // Debounced persist for quiz answer edits — persistNow does an un-debounced
+  // Tauri IPC + SQLite upsert, so calling it on every keystroke of a
+  // descriptive answer would fire one round-trip per character. Same 800ms
+  // shape as the Working Notes autosave (EditorPane.tsx AUTOSAVE_MS).
+  const persistSoon = useCallback(() => {
+    if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
+    persistTimer.current = window.setTimeout(() => {
+      persistTimer.current = null
+      persistNow()
+    }, 800)
+  }, [persistNow])
+
+  // Flush (not merely clear) on unmount — closing the view within the 800ms
+  // window must not drop the pending edit. In dev, StrictMode's mount→
+  // cleanup→remount fires this once extra; flushPersist no-ops when nothing
+  // is pending and is otherwise a harmless redundant save, never a lost one.
+  useEffect(() => {
+    return () => {
+      flushPersist()
+    }
+  }, [flushPersist])
 
   const rangeDays = useMemo(() => {
     const diff = Math.round((startOfDay(toStr) - startOfDay(fromStr)) / DAY) + 1
@@ -347,8 +418,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       setThread(base)
       setLastScopeKey(key)
       try {
-        const questions = await generateQuiz(scope, config, notes)
-        setThread([...base, { kind: 'quiz', questions }])
+        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId)
+        const label = scope.mode === 'topic' ? `Topic: ${scope.query}` : scope.mode === 'window' ? scope.label : 'Selected note'
+        setThread([...base, { kind: 'quiz', attempt: emptyAttempt(questions, label), reason }])
         persistNow()
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Quiz generation failed.')
@@ -392,8 +464,11 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
     )
   }
 
+  const noFormatsEnabled = !quizSettings.formats.mcq && !quizSettings.formats.mcma && !quizSettings.formats.descriptive
   const sendDisabled =
-    busy || (responseMode === 'chat' ? !input.trim() : !(input.trim() || buildScope()))
+    busy ||
+    (responseMode === 'quiz' && noFormatsEnabled) ||
+    (responseMode === 'chat' ? !input.trim() : !(input.trim() || buildScope()))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -481,6 +556,8 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
               </div>
             )}
           </div>
+
+          {responseMode === 'quiz' && <QuizControls vaultId={vaultId} />}
         </div>
 
         {scopeKind === 'topic' && (
@@ -560,7 +637,36 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
             m.kind === 'analysis' ? (
               <AnalysisCard key={i} result={m.result} onOpenNote={onOpenNote} />
             ) : m.kind === 'quiz' ? (
-              <QuizCard key={i} questions={m.questions} />
+              <QuizRunner
+                key={i}
+                attempt={m.attempt}
+                settings={quizSettings}
+                config={config}
+                reason={m.reason}
+                onChange={(next) => {
+                  // A scoring event (a grade landing, or immediate-mode auto-score)
+                  // changes total/max — flush that right away, a graded attempt is
+                  // worth not losing. A plain answer edit (typing, picking an option
+                  // in end-mode) only touches responses, so debounce those.
+                  const scored = next.total !== m.attempt.total || next.max !== m.attempt.max
+                  setThread((prev) =>
+                    prev.map((msg, j) => (j === i && msg.kind === 'quiz' ? { ...msg, attempt: next } : msg)),
+                  )
+                  if (scored) persistNow()
+                  else persistSoon()
+                }}
+                onSave={async (finished) => {
+                  const title = `Quiz — ${finished.scopeLabel || 'Untitled'}`
+                  try {
+                    await create(title, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
+                    toast.success('Quiz saved as a note.')
+                  } catch (err) {
+                    log.error('Failed to save quiz note', err)
+                    toast.error('Could not save the quiz. Try again.')
+                  }
+                }}
+                onIndexNow={() => void onReindexAll(notes)}
+              />
             ) : m.kind === 'question' ? (
               <p key={i} className={styles.chatQ}>
                 {m.text}
@@ -600,6 +706,9 @@ export function AiChat({ config, notes, onOpenNote }: Props) {
       <div style={{ paddingTop: '0.75rem', marginTop: '0.5rem' }}>
         <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
 
+      {responseMode === 'quiz' && noFormatsEnabled && (
+        <p className={styles.hint}>Enable at least one question type in quiz settings.</p>
+      )}
       <div className={styles.chatInputRow}>
         <textarea
           className={styles.chatInput}
@@ -758,41 +867,3 @@ function AnalysisCard({
   )
 }
 
-/** A generated quiz — each question reveals its answer + explanation on click. */
-function QuizCard({ questions }: { questions: QuizQuestion[] }) {
-  const [revealed, setRevealed] = useState<Set<number>>(new Set())
-  const toggle = (i: number) =>
-    setRevealed((prev) => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-
-  if (questions.length === 0) {
-    return <p className={styles.hint}>Not enough in these notes to build a quiz.</p>
-  }
-
-  return (
-    <div className={styles.analysisCard}>
-      <span className={styles.sectionTitle}>Quiz · {questions.length} questions</span>
-      {questions.map((q, i) => (
-        <div key={i} className={styles.quizItem}>
-          <p className={styles.quizQ}>
-            <span className={styles.quizKind}>{q.kind}</span>
-            {i + 1}. {q.question}
-          </p>
-          <button className={styles.quizReveal} onClick={() => toggle(i)}>
-            {revealed.has(i) ? 'Hide answer' : 'Show answer'}
-          </button>
-          {revealed.has(i) && (
-            <div className={styles.quizAnswer}>
-              <p className={styles.quizA}>{q.answer}</p>
-              {q.explanation && <p className={styles.quizExpl}>{q.explanation}</p>}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}

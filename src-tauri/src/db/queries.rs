@@ -1227,8 +1227,20 @@ pub fn fetch_indexed_note_ids(conn: &Connection) -> Result<Vec<String>> {
     rows.collect()
 }
 
-pub fn count_embeddings(conn: &Connection) -> Result<i64> {
-    conn.query_row("SELECT COUNT(*) FROM embeddings", [], |r| r.get(0))
+/// `(chunk_count, indexed_note_count)` for one vault. Joins through `notes` so
+/// the numbers match what that vault actually shows: another vault's notes and
+/// trashed notes keep their vectors (retrieval filters them out) but must not
+/// be counted here. `vault_id` is COALESCEd the same way the frontend does.
+pub fn count_index_stats(conn: &Connection, vault_id: &str) -> Result<(i64, i64)> {
+    conn.query_row(
+        "SELECT COUNT(*), COUNT(DISTINCT e.note_id)
+           FROM embeddings e
+           JOIN notes n ON n.id = e.note_id
+          WHERE COALESCE(n.vault_id, 'vault-default') = ?1
+            AND n.deleted_at IS NULL",
+        params![vault_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
 }
 
 /// (note_id, latest embedding `created_at`) per indexed note, so the UI can
@@ -1389,6 +1401,38 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         run_migrations(&mut conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn index_stats_are_scoped_to_one_vault() {
+        let conn = setup_db();
+        conn.execute(
+            "INSERT INTO vaults (id, name, created_at, updated_at) VALUES ('v2', 'Second', 1, 1)",
+            [],
+        )
+        .unwrap();
+        // n1 + n3 in the default vault (n3 trashed), n2 in the second vault.
+        conn.execute(
+            "INSERT INTO notes (id, title, content, tags, vault_id, deleted_at, created_at, updated_at)
+             VALUES ('n1', 'A', 'a', '[]', 'vault-default', NULL, 1, 1),
+                    ('n2', 'B', 'b', '[]', 'v2',            NULL, 1, 1),
+                    ('n3', 'C', 'c', '[]', 'vault-default', 9,    1, 1)",
+            [],
+        )
+        .unwrap();
+        for (id, note) in [("e1", "n1"), ("e2", "n1"), ("e3", "n2"), ("e4", "n3")] {
+            conn.execute(
+                "INSERT INTO embeddings (id, note_id, chunk_index, chunk_text, vector, dim, model, created_at)
+                 VALUES (?1, ?2, 0, 'x', X'00', 1, 'm', 1)",
+                params![id, note],
+            )
+            .unwrap();
+        }
+
+        // Default vault: n1's two chunks only. n2 is another vault, n3 is trashed.
+        assert_eq!(count_index_stats(&conn, "vault-default").unwrap(), (2, 1));
+        assert_eq!(count_index_stats(&conn, "v2").unwrap(), (1, 1));
+        assert_eq!(count_index_stats(&conn, "nope").unwrap(), (0, 0));
     }
 
     #[test]

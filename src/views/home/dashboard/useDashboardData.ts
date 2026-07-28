@@ -122,7 +122,7 @@ export function useDashboardData(): DashboardData {
       const [allLinks, projs, stats, times, prog, media, favs] = await Promise.all([
         getAllLinks(),
         listProjects(),
-        getIndexStats().catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })),
+        getIndexStats(activeVaultId).catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })),
         getIndexTimes().catch(() => []),
         listNoteProgress().catch(() => []),
         recentMedia(12, activeVaultId).catch(() => []),

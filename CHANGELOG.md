@@ -6,6 +6,28 @@ All notable changes to Jnana are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Quizzes are graded, not just generated.** The quiz mode in AI chat now produces **multiple-choice,
+  multi-answer and written** questions, you answer them in place, and you get a score.
+  - **Quiz settings** (gear beside the mode picker, plus an optional compact toolbar): how many
+    questions, which formats are allowed and what each is worth, negative marking on/off with an
+    adjustable penalty, the multi-answer rule (**all-or-nothing / partial credit / proportional**),
+    whether answers are revealed **as you answer** or **after submitting**, difficulty
+    (easy/medium/hard/mix), and whether questions are drawn through the semantic index or straight
+    from the notes in scope.
+  - **Marking**: choice questions are scored locally and deterministically; only written answers cost
+    a model call. A grader failure marks the question **Ungraded** rather than wrong — it is excluded
+    from the score instead of counting as zero. Skipping a question never incurs a penalty, but it
+    does stay in the denominator.
+  - **No more repeat questions.** Each vault remembers what it has already asked; those questions are
+    excluded from the prompt and filtered again after the model replies.
+  - **Save a quiz as a note.** A finished quiz becomes a `kind='quiz'` note that rides folders,
+    vaults, search, export and trash like any other, and can be retaken from edit mode. In read mode
+    (the note modal and the Working Notes reader) a **Practice retake** runs the quiz without
+    touching the saved answers.
+  - Empty semantic index with a topic scope now offers **Index now** instead of silently reporting
+    that there isn't enough material.
+
 ### Changed
 - **Workspaces remember their active tab.** The Dashboard/Notes/Graph/Canvas/Insights selection is now
   stored **per workspace** in localStorage (was a single in-memory key shared across all workspaces), so

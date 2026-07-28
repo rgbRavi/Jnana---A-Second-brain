@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
+import { useActiveVaultId } from './useVaults'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
 import {
@@ -28,6 +29,7 @@ import {
  * suggester, quiz) will sit on top of.
  */
 export function useRag() {
+  const vaultId = useActiveVaultId()
   const [config, setConfig] = useState<AiConfig>(() => defaultConfig())
   const [stats, setStats] = useState<IndexStats>({ chunkCount: 0, indexedNoteCount: 0 })
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null)
@@ -69,13 +71,15 @@ export function useRag() {
     )
   }, [])
 
+  // Stats follow the active vault, so switching vaults re-reads them (the
+  // callback's identity change re-runs the effect below and the bus handlers).
   const refreshStats = useCallback(async () => {
     try {
-      setStats(await getIndexStats())
+      setStats(await getIndexStats(vaultId))
     } catch (err) {
       log.error('[useRag] failed to load index stats', err)
     }
-  }, [])
+  }, [vaultId])
 
   useEffect(() => {
     void refreshStats()

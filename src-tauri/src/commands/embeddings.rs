@@ -151,15 +151,14 @@ pub fn get_index_times(state: State<'_, DbState>) -> Result<Vec<IndexTime>, Stri
         .map_err(|e| format!("Failed to fetch index times: {}", e))
 }
 
+/// Index size for one vault. Scoped because every surface that shows these
+/// numbers (Settings, dashboard, workspace insights) is itself vault-scoped.
 #[command]
-pub fn get_index_stats(state: State<'_, DbState>) -> Result<IndexStats, String> {
+pub fn get_index_stats(state: State<'_, DbState>, vault_id: String) -> Result<IndexStats, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    let chunk_count = queries::count_embeddings(&conn)
+    let (chunk_count, note_count) = queries::count_index_stats(&conn, &vault_id)
         .map_err(|e| format!("Failed to count embeddings: {}", e))?;
-    let indexed_note_count = queries::fetch_indexed_note_ids(&conn)
-        .map_err(|e| format!("Failed to fetch indexed note ids: {}", e))?
-        .len();
-    Ok(IndexStats { chunk_count, indexed_note_count })
+    Ok(IndexStats { chunk_count, indexed_note_count: note_count as usize })
 }
 
 /// Aggregated extracted text for one note (used to re-index a single note).

@@ -16,7 +16,7 @@ attachments** — plus auto/user tags and favourites. **Workspaces** organize no
 with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), Insights, and
 Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
 vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
-local Ollama), a Thread/Day analyzer, tag/link suggestions, a quiz generator, an agent loop, and an
+local Ollama), a Thread/Day analyzer, tag/link suggestions, graded quizzes, an agent loop, and an
 optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearance) gives token-level
 theming — presets, derived accent, base swap, radius, a WCAG contrast guardrail, export/import —
 applied live to the whole app and persisted to SQLite. Notes render through a **hybrid markdown
@@ -697,6 +697,8 @@ Notes:
 - [x] AI tag suggestions
 - [x] AI link suggestions
 - [x] Quiz generator
+- [x] Graded quizzes (MCQ/MCMA/descriptive, quiz settings, local + AI marking, anti-repeat memory,
+      save as a `kind='quiz'` note)
 - [x] Flashcard plugin (custom note type + SM-2 scheduling)
 - [x] Pomodoro plugin (bundled; exercises the UI widget + command slot API)
 
@@ -742,4 +744,5 @@ Notes:
 - [x] Tag suggestions
 - [x] Link suggestions
 - [x] Quiz generator
+- [x] Graded quizzes (formats, settings, marking, anti-repeat, save as note)
 - [x] Index staleness detection

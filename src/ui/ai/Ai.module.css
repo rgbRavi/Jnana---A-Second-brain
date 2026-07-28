@@ -656,3 +656,137 @@
   color: var(--text-3);
   line-height: 1.5;
 }
+
+/* Quiz controls — compact toolbar + settings popover */
+.quizToolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  font-size: 0.8rem;
+  color: var(--text-2);
+}
+
+.quizToolbarGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.quizToolbarCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.quizPopover {
+  position: fixed;
+  /* Must stay BELOW SettingControls' portaled .selectMenu (z-index 1200), or the
+     selects inside this popover render behind it and can't be picked. Both are
+     fixed-position siblings of <body>, so paint order is z-index alone. */
+  z-index: 1100;
+  width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.quizPopoverRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--text-2);
+}
+
+/* SettingSlider sizes itself from its parent. In a space-between row the label
+   takes all the width and the track collapses to 0px — nothing to drag, and the
+   pointer maths divides by a zero-width rect. Give it a real share of the row. */
+.quizSliderCell {
+  flex: 1 1 auto;
+  min-width: 110px;
+}
+.quizSliderCell > * {
+  width: 100%;
+}
+
+.quizPopoverSection {
+  margin-top: var(--space-xs);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.quizWeightInput {
+  width: 3.5rem;
+  padding: 0.25rem 0.4rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.82rem;
+}
+
+/* Quiz runner */
+.quizOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin: var(--space-2xs) 0 var(--space-xs);
+  border: none;
+  padding: 0;
+}
+
+.quizOption {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-1);
+}
+
+.quizOption:hover { background: var(--surface-hover); }
+.quizOptionCorrect { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.quizOptionWrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+.quizTextarea {
+  width: 100%;
+  min-height: 5rem;
+  resize: vertical;
+  padding: var(--space-xs);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font: inherit;
+}
+
+.quizScore {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  font-size: 0.85rem;
+  color: var(--text-1);
+}
+
+.quizScoreValue { font-weight: 600; color: var(--accent); }
+.quizMarkLine { font-size: 0.78rem; color: var(--text-2); margin-top: 0.2rem; }
+.quizActions { display: flex; gap: var(--space-xs); margin-top: var(--space-sm); }

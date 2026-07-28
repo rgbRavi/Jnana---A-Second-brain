@@ -21,7 +21,7 @@ type AiMode = 'focused' | 'chat' | 'projects'
 
 function Ai() {
   const { notes, update, updateTags } = useNotesContext()
-  const { config } = useRag()
+  const { config, reindexAll } = useRag()
   const [mode, setMode] = useViewState<AiMode>('ai.mode', 'focused')
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const openNote = notes.find((n) => n.id === openNoteId)
@@ -78,7 +78,7 @@ function Ai() {
           {mode === 'projects' ? (
             <ProjectsView />
           ) : mode === 'focused' ? (
-            <AiChat config={config} notes={notes} onOpenNote={setOpenNoteId} />
+            <AiChat config={config} notes={notes} onOpenNote={setOpenNoteId} onReindexAll={reindexAll} />
           ) : (
             <FreeChat config={config} notes={notes} />
           )}

@@ -117,8 +117,9 @@ export async function getIndexedNoteIds(): Promise<string[]> {
   return invoke<string[]>('get_indexed_note_ids')
 }
 
-export async function getIndexStats(): Promise<IndexStats> {
-  return invoke<IndexStats>('get_index_stats')
+/** Index size for one vault (chunks + notes). Every surface showing these is vault-scoped. */
+export async function getIndexStats(vaultId: string): Promise<IndexStats> {
+  return invoke<IndexStats>('get_index_stats', { vaultId })
 }
 
 /** When each indexed note was last embedded — used to detect stale notes. */

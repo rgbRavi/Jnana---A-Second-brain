@@ -316,13 +316,78 @@ export interface LinkSuggestion {
   score: number
 }
 
+/** How a quiz question is answered. */
+export type QuizFormat = 'mcq' | 'mcma' | 'descriptive'
+
+/** Requested cognitive difficulty for generated questions. */
+export type QuizDifficulty = 'easy' | 'medium' | 'hard' | 'mix'
+
+/** How a multiple-answer question is scored. */
+export type McmaRule = 'allOrNothing' | 'partial' | 'proportional'
+
 /** A single quiz question generated from the user's notes. */
 export interface QuizQuestion {
-  /** recall | application | compare — a hint at the question's type. */
+  /** recall | application | compare — a hint at the question's cognitive type. */
   kind: string
+  /** How it is answered. Questions parsed without one default to 'descriptive'. */
+  format: QuizFormat
   question: string
+  /** Answer choices — mcq/mcma only. */
+  options?: string[]
+  /** Indices into `options` that are correct — one for mcq, two or more for mcma. */
+  correct?: number[]
+  /** Reference answer: shown on reveal, and given to the descriptive grader. */
   answer: string
   explanation: string
+  /** Marks this question is worth, frozen in from settings at generation time. */
+  marks: number
+}
+
+/** User-tunable quiz behaviour, persisted in localStorage (no DB row). */
+export interface QuizSettings {
+  /** How many questions to request. */
+  count: number
+  /** Which formats the generator may produce. */
+  formats: Record<QuizFormat, boolean>
+  /** Marks a question of each format is worth. */
+  weights: Record<QuizFormat, number>
+  /** Deduct marks for a wrong answer. */
+  negativeMarking: boolean
+  /** Penalty as a fraction of the question's marks (0.25 = a quarter). */
+  negativeFraction: number
+  mcmaRule: McmaRule
+  /** Grade each question as it is answered, or all of them at submit. */
+  feedback: 'immediate' | 'end'
+  /** 'retrieval' = semantic search over the index; 'raw' = feed scoped notes directly. */
+  source: 'retrieval' | 'raw'
+  difficulty: QuizDifficulty
+  /** Show the compact quiz toolbar above the AI composer. */
+  showToolbar: boolean
+}
+
+/** One taken (or in-progress) quiz. Serialized into a kind='quiz' note on save. */
+export interface QuizAttempt {
+  questions: QuizQuestion[]
+  /** Per question: selected option indices (mcq/mcma) or typed text (descriptive). */
+  responses: (number[] | string)[]
+  /** Per question: marks awarded, or null when unanswered/ungraded. */
+  marks: (number | null)[]
+  /** Per question: the descriptive grader's one-line justification ('' otherwise). */
+  feedback: string[]
+  /** Sum of non-null `marks`. */
+  total: number
+  /** Sum of `marks` for questions that were actually graded. */
+  max: number
+  /** Human label for the scope the quiz came from, e.g. 'Topic: neural networks'. */
+  scopeLabel: string
+  takenAt: number
+}
+
+/** Result of a generation attempt — `reason` explains an empty question list. */
+export interface QuizGeneration {
+  questions: QuizQuestion[]
+  /** 'empty-index' = retrieval found nothing (offer to index); 'empty-scope' = no notes in scope. */
+  reason?: 'empty-index' | 'empty-scope'
 }
 
 /** A source note the analyzer actually drew from (grounding, not hallucinated). */
