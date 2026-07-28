@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNotesContext } from '../../context/NotesContext'
 import { useWorkspaceNotes } from '../../hooks/useWorkspaceNotes'
+import { useActiveVaultId } from '../../hooks/useVaults'
 import { getAllLinks } from '../../core/notes'
 import { getIndexStats, getIndexTimes, staleNotes } from '../../core/ai'
 import { isAutoTag } from '../../core/tags'
@@ -31,6 +32,7 @@ interface Pair {
 export function WorkspaceInsights({ workspaceId }: Props) {
   const { update, updateTags } = useNotesContext()
   const { notes } = useWorkspaceNotes(workspaceId)
+  const activeVaultId = useActiveVaultId()
 
   const [links, setLinks] = useState<[string, string][]>([])
   const [staleIds, setStaleIds] = useState<Set<string>>(new Set())
@@ -43,7 +45,7 @@ export function WorkspaceInsights({ workspaceId }: Props) {
     let active = true
     const refresh = () => {
       getAllLinks().then((l) => { if (active) setLinks(l) }).catch(() => {})
-      Promise.all([getIndexStats().catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })), getIndexTimes().catch(() => [])])
+      Promise.all([getIndexStats(activeVaultId).catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })), getIndexTimes().catch(() => [])])
         .then(([stats, times]) => {
           if (!active) return
           setIndexed(stats.indexedNoteCount)

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getViewState } from '../../hooks/useViewState'
 import { useNotesContext } from '../../context/NotesContext'
+import { useActiveVaultId } from '../../hooks/useVaults'
+import { DEFAULT_VAULT_ID } from '../../types'
 import { useRag } from '../../hooks/useRag'
 import { AiSettingsPanel } from '../../ui/ai/AiSettingsPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
@@ -33,8 +35,17 @@ const SECTIONS: { id: Tab; label: string }[] = [
 function Settings() {
   const [tab, setTab] = useState<Tab>('general')
   const navigate = useNavigate()
-  const { notes } = useNotesContext()
+  const { notes: allNotes } = useNotesContext()
   const { config, updateConfig, stats, indexing, stale, reindexAll, refreshStaleness } = useRag()
+
+  // Indexing is vault-scoped like every other note surface: "Index all notes",
+  // the staleness count and the reindex target all mean *this vault's* notes.
+  // Another vault's vectors stay put — retrieval already filters them out.
+  const activeVaultId = useActiveVaultId()
+  const notes = useMemo(
+    () => allNotes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
+    [allNotes, activeVaultId],
+  )
 
   useEffect(() => {
     void refreshStaleness(notes)
