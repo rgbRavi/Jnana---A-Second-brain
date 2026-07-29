@@ -20,6 +20,11 @@ const SELECTION_OPTIONS: SelectOption[] = [
   { value: 'rag-topK', label: 'Retrieve most relevant (experimental — falls back to all)' },
 ]
 
+const DRIFT_MODE_OPTIONS: SelectOption[] = [
+  { value: 'topic-shift', label: 'Topic shift (recommended)' },
+  { value: 'rule-content', label: 'Rule-vs-content (spec-literal, noisy)' },
+]
+
 /** Settings → Advanced AI generation: rule refresh/selection strategy knobs + metrics export. */
 export function AdvancedAiPanel() {
   const cfg = useAdvancedAiSettings()
@@ -82,6 +87,72 @@ export function AdvancedAiPanel() {
               value={cfg.tokenThreshold}
               ariaLabel="Refresh when history exceeds this many tokens"
               onChange={(tokenThreshold) => setAdvancedAiSettings({ tokenThreshold })}
+            />
+          </div>
+        </>
+      )}
+
+      {cfg.refreshStrategy === 'counters-drift' && (
+        <>
+          <div className={styles.field}>
+            <div className={styles.fieldHead}>
+              <label htmlFor="advai-drift-mode">Drift detection mode</label>
+            </div>
+            <SettingSelect
+              id="advai-drift-mode"
+              value={cfg.driftMode}
+              options={DRIFT_MODE_OPTIONS}
+              onChange={(v) => setAdvancedAiSettings({ driftMode: v as typeof cfg.driftMode })}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <div className={styles.fieldHead}>
+              <label htmlFor="advai-drift-threshold">Drift threshold</label>
+              <span className={styles.value}>{cfg.driftThreshold}</span>
+            </div>
+            <SettingSlider
+              id="advai-drift-threshold"
+              min={0.1}
+              max={0.95}
+              step={0.05}
+              value={cfg.driftThreshold}
+              ariaLabel="Drift threshold"
+              onChange={(driftThreshold) => setAdvancedAiSettings({ driftThreshold })}
+            />
+          </div>
+        </>
+      )}
+
+      {cfg.refreshStrategy === 'counters-violation' && (
+        <>
+          <div className={styles.field}>
+            <div className={styles.fieldHead}>
+              <label htmlFor="advai-violation-every-n-turns">Check for violations every N turns</label>
+              <span className={styles.value}>{cfg.violationEveryNTurns}</span>
+            </div>
+            <SettingSlider
+              id="advai-violation-every-n-turns"
+              min={1}
+              max={10}
+              step={1}
+              value={cfg.violationEveryNTurns}
+              ariaLabel="Check for violations every N turns"
+              onChange={(violationEveryNTurns) => setAdvancedAiSettings({ violationEveryNTurns })}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <div className={styles.fieldHead}>
+              <label htmlFor="advai-violation-model">Violation-check model</label>
+            </div>
+            <input
+              id="advai-violation-model"
+              type="text"
+              className={styles.textInput}
+              value={cfg.violationModel}
+              placeholder="Blank = use the chat model"
+              onChange={(e) => setAdvancedAiSettings({ violationModel: e.target.value })}
             />
           </div>
         </>

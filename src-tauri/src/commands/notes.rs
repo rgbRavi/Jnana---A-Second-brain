@@ -199,9 +199,12 @@ pub fn restore_note(state: State<'_, DbState>, id: String) -> Result<Note, Strin
 }
 
 #[command]
-pub fn list_trashed_notes(state: State<'_, DbState>) -> Result<Vec<TrashedNote>, String> {
+pub fn list_trashed_notes(
+    state: State<'_, DbState>,
+    vault_id: String,
+) -> Result<Vec<TrashedNote>, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    queries::fetch_trashed_notes(&conn)
+    queries::fetch_trashed_notes(&conn, &vault_id)
         .map(|rows| {
             rows.into_iter()
                 .map(|(id, title, deleted_at)| TrashedNote { id, title, deleted_at })
@@ -211,9 +214,10 @@ pub fn list_trashed_notes(state: State<'_, DbState>) -> Result<Vec<TrashedNote>,
 }
 
 #[command]
-pub fn empty_trash(state: State<'_, DbState>) -> Result<usize, String> {
+pub fn empty_trash(state: State<'_, DbState>, vault_id: String) -> Result<usize, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    let ids = queries::fetch_trashed_ids(&conn).map_err(|e| format!("Failed to read trash: {}", e))?;
+    let ids = queries::fetch_trashed_ids(&conn, &vault_id)
+        .map_err(|e| format!("Failed to read trash: {}", e))?;
     let n = ids.len();
     for id in ids {
         hard_delete_note(&conn, &id)?;

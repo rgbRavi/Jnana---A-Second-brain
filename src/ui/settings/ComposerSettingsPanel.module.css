@@ -61,3 +61,18 @@
 .btn:hover:not(:disabled) {
   border-color: var(--accent);
 }
+
+.textInput {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+}
+
+.textInput:hover {
+  border-color: var(--border-hover);
+}

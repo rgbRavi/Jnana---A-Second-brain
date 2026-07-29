@@ -120,20 +120,24 @@ pub fn restore_note(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Trashed notes, newest-deleted first: (id, title, deleted_at).
-pub fn fetch_trashed_notes(conn: &Connection) -> Result<Vec<(String, String, i64)>> {
+/// Trashed notes in one vault, newest-deleted first: (id, title, deleted_at).
+pub fn fetch_trashed_notes(conn: &Connection, vault_id: &str) -> Result<Vec<(String, String, i64)>> {
     let mut stmt = conn.prepare(
         "SELECT id, title, deleted_at FROM notes
-         WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+         WHERE deleted_at IS NOT NULL AND COALESCE(vault_id, 'vault-default') = ?1
+         ORDER BY deleted_at DESC",
     )?;
-    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    let rows = stmt.query_map(params![vault_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
     rows.collect()
 }
 
-/// All trashed note ids (for Empty Trash).
-pub fn fetch_trashed_ids(conn: &Connection) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT id FROM notes WHERE deleted_at IS NOT NULL")?;
-    let rows = stmt.query_map([], |r| r.get(0))?;
+/// Trashed note ids in one vault (for Empty Trash).
+pub fn fetch_trashed_ids(conn: &Connection, vault_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT id FROM notes
+         WHERE deleted_at IS NOT NULL AND COALESCE(vault_id, 'vault-default') = ?1",
+    )?;
+    let rows = stmt.query_map(params![vault_id], |r| r.get(0))?;
     rows.collect()
 }
 
@@ -1499,26 +1503,31 @@ mod tests {
         )
         .unwrap();
 
-        // Live note is listed, trash is empty.
+        // Live note is listed, trash is empty. (n1 has NULL vault_id → treated as default.)
         assert_eq!(fetch_all_notes(&conn).unwrap().len(), 1);
-        assert_eq!(fetch_trashed_notes(&conn).unwrap().len(), 0);
+        assert_eq!(fetch_trashed_notes(&conn, "vault-default").unwrap().len(), 0);
 
         // Trash it: gone from live, present in trash.
         trash_note(&conn, "n1", 5000).unwrap();
         assert_eq!(fetch_all_notes(&conn).unwrap().len(), 0);
-        let trashed = fetch_trashed_notes(&conn).unwrap();
+        let trashed = fetch_trashed_notes(&conn, "vault-default").unwrap();
         assert_eq!(trashed.len(), 1);
         assert_eq!(trashed[0].0, "n1");
         assert_eq!(trashed[0].2, 5000);
 
-        // Expiry: cutoff after 5000 selects it; before does not.
+        // Trash is vault-scoped: another vault sees none of it.
+        assert_eq!(fetch_trashed_notes(&conn, "vault-other").unwrap().len(), 0);
+        assert!(fetch_trashed_ids(&conn, "vault-other").unwrap().is_empty());
+        assert_eq!(fetch_trashed_ids(&conn, "vault-default").unwrap(), vec!["n1"]);
+
+        // Expiry sweep stays global (retention is an app-wide setting).
         assert_eq!(fetch_expired_trash_ids(&conn, 6000).unwrap(), vec!["n1"]);
         assert!(fetch_expired_trash_ids(&conn, 4000).unwrap().is_empty());
 
         // Restore: back in live, empty trash.
         restore_note(&conn, "n1").unwrap();
         assert_eq!(fetch_all_notes(&conn).unwrap().len(), 1);
-        assert_eq!(fetch_trashed_notes(&conn).unwrap().len(), 0);
+        assert_eq!(fetch_trashed_notes(&conn, "vault-default").unwrap().len(), 0);
     }
 
     #[test]

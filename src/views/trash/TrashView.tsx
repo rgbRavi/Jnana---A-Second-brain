@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { deleteNote, emptyTrash, listTrashedNotes, restoreNote, type TrashedNote } from '../../core/notes'
+import { useActiveVaultId } from '../../hooks/useVaults'
 import { formatDate } from '../../core/dateFormat'
 import { eventBus } from '../../lib/eventBus'
 import { toast } from '../../lib/toast'
@@ -13,9 +14,10 @@ import styles from './TrashView.module.css'
 export default function TrashView() {
   const [items, setItems] = useState<TrashedNote[]>([])
   const [loading, setLoading] = useState(true)
+  const vaultId = useActiveVaultId()
 
   const refresh = () => {
-    listTrashedNotes()
+    listTrashedNotes(vaultId)
       .then(setItems)
       .catch((e) => {
         log.error('Failed to load trash', e)
@@ -23,7 +25,8 @@ export default function TrashView() {
       })
       .finally(() => setLoading(false))
   }
-  useEffect(refresh, [])
+  // Re-run when the active vault switches so Trash tracks it like every other view.
+  useEffect(refresh, [vaultId])
 
   const restore = async (t: TrashedNote) => {
     try {
@@ -63,7 +66,7 @@ export default function TrashView() {
     })
     if (!ok) return
     try {
-      const n = await emptyTrash()
+      const n = await emptyTrash(vaultId)
       setItems([])
       toast.success(`Deleted ${n} note${n === 1 ? '' : 's'}.`)
     } catch (e) {

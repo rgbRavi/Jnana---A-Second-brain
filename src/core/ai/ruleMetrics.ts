@@ -6,6 +6,8 @@
 // mirrors quizMemory.ts. No dashboard — the Advanced panel offers a JSON export.
 import type { RefreshStrategy, SelectionStrategy } from './ruleEngine'
 
+export type RefreshTrigger = 'none' | 'counters' | 'always' | 'drift' | 'violation'
+
 export interface RuleEvent {
   ts: number
   convId: string
@@ -14,6 +16,7 @@ export interface RuleEvent {
   ruleCount: number
   refreshFired: boolean
   approxTokensAdded: number
+  trigger: RefreshTrigger
 }
 
 const KEY = 'jnana.ruleMetrics.v1'

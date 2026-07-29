@@ -6,6 +6,7 @@ import { Palette, Pencil, Plus, Settings, Wrench, X } from 'lucide-react'
 import { ask } from '@tauri-apps/plugin-dialog'
 import type { AiPreset, PresetKind } from '../../types'
 import { listPresets, savePreset, deletePreset, newPreset } from '../../core/aiWorkspace'
+import styles from './Ai.module.css'
 
 const pill: React.CSSProperties = {
   display: 'inline-flex',
@@ -29,6 +30,77 @@ interface PickerProps {
   onSkillIds: (ids: string[]) => void
   /** Called after the manager creates/edits/deletes a preset, to refresh lists. */
   onChanged: () => void
+}
+
+// ─── Trigger-less bodies (reused by the composer's Capabilities menu) ────────
+
+/** Single-select list of response styles (radio semantics: pick one, or none). */
+export function StylesBody({
+  styles: stylePresets,
+  styleId,
+  onStyleId,
+}: {
+  styles: AiPreset[]
+  styleId: string
+  onStyleId: (id: string) => void
+}) {
+  const rows: { id: string; name: string; description?: string }[] = [
+    { id: '', name: 'None', description: 'Default assistant voice' },
+    ...stylePresets.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+  ]
+  return (
+    <>
+      {rows.map((s) => {
+        const active = s.id === styleId || (!s.id && !stylePresets.some((x) => x.id === styleId))
+        return (
+          <label key={s.id || 'none'} className={styles.cCheck}>
+            <input type="radio" name="ai-style" checked={active} onChange={() => onStyleId(s.id)} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {s.name}
+              {s.description && <small>{s.description}</small>}
+            </span>
+          </label>
+        )
+      })}
+    </>
+  )
+}
+
+/** Multi-select list of skills + a Manage entry (opens the preset manager). */
+export function SkillsBody({
+  skills,
+  skillIds,
+  onSkillIds,
+  onChanged,
+}: {
+  skills: AiPreset[]
+  skillIds: string[]
+  onSkillIds: (ids: string[]) => void
+  onChanged: () => void
+}) {
+  const [managing, setManaging] = useState(false)
+  const toggle = (id: string) =>
+    onSkillIds(skillIds.includes(id) ? skillIds.filter((x) => x !== id) : [...skillIds, id])
+
+  return (
+    <>
+      {skills.length === 0 && <p className={styles.pickerEmpty}>No skills yet — use Manage to add one.</p>}
+      {skills.map((s) => (
+        <label key={s.id} className={styles.cCheck}>
+          <input type="checkbox" checked={skillIds.includes(s.id)} onChange={() => toggle(s.id)} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            {s.name}
+            {s.description && <small>{s.description}</small>}
+          </span>
+        </label>
+      ))}
+      <div className={styles.cDivider} />
+      <button type="button" className={styles.cRow} onClick={() => setManaging(true)}>
+        <Settings size={15} /> <span className={styles.cRowLabel}>Manage styles &amp; skills</span>
+      </button>
+      {managing && <PresetManager onClose={() => setManaging(false)} onChanged={onChanged} />}
+    </>
+  )
 }
 
 export function PresetPicker({ styles, skills, styleId, onStyleId, skillIds, onSkillIds, onChanged }: PickerProps) {

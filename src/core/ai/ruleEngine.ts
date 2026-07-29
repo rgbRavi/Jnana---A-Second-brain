@@ -9,6 +9,7 @@ import type { AiRule } from '../../types'
 
 export type RefreshStrategy = 'off' | 'always-tail' | 'counters' | 'counters-drift' | 'counters-violation'
 export type SelectionStrategy = 'all-enabled' | 'rag-topK'
+export type DriftMode = 'topic-shift' | 'rule-content'
 
 export interface AdvancedAiSettings {
   refreshStrategy: RefreshStrategy
@@ -17,6 +18,10 @@ export interface AdvancedAiSettings {
   selection: SelectionStrategy
   ragTopK: number
   logMetrics: boolean
+  driftMode: DriftMode
+  driftThreshold: number
+  violationEveryNTurns: number
+  violationModel: string
 }
 
 export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
@@ -26,6 +31,10 @@ export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
   selection: 'all-enabled',
   ragTopK: 5,
   logMetrics: true,
+  driftMode: 'topic-shift',
+  driftThreshold: 0.6,
+  violationEveryNTurns: 3,
+  violationModel: '',
 }
 
 export interface RefreshState {

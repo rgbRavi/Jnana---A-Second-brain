@@ -165,6 +165,11 @@ through Rust to only the host you configured.
 - **Hybrid providers** — chat and embeddings are independent: e.g. embed locally with Ollama while
   chatting through a cloud API
 - **Workspace scope** — point AI chat (and Search) at the whole vault or a single workspace
+- **Adaptive Rules** — write reusable instructions ("Rules"), tick which apply per chat or per project
+  (a project shares its rules with every chat under it), and Jnana keeps re-injecting them so the AI
+  stays on-instruction deep into long conversations. How and when rules refresh — and how they're
+  selected — is configurable in **Settings → Advanced AI generation**, and all the AI-powered options
+  fall back safely to the cheap defaults when no AI is set up
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 
 ### Export

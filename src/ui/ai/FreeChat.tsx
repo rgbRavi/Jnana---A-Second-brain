@@ -22,10 +22,12 @@ import {
 import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { listRules, listProjectRules, resolveEffectiveRules, buildRulesSystem } from '../../core/aiRules'
-import { selectRules, shouldRefresh, estimateTokens } from '../../core/ai/ruleEngine'
+import { estimateTokens } from '../../core/ai/ruleEngine'
+import { selectRulesForSend } from '../../core/ai/ruleSelect'
+import { decideRefresh } from '../../core/ai/ruleDecide'
 import { recordRuleEvent } from '../../core/ai/ruleMetrics'
 import { getAdvancedAiSettings } from '../../hooks/useAdvancedAiSettings'
-import { useViewState, getViewState } from '../../hooks/useViewState'
+import { useViewState, getViewState, setViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import { usePresets } from '../../hooks/usePresets'
 import { useProjects } from '../../hooks/useProjects'
@@ -33,8 +35,6 @@ import { getActiveVaultId } from '../../hooks/useVaults'
 import { useNotesContext } from '../../context/NotesContext'
 import { eventBus } from '../../lib/eventBus'
 import { ChatComposer } from './ChatComposer'
-import { PresetPicker } from './PresetPicker'
-import { RulesPicker } from './RulesPicker'
 import { AgentSteps } from './AgentSteps'
 import { ProposalCard } from './ProposalCard'
 import styles from './Ai.module.css'
@@ -141,7 +141,8 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     setInput('')
     setAttachments([])
     setRuleIds([])
-  }, [setMessages, setError, setInput, setAttachments, setRuleIds])
+    setProjectId('') // a fresh chat is project-less; project chats open from the project
+  }, [setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId])
 
   const loadConv = useCallback(
     (c: StoredConversation) => {
@@ -155,8 +156,9 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       setInput('')
       setAttachments([])
       setRuleIds(c.ruleIds ?? [])
+      setProjectId(c.projectId || '') // projectId always mirrors the active conversation
     },
-    [setMessages, setError, setInput, setAttachments, setRuleIds],
+    [setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId],
   )
 
   const { persist, setActiveId, activeId } = useChatHistory('chat', loadConv, resetChat)
@@ -260,22 +262,6 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       content: m.content,
     }))
 
-    // Adaptive Rules: resolve once per send (session ∪ project rules, deduped),
-    // filtered/selected per the Advanced settings. A rule-load failure must never
-    // break chat — it degrades to no rules, not an error.
-    const cfg = getAdvancedAiSettings()
-    const sessionRuleIds = getViewState<string[]>('ai.free.ruleIds') ?? []
-    const activeProjectId = getViewState<string>('ai.free.projectId') || ''
-    let effectiveRules: AiRule[] = []
-    try {
-      const allRules = await listRules(vaultId)
-      const projRuleIds = activeProjectId ? await listProjectRules(activeProjectId) : []
-      effectiveRules = selectRules(resolveEffectiveRules(sessionRuleIds, projRuleIds, allRules), cfg)
-    } catch {
-      effectiveRules = []
-    }
-    const rulesBlock = buildRulesSystem(effectiveRules)
-
     let userTurn: ChatTurn
     let warnings: string[] = []
     try {
@@ -287,6 +273,40 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       setError(e instanceof Error ? e.message : String(e))
       return
     }
+
+    // Adaptive Rules: resolve once per send (session ∪ project rules, deduped),
+    // filtered/selected per the Advanced settings. A rule-load failure must never
+    // break chat — it degrades to no rules, not an error. Hoisted above the
+    // agent/chat branch split (but after buildUserTurn's early-return) so both
+    // reuse the same selection + refresh decision instead of recomputing it
+    // twice, and a bad attachment/parse never burns an embedding/judge call or
+    // corrupts the drift anchor for a turn that was never sent.
+    const cfg = getAdvancedAiSettings()
+    const sessionRuleIds = getViewState<string[]>('ai.free.ruleIds') ?? []
+    const activeProjectId = getViewState<string>('ai.free.projectId') || ''
+    const query = text
+    let effectiveRules: AiRule[] = []
+    try {
+      const allRules = await listRules(vaultId)
+      const projRuleIds = activeProjectId ? await listProjectRules(activeProjectId) : []
+      effectiveRules = await selectRulesForSend(resolveEffectiveRules(sessionRuleIds, projRuleIds, allRules), cfg, query, config)
+    } catch {
+      effectiveRules = []
+    }
+    const rulesBlock = buildRulesSystem(effectiveRules)
+
+    // Refresh decision (drift/violation are async; cheap strategies are instant).
+    // ponytail: lastInjectedTurn is always 0 (Phase-1/2) — every eligible turn is
+    // judged against everyNTurns from turn 0 for a steady cadence; true
+    // per-conversation last-injected tracking is a later refinement.
+    const turnIndex = prior.filter((m) => m.role === 'user').length + 1
+    const approxTokens = estimateTokens(prior.map((m) => m.content).join('\n'))
+    const anchorText = getViewState<string>('ai.free.ruleAnchor') ?? ''
+    const recentTurns = prior.slice(-4).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    const { refresh: refreshFired, trigger } = rulesBlock
+      ? await decideRefresh({ turnIndex, approxTokens, lastInjectedTurn: 0 }, cfg, config, { latestUserText: query, anchorText, rules: effectiveRules, recentTurns })
+      : { refresh: false, trigger: 'none' as const }
+    if (refreshFired) setViewState('ai.free.ruleAnchor', query)
 
     setMessages((prev) => [
       ...prev,
@@ -305,13 +325,6 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
           if (last && last.role === 'assistant') next[next.length - 1] = { ...last, steps: [...(last.steps ?? []), s] }
           return next
         })
-      // ponytail: lastInjectedTurn is always 0 (Phase-1) — every eligible turn is
-      // judged against everyNTurns from turn 0 for a steady cadence; true
-      // per-conversation last-injected tracking is a Phase-2 refinement (would
-      // live in viewstate `ai.free.lastRuleTurn`).
-      const turnIndex = history.filter((m) => m.role === 'user').length + 1
-      const approxTokens = estimateTokens(history.map((m) => m.content).join('\n'))
-      const refreshFired = rulesBlock !== '' && shouldRefresh({ turnIndex, approxTokens, lastInjectedTurn: 0 }, cfg)
       try {
         const result = await runAgent(config, userTurn.content, history, notes, {
           onStep,
@@ -343,6 +356,7 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
             ruleCount: effectiveRules.length,
             refreshFired,
             approxTokensAdded: refreshFired ? estimateTokens(rulesBlock) : 0,
+            trigger,
           })
         }
         const finalMessages = getViewState<FreeMessage[]>('ai.free.messages') ?? []
@@ -388,14 +402,6 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     if (rulesBlock) systemParts.push(rulesBlock)
     const system: ChatTurn[] = systemParts.length ? [{ role: 'system', content: systemParts.join('\n\n') }] : []
 
-    // ponytail: lastInjectedTurn is always 0 (Phase-1) — every eligible turn is
-    // judged against everyNTurns from turn 0 for a steady cadence; true
-    // per-conversation last-injected tracking is a Phase-2 refinement (would
-    // live in viewstate `ai.free.lastRuleTurn`).
-    const turnIndex = prior.filter((m) => m.role === 'user').length + 1
-    const approxTokens = estimateTokens(prior.map((m) => m.content).join('\n'))
-    const refreshFired = rulesBlock !== '' && shouldRefresh({ turnIndex, approxTokens, lastInjectedTurn: 0 }, cfg)
-
     const tail: ChatTurn[] = refreshFired ? [{ role: 'system', content: rulesBlock }] : []
     const turns: ChatTurn[] = [...system, ...prior, ...tail, userTurn]
 
@@ -408,6 +414,7 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
         ruleCount: effectiveRules.length,
         refreshFired,
         approxTokensAdded: refreshFired ? estimateTokens(rulesBlock) : 0,
+        trigger,
       })
     }
 
@@ -903,18 +910,16 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
             agent={agent}
             onAgentChange={setAgent}
             vision={caps.vision}
-            presetControls={
-              <PresetPicker
-                styles={stylePresets}
-                skills={skillPresets}
-                styleId={styleId}
-                onStyleId={setStyleId}
-                skillIds={skillIds}
-                onSkillIds={setSkillIds}
-                onChanged={refreshPresets}
-              />
-            }
-            rulesControl={<RulesPicker vaultId={vaultId} selectedIds={ruleIds} onSelectedIds={setRuleIds} />}
+            stylePresets={stylePresets}
+            skillPresets={skillPresets}
+            styleId={styleId}
+            onStyleId={setStyleId}
+            skillIds={skillIds}
+            onSkillIds={setSkillIds}
+            onPresetsChanged={refreshPresets}
+            vaultId={vaultId}
+            ruleIds={ruleIds}
+            onRuleIds={setRuleIds}
           />
         </div>
       </div>

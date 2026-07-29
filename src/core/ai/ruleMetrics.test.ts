@@ -5,7 +5,7 @@ import { recordRuleEvent, getRuleEvents, clearRuleEvents } from './ruleMetrics'
 
 const ev = (convId: string) => ({
   ts: 1, convId, strategy: 'counters' as const, selection: 'all-enabled' as const,
-  ruleCount: 2, refreshFired: true, approxTokensAdded: 40,
+  ruleCount: 2, refreshFired: true, approxTokensAdded: 40, trigger: 'counters' as const,
 })
 
 describe('ruleMetrics ring buffer', () => {

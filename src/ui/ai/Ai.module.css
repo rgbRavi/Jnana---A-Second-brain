@@ -790,3 +790,184 @@
 .quizScoreValue { font-weight: 600; color: var(--accent); }
 .quizMarkLine { font-size: 0.78rem; color: var(--text-2); margin-top: 0.2rem; }
 .quizActions { display: flex; gap: var(--space-xs); margin-top: var(--space-sm); }
+
+/* ─── Composer toolbar menus (Attach / Capabilities / More) ─────────────────
+   Three up-opening dropdowns coalescing the old flat button row. One shared
+   vocabulary: same pill trigger, same panel, same rows, accent on active. */
+
+.cMenu { position: relative; display: inline-flex; }
+
+.cScrim { position: fixed; inset: 0; z-index: 44; }
+
+.cPop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 45;
+  width: 288px;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding: var(--space-2xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl), 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transform-origin: bottom left;
+  animation: cPopIn var(--dur-fast) var(--motion-ease);
+}
+.cPop.alignRight { left: auto; right: 0; transform-origin: bottom right; }
+
+@keyframes cPopIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cPop { animation: none; }
+}
+
+/* Detail-view header (Capabilities master → detail) */
+.cHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-xs);
+  margin-bottom: var(--space-2xs);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.cBack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 2px;
+  margin: -2px;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.cBack:hover { color: var(--text-1); background: var(--surface-hover); }
+
+.cSectionLabel {
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+
+/* A selectable / navigable row */
+.cRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-size: 0.84rem;
+  font-family: var(--font-body);
+  padding: 0.5rem 0.6rem;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+}
+.cRow:hover:not(:disabled) { background: var(--surface-hover); }
+.cRow:disabled { opacity: 0.5; cursor: not-allowed; }
+.cRow svg { flex: none; color: var(--text-2); transition: color var(--dur-fast) var(--motion-ease); }
+.cRow:hover:not(:disabled) svg { color: var(--text-1); }
+
+/* Active/selected row: accent wash + accent ink + accent icon */
+.cRowActive,
+.cRowActive:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.cRowActive svg,
+.cRowActive:hover svg { color: var(--accent); }
+
+.cRowLabel { flex: 1; min-width: 0; }
+.cRowLabel small { display: block; font-size: 0.72rem; color: var(--text-3); font-weight: 400; }
+.cRowActive .cRowLabel small { color: color-mix(in srgb, var(--accent) 70%, var(--text-3)); }
+.cRowTrail { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); }
+
+/* Count badge on a trigger or a row */
+.cBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cComing {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+}
+
+/* Checkbox / radio row inside a detail body */
+.cCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--text-1);
+  transition: background var(--dur-fast) var(--motion-ease);
+}
+.cCheck:hover { background: var(--surface-hover); }
+.cCheck input { accent-color: var(--accent); margin: 0.15rem 0 0; cursor: pointer; flex: none; }
+.cCheck small { display: block; font-size: 0.72rem; color: var(--text-3); margin-top: 1px; }
+
+.cDivider { height: 1px; background: var(--border); margin: var(--space-2xs) 0; }
+
+.cField {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--motion-ease), box-shadow var(--dur-fast) var(--motion-ease);
+}
+.cField:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* Icon-only add/star affordances in the rules composer */
+.cIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-3);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.cIconBtn:hover { color: var(--text-1); background: var(--surface-hover); }
