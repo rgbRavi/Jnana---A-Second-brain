@@ -10,7 +10,7 @@
 // composer full). Mirrors the FileExplorer second-sidebar + persisted-store pattern.
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react'
-import { PanelRightClose, Table } from 'lucide-react'
+import { PanelRightClose, Sparkles, Table } from 'lucide-react'
 import {
   getRailPanelsVersion,
   listRailPanels,
@@ -19,7 +19,9 @@ import {
   type RailPanel,
 } from '../../lib/rightRailPanels'
 import { useActiveTable } from '../../lib/activeTable'
+import { useActiveFocus } from '../../lib/activeFocus'
 import { TableToolPanel } from './TableToolPanel'
+import { FocusedScopePanel } from './FocusedScopePanel'
 import styles from './RightRail.module.css'
 
 // ── Which panel is open (persisted module store; '' = collapsed to icon strip) ──
@@ -52,6 +54,47 @@ function useOpenPanel(): string {
   )
 }
 
+/** Force a rail panel open by id (e.g. the composer opening the Focused scope panel). */
+export function openRailPanel(id: string): void {
+  setOpenPanel(id)
+}
+
+// ── Panel width (persisted; drag the left edge to resize) ──
+const WIDTH_KEY = 'jnana.rightrail.width.v1'
+const MIN_W = 240
+const MAX_W = 620
+const STRIP_PX = 44 // the icon strip's width (2.75rem), fixed at the far right
+let railWidth = (() => {
+  try {
+    const v = Number(localStorage.getItem(WIDTH_KEY))
+    return v >= MIN_W && v <= MAX_W ? v : 300
+  } catch {
+    return 300
+  }
+})()
+const widthListeners = new Set<() => void>()
+function setRailWidth(w: number): void {
+  const clamped = Math.max(MIN_W, Math.min(MAX_W, Math.round(w)))
+  if (clamped === railWidth) return
+  railWidth = clamped
+  try {
+    localStorage.setItem(WIDTH_KEY, String(clamped))
+  } catch {
+    /* storage unavailable */
+  }
+  widthListeners.forEach((l) => l())
+}
+function useRailWidth(): number {
+  return useSyncExternalStore(
+    (l) => {
+      widthListeners.add(l)
+      return () => widthListeners.delete(l)
+    },
+    () => railWidth,
+    () => railWidth,
+  )
+}
+
 function useRailPanels(): RailPanel[] {
   useSyncExternalStore(subscribeRailPanels, getRailPanelsVersion, getRailPanelsVersion)
   return listRailPanels()
@@ -72,7 +115,23 @@ function RailProbe({ panel, onChange }: { panel: RailPanel; onChange: (id: strin
 export function RightRail() {
   const panels = useRailPanels()
   const openPanelId = useOpenPanel()
+  const width = useRailWidth()
   const [avail, setAvail] = useState<Record<string, boolean>>({})
+
+  // Pointer-drag the left edge to resize (the rail is pinned to the right, so
+  // width = distance from the pointer to the icon strip's left edge).
+  const onGripDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const onMove = (ev: PointerEvent) => setRailWidth(window.innerWidth - STRIP_PX - ev.clientX)
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [])
   const reportAvail = useCallback(
     (id: string, a: boolean) => setAvail((prev) => (prev[id] === a ? prev : { ...prev, [id]: a })),
     [],
@@ -90,7 +149,8 @@ export function RightRail() {
       {probes}
       <div className={styles.rail}>
         {open && Body && (
-          <div className={styles.body}>
+          <div className={styles.body} style={{ width }}>
+            <div className={styles.resizeGrip} onPointerDown={onGripDown} title="Drag to resize" role="separator" aria-orientation="vertical" />
             <div className={styles.bodyHeader}>
               <span className={styles.bodyTitle}>{open.title}</span>
               <button className={styles.bodyClose} title="Collapse panel" aria-label="Collapse panel" onClick={() => setOpenPanel('')}>
@@ -131,5 +191,13 @@ export function registerBuiltinRailPanels(): void {
     order: 10,
     useAvailable: () => useActiveTable().present,
     Component: TableToolPanel,
+  })
+  registerRailPanel({
+    id: 'focused-scope',
+    title: 'Focused scope',
+    icon: Sparkles,
+    order: 5,
+    useAvailable: () => useActiveFocus(),
+    Component: FocusedScopePanel,
   })
 }

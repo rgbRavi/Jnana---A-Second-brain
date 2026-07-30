@@ -31,7 +31,7 @@ export function ScopeBar() {
 
   return (
     <div className={styles.bar}>
-      <span className={styles.label}>Scope</span>
+      <span className={styles.label}>Source</span>
       <div style={{ position: 'relative' }}>
         <button
           className={styles.select}

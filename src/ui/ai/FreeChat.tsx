@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GitFork, ListX, Pencil, RotateCcw, Trash2, ChevronDown, Star, EyeOff, FolderMinus, Trash, FolderInput } from 'lucide-react'
-import type { AiConfig, AiRule, Note, ProjectKnowledge, StoredConversation } from '../../types'
+import type { AiConfig, AiRule, AnalysisResult, Note, ProjectKnowledge, QuizAttempt, SourceNote, StoredConversation } from '../../types'
 import {
   streamChat,
   buildUserTurn,
@@ -12,6 +12,10 @@ import {
   modelCapabilities,
   hasDeepResearchEndpoint,
   runAgent,
+  analyze,
+  askNotes,
+  generateQuiz,
+  type AskTurn,
   type ChatTurn,
   type ChatAttachment,
   type StreamRoute,
@@ -19,6 +23,8 @@ import {
   type AgentStep,
   type ProposedAction,
 } from '../../core/ai'
+import { emptyAttempt } from '../../core/ai/quizGrade'
+import { buildScope, scopeLabel, scopeHint, emptyFocus, ACTION_VERB, type FocusState } from '../../core/ai/focusedScope'
 import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { listRules, listProjectRules, resolveEffectiveRules, buildRulesSystem } from '../../core/aiRules'
@@ -27,15 +33,23 @@ import { selectRulesForSend } from '../../core/ai/ruleSelect'
 import { decideRefresh } from '../../core/ai/ruleDecide'
 import { recordRuleEvent } from '../../core/ai/ruleMetrics'
 import { getAdvancedAiSettings } from '../../hooks/useAdvancedAiSettings'
+import { useQuizSettings } from '../../hooks/useQuizSettings'
 import { useViewState, getViewState, setViewState } from '../../hooks/useViewState'
 import { useChatHistory } from '../../hooks/useChatHistory'
 import { usePresets } from '../../hooks/usePresets'
 import { useProjects } from '../../hooks/useProjects'
 import { getActiveVaultId } from '../../hooks/useVaults'
 import { useNotesContext } from '../../context/NotesContext'
+import { serializeAttempt } from '../../plugins/quiz/quizNote'
+import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
+import { closeFocusPanel } from '../../lib/activeFocus'
+import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
 import { ChatComposer } from './ChatComposer'
 import { AgentSteps } from './AgentSteps'
+import { AnalysisCard } from './AnalysisCard'
+import { QuizRunner } from './QuizRunner'
 import { ProposalCard } from './ProposalCard'
 import styles from './Ai.module.css'
 
@@ -44,8 +58,27 @@ const titleFrom = (messages: FreeMessage[]): string => {
   return (firstUser?.displayText ?? firstUser?.content ?? 'New chat').slice(0, 60)
 }
 
+/** Pair prior question→answer text turns for askNotes history (skips cards). */
+const toAskHistory = (msgs: FreeMessage[]): AskTurn[] => {
+  const turns: AskTurn[] = []
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i]
+    const next = msgs[i + 1]
+    if (m.role === 'user' && next && next.role === 'assistant' && !next.card && next.content) {
+      turns.push({ question: m.displayText ?? m.content, answer: next.content })
+    }
+  }
+  return turns
+}
+
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+
+/** A grounded ("Focused") result rendered as an assistant card. Serializable
+ *  data only (no React nodes) so it round-trips through the conversation JSON. */
+type FreeCard =
+  | { type: 'analysis'; result: AnalysisResult }
+  | { type: 'quiz'; attempt: QuizAttempt; reason?: 'empty-index' | 'empty-scope' }
 
 /** A message in the free-chat thread. `content` is the model-facing text;
  *  `displayText` (user only) is the raw text shown in the bubble. */
@@ -60,6 +93,9 @@ interface FreeMessage {
   proposals?: ProposedAction[]
   appliedIds?: string[]
   skippedIds?: string[]
+  // Grounded (Focused) results ride the assistant message.
+  card?: FreeCard
+  sources?: SourceNote[]
 }
 
 const chipStyle: React.CSSProperties = {
@@ -71,7 +107,19 @@ const chipStyle: React.CSSProperties = {
   color: 'var(--text-3)',
 }
 
-export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] }) {
+export function FreeChat({
+  config,
+  notes,
+  onOpenNote,
+  onReindexAll,
+}: {
+  config: AiConfig
+  notes: Note[]
+  /** Open a note (source chips, analysis sources) in the peek modal. */
+  onOpenNote: (noteId: string) => void
+  /** Re-embed all notes — offered by a quiz card when the index is empty. */
+  onReindexAll: (notes: Note[]) => Promise<void>
+}) {
   // Persisted via useViewState: the thread survives view switches AND an
   // in-flight stream keeps writing here even if you navigate away (the setters
   // are store-bound, not tied to this component instance).
@@ -96,6 +144,13 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const [ruleIds, setRuleIds] = useViewState<string[]>('ai.free.ruleIds', [])
   const vaultId = getActiveVaultId()
 
+  // Focused (grounded) mode — arm an Analyze/Ask/Quiz action over a note scope.
+  const [focus, setFocus] = useViewState<FocusState>('ai.free.focus', emptyFocus)
+  const [quizSettings] = useQuizSettings()
+
+  // Collapse the docked Focused-scope rail panel when the chat unmounts.
+  useEffect(() => () => closeFocusPanel(), [])
+
   // Check if history sidebar is collapsed to widen the chat.
   const [collapsed] = useViewState('ai.history.collapsed', false)
 
@@ -119,7 +174,7 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const [editText, setEditText] = useState('')
 
   // Breadcrumb state
-  const [, setAiMode] = useViewState('ai.mode', 'focused')
+  const [, setAiMode] = useViewState('ai.mode', 'chat')
   const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
   const [chatTitle, setChatTitle] = useState('New chat')
   const [isRenamingChat, setIsRenamingChat] = useState(false)
@@ -161,7 +216,18 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
     [setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId],
   )
 
-  const { persist, setActiveId, activeId } = useChatHistory('chat', loadConv, resetChat)
+  // Debounced quiz-answer persistence needs to flush before the active id
+  // switches (same ordering cycle AiChat solved) — break it with a ref.
+  const persistTimer = useRef<number | null>(null)
+  const persistNowRef = useRef<() => void>(() => {})
+  const flushPersist = useCallback(() => {
+    if (persistTimer.current === null) return
+    window.clearTimeout(persistTimer.current)
+    persistTimer.current = null
+    persistNowRef.current()
+  }, [])
+
+  const { persist, setActiveId, activeId } = useChatHistory('chat', loadConv, resetChat, flushPersist)
 
   const persistNow = useCallback(() => {
     const m = getViewState<FreeMessage[]>('ai.free.messages') ?? []
@@ -173,6 +239,20 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
       getViewState<string[]>('ai.free.ruleIds') ?? [],
     )
   }, [persist])
+  persistNowRef.current = persistNow
+
+  // Debounced persist for quiz answer edits (per-keystroke IPC would be one
+  // round-trip per character); a scoring event persists immediately instead.
+  const persistSoon = useCallback(() => {
+    if (persistTimer.current !== null) window.clearTimeout(persistTimer.current)
+    persistTimer.current = window.setTimeout(() => {
+      persistTimer.current = null
+      persistNow()
+    }, 800)
+  }, [persistNow])
+
+  // Flush a pending edit on unmount so closing the view within 800ms doesn't drop it.
+  useEffect(() => () => flushPersist(), [flushPersist])
 
   useEffect(() => {
     getConversation(activeId)
@@ -241,12 +321,76 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
   const toggleThread = (id: string) =>
     setAttachments((prev) => prev.map((a) => (a.id === id ? { ...a, includeThread: !a.includeThread } : a)))
 
+  // ── Focused (grounded) send: route to analyze / askNotes / generateQuiz and
+  //    render the result as an assistant card in the same thread. ──
+  const runFocused = async (text: string) => {
+    const action = focus.action
+    if (!action) return
+    const scope = buildScope(focus)
+    if (!scope) {
+      setError(scopeHint(focus.scopeKind))
+      return
+    }
+    const question = text.trim()
+    if (action === 'ask' && !question) {
+      setError('Type a question to ask about this scope.')
+      return
+    }
+
+    setError(null)
+    setBusy(true)
+    setInput('')
+    setAttachments([])
+
+    // Capture prior turns for Ask history BEFORE appending this turn.
+    const priorMsgs = getViewState<FreeMessage[]>('ai.free.messages') ?? []
+    const label = scopeLabel(focus)
+    const reqText = action === 'ask' ? question : `${ACTION_VERB[action]} — ${label}`
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: reqText, displayText: reqText },
+      { role: 'assistant', content: '', pending: true },
+    ])
+
+    const patchLast = (patch: Partial<FreeMessage>) =>
+      setMessages((p) => {
+        const next = p.slice()
+        const last = next[next.length - 1]
+        if (last && last.role === 'assistant') next[next.length - 1] = { ...last, ...patch }
+        return next
+      })
+
+    try {
+      if (action === 'analyze') {
+        const result = await analyze(scope, config, notes)
+        patchLast({ card: { type: 'analysis', result }, pending: false })
+      } else if (action === 'quiz') {
+        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId)
+        patchLast({ card: { type: 'quiz', attempt: emptyAttempt(questions, label), reason }, pending: false })
+      } else {
+        const res = await askNotes(scope, question, toAskHistory(priorMsgs), config, notes)
+        patchLast({ content: res.answer, sources: res.sourceNotes, pending: false })
+      }
+      persistNow()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Focused request failed.')
+      patchLast({ pending: false })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const send = async (opts?: { text?: string; atts?: ChatAttachment[] }) => {
     if (busy) return
     // `opts.text` is set by edit-&-retry; otherwise use the composer.
     const explicit = typeof opts?.text === 'string'
     const text = (explicit ? (opts!.text as string) : input).trim()
     const atts = opts?.atts ?? (explicit ? [] : attachments)
+    // Grounded mode routes to the focused pipeline (edit-&-retry stays plain chat).
+    if (focus.action && !explicit) {
+      await runFocused(text)
+      return
+    }
     if (!text && atts.length === 0) return
 
     setError(null)
@@ -840,13 +984,56 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem', width: '100%' }}
                 >
                   {m.steps && m.steps.length > 0 && <AgentSteps steps={m.steps} />}
-                  <div className={styles.chatA}>
-                    {m.content ? (
-                      <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
-                    ) : (
-                      <span className={styles.spinner}>{m.pending ? (m.steps?.length ? 'Working…' : 'Thinking…') : ''}</span>
-                    )}
-                  </div>
+                  {m.card?.type === 'analysis' ? (
+                    <AnalysisCard result={m.card.result} onOpenNote={onOpenNote} />
+                  ) : m.card?.type === 'quiz' ? (
+                    <QuizRunner
+                      attempt={m.card.attempt}
+                      settings={quizSettings}
+                      config={config}
+                      reason={m.card.reason}
+                      onChange={(next) => {
+                        // A scoring event changes total/max — persist immediately;
+                        // a plain answer edit only touches responses — debounce.
+                        const cur = m.card && m.card.type === 'quiz' ? m.card.attempt : null
+                        const scored = !cur || next.total !== cur.total || next.max !== cur.max
+                        setMessages((prev) =>
+                          prev.map((msg, j) =>
+                            j === i && msg.card?.type === 'quiz' ? { ...msg, card: { ...msg.card, attempt: next } } : msg,
+                          ),
+                        )
+                        if (scored) persistNow()
+                        else persistSoon()
+                      }}
+                      onSave={async (finished) => {
+                        try {
+                          await create(`Quiz — ${finished.scopeLabel || 'Untitled'}`, serializeAttempt(finished), undefined, [], QUIZ_NOTE_KIND)
+                          toast.success('Quiz saved as a note.')
+                        } catch (err) {
+                          log.error('Failed to save quiz note', err)
+                          toast.error('Could not save the quiz. Try again.')
+                        }
+                      }}
+                      onIndexNow={() => void onReindexAll(notes)}
+                    />
+                  ) : (
+                    <div className={styles.chatA}>
+                      {m.content ? (
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                      ) : (
+                        <span className={styles.spinner}>{m.pending ? (m.steps?.length ? 'Working…' : 'Thinking…') : ''}</span>
+                      )}
+                    </div>
+                  )}
+                  {m.sources && m.sources.length > 0 && (
+                    <div className={styles.sources}>
+                      {m.sources.map((s) => (
+                        <button key={s.noteId} className={styles.sourceChip} onClick={() => onOpenNote(s.noteId)}>
+                          {s.title}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   {m.proposals && m.proposals.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -920,6 +1107,8 @@ export function FreeChat({ config, notes }: { config: AiConfig; notes: Note[] })
             vaultId={vaultId}
             ruleIds={ruleIds}
             onRuleIds={setRuleIds}
+            focus={focus}
+            onFocus={setFocus}
           />
         </div>
       </div>

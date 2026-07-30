@@ -5,12 +5,15 @@ import { useMemo, useState } from 'react'
 import {
   Bot, Brain, FileText, Image as ImageIcon, Microscope, MoreHorizontal, Music,
   NotebookPen, Paperclip, Puzzle, Palette, Plus, ScrollText, SlidersHorizontal,
-  Square, Wrench, X,
+  Sparkles, Square, Wrench, X,
 } from 'lucide-react'
 import type { AiPreset } from '../../types'
 import type { ChatAttachment } from '../../core/ai'
 import type { Note } from '../../types'
+import { ACTION_VERB, scopeLabel, type FocusState } from '../../core/ai/focusedScope'
+import { closeFocusPanel } from '../../lib/activeFocus'
 import { ComposerMenu, MenuRow, MenuHeader, pillStyle } from './ComposerMenu'
+import { FocusedContent } from './FocusedMenu'
 import { StylesBody, SkillsBody } from './PresetPicker'
 import { RulesBody } from './RulesPicker'
 import styles from './Ai.module.css'
@@ -49,6 +52,9 @@ interface Props {
   vaultId: string
   ruleIds: string[]
   onRuleIds: (ids: string[]) => void
+  // Focused (grounded) mode: arm an action over a note scope; the shared Send runs it.
+  focus: FocusState
+  onFocus: (updater: (f: FocusState) => FocusState) => void
   disabled?: boolean
 }
 
@@ -259,9 +265,14 @@ export function ChatComposer({
   vaultId,
   ruleIds,
   onRuleIds,
+  focus,
+  onFocus,
   disabled,
 }: Props) {
-  const canSend = !busy && (value.trim() !== '' || attachments.length > 0)
+  // Analyze/Quiz run on the scope alone (no text needed); Ask + normal chat need input.
+  const runsWithoutText = focus.action === 'analyze' || focus.action === 'quiz'
+  const canSend = !busy && (runsWithoutText || value.trim() !== '' || attachments.length > 0)
+  const sendLabel = focus.action === 'analyze' ? 'Analyze' : focus.action === 'quiz' ? 'Quiz me' : 'Send'
 
   const styleActive = stylePresets.some((s) => s.id === styleId)
   const skillCount = skillIds.filter((id) => skillPresets.some((s) => s.id === id)).length
@@ -315,6 +326,24 @@ export function ChatComposer({
               </button>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Armed focused-mode chip — the next Send runs this grounded action. */}
+      {focus.action && (
+        <div style={{ display: 'flex', margin: '0 0.5rem' }}>
+          <span style={{ ...pillStyle(true), gap: '6px' }}>
+            <Sparkles size={13} />
+            {ACTION_VERB[focus.action]} · {scopeLabel(focus)}
+            <button
+              onClick={() => { onFocus((f) => ({ ...f, action: null })); closeFocusPanel() }}
+              title="Turn off focused mode"
+              aria-label="Turn off focused mode"
+              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'inline-flex' }}
+            >
+              <X size={13} />
+            </button>
+          </span>
         </div>
       )}
 
@@ -394,6 +423,12 @@ export function ChatComposer({
             )}
           </ComposerMenu>
 
+          <ComposerMenu icon={<Sparkles size={14} />} label="Focused" active={!!focus.action}>
+            {(close) => (
+              <FocusedContent focus={focus} setFocus={onFocus} close={close} />
+            )}
+          </ComposerMenu>
+
           <div style={{ marginLeft: 'auto' }}>
             {busy ? (
               <button className={styles.btn} onClick={onStop} title="Stop generating">
@@ -401,7 +436,7 @@ export function ChatComposer({
               </button>
             ) : (
               <button className={styles.btnPrimary} disabled={!canSend} onClick={onSend}>
-                Send
+                {sendLabel}
               </button>
             )}
           </div>

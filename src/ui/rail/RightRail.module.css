@@ -36,12 +36,30 @@
 }
 
 .body {
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: 15rem;
+  width: 18.75rem; /* default; overridden by the persisted drag width */
   min-width: 0;
   background: var(--surface);
   border-left: 1px solid var(--border);
+}
+
+/* Drag handle on the body's left edge to resize the rail. */
+.resizeGrip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  transform: translateX(-3px); /* straddle the border for an easy grab */
+  cursor: col-resize;
+  z-index: 1;
+  touch-action: none;
+}
+.resizeGrip:hover,
+.resizeGrip:active {
+  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--accent) 45%, transparent));
 }
 
 .bodyHeader {

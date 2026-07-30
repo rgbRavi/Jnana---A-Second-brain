@@ -957,6 +957,92 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
+/* Segmented scope-kind switch (Topic / Time / Note) */
+.cSeg {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+.cSegBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0.35rem 0.4rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+}
+.cSegBtn:hover { color: var(--text-1); }
+.cSegBtnActive,
+.cSegBtnActive:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+/* Small quick-range chip button */
+.cChipBtn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  padding: 0.22rem 0.55rem;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+}
+.cChipBtn:hover { border-color: var(--border-hover); color: var(--text-1); }
+
+/* ── Docked Focused-scope rail panel ─────────────────────────────────────── */
+.focusPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.focusHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+}
+.focusHeader svg { flex: none; margin-top: 2px; color: var(--accent); }
+
+.focusQuiz {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.focusHint {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+.focusHint strong { color: var(--accent); font-weight: 600; }
+
+/* Inline quiz settings (docked in the rail, not a popover) */
+.quizSettings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
 /* Icon-only add/star affordances in the rules composer */
 .cIconBtn {
   display: inline-flex;
