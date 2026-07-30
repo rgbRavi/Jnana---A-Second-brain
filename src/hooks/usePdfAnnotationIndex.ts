@@ -28,12 +28,18 @@ const ANNOTATION_KEY = '<annotations>'
  * skipped entirely (logged) rather than emitted as a partial note — the
  * annotation text is already persisted via `saveAttachmentText`, and a later
  * real `note:saved` will pick it up.
+ *
+ * `annotation:created` carries the full annotation, so a non-textual kind
+ * (`pdf_ref`, `pdf_ink`) is skipped early — it can't affect the indexed text.
+ * `annotation:updated`/`annotation:deleted` payloads don't carry `kind`, so
+ * they're always handled (e.g. deleting a text box must still re-index).
  */
 export function usePdfAnnotationIndex(): void {
   useEffect(() => {
     const handler = (payload: unknown) => {
-      const noteId = (payload as { noteId?: string })?.noteId
+      const { noteId, kind } = (payload as { noteId?: string; kind?: string }) ?? {}
       if (!noteId) return
+      if (kind && kind !== 'pdf_text' && kind !== 'pdf_highlight') return
       void (async () => {
         try {
           const text = await listPdfAnnotationText(noteId)

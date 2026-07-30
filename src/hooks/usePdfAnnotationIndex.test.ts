@@ -41,6 +41,14 @@ describe('usePdfAnnotationIndex', () => {
     unmount()
   })
 
+  it('skips non-textual annotation:created kinds (e.g. pdf_ref) without indexing', async () => {
+    const { unmount } = renderHook(() => usePdfAnnotationIndex())
+    eventBus.emit('annotation:created', { id: 'a1', noteId: 'n1', kind: 'pdf_ref' })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(saveAttachmentText).not.toHaveBeenCalled()
+    unmount()
+  })
+
   it('ignores events without a noteId', async () => {
     const { unmount } = renderHook(() => usePdfAnnotationIndex())
     eventBus.emit('annotation:deleted', { id: 'a1' })
