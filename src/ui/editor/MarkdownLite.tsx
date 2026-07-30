@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
+import { DocRefChip } from './DocRefChip'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
 import { remarkBreaks } from '../../core/markdown/remarkBreaks'
 import { colorAnyTokenRegex, highlightBackground, resolveColor } from '../../core/markdown/colors'
@@ -88,6 +89,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
   // still reads the latest list whenever this card legitimately re-renders.
   const notesRef = useRef(notes)
   notesRef.current = notes
+
+  const contentRef = useRef(content)
+  contentRef.current = content
 
   // Saved media sizes/alignment — loaded once per note (resize affordances
   // only exist in the live editor, so this never needs to update mid-view).
@@ -208,6 +212,20 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       return <TimestampButton kind={kind} index={index} time={time} onSeek={seek} />
     }
 
+    const docRef = ({ node }: { node?: HastElement }) => {
+      const p = hastProperties(node)
+      return (
+        <DocRefChip
+          pdfIndex={Number(p.pdfIndex ?? 0)}
+          page={Number(p.page ?? 1)}
+          x={Number(p.x ?? 0)}
+          y={Number(p.y ?? 0)}
+          noteId={noteId}
+          content={contentRef.current}
+        />
+      )
+    }
+
     const color = ({ node }: { node?: HastElement }) => {
       const props = hastProperties(node)
       const inner = renderColorTokens(String(props['data-text'] ?? ''))
@@ -233,6 +251,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       img, a, p, pre, code,
       'jnana-wikilink': wikilink,
       'jnana-timestamp': timestamp,
+      'jnana-doc-ref': docRef,
       'jnana-color': color,
       'jnana-highlight': highlight,
       'jnana-table': table,
