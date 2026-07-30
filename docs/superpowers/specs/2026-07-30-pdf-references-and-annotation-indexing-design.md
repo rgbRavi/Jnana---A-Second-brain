@@ -36,12 +36,11 @@ needed none).
 [D<n>::p<page>@<x>,<y>]
 ```
 
-- `n` — the PDF's occurrence index in the note, **1-based** (`D1` = the first `![pdf]`). Document
-  order like `[V0::]`/`[A0::]`, but deliberately 1-based rather than their 0-based index — it matches
-  the literal the user asked for and reads consistently with `page`, which is also 1-based.
+- `n` — the PDF's occurrence index in the note, **0-based** (`D0` = the first `![pdf]`), document
+  order, mirroring `[V0::]`/`[A0::]`.
 - `page` — 1-based page number.
 - `x,y` — the point **normalized to 0–1 of the page** (zoom/size-independent, export-safe).
-- Example: `[D1::p4@0.42,0.68]`
+- Example: `[D0::p4@0.42,0.68]`
 
 Regex source lives in `core/markdown/tokenPatterns.ts` next to the existing timestamp sources:
 
@@ -55,7 +54,7 @@ capture step converts points → normalized (divide by page width/height) when b
 
 ### 1.3 Rendering — chip shows `📄 p.<page>`
 
-Raw source stays `[D1::p4@…]`; the chip **displays `📄 p.4`**.
+Raw source stays `[D0::p4@…]`; the chip **displays `📄 p.4`**.
 
 - **Read mode** — `remarkJnana` converts a `docRefRegex()` match into a `jnana-doc-ref` mdast node
   carrying `{ pdfIndex, page, x, y }`; `MarkdownLite` maps it to a `DocRefChip` component.
@@ -108,8 +107,8 @@ Currently only `![video]`/`![audio]` get a parse-time `data-*-index`. Add the sa
   the filename independently via `nthPdfFilename` (§1.7).
 
 A pure helper `nthPdfFilename(content: string, n: number): string | null` (in
-`core/markdown/pdfRef.ts`, tested) extracts the **1-based** nth `![pdf](jnana-asset://…)` filename
-from note content (`n = 1` → first PDF; returns `null` if out of range).
+`core/markdown/pdfRef.ts`, tested) extracts the **0-based** nth `![pdf](jnana-asset://…)` filename
+from note content (`n = 0` → first PDF; returns `null` if out of range).
 
 ### 1.7 Jump-back — global PDF viewer host
 
@@ -189,7 +188,7 @@ keyword search and AI/RAG retrieval — same as the PDF's printed text already i
 ## Testing
 
 - `pdfRef.test.ts` — token build/parse round-trip, `nthPdfFilename` (0/1/n, missing).
-- `tokenPatterns` / `remarkJnana` / `lezerJnana` tests — `[D1::p4@x,y]` tokenizes and renders to a
+- `tokenPatterns` / `remarkJnana` / `lezerJnana` tests — `[D0::p4@x,y]` tokenizes and renders to a
   `jnana-doc-ref` node, and does **not** collide with existing wikilink/timestamp parsing (and stays
   literal inside code fences, like the other tokens).
 - `usePdfAnnotationIndex` — an `annotation:created` for a pdf triggers `saveAttachmentText` +
