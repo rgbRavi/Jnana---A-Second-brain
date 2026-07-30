@@ -680,14 +680,16 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
                 key={ref.id}
                 type="button"
                 className={styles.refDot}
-                style={{ left: vx, top: vy }}
+                style={{ left: vx, top: vy, pointerEvents: tool === 'select' ? 'auto' : 'none' }}
                 title="Reference pin"
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (!page) return
+                  if (!page || !viewport) return
                   const unit = page.getViewport({ scale: 1 })
                   const token = buildDocRefToken(pdfIndex, pageNumber, ref.x / unit.width, ref.y / unit.height)
-                  setPinMenu({ left: vx, top: vy, token, id: ref.id })
+                  const left = Math.max(0, Math.min(vx, viewport.width - 180))
+                  const top = Math.max(0, Math.min(vy, viewport.height - 140))
+                  setPinMenu({ left, top, token, id: ref.id })
                 }}
               />
             )
