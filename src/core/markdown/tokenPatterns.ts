@@ -15,15 +15,18 @@ export const WIKILINK_SOURCE = '\\[\\[(.*?)\\]\\]'
 export const VIDEO_TIMESTAMP_SOURCE = '\\[V(\\d+)::(\\d{2}:\\d{2}:\\d{2})\\]'
 export const AUDIO_TIMESTAMP_SOURCE = '\\[A(\\d+)::(\\d{2}:\\d{2}:\\d{2})\\]'
 export const SIMPLE_TIMESTAMP_SOURCE = '\\[(\\d{1,2}:\\d{2}(?::\\d{2})?)\\]'
+export const DOC_REF_SOURCE = '\\[D(\\d+)::p(\\d+)@([0-9]*\\.?[0-9]+),([0-9]*\\.?[0-9]+)\\]'
 
 /** A fresh global-flagged regex per call, for scanning an entire text node (remark). */
 export const wikilinkRegex = (): RegExp => new RegExp(WIKILINK_SOURCE, 'g')
 export const videoTimestampRegex = (): RegExp => new RegExp(VIDEO_TIMESTAMP_SOURCE, 'g')
 export const audioTimestampRegex = (): RegExp => new RegExp(AUDIO_TIMESTAMP_SOURCE, 'g')
 export const simpleTimestampRegex = (): RegExp => new RegExp(SIMPLE_TIMESTAMP_SOURCE, 'g')
+export const docRefRegex = (): RegExp => new RegExp(DOC_REF_SOURCE, 'g')
 
 /** A fresh start-anchored regex per call, for matching at a specific position (lezer). */
 export const wikilinkAnchored = (): RegExp => new RegExp('^' + WIKILINK_SOURCE)
 export const videoTimestampAnchored = (): RegExp => new RegExp('^' + VIDEO_TIMESTAMP_SOURCE)
 export const audioTimestampAnchored = (): RegExp => new RegExp('^' + AUDIO_TIMESTAMP_SOURCE)
 export const simpleTimestampAnchored = (): RegExp => new RegExp('^' + SIMPLE_TIMESTAMP_SOURCE)
+export const docRefAnchored = (): RegExp => new RegExp('^' + DOC_REF_SOURCE)
