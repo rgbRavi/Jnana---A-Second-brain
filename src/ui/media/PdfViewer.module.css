@@ -142,3 +142,23 @@
 .pinMenu button:hover {
   background: var(--surface-hover);
 }
+
+/* Jump-back pulse for the `pdf:open` reveal path — same fixed reference blue
+   as .refDot (deliberate, theme-independent) so the pulse visually matches
+   the pin it points at. */
+.refPulse {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 999px;
+  background: #2f6fed;
+  box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6);
+  animation: refPulse 1.4s ease-out 1;
+  pointer-events: none;
+}
+
+@keyframes refPulse {
+  0% { box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6); }
+  100% { box-shadow: 0 0 0 22px rgba(47, 111, 237, 0); }
+}

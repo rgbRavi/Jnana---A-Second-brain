@@ -15,6 +15,7 @@ import { RightRail } from "./ui/rail/RightRail";
 import { Toaster } from "./ui/Toaster";
 import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
+import { PdfRefViewerHost } from "./ui/PdfRefViewerHost";
 import { PluginWidgetHost } from "./ui/PluginWidgetHost";
 import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
@@ -187,6 +188,7 @@ function AppInner() {
             </main>
             {!inSettings && <RightRail />}
             <CommandPalette />
+            <PdfRefViewerHost />
             <PluginWidgetHost />
             <Tooltip />
             <Toaster />

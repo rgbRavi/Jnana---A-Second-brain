@@ -55,6 +55,9 @@ interface PdfViewerProps {
   pdfIndex?: number
   /** Called once so the parent can jump this viewer to a specific page */
   onRegisterPageSetter?: (setter: (page: number) => void) => void
+  /** Called once so the parent can jump to a page AND pulse a normalized
+   *  (0-1) point on it — used by the `pdf:open` jump-back host. */
+  onRegisterReveal?: (fn: (page: number, x: number, y: number) => void) => void
   /** Called with a `[D<index>::p<page>@x,y]` token when the user chooses
    *  "Append to note" from a reference pin's popover. */
   onAppendRef?: (token: string) => void
@@ -67,7 +70,7 @@ function assetUrl(filename: string): string {
   return `http://jnana-asset.localhost/${filename}`
 }
 
-export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter, onAppendRef, readOnly = false }: PdfViewerProps) {
+export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter, onRegisterReveal, onAppendRef, readOnly = false }: PdfViewerProps) {
   const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [page, setPage] = useState<pdfjsLib.PDFPageProxy | null>(null)
   const [loading, setLoading] = useState(true)
@@ -101,6 +104,9 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
   const [editingHl, setEditingHl] = useState<{ id: string; left: number; top: number; draft: string; orig: string } | null>(null)
   // Reference-pin popover (Copy / Append / Delete), anchored over the pin.
   const [pinMenu, setPinMenu] = useState<{ left: number; top: number; token: string; id: string } | null>(null)
+  // Jump-back pulse point (PDF-point coords), set by the `pdf:open` host via
+  // onRegisterReveal; cleared automatically once the animation finishes.
+  const [pulse, setPulse] = useState<{ x: number; y: number } | null>(null)
 
   const {
     highlights,
@@ -126,6 +132,20 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
       })
     }
   }, [onRegisterPageSetter, numPages])
+
+  // Register the reveal fn for the `pdf:open` jump-back host: jumps to a page
+  // and pulses a normalized (0-1) point on it. Symmetric to the page setter
+  // above — re-registers whenever `page` changes so the closure stays fresh.
+  useEffect(() => {
+    if (!onRegisterReveal) return
+    onRegisterReveal((p: number, nx: number, ny: number) => {
+      setPageNumber(p)
+      if (!page) return
+      const unit = page.getViewport({ scale: 1 })
+      setPulse({ x: nx * unit.width, y: ny * unit.height })
+      setTimeout(() => setPulse(null), 1600)
+    })
+  }, [onRegisterReveal, page])
 
   // 1. Load the PDF Document
   useEffect(() => {
@@ -164,6 +184,14 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
   // (which samples canvas pixels) re-runs against the finished page, not a
   // blank/stale bitmap.
   const [renderTick, setRenderTick] = useState(0)
+
+  // Best-effort: scroll the pulsed reveal point into view, centered in the container.
+  useEffect(() => {
+    if (!pulse || !viewport || !containerRef.current) return
+    const [, vy] = viewport.convertToViewportPoint(pulse.x, pulse.y)
+    const el = containerRef.current
+    el.scrollTo({ top: Math.max(0, vy - el.clientHeight / 2), behavior: 'smooth' })
+  }, [pulse, viewport])
 
   useEffect(() => {
     if (!page || !canvasRef.current || !containerRef.current) return
@@ -730,6 +758,12 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
               </button>
             </div>
           )}
+
+          {/* Jump-back pulse — points at a `pdf:open` reference target */}
+          {pulse && viewport && (() => {
+            const [vx, vy] = viewport.convertToViewportPoint(pulse.x, pulse.y)
+            return <div className={styles.refPulse} style={{ left: vx, top: vy }} />
+          })()}
 
           {/* Active highlight drag box */}
           {isSelecting && currentRect && (
