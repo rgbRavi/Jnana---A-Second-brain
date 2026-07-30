@@ -156,6 +156,7 @@
   box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6);
   animation: refPulse 1.4s ease-out 1;
   pointer-events: none;
+  z-index: 14;
 }
 
 @keyframes refPulse {

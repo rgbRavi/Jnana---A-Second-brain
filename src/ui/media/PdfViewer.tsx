@@ -107,6 +107,13 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
   // Jump-back pulse point (PDF-point coords), set by the `pdf:open` host via
   // onRegisterReveal; cleared automatically once the animation finishes.
   const [pulse, setPulse] = useState<{ x: number; y: number } | null>(null)
+  // Reveal target awaiting its page to finish loading — normalized (0-1)
+  // coords + the target page number. Consumed (and cleared) by the effect
+  // below once `page` actually reflects that page, so the pulse always uses
+  // the TARGET page's dimensions, not whatever page happened to be loaded
+  // when the reveal fired.
+  const pendingRevealRef = useRef<{ page: number; nx: number; ny: number } | null>(null)
+  const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const {
     highlights,
@@ -134,18 +141,43 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
   }, [onRegisterPageSetter, numPages])
 
   // Register the reveal fn for the `pdf:open` jump-back host: jumps to a page
-  // and pulses a normalized (0-1) point on it. Symmetric to the page setter
-  // above — re-registers whenever `page` changes so the closure stays fresh.
+  // and arms a PENDING reveal (page + normalized point) — it must NOT compute
+  // pulse coords here, since the target page `p` is usually not the currently
+  // loaded `page` yet (async load). The effect below fires once the loaded
+  // page actually catches up to `p`.
   useEffect(() => {
     if (!onRegisterReveal) return
     onRegisterReveal((p: number, nx: number, ny: number) => {
+      if (!(p >= 1 && (numPages === 0 || p <= numPages))) return
       setPageNumber(p)
-      if (!page) return
-      const unit = page.getViewport({ scale: 1 })
-      setPulse({ x: nx * unit.width, y: ny * unit.height })
-      setTimeout(() => setPulse(null), 1600)
+      pendingRevealRef.current = { page: p, nx, ny }
     })
-  }, [onRegisterReveal, page])
+  }, [onRegisterReveal, numPages])
+
+  // Fires once the loaded `page` matches the pending reveal's target page —
+  // computes the pulse from the TARGET page's own unscaled viewport (correct
+  // for non-uniform page sizes) and survives the async page load (no lost
+  // pulse). Tracks the dismiss timer so a second reveal within 1600ms can't
+  // have its fresh pulse cleared by the first reveal's stale timer.
+  useEffect(() => {
+    const pending = pendingRevealRef.current
+    if (!pending || !page || page.pageNumber !== pending.page || pageNumber !== pending.page) return
+    const unit = page.getViewport({ scale: 1 })
+    if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current)
+    setPulse({ x: pending.nx * unit.width, y: pending.ny * unit.height })
+    pendingRevealRef.current = null
+    pulseTimerRef.current = setTimeout(() => {
+      pulseTimerRef.current = null
+      setPulse(null)
+    }, 1600)
+  }, [page, pageNumber])
+
+  // Clear any pending pulse-dismiss timer on unmount (no setState-after-unmount).
+  useEffect(() => {
+    return () => {
+      if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current)
+    }
+  }, [])
 
   // 1. Load the PDF Document
   useEffect(() => {
