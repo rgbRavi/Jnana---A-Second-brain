@@ -234,11 +234,13 @@ class YouTubeWidget extends ReactWidget<{
 class PdfWidget extends ReactWidget<{
   url: string
   noteId: string
+  pdfIndex: number
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
   onMediaDragStart: LiveContext['onMediaDragStart']
   onLayoutChange: LiveContext['onLayoutChange']
+  view: EditorView
 }> {
   renderWidget() {
     return (
@@ -251,7 +253,16 @@ class PdfWidget extends ReactWidget<{
         onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
         onLayoutChange={this.props.onLayoutChange}
       >
-        {(layout) => <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} layout={layout} />}
+        {(layout) => (
+          <PdfEmbed
+            url={this.props.url}
+            noteId={this.props.noteId}
+            lazy={false}
+            layout={layout}
+            pdfIndex={this.props.pdfIndex}
+            onAppendRef={(token) => this.props.view.dispatch(this.props.view.state.replaceSelection(`\n${token}`))}
+          />
+        )}
       </ResizableMediaFrame>
     )
   }
@@ -417,6 +428,7 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
 
   let videoIndex = 0
   let audioIndex = 0
+  let pdfIndex = 0
   // Mirrors remarkJnana.ts's media_key derivation (url + document-order
   // occurrence ordinal) so both renderers agree on which saved layout
   // applies to which embed.
@@ -544,10 +556,11 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
             }))
           }
         } else if (alt === 'pdf') {
+          const idx = pdfIndex++
           if (!revealed(from, to)) {
             applyAlign()
             builder.add(from, to, Decoration.replace({
-              widget: new PdfWidget({ url, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+              widget: new PdfWidget({ url, noteId: context.noteId, pdfIndex: idx, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange, view }),
             }))
           }
         } else if (alt === 'webpage') {

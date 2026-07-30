@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
+import { saveNote } from '../../core/notes'
 import { DocRefChip } from './DocRefChip'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
 import { remarkBreaks } from '../../core/markdown/remarkBreaks'
@@ -142,7 +143,15 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} preview={preview} />
       }
       if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} preview={preview} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} preview={preview} />
+      if (alt === 'pdf') {
+        const pdfIdx = Number(hastProperties(node)['data-pdf-index'] ?? 0)
+        const appendRef = (token: string) => {
+          const note = notesRef.current.find((n) => n.id === noteId)
+          if (!note) return
+          void saveNote({ ...note, content: `${note.content}\n${token}` })
+        }
+        return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} preview={preview} pdfIndex={pdfIdx} onAppendRef={appendRef} />
+      }
       if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} previewCard={preview} />
       return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} preview={preview} />
     }

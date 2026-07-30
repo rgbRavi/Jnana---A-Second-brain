@@ -169,7 +169,7 @@ export function YouTubeEmbed({ url, lazy, layout, preview = false }: { url: stri
  *  — a full multi-page viewer is too tall for a preview); click opens the
  *  full PdfViewer in a fullscreen overlay. Not part of the resizable-media
  *  layout system — its thumbnail size is intentionally fixed. */
-export function PdfEmbed({ url, noteId, lazy = true, layout, preview = false }: { url: string; noteId: string; lazy?: boolean; layout?: MediaLayout; preview?: boolean }) {
+export function PdfEmbed({ url, noteId, lazy = true, layout, preview = false, pdfIndex, onAppendRef }: { url: string; noteId: string; lazy?: boolean; layout?: MediaLayout; preview?: boolean; pdfIndex?: number; onAppendRef?: (token: string) => void }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const filename = url.replace('jnana-asset://', '')
   // pdf.js (getDocument + canvas render of page 1) is heavy; don't spin it up
@@ -186,7 +186,7 @@ export function PdfEmbed({ url, noteId, lazy = true, layout, preview = false }: 
         <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
           <div className={MdStyles.fullscreenContent} onClick={(e) => e.stopPropagation()}>
             <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)} aria-label="Close"><X size={18} /></button>
-            <PdfViewer filename={filename} noteId={noteId} />
+            <PdfViewer filename={filename} noteId={noteId} pdfIndex={pdfIndex} onAppendRef={onAppendRef} />
           </div>
         </div>,
         document.body
