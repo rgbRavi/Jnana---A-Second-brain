@@ -6,7 +6,6 @@ import { eventBus } from '../lib/eventBus'
 import { listPdfAnnotationText } from '../core/annotations'
 import { saveAttachmentText } from '../core/attachmentText'
 import { getNote } from '../core/notes'
-import type { Note } from '../types'
 import { log } from '../lib/logger'
 
 // Reserved pseudo-filename so annotation text is its own attachment_text row,
@@ -25,8 +24,10 @@ const ANNOTATION_KEY = '<annotations>'
  * useSearch's `note:saved` handler replaces the whole indexed document from
  * the payload (a bare id would blank the title/content fields it indexes),
  * and useRag's chunker reads `note.content` directly (a bare id throws inside
- * the chunker, silently failing indexing). Falls back to the bare id only if
- * the fetch fails — nothing to index for a note that's gone anyway.
+ * the chunker, silently failing indexing). If the fetch fails, the re-emit is
+ * skipped entirely (logged) rather than emitted as a partial note — the
+ * annotation text is already persisted via `saveAttachmentText`, and a later
+ * real `note:saved` will pick it up.
  */
 export function usePdfAnnotationIndex(): void {
   useEffect(() => {
@@ -37,8 +38,11 @@ export function usePdfAnnotationIndex(): void {
         try {
           const text = await listPdfAnnotationText(noteId)
           await saveAttachmentText(noteId, ANNOTATION_KEY, text)
-          const note = await getNote(noteId).catch(() => ({ id: noteId }) as Note)
-          eventBus.emit('note:saved', note)
+          const note = await getNote(noteId).catch((e) => {
+            log.error('usePdfAnnotationIndex: getNote failed, skipping re-emit', e)
+            return null
+          })
+          if (note) eventBus.emit('note:saved', note)
         } catch (e) {
           log.error('usePdfAnnotationIndex: failed', e)
         }
