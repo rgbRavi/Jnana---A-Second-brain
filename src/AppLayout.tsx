@@ -29,6 +29,7 @@ import { getGeneralSettings } from "./hooks/useGeneralSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
+import { usePdfAnnotationIndex } from "./hooks/usePdfAnnotationIndex";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import AppStyles from "./App.module.css"
 
@@ -58,6 +59,7 @@ function AppInner() {
     // Extract text from notes' PDF attachments after save (note row exists by
     // then) so PDF contents are searchable in keyword + AI search.
     usePdfTextIndex()
+    usePdfAnnotationIndex()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()
