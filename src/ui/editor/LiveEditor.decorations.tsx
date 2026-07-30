@@ -34,6 +34,8 @@ import {
   wikilinkAnchored,
 } from '../../core/markdown/tokenPatterns'
 import { colorTokenRegex, highlightBackground, highlightTokenRegex, resolveColor } from '../../core/markdown/colors'
+import { parseDocRefToken } from '../../core/markdown/pdfRef'
+import { DocRefChip } from './DocRefChip'
 import {
   AudioEmbed,
   EditorTableWidget,
@@ -314,6 +316,28 @@ class TimestampWidget extends ReactWidget<{
   }
 }
 
+class DocRefWidget extends ReactWidget<{
+  pdfIndex: number
+  page: number
+  x: number
+  y: number
+  noteId: string
+  content: string
+}> {
+  renderWidget() {
+    return (
+      <DocRefChip
+        pdfIndex={this.props.pdfIndex}
+        page={this.props.page}
+        x={this.props.x}
+        y={this.props.y}
+        noteId={this.props.noteId}
+        content={this.props.content}
+      />
+    )
+  }
+}
+
 // Block widget for a ```table fence (widget mode). `csv`/`occurrence`/`header`
 // are primitives and `editTable` is a stable ref, so eq() holds across rebuilds
 // (only a genuine content/colour change recreates it).
@@ -590,6 +614,25 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
           builder.add(from, to, Decoration.replace({
             widget: new TimestampWidget({ kind, index, time, onSeek: (k, i, sec) => seekInView(view, k, i, sec) }),
           }))
+        }
+        return false
+      }
+
+      if (name === 'JnanaDocRef') {
+        if (!revealed(from, to)) {
+          const parsed = parseDocRefToken(text.slice(from, to))
+          if (parsed) {
+            builder.add(from, to, Decoration.replace({
+              widget: new DocRefWidget({
+                pdfIndex: parsed.index,
+                page: parsed.page,
+                x: parsed.x,
+                y: parsed.y,
+                noteId: context.noteId,
+                content: text,
+              }),
+            }))
+          }
         }
         return false
       }
