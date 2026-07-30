@@ -79,20 +79,20 @@ export function useAnnotations(noteId: string) {
     setAnnotations((prev) =>
       prev.map((a) => (a.id === id ? { ...a, content } : a))
     )
-    await updateAnnotation(id, content)
-  }, [])
+    await updateAnnotation(id, content, noteId)
+  }, [noteId])
 
   const updatePosition = useCallback(async (id: string, position: string) => {
     setAnnotations((prev) =>
       prev.map((a) => (a.id === id ? { ...a, position } : a))
     )
-    await updateAnnotationPosition(id, position)
-  }, [])
+    await updateAnnotationPosition(id, position, noteId)
+  }, [noteId])
 
   const remove = useCallback(async (id: string) => {
     setAnnotations((prev) => prev.filter((a) => a.id !== id))
-    await deleteAnnotation(id)
-  }, [])
+    await deleteAnnotation(id, noteId)
+  }, [noteId])
 
   return { annotations, loading, create, update, updatePosition, remove }
 }

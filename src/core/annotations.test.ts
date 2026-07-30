@@ -7,7 +7,7 @@ const mockInvoke = vi.fn()
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => mockInvoke(...a) }))
 vi.mock('../lib/eventBus', () => ({ eventBus: { emit: vi.fn() } }))
 
-import { listPdfAnnotationText } from './annotations'
+import { listPdfAnnotationText, makePdfRefAnnotation } from './annotations'
 
 describe('listPdfAnnotationText', () => {
   beforeEach(() => mockInvoke.mockReset())
@@ -27,4 +27,11 @@ describe('listPdfAnnotationText', () => {
     mockInvoke.mockResolvedValue([{ id: '1', kind: 'pdf_ink', content: '' }])
     expect(await listPdfAnnotationText('n1')).toBe('')
   })
+})
+
+it('makePdfRefAnnotation stores page/x/y in PDF points, empty content', () => {
+  const a = makePdfRefAnnotation('n1', 'm.pdf', 4, 120.5, 300.25)
+  expect(a.kind).toBe('pdf_ref')
+  expect(a.content).toBe('')
+  expect(JSON.parse(a.position)).toEqual({ page: 4, x: 120.5, y: 300.25 })
 })
