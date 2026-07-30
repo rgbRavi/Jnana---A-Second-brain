@@ -41,6 +41,13 @@ describe('remarkJnana', () => {
       expect(image.data?.hProperties?.['data-video-index']).toBeUndefined()
       expect(image.data?.hProperties?.['data-audio-index']).toBeUndefined()
     })
+
+    it('assigns data-pdf-index in document order', () => {
+      const tree = parse('![pdf](jnana-asset://a.pdf)\n\n![pdf](jnana-asset://b.pdf)')
+      const idxs: unknown[] = []
+      visit(tree, 'image', (n: any) => idxs.push(n.data?.hProperties?.['data-pdf-index']))
+      expect(idxs).toEqual([0, 1])
+    })
   })
 
   describe('media key derivation', () => {
@@ -107,6 +114,13 @@ describe('remarkJnana', () => {
       const tree = parse('Jump to [05:12]')
       const [ts] = findAll(tree, 'jnana-timestamp')
       expect(ts.data.hProperties).toEqual({ kind: 'video', index: 0, time: '05:12' })
+    })
+
+    it('converts [D0::p4@x,y] to a jnana-doc-ref node', () => {
+      const tree = parse('ref [D0::p4@0.42,0.68] end')
+      let found: any = null
+      visit(tree, 'jnana-doc-ref', (n: any) => { found = n })
+      expect(found?.data?.hProperties).toEqual({ pdfIndex: 0, page: 4, x: 0.42, y: 0.68 })
     })
   })
 
