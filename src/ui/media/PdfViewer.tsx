@@ -756,7 +756,14 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
           })}
 
           {!readOnly && pinMenu && (
-            <div className={styles.pinMenu} style={{ left: pinMenu.left, top: pinMenu.top }}>
+            <div
+              className={styles.pinMenu}
+              style={{ left: pinMenu.left, top: pinMenu.top }}
+              // Keep the pointerdown off the overlay handler — it closes the
+              // popover (setPinMenu(null)) on pointerdown, which would unmount
+              // these buttons before their click (fired on pointerup) lands.
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 onClick={() => {
