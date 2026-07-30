@@ -3,11 +3,12 @@
 
 // src/ui/media/PdfViewer.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Eraser, Highlighter, MousePointer2, Pen, Plus } from 'lucide-react'
+import { Eraser, Highlighter, MapPin, MousePointer2, Pen, Plus } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 import { usePdfAnnotations } from '../../hooks/usePdfAnnotations'
 import { toast } from '../../lib/toast'
 import { strokePath } from '../../core/ink'
+import { buildDocRefToken } from '../../core/markdown/pdfRef'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import styles from './PdfViewer.module.css'
 
@@ -15,7 +16,7 @@ import styles from './PdfViewer.module.css'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
-type Tool = 'select' | 'highlight' | 'pen' | 'eraser' | 'text'
+type Tool = 'select' | 'highlight' | 'pen' | 'eraser' | 'text' | 'ref'
 
 // Pen defaults mirror the canvas board (useCanvasPrefs).
 const PEN_COLORS = ['#7c6af7', '#e5484d', '#f5a623', '#30a46c', '#111111']
@@ -49,8 +50,14 @@ function isLightColor(hex: string): boolean {
 interface PdfViewerProps {
   filename: string
   noteId: string
+  /** 0-based index of this PDF among the note's `![pdf]` embeds — encoded into
+   *  a `[D<index>::…]` reference token so it can be resolved back to this file. */
+  pdfIndex?: number
   /** Called once so the parent can jump this viewer to a specific page */
   onRegisterPageSetter?: (setter: (page: number) => void) => void
+  /** Called with a `[D<index>::p<page>@x,y]` token when the user chooses
+   *  "Append to note" from a reference pin's popover. */
+  onAppendRef?: (token: string) => void
   /** Render-only: hide the markup tools + overlay interactions (e.g. on the
    *  canvas, where there is no note to scope annotations to). */
   readOnly?: boolean
@@ -60,7 +67,7 @@ function assetUrl(filename: string): string {
   return `http://jnana-asset.localhost/${filename}`
 }
 
-export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = false }: PdfViewerProps) {
+export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter, onAppendRef, readOnly = false }: PdfViewerProps) {
   const [pdf, setPdf] = useState<pdfjsLib.PDFDocumentProxy | null>(null)
   const [page, setPage] = useState<pdfjsLib.PDFPageProxy | null>(null)
   const [loading, setLoading] = useState(true)
@@ -92,14 +99,18 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
   // Inline highlight-note editor (positioned over the highlight, inside the
   // viewer) — replaces the old centred prompt dialog.
   const [editingHl, setEditingHl] = useState<{ id: string; left: number; top: number; draft: string; orig: string } | null>(null)
+  // Reference-pin popover (Copy / Append / Delete), anchored over the pin.
+  const [pinMenu, setPinMenu] = useState<{ left: number; top: number; token: string; id: string } | null>(null)
 
   const {
     highlights,
     inks,
     texts,
+    refs,
     createHighlight,
     createInk,
     createText,
+    createRef,
     updateText,
     writeText,
     remove,
@@ -249,6 +260,22 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
     })
   }
 
+  // Drop a reference pin at an overlay click, then arm its Copy/Append/Delete
+  // popover with a `[D<index>::p<page>@x,y]` token. Normalizes against the
+  // page's unscaled (1.0) viewport so the token survives zoom changes.
+  const createRefAt = (overlayX: number, overlayY: number) => {
+    if (!viewport || !page) return
+    const [pdfX, pdfY] = viewport.convertToPdfPoint(overlayX, overlayY)
+    const unit = page.getViewport({ scale: 1 })
+    const nx = pdfX / unit.width
+    const ny = pdfY / unit.height
+    createRef(pdfX, pdfY).then((ann) => {
+      const token = buildDocRefToken(pdfIndex, pageNumber, nx, ny)
+      setTool('select')
+      setPinMenu({ left: overlayX, top: overlayY, token, id: ann.id })
+    })
+  }
+
   const eraseAtOverlay = (overlayX: number, overlayY: number) => {
     if (!viewport) return
     const [pdfX, pdfY] = viewport.convertToPdfPoint(overlayX, overlayY)
@@ -261,6 +288,11 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
   const onOverlayPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || e.button !== 0 || !viewport) return
     const { x, y } = overlayXY(e)
+    if (pinMenu) setPinMenu(null)
+    if (tool === 'ref') {
+      createRefAt(x, y)
+      return
+    }
     if (tool === 'highlight') {
       gestureRef.current = 'highlight'
       overlayRef.current?.setPointerCapture(e.pointerId)
@@ -360,6 +392,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
     const inkId = inkAtPoint(pdfX, pdfY)
     const items: MenuItem[] = [
       { label: 'Add text box here', onClick: () => createTextAt(ox, oy) },
+      { label: 'Add reference here', onClick: () => createRefAt(ox, oy) },
       { label: 'Pen', separator: true, onClick: () => setTool('pen') },
       { label: 'Highlighter', onClick: () => setTool('highlight') },
       { label: 'Eraser', onClick: () => setTool('eraser') },
@@ -430,6 +463,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
     pen: 'crosshair',
     eraser: 'cell',
     text: 'text',
+    ref: 'crosshair',
   }
 
   const toolButtons: { tool: Tool; label: React.ReactNode; title: string }[] = [
@@ -437,6 +471,7 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
     { tool: 'highlight', label: <><Highlighter size={14} /> Highlight</>, title: 'Drag to highlight' },
     { tool: 'pen', label: <><Pen size={14} /> Pen</>, title: 'Draw freehand ink' },
     { tool: 'eraser', label: <><Eraser size={14} /> Erase</>, title: 'Erase ink strokes' },
+    { tool: 'ref', label: <><MapPin size={14} /> Reference</>, title: 'Click to drop a reference pin' },
   ]
 
   return (
@@ -636,6 +671,63 @@ export function PdfViewer({ filename, noteId, onRegisterPageSetter, readOnly = f
               />
             )
           })}
+
+          {/* Reference pins */}
+          {!readOnly && viewport && refs.map((ref) => {
+            const [vx, vy] = viewport.convertToViewportPoint(ref.x, ref.y)
+            return (
+              <button
+                key={ref.id}
+                type="button"
+                className={styles.refDot}
+                style={{ left: vx, top: vy }}
+                title="Reference pin"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!page) return
+                  const unit = page.getViewport({ scale: 1 })
+                  const token = buildDocRefToken(pdfIndex, pageNumber, ref.x / unit.width, ref.y / unit.height)
+                  setPinMenu({ left: vx, top: vy, token, id: ref.id })
+                }}
+              />
+            )
+          })}
+
+          {!readOnly && pinMenu && (
+            <div className={styles.pinMenu} style={{ left: pinMenu.left, top: pinMenu.top }}>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(pinMenu.token)
+                  toast.success('Reference copied')
+                  setPinMenu(null)
+                }}
+              >
+                Copy reference
+              </button>
+              {onAppendRef && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAppendRef(pinMenu.token)
+                    toast.success('Appended to note')
+                    setPinMenu(null)
+                  }}
+                >
+                  Append to note
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  void remove(pinMenu.id)
+                  setPinMenu(null)
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
 
           {/* Active highlight drag box */}
           {isSelecting && currentRect && (

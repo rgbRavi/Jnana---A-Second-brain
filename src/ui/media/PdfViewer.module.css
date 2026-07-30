@@ -100,3 +100,45 @@
   outline: none;
   border-color: var(--accent);
 }
+
+/* Reference-pin dot + its Copy/Append/Delete popover. #2f6fed is a deliberate
+   fixed reference blue (not --accent) so a pin reads consistently across
+   themes, independent of the active accent colour. */
+.refDot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px; /* center on the point */
+  border-radius: 999px;
+  background: #2f6fed;
+  border: 2px solid #fff;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  padding: 0;
+  z-index: 13;
+}
+
+.pinMenu {
+  position: absolute;
+  transform: translateY(8px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+}
+
+.pinMenu button {
+  padding: var(--space-2xs) var(--space-sm);
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.pinMenu button:hover {
+  background: var(--surface-hover);
+}
