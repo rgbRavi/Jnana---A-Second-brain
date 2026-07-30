@@ -9,6 +9,7 @@ import type { Note } from '../types'
 import { TagEditor } from './TagEditor'
 import { isAutoTag } from '../core/tags'
 import { useSidebarPrefs } from '../hooks/useSidebarPrefs'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import NoteModalStyles from './NoteModal.module.css'
 import { useFavourites } from '../hooks/useFavourites'
 import { exportNotes } from '../core/export'
@@ -45,6 +46,14 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const { notes } = useNotesContext()
   const { collapsed: sidebarCollapsed } = useSidebarPrefs()
   const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
+
+  // Escape closes the peek (only while open, and not while a sub-menu is up —
+  // that closes on its own outside-press). Restore first if expanded.
+  useEscapeKey(() => {
+    if (!isOpen || menuOpen) return
+    if (expanded) setExpanded(false)
+    else onClose()
+  })
 
   const { addToFavourites, removeFromFavourites, fetchFavourites } = useFavourites()
   const [isFavourite, setIsFavourite] = useState(false)

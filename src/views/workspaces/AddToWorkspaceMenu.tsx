@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import {
   addWorkspaceNote,
@@ -19,6 +20,7 @@ interface Props {
 
 /** Toggle a single note's membership across workspaces (from the All-Notes view). */
 export function AddToWorkspaceMenu({ noteId, onClose }: Props) {
+  useEscapeKey(onClose)
   const { workspaces } = useWorkspaces()
   const [memberIds, setMemberIds] = useState<Set<string>>(new Set())
 

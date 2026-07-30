@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useMemo, useState } from 'react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import type { Note } from '../../types'
 import { addCollectionNote, removeCollectionNote } from '../../core/workspaces'
 import { toast } from '../../lib/toast'
@@ -19,6 +20,7 @@ interface Props {
 
 /** Choose which of a workspace's notes belong to a collection (diff applied on save). */
 export function CollectionNotesPicker({ collectionId, collectionName, notes, initialIds, onClose }: Props) {
+  useEscapeKey(onClose)
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(initialIds))
   const [saving, setSaving] = useState(false)
