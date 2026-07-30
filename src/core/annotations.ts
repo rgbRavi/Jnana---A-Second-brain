@@ -141,3 +141,14 @@ export function makeAudioAnnotation(
     createdAt: Date.now(),
   }
 }
+
+/// Concatenated text of a note's textual PDF annotations (typed text boxes +
+/// highlight notes), for folding into the search/RAG index. Ink strokes and
+/// reference pins carry no text and are skipped.
+export async function listPdfAnnotationText(noteId: string): Promise<string> {
+  const annotations = await getAnnotationsForNote(noteId)
+  return annotations
+    .filter((a) => (a.kind === 'pdf_text' || a.kind === 'pdf_highlight') && a.content.trim())
+    .map((a) => a.content.trim())
+    .join('\n')
+}
