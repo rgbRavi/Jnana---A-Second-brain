@@ -72,23 +72,34 @@ function timeStringToSeconds(timeStr: string): number {
   return 0
 }
 
+// In a gallery-card preview, media is non-interactive: pointer-events pass
+// through the whole embed to the note card, so a click anywhere on/around it
+// opens the note in the modal instead of scrubbing a video / opening a lightbox.
+// Interactive playback stays on the real surfaces (modal, reader, live editor),
+// which don't set `preview`.
+function passthroughStyle(preview: boolean): CSSProperties {
+  return preview ? { pointerEvents: 'none' } : {}
+}
+
 export function VideoEmbed({
   url,
   videoIndex,
   lazy,
   layout,
+  preview = false,
 }: {
   url: string
   videoIndex: number
   lazy: boolean
   layout?: MediaLayout
+  preview?: boolean
 }) {
   const filename = url.replace('jnana-asset://', '')
   return (
     <div
       className={MdStyles.noteVideoWrapper}
       data-video-index={videoIndex}
-      style={mediaLayoutStyle(layout)}
+      style={{ ...mediaLayoutStyle(layout), ...passthroughStyle(preview) }}
       onClick={(e) => e.stopPropagation()}
     >
       <AsyncVideo filename={filename} className={MdStyles.noteVideo} controls preload="metadata" lazy={lazy} />
@@ -102,12 +113,14 @@ export function AudioEmbed({
   noteId,
   lazy,
   layout,
+  preview = false,
 }: {
   url: string
   audioIndex: number
   noteId: string
   lazy: boolean
   layout?: MediaLayout
+  preview?: boolean
 }) {
   const filename = url.replace('jnana-asset://', '')
   const { notes } = useNotesContext()
@@ -119,7 +132,7 @@ export function AudioEmbed({
     <div
       className={MdStyles.noteAudioWrapper}
       data-audio-index={audioIndex}
-      style={mediaLayoutStyle(layout)}
+      style={{ ...mediaLayoutStyle(layout), ...passthroughStyle(preview) }}
       onClick={(e) => e.stopPropagation()}
     >
       <AsyncAudio filename={filename} className={MdStyles.noteAudio} controls preload="metadata" lazy={lazy} />
@@ -140,13 +153,13 @@ export function AudioEmbed({
   )
 }
 
-export function YouTubeEmbed({ url, lazy, layout }: { url: string; lazy: boolean; layout?: MediaLayout }) {
+export function YouTubeEmbed({ url, lazy, layout, preview = false }: { url: string; lazy: boolean; layout?: MediaLayout; preview?: boolean }) {
   const videoId =
     url.match(/[?&]v=([a-zA-Z0-9_-]+)/)?.[1] ||
     url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/)?.[1]
   if (!videoId) return null
   return (
-    <div className={MdStyles.noteYoutubeWrapper} style={mediaLayoutStyle(layout)}>
+    <div className={MdStyles.noteYoutubeWrapper} style={{ ...mediaLayoutStyle(layout), ...passthroughStyle(preview) }}>
       <AsyncYouTube videoId={videoId} className={MdStyles.noteYoutube} lazy={lazy} />
     </div>
   )
@@ -156,7 +169,7 @@ export function YouTubeEmbed({ url, lazy, layout }: { url: string; lazy: boolean
  *  — a full multi-page viewer is too tall for a preview); click opens the
  *  full PdfViewer in a fullscreen overlay. Not part of the resizable-media
  *  layout system — its thumbnail size is intentionally fixed. */
-export function PdfEmbed({ url, noteId, lazy = true, layout }: { url: string; noteId: string; lazy?: boolean; layout?: MediaLayout }) {
+export function PdfEmbed({ url, noteId, lazy = true, layout, preview = false }: { url: string; noteId: string; lazy?: boolean; layout?: MediaLayout; preview?: boolean }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const filename = url.replace('jnana-asset://', '')
   // pdf.js (getDocument + canvas render of page 1) is heavy; don't spin it up
@@ -164,7 +177,7 @@ export function PdfEmbed({ url, noteId, lazy = true, layout }: { url: string; no
   const [ref, inView] = useInView<HTMLSpanElement>(lazy)
   return (
     <>
-      <span ref={ref} className={MdStyles.notePdfWrapper} style={mediaLayoutStyle(layout)} onClick={(e) => e.stopPropagation()}>
+      <span ref={ref} className={MdStyles.notePdfWrapper} style={{ ...mediaLayoutStyle(layout), ...passthroughStyle(preview) }} onClick={(e) => e.stopPropagation()}>
         {inView
           ? <PdfThumbnail filename={filename} width={layout?.width} onClick={() => setIsFullscreen(true)} />
           : <span className={MdStyles.notePdfPlaceholder}>📄 PDF</span>}
@@ -1062,12 +1075,14 @@ export function ImageEmbed({
   lazy,
   fullscreen,
   layout,
+  preview = false,
 }: {
   url: string
   altText: string
   lazy: boolean
   fullscreen: boolean
   layout?: MediaLayout
+  preview?: boolean
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const handleClick = fullscreen ? (e: React.MouseEvent) => { e.stopPropagation(); setIsFullscreen(true) } : undefined
@@ -1081,7 +1096,7 @@ export function ImageEmbed({
       <span
         className={MdStyles.noteImageWrapper}
         onClick={handleClick}
-        style={{ ...mediaLayoutStyle(layout), ...(fullscreen ? { cursor: 'zoom-in' } : undefined) }}
+        style={{ ...mediaLayoutStyle(layout), ...(fullscreen ? { cursor: 'zoom-in' } : passthroughStyle(preview)) }}
       >
         {imgEl}
       </span>

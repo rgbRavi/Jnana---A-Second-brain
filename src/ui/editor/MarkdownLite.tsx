@@ -126,18 +126,21 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       const url = src ?? ''
       const mediaKey = String(hastProperties(node)['data-media-key'] ?? '')
       const layout = layoutMap.get(mediaKey)
+      // In a card preview (not `fullscreen`) media is passthrough so a click
+      // opens the note modal instead of playing/expanding the embed.
+      const preview = !fullscreen
       if (alt === 'video') {
         const idx = Number(hastProperties(node)['data-video-index'] ?? 0)
-        return <VideoEmbed url={url} videoIndex={idx} lazy={lazy} layout={layout} />
+        return <VideoEmbed url={url} videoIndex={idx} lazy={lazy} layout={layout} preview={preview} />
       }
       if (alt === 'audio') {
         const idx = Number(hastProperties(node)['data-audio-index'] ?? 0)
-        return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} />
+        return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} preview={preview} />
       }
-      if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} />
-      if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} />
-      return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
+      if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} preview={preview} />
+      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} preview={preview} />
+      if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} previewCard={preview} />
+      return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} preview={preview} />
     }
 
     // Justify a paragraph when its media has a saved alignment — the read-mode
