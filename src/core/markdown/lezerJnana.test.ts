@@ -71,6 +71,14 @@ describe('lezerJnana', () => {
     })
   })
 
+  describe('doc refs', () => {
+    it('recognizes an indexed doc ref', () => {
+      const text = 'See [D0::p4@0.25,0.5] for the source.'
+      const [ref] = findAll(text, 'JnanaDocRef')
+      expect(sliceOf(text, ref)).toBe('[D0::p4@0.25,0.5]')
+    })
+  })
+
   describe('code is left literal', () => {
     it('does not transform tokens inside inline code', () => {
       const text = 'Use `[[Not a link]]` literally'
