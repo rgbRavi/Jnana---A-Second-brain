@@ -36,7 +36,7 @@ interface Item {
 }
 
 /**
- * Global Ctrl/⌘-K command palette. Mounted once in AppLayout so the shortcut
+ * Global Ctrl/⌘-` command palette. Mounted once in AppLayout so the shortcut
  * works from any view. Fuzzy-jumps to notes (minisearch, built only while open),
  * switches workspaces, and runs a static command registry. Actions dispatch via
  * the router, the eventBus, or openComposer — no view coupling.
@@ -59,7 +59,7 @@ export function CommandPalette() {
   // Global shortcut (idempotent listener).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === '`')) {
         e.preventDefault()
         setOpen((v) => !v)
       }

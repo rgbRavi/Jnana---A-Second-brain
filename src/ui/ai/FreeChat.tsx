@@ -323,12 +323,12 @@ export function FreeChat({
 
   // ── Focused (grounded) send: route to analyze / askNotes / generateQuiz and
   //    render the result as an assistant card in the same thread. ──
-  const runFocused = async (text: string) => {
-    const action = focus.action
+  const runFocused = async (f: FocusState, text: string) => {
+    const action = f.action
     if (!action) return
-    const scope = buildScope(focus)
+    const scope = buildScope(f)
     if (!scope) {
-      setError(scopeHint(focus.scopeKind))
+      setError(scopeHint(f.scopeKind))
       return
     }
     const question = text.trim()
@@ -344,7 +344,7 @@ export function FreeChat({
 
     // Capture prior turns for Ask history BEFORE appending this turn.
     const priorMsgs = getViewState<FreeMessage[]>('ai.free.messages') ?? []
-    const label = scopeLabel(focus)
+    const label = scopeLabel(f)
     const reqText = action === 'ask' ? question : `${ACTION_VERB[action]} — ${label}`
     setMessages((prev) => [
       ...prev,
@@ -366,6 +366,7 @@ export function FreeChat({
         patchLast({ card: { type: 'analysis', result }, pending: false })
       } else if (action === 'quiz') {
         const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId)
+        console.warn('[quiz-debug] generateQuiz result', { count: questions.length, reason, scope, formats: quizSettings.formats })
         patchLast({ card: { type: 'quiz', attempt: emptyAttempt(questions, label), reason }, pending: false })
       } else {
         const res = await askNotes(scope, question, toAskHistory(priorMsgs), config, notes)
@@ -387,8 +388,14 @@ export function FreeChat({
     const text = (explicit ? (opts!.text as string) : input).trim()
     const atts = opts?.atts ?? (explicit ? [] : attachments)
     // Grounded mode routes to the focused pipeline (edit-&-retry stays plain chat).
-    if (focus.action && !explicit) {
-      await runFocused(text)
+    // Read the armed state from the store, not the closure — the rail panel can
+    // arm it out-of-tree, so the freshest value is authoritative (same reason the
+    // rest of send() reads messages/projectId/ruleIds via getViewState).
+    const focusNow = getViewState<FocusState>('ai.free.focus') ?? focus
+    const goesFocused = !!focusNow.action && !explicit
+    console.warn(`[quiz-debug] send -> ${goesFocused ? 'FOCUSED:' + focusNow.action : 'CHAT'} (storeAction=${focusNow.action}, closureAction=${focus.action}, textLen=${text.length})`)
+    if (goesFocused) {
+      await runFocused(focusNow, text)
       return
     }
     if (!text && atts.length === 0) return
