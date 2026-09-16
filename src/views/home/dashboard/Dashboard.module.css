@@ -237,66 +237,151 @@
   position: absolute;
   z-index: 5;
   touch-action: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
 }
 .rgHandle::after {
   content: '';
   position: absolute;
-  background: var(--control-grip-hover);
-  border-radius: var(--radius-xs);
-  transition: background var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+  inset: 0;
+  background: transparent;
+  border-radius: inherit;
 }
-.rgHandle_e {
-  top: 50%;
-  right: 0;
-  width: 12px;
-  height: 60px;
-  margin-top: -30px;
-  cursor: ew-resize;
-}
-.rgHandle_e::after {
-  top: 50%;
-  right: 3px;
-  width: 4px;
-  height: 40px;
-  margin-top: -20px;
-}
-.rgHandle_s {
-  left: 50%;
-  bottom: 0;
-  height: 12px;
-  width: 60px;
-  margin-left: -30px;
+.rgHandle_n {
+  left: 12px;
+  right: 12px;
+  top: 0;
+  height: 10px;
   cursor: ns-resize;
 }
-.rgHandle_s::after {
-  left: 50%;
-  bottom: 3px;
-  height: 4px;
-  width: 40px;
-  margin-left: -20px;
+.rgHandle_e {
+  top: 12px;
+  right: 0;
+  width: 10px;
+  bottom: 12px;
+  cursor: ew-resize;
+}
+.rgHandle_w {
+  top: 12px;
+  left: 0;
+  width: 10px;
+  bottom: 12px;
+  cursor: ew-resize;
+}
+.rgHandle_s {
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 10px;
+  cursor: ns-resize;
+}
+.rgHandle_ne,
+.rgHandle_nw,
+.rgHandle_se,
+.rgHandle_sw {
+  width: 16px;
+  height: 16px;
+  z-index: 6;
+}
+.rgHandle_ne {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+.rgHandle_nw {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
 }
 .rgHandle_se {
   right: 0;
   bottom: 0;
-  width: 18px;
-  height: 18px;
-  z-index: 6;
   cursor: nwse-resize;
 }
-.rgHandle_se::after {
-  right: 4px;
-  bottom: 4px;
-  width: 9px;
-  height: 9px;
+.rgHandle_sw {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.gridItem:hover .rgHandle {
   background: transparent;
-  border-right: 2px solid var(--control-grip-hover);
-  border-bottom: 2px solid var(--control-grip-hover);
-  border-radius: 0 0 4px 0;
+}
+.gridItem:hover .rgHandle::after {
+  background: transparent;
+}
+.rgHandle_n,
+.rgHandle_s,
+.rgHandle_e,
+.rgHandle_w,
+.rgHandle_ne,
+.rgHandle_nw,
+.rgHandle_se,
+.rgHandle_sw {
+  background: transparent;
+}
+
+.rgHandle_n::after,
+.rgHandle_s::after,
+.rgHandle_e::after,
+.rgHandle_w::after,
+.rgHandle_ne::after,
+.rgHandle_nw::after,
+.rgHandle_se::after,
+.rgHandle_sw::after {
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+
+.rgHandle_n:hover::after,
+.rgHandle_s:hover::after,
+.rgHandle_e:hover::after,
+.rgHandle_w:hover::after,
+.rgHandle_ne:hover::after,
+.rgHandle_nw:hover::after,
+.rgHandle_se:hover::after,
+.rgHandle_sw:hover::after {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.rgHandle_n:hover::after,
+.rgHandle_s:hover::after {
+  left: 50%;
+  right: auto;
+  width: 1px;
+  height: 100%;
+}
+.rgHandle_e:hover::after,
+.rgHandle_w:hover::after {
+  top: 50%;
+  bottom: auto;
+  width: 100%;
+  height: 1px;
+}
+.rgHandle_e:hover::after {
+  left: auto;
+  right: 0;
+}
+.rgHandle_w:hover::after {
+  left: 0;
+  right: auto;
+}
+.rgHandle_ne:hover::after,
+.rgHandle_nw:hover::after,
+.rgHandle_se:hover::after,
+.rgHandle_sw:hover::after {
+  border-width: 1px;
+  opacity: 0.8;
+  background: transparent;
 }
 .gridItem:hover .rgHandle::after {
   background: var(--accent);
 }
-.gridItem:hover .rgHandle_se::after {
+.gridItem:hover .rgHandle_ne::after,
+.gridItem:hover .rgHandle_nw::after,
+.gridItem:hover .rgHandle_se::after,
+.gridItem:hover .rgHandle_sw::after {
   background: transparent;
   border-color: var(--accent);
 }

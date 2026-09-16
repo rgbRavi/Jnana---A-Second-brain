@@ -110,19 +110,62 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
         target = { x: nx, y: ny }
         ghost = { left: pxLeft(item.x) + dx, top: pxTop(item.y) + dy, width: pxW(item.w), height: pxH(item.h) }
       } else {
+        let x = item.x
+        let y = item.y
         let w = item.w
         let h = item.h
-        if (axis === 'e' || axis === 'se') {
+
+        if (axis === 'e' || axis === 'ne' || axis === 'se') {
           w = clamp(Math.round((pxW(item.w) + dx + mx) / unitX), item.minW ?? 1, cols - item.x)
         }
-        if (axis === 's' || axis === 'se') {
+        if (axis === 'w' || axis === 'nw' || axis === 'sw') {
+          const minX = item.x + item.w - (item.minW ?? 1)
+          const nextX = clamp(Math.round((pxLeft(item.x) + dx) / unitX), 0, minX)
+          const deltaCols = item.x - nextX
+          x = nextX
+          w = item.w + deltaCols
+        }
+        if (axis === 's' || axis === 'se' || axis === 'sw') {
           h = Math.max(item.minH ?? 1, Math.round((pxH(item.h) + dy + my) / unitY))
         }
-        key = `${w}x${h}`
-        target = { w, h }
-        const gw = axis === 'e' || axis === 'se' ? pxW(item.w) + dx : pxW(item.w)
-        const gh = axis === 's' || axis === 'se' ? pxH(item.h) + dy : pxH(item.h)
-        ghost = { left: pxLeft(item.x), top: pxTop(item.y), width: Math.max(80, gw), height: Math.max(40, gh) }
+        if (axis === 'n' || axis === 'ne' || axis === 'nw') {
+          const minY = item.y + item.h - (item.minH ?? 1)
+          const nextY = clamp(Math.round((pxTop(item.y) + dy) / unitY), 0, minY)
+          const deltaRows = item.y - nextY
+          y = nextY
+          h = item.h + deltaRows
+        }
+
+        key = `${x},${y} ${w}x${h}`
+        target = { x, y, w, h }
+
+        let left = pxLeft(item.x)
+        let top = pxTop(item.y)
+        let width = pxW(item.w)
+        let height = pxH(item.h)
+
+        if (axis === 'e' || axis === 'ne' || axis === 'se') {
+          width = Math.max(80, pxW(item.w) + dx)
+        }
+        if (axis === 'w' || axis === 'nw' || axis === 'sw') {
+          const minX = item.x + item.w - (item.minW ?? 1)
+          const nextX = clamp(Math.round((pxLeft(item.x) + dx) / unitX), 0, minX)
+          const nextLeft = pxLeft(nextX)
+          width = Math.max(80, pxW(item.w) + (pxLeft(item.x) - nextLeft))
+          left = nextLeft
+        }
+        if (axis === 's' || axis === 'se' || axis === 'sw') {
+          height = Math.max(40, pxH(item.h) + dy)
+        }
+        if (axis === 'n' || axis === 'ne' || axis === 'nw') {
+          const minY = item.y + item.h - (item.minH ?? 1)
+          const nextY = clamp(Math.round((pxTop(item.y) + dy) / unitY), 0, minY)
+          const nextTop = pxTop(nextY)
+          height = Math.max(40, pxH(item.h) + (pxTop(item.y) - nextTop))
+          top = nextTop
+        }
+
+        ghost = { left, top, width, height }
       }
       // The moving card tracks the cursor every frame (ghost); the rest only
       // re-flow when the target grid cell/size actually changes.
@@ -184,8 +227,13 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
             {resizable && (
               <>
                 <span className={`${styles.rgHandle} ${styles.rgHandle_e}`} data-rg-handle="e" aria-hidden="true" />
+                <span className={`${styles.rgHandle} ${styles.rgHandle_w}`} data-rg-handle="w" aria-hidden="true" />
+                <span className={`${styles.rgHandle} ${styles.rgHandle_n}`} data-rg-handle="n" aria-hidden="true" />
                 <span className={`${styles.rgHandle} ${styles.rgHandle_s}`} data-rg-handle="s" aria-hidden="true" />
+                <span className={`${styles.rgHandle} ${styles.rgHandle_ne}`} data-rg-handle="ne" aria-hidden="true" />
+                <span className={`${styles.rgHandle} ${styles.rgHandle_nw}`} data-rg-handle="nw" aria-hidden="true" />
                 <span className={`${styles.rgHandle} ${styles.rgHandle_se}`} data-rg-handle="se" aria-hidden="true" />
+                <span className={`${styles.rgHandle} ${styles.rgHandle_sw}`} data-rg-handle="sw" aria-hidden="true" />
               </>
             )}
           </div>
