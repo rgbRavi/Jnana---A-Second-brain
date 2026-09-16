@@ -92,7 +92,11 @@
   border-color: var(--border-hover);
 }
 
-.choiceOn {
+/* Selected must out-rank `.choice:hover` — the cursor is still on the button at
+   click time, so a lower-specificity rule would leave the answer looking
+   unregistered until the pointer moved away. */
+.choiceOn,
+.choiceOn:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
