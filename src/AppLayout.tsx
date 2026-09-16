@@ -32,6 +32,10 @@ import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
 import { usePdfAnnotationIndex } from "./hooks/usePdfAnnotationIndex";
 import { useViewState, setViewState } from "./hooks/useViewState";
+import { decideGate } from "./core/onboarding/gate";
+import { getOnboardingState, markLaunch, openOnboarding } from "./hooks/useOnboarding";
+import { OnboardingOverlay } from "./ui/onboarding/OnboardingOverlay";
+import { OnboardingNudge } from "./ui/onboarding/OnboardingNudge";
 import AppStyles from "./App.module.css"
 
 // HashRouter always boots at "/", so the app forgets which view you were on.
@@ -91,6 +95,12 @@ function AppInner() {
             log.error('trash purge failed', e),
         )
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+    // Count this boot and decide whether the first-run wizard opens. markLaunch
+    // is idempotent per process, so StrictMode's double-invoke can't double-count.
+    useEffect(() => {
+        markLaunch()
+        if (decideGate(getOnboardingState()) === 'wizard') openOnboarding()
     }, [])
     // Remember the current route for next launch.
     useEffect(() => {
@@ -181,6 +191,7 @@ function AppInner() {
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>
+                <OnboardingNudge />
                 <Suspense fallback={null}>
                     <Outlet />
                 </Suspense>
@@ -194,6 +205,7 @@ function AppInner() {
             <Toaster />
             <DialogHost />
             <ThemeStudioOverlay />
+            <OnboardingOverlay />
         </div>
     )
 }
