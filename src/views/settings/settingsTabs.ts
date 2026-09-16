@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-export type SettingsTab = 'general' | 'composer' | 'appearance' | 'ai' | 'advanced-ai' | 'data' | 'plugins' | 'about'
+export type SettingsTab = 'general' | 'composer' | 'appearance' | 'ai' | 'advanced-ai' | 'data' | 'plugins' | 'developer' | 'about'
 
 const SETTINGS_TAB_PATHS: Record<string, SettingsTab> = {
   '/settings': 'ai',
@@ -12,6 +12,7 @@ const SETTINGS_TAB_PATHS: Record<string, SettingsTab> = {
   '/settings/advanced-ai': 'advanced-ai',
   '/settings/data': 'data',
   '/settings/plugins': 'plugins',
+  '/settings/developer': 'developer',
   '/settings/about': 'about',
 }
 

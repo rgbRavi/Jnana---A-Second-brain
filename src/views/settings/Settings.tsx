@@ -16,6 +16,7 @@ import { GeneralSettingsPanel } from '../../ui/settings/GeneralSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
+import { DeveloperPanel } from '../../ui/settings/DeveloperPanel'
 import { AboutPanel } from '../../ui/settings/AboutPanel'
 import { resolveSettingsTab, type SettingsTab } from './settingsTabs'
 import styles from './Settings.module.css'
@@ -30,6 +31,7 @@ const SECTIONS: { id: SettingsTab; label: string }[] = [
   { id: 'advanced-ai', label: 'Advanced AI generation' },
   { id: 'data', label: 'Import / Export' },
   { id: 'plugins', label: 'Plugins' },
+  { id: 'developer', label: 'Developer' },
   { id: 'about', label: 'About' },
 ]
 
@@ -100,6 +102,7 @@ function Settings() {
           {tab === 'advanced-ai' && <AdvancedAiPanel />}
           {tab === 'data' && <ImportExportPanel />}
           {tab === 'plugins' && <PluginsPanel />}
+          {tab === 'developer' && <DeveloperPanel />}
           {tab === 'about' && <AboutPanel />}
         </div>
       </div>
