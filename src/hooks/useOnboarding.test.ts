@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ONBOARDING_KEY,
+  closeOnboarding,
   completeOnboarding,
   dismissNudge,
   getOnboardingState,
   markLaunch,
+  openOnboarding,
+  replayOnboarding,
   setOnboarding,
   skipOnboarding,
   startFreshOnboarding,
+  useOnboardingOpen,
+  useOnboardingState,
 } from './useOnboarding'
 
 describe('useOnboarding store', () => {
@@ -88,5 +94,55 @@ describe('useOnboarding store', () => {
     })
     expect(() => setOnboarding({ comfort: 'some' })).not.toThrow()
     expect(getOnboardingState().comfort).toBe('some')
+  })
+})
+
+describe('useOnboarding hooks and open state', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setOnboarding({
+      status: 'pending',
+      role: null,
+      comfort: null,
+      launchCount: 0,
+      nudgeDismissedLaunch: null,
+      forceOnLaunch: false,
+    })
+    closeOnboarding()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('useOnboardingOpen starts false and toggles on open/close', () => {
+    const { result } = renderHook(() => useOnboardingOpen())
+    expect(result.current).toBe(false)
+
+    act(() => openOnboarding())
+    expect(result.current).toBe(true)
+
+    act(() => closeOnboarding())
+    expect(result.current).toBe(false)
+  })
+
+  it('replayOnboarding sets status pending, opens the wizard, and preserves answers', () => {
+    setOnboarding({ role: 'student', comfort: 'power' })
+
+    const stateHook = renderHook(() => useOnboardingState())
+    const openHook = renderHook(() => useOnboardingOpen())
+
+    act(() => replayOnboarding())
+
+    expect(stateHook.result.current.status).toBe('pending')
+    expect(stateHook.result.current.role).toBe('student')
+    expect(stateHook.result.current.comfort).toBe('power')
+    expect(openHook.result.current).toBe(true)
+  })
+
+  it('useOnboardingState re-renders on state changes', () => {
+    const { result } = renderHook(() => useOnboardingState())
+    expect(result.current.comfort).toBeNull()
+
+    act(() => setOnboarding({ comfort: 'some' }))
+
+    expect(result.current.comfort).toBe('some')
   })
 })
