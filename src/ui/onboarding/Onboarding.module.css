@@ -1,0 +1,196 @@
+/* Overlay sits above the Toaster (1000) and below DialogHost (1100). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: var(--scrim);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: min(680px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xl);
+}
+
+.dots {
+  display: flex;
+  gap: var(--space-2xs);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background var(--dur-fast) ease, width var(--dur-fast) ease;
+}
+
+.dotActive {
+  width: 18px;
+  background: var(--accent);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-1);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.body p {
+  margin: 0;
+}
+
+.body code {
+  padding: 0 var(--space-3xs);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.choice:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+}
+
+.choiceOn {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choiceLabel {
+  font-weight: 600;
+}
+
+.choiceHint {
+  font-size: 0.85rem;
+  color: var(--text-3);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.footerRight {
+  display: flex;
+  gap: var(--space-2xs);
+}
+
+.ghostBtn,
+.secondaryBtn,
+.primaryBtn {
+  padding: var(--space-2xs) var(--space-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+
+.ghostBtn {
+  border: none;
+  background: none;
+  color: var(--text-3);
+}
+
+.ghostBtn:hover {
+  color: var(--text-2);
+}
+
+.secondaryBtn {
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.secondaryBtn:hover {
+  background: var(--surface-hover);
+}
+
+.primaryBtn {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Nudge banner (Task 6) ───────────────────────────────────────────────── */
+
+.nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-softer);
+  color: var(--text-2);
+}
+
+.nudgeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+
+.nudgeDismiss {
+  border: none;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.nudgeDismiss:hover {
+  color: var(--text-1);
+}

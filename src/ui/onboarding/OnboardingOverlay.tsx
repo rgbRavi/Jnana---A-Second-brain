@@ -1,0 +1,193 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
+// Full-screen first-run wizard. Mounted once in AppLayout next to the other
+// global overlays; the launch gate (core/onboarding/gate) decides whether boot
+// opens it, and Settings → Developer can open it on demand.
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { COMFORTS, ROLES, selectSteps, type StepId } from '../../core/onboarding/steps'
+import {
+  completeOnboarding,
+  setOnboarding,
+  skipOnboarding,
+  useOnboardingOpen,
+  useOnboardingState,
+} from '../../hooks/useOnboarding'
+import { COMFORT_COPY, ROLE_COPY, STEP_COPY } from './OnboardingContent'
+import styles from './Onboarding.module.css'
+
+export function OnboardingOverlay() {
+  const state = useOnboardingState()
+  const open = useOnboardingOpen()
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // The deck is recomputed from the answers, so answering the role/comfort
+  // questions changes it mid-flow. Track position by StepId, never by index —
+  // an index would silently jump the user to an unrelated card.
+  const deck = useMemo(() => selectSteps(state.role, state.comfort), [state.role, state.comfort])
+  const [currentId, setCurrentId] = useState<StepId>('welcome')
+
+  // Every open starts at the beginning.
+  useEffect(() => {
+    if (open) setCurrentId('welcome')
+  }, [open])
+
+  const rawIndex = deck.indexOf(currentId)
+  // A deck change can drop the card we were on (answering "New to this" after
+  // seeing the power deck). Fall back to the first card rather than rendering
+  // nothing; every deck starts with welcome/role/comfort, so this is never lost
+  // progress on the question cards themselves.
+  const index = rawIndex === -1 ? 0 : rawIndex
+  const stepId = deck[index] ?? 'welcome'
+  const isLast = index === deck.length - 1
+
+  const canAdvance =
+    stepId === 'role' ? state.role !== null : stepId === 'comfort' ? state.comfort !== null : true
+
+  function next() {
+    if (!canAdvance) return
+    if (isLast) {
+      completeOnboarding()
+      return
+    }
+    setCurrentId(deck[index + 1])
+  }
+
+  function back() {
+    if (index === 0) return
+    setCurrentId(deck[index - 1])
+  }
+
+  // Focus trap + keyboard nav. Escape is deliberately NOT a close — leaving is
+  // an explicit button, so a reflexive Esc can't drop someone out of the flow.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        next()
+        return
+      }
+      if (e.key === 'ArrowLeft') {
+        back()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const root = cardRef.current
+      if (!root) return
+      const focusable = Array.from(
+        root.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && (active === first || !root.contains(active))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (active === last || !root.contains(active))) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // Return focus to whatever was focused before the wizard took over.
+  const restoreRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (open) {
+      restoreRef.current = document.activeElement as HTMLElement | null
+      cardRef.current?.focus()
+    } else {
+      restoreRef.current?.focus?.()
+      restoreRef.current = null
+    }
+  }, [open])
+
+  if (!open) return null
+
+  const copy = STEP_COPY[stepId]
+
+  return (
+    <div className={styles.overlay} role="presentation">
+      <div
+        ref={cardRef}
+        className={styles.card}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Getting started with Jnana"
+        tabIndex={-1}
+      >
+        <div className={styles.dots}>
+          {deck.map((id, i) => (
+            <span
+              key={id}
+              data-testid="onboarding-dot"
+              className={`${styles.dot} ${i === index ? styles.dotActive : ''}`}
+            />
+          ))}
+        </div>
+
+        <h1 className={styles.title}>{copy.title}</h1>
+        <div className={styles.body}>{copy.body}</div>
+
+        {stepId === 'role' && (
+          <div className={styles.choices}>
+            {ROLES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={`${styles.choice} ${state.role === r ? styles.choiceOn : ''}`}
+                aria-pressed={state.role === r}
+                onClick={() => setOnboarding({ role: r })}
+              >
+                <span className={styles.choiceLabel}>{ROLE_COPY[r].label}</span>
+                <span className={styles.choiceHint}>{ROLE_COPY[r].hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {stepId === 'comfort' && (
+          <div className={styles.choices}>
+            {COMFORTS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`${styles.choice} ${state.comfort === c ? styles.choiceOn : ''}`}
+                aria-pressed={state.comfort === c}
+                onClick={() => setOnboarding({ comfort: c })}
+              >
+                <span className={styles.choiceLabel}>{COMFORT_COPY[c].label}</span>
+                <span className={styles.choiceHint}>{COMFORT_COPY[c].hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <footer className={styles.footer}>
+          <button type="button" className={styles.ghostBtn} onClick={skipOnboarding}>
+            Skip onboarding
+          </button>
+          <div className={styles.footerRight}>
+            {index > 0 && (
+              <button type="button" className={styles.secondaryBtn} onClick={back}>
+                Back
+              </button>
+            )}
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              disabled={!canAdvance}
+              onClick={next}
+            >
+              {isLast ? 'Start using Jnana' : 'Next'}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  )
+}
