@@ -117,6 +117,11 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
 - **YouTube** — privacy-enhanced (`youtube-nocookie`) embeds
+- **Paste or drop anything in** — a screenshot, or a video/audio/PDF/document copied *or dragged* from
+  your file manager, lands straight in the editor at the point you dropped it: media becomes an embed,
+  and a Word file or spreadsheet gets the same *convert to PDF / extract text / link externally* (or
+  *insert as a table*) choice you'd get from the import button. Drop several at once and they import
+  in order
 - **Web pages** — `![webpage](url)` embeds a link-preview card (title/description/image/favicon,
   fetched + cached on the Rust side) with a best-effort in-app **Live view**
 - **Timestamps** — clickable `[V0::HH:MM:SS]` (video) and `[A0::HH:MM:SS]` (audio) markers that

@@ -278,6 +278,7 @@ fn main() {
             remove_link,
             sync_links,
             save_asset,
+            save_temp_file,
             get_asset,
             get_asset_path,
             open_asset,

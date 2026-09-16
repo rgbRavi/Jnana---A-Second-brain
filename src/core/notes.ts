@@ -75,8 +75,28 @@ export async function removeLink(fromId: string, toId: string): Promise<void> {
   eventBus.emit('link:removed', { fromId, toId })
 }
 
+/**
+ * Store raw bytes as an asset; returns the stored filename.
+ *
+ * Sent as a **raw IPC body**, not as a `{ bytes }` argument. Tauri encodes
+ * command arguments as JSON, so a byte array would be serialized one number at
+ * a time — `Array.from()` on a 50 MB video builds a 50-million-element JS array
+ * and hundreds of megabytes of JSON, which freezes the webview. A raw body is
+ * transferred as bytes. The extension travels in a header because the body slot
+ * is taken by the payload.
+ */
 export async function uploadAsset(bytes: Uint8Array, extension: string): Promise<string> {
-  return invoke<string>('save_asset', { bytes: Array.from(bytes), extension })
+  return invoke<string>('save_asset', bytes, { headers: { 'x-extension': extension } })
+}
+
+/**
+ * Write bytes to a temp file and return its path. Staging step for a pasted
+ * document: the document import pipeline takes paths (conversion, extraction,
+ * `external://` chips), so this lets a paste reuse it unchanged. Same raw-body
+ * transport as `uploadAsset` — see the note there.
+ */
+export async function saveTempFile(bytes: Uint8Array, extension: string): Promise<string> {
+  return invoke<string>('save_temp_file', bytes, { headers: { 'x-extension': extension } })
 }
 
 

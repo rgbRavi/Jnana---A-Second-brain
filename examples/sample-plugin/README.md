@@ -17,7 +17,7 @@ React at load time, so the plugin's components run against the host instance
 ## Load it in the app
 
 Settings → Plugins → Developer → **Load Local Plugin** → pick this folder.
-Then Ctrl/⌘-K → **New Checklist** to create one.
+Then Ctrl/⌘-` → **New Checklist** to create one.
 
 ## Smoke test
 

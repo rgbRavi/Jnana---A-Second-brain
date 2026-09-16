@@ -393,13 +393,23 @@ function seekInView(view: EditorView, kind: 'video' | 'audio', index: number, se
   media.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
 }
 
-function buildDecorations(view: EditorView, context: LiveContext): DecorationSet {
+/** A value only ever fed to `EditorView.atomicRanges`, which reads from/to. */
+const atomicMark = Decoration.mark({})
+
+interface LiveSets {
+  decorations: DecorationSet
+  /** Embed token spans the caret treats as one object (see `atomicMark`). */
+  atomic: DecorationSet
+}
+
+function buildDecorations(view: EditorView, context: LiveContext): LiveSets {
   // A plain array (sorted at the end via Decoration.set) rather than a
   // RangeSetBuilder: line-level `text-align` decorations for aligned media sit
   // at their line's start — a position *before* the inline widget that
   // triggered them — so we can't add strictly left-to-right as the builder
   // requires. `add` keeps the existing call sites unchanged.
   const ranges: Range<Decoration>[] = []
+  const atomicRanges: Range<Decoration>[] = []
   const builder = {
     add: (from: number, to: number, deco: Decoration) => ranges.push(deco.range(from, to)),
   }
@@ -527,6 +537,17 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
         const mediaKey = nextMediaKey(url)
         const layout = context.mediaLayout.get(mediaKey)
 
+        // An embed is one object, not a string of characters, so — unlike every
+        // other construct here — it is NOT gated on `revealed`: it stays a
+        // widget even while the selection covers it (dragging across an image
+        // used to flip it back to raw `![alt](url)` mid-gesture). Its span also
+        // goes into `EditorView.atomicRanges`, so the arrow keys step over the
+        // embed rather than crawling through hidden markup, and Backspace or
+        // Delete takes the whole token — a one-character delete would break the
+        // parse and leave the raw markdown on screen. Nothing reveals the token
+        // now, which is consistent: being atomic, it was never editable inline.
+        atomicRanges.push(atomicMark.range(from, to))
+
         // Justify the whole line (row) for a saved alignment instead of forcing
         // the embed onto its own line — only while it's rendered as a widget.
         const applyAlign = () => { if (layout?.alignment) alignLine(from, layout.alignment) }
@@ -534,40 +555,30 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
 
         if (alt === 'video') {
           const idx = videoIndex++
-          if (!revealed(from, to)) {
-            applyAlign()
-            builder.add(from, to, Decoration.replace({
-              widget: new VideoWidget({ url, index: idx, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
-            }))
-          }
+          applyAlign()
+          builder.add(from, to, Decoration.replace({
+            widget: new VideoWidget({ url, index: idx, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+          }))
         } else if (alt === 'audio') {
           const idx = audioIndex++
-          if (!revealed(from, to)) {
-            applyAlign()
-            builder.add(from, to, Decoration.replace({
-              widget: new AudioWidget({ url, index: idx, noteId: context.noteId, lazy: context.lazy, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
-            }))
-          }
+          applyAlign()
+          builder.add(from, to, Decoration.replace({
+            widget: new AudioWidget({ url, index: idx, noteId: context.noteId, lazy: context.lazy, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+          }))
         } else if (alt === 'youtube') {
-          if (!revealed(from, to)) {
-            applyAlign()
-            builder.add(from, to, Decoration.replace({
-              widget: new YouTubeWidget({ url, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
-            }))
-          }
+          applyAlign()
+          builder.add(from, to, Decoration.replace({
+            widget: new YouTubeWidget({ url, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+          }))
         } else if (alt === 'pdf') {
           const idx = pdfIndex++
-          if (!revealed(from, to)) {
-            applyAlign()
-            builder.add(from, to, Decoration.replace({
-              widget: new PdfWidget({ url, noteId: context.noteId, pdfIndex: idx, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange, view }),
-            }))
-          }
+          applyAlign()
+          builder.add(from, to, Decoration.replace({
+            widget: new PdfWidget({ url, noteId: context.noteId, pdfIndex: idx, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange, view }),
+          }))
         } else if (alt === 'webpage') {
-          if (!revealed(from, to)) {
-            builder.add(from, to, Decoration.replace({ widget: new WebpageWidget({ url }) }))
-          }
-        } else if (!revealed(from, to)) {
+          builder.add(from, to, Decoration.replace({ widget: new WebpageWidget({ url }) }))
+        } else {
           applyAlign()
           builder.add(from, to, Decoration.replace({
             widget: new ImageWidget({ url, alt, lazy: context.lazy, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
@@ -683,7 +694,7 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
     }
   }
 
-  return Decoration.set(ranges, true)
+  return { decorations: Decoration.set(ranges, true), atomic: Decoration.set(atomicRanges, true) }
 }
 
 // ── Table block widgets (StateField) ──────────────────────────────────────
@@ -757,19 +768,29 @@ export function tableDecorationsField(contextRef: { current: LiveContext }) {
 }
 
 export function liveDecorations(contextRef: { current: LiveContext }) {
-  return ViewPlugin.fromClass(
+  const plugin = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
+      atomic: DecorationSet
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, contextRef.current)
+        const sets = buildDecorations(view, contextRef.current)
+        this.decorations = sets.decorations
+        this.atomic = sets.atomic
       }
       update(update: ViewUpdate) {
         const forced = update.transactions.some((tr) => tr.effects.some((e) => e.is(forceRebuildMediaLayout)))
         if (update.docChanged || update.selectionSet || forced) {
-          this.decorations = buildDecorations(update.view, contextRef.current)
+          const sets = buildDecorations(update.view, contextRef.current)
+          this.decorations = sets.decorations
+          this.atomic = sets.atomic
         }
       }
     },
-    { decorations: (v) => v.decorations },
+    {
+      decorations: (v) => v.decorations,
+      // Cursor motion and character deletion treat each embed as one unit.
+      provide: (p) => EditorView.atomicRanges.of((view) => view.plugin(p)?.atomic ?? Decoration.none),
+    },
   )
+  return plugin
 }

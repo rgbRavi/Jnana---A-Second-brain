@@ -14,7 +14,7 @@ connect through wikilinks and a graph view, with **keyword search (MiniSearch) a
 search mode** over the local vector store — both of which also search **text extracted from PDF
 attachments** — plus auto/user tags and favourites. **Workspaces** organize notes into named groups (notes stay global, many-to-many) — each
 with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), Insights, and
-Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
+Collections. A global **Ctrl/⌘-` command palette** ties navigation together. The AI layer is a local
 vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
 local Ollama), a Thread/Day analyzer, tag/link suggestions, graded quizzes, an agent loop, and an
 optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearance) gives token-level
@@ -539,7 +539,7 @@ Notes:
       (single disclosure toggle; open rows have a hover × / in-view "✕ Close" that returns to All
       Workspaces; active tab persists per-workspace), quick-note capture into the active workspace,
       add-to-workspace from All Notes
-- [x] **Command palette** (Ctrl/⌘-K) — minisearch over notes + workspaces + a command registry
+- [x] **Command palette** (Ctrl/⌘-`) — minisearch over notes + workspaces + a command registry
 - [x] **Workspace AI/search scope** — point RAG retrieval (AI view) and Search at one workspace
 - [x] **Canvas** — hand-rolled pointer-event board (pan/zoom, drag/resize), text/note/media/web
       nodes, edges with optional "Link in graph" (inserts one `[[wikilink]]`), freehand ink

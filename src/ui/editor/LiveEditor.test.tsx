@@ -3,8 +3,23 @@
 
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
+import { EditorView } from '@codemirror/view'
 import { LiveEditor, type LiveEditorHandle } from './LiveEditor'
+
+// Overrides the no-op in setupTests: capture the handler so a test can drive a
+// window-level file drop the way Tauri would.
+const dragDropHandlers: ((e: { payload: unknown }) => unknown)[] = []
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: (handler: (e: { payload: unknown }) => unknown) => {
+      dragDropHandlers.push(handler)
+      return Promise.resolve(() => {
+        dragDropHandlers.splice(dragDropHandlers.indexOf(handler), 1)
+      })
+    },
+  }),
+}))
 
 vi.mock('../../context/NotesContext', () => ({
   useNotesContext: () => ({
@@ -80,6 +95,63 @@ describe('LiveEditor', () => {
     expect(videos[1].getAttribute('data-video-index')).toBe('1')
   })
 
+  // An embed is one object: the arrow keys step over its `![alt](url)` token
+  // and a delete takes the whole thing, instead of crawling through / chewing
+  // up the hidden markup (which breaks the parse and reveals the raw text).
+  describe('media embeds are atomic', () => {
+    const TOKEN = '![a](jnana-asset://x.png)'
+    const DOC = `Hi ${TOKEN} there`
+    const TOKEN_FROM = 'Hi '.length
+    const TOKEN_TO = TOKEN_FROM + TOKEN.length
+
+    const mount = () => {
+      const { container } = render(<LiveEditor value={DOC} onChange={vi.fn()} notes={NOTES} />)
+      const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)
+      expect(view).toBeTruthy()
+      return { view: view as EditorView, container }
+    }
+
+    it('moves the cursor across the whole token in one arrow press', () => {
+      const { view } = mount()
+      view.dispatch({ selection: { anchor: TOKEN_FROM } })
+      fireEvent.keyDown(view.contentDOM, { key: 'ArrowRight' })
+      expect(view.state.selection.main.head).toBe(TOKEN_TO)
+      fireEvent.keyDown(view.contentDOM, { key: 'ArrowLeft' })
+      expect(view.state.selection.main.head).toBe(TOKEN_FROM)
+    })
+
+    it('Backspace after the embed deletes the whole token', () => {
+      const { view } = mount()
+      view.dispatch({ selection: { anchor: TOKEN_TO } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+      expect(view.state.doc.toString()).toBe('Hi  there')
+    })
+
+    it('Delete before the embed deletes the whole token', () => {
+      const { view } = mount()
+      view.dispatch({ selection: { anchor: TOKEN_FROM } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Delete' })
+      expect(view.state.doc.toString()).toBe('Hi  there')
+    })
+
+    it('stays rendered while a selection covers it', () => {
+      // Dragging a selection across an embed used to flip it back to the raw
+      // `![alt](url)` mid-gesture, because every other construct un-hides its
+      // markup when the selection touches it.
+      const { view, container } = mount()
+      view.dispatch({ selection: { anchor: 0, head: DOC.length } })
+      expect(container.querySelector('[data-testid="async-image"]')).toBeTruthy()
+      expect(view.contentDOM.textContent).not.toContain(TOKEN)
+    })
+
+    it('leaves ordinary text one character at a time', () => {
+      const { view } = mount()
+      view.dispatch({ selection: { anchor: DOC.length } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+      expect(view.state.doc.toString()).toBe(`Hi ${TOKEN} ther`)
+    })
+  })
+
   it('calls onChange when the document changes', async () => {
     const onChange = vi.fn()
     const ref = createRef<LiveEditorHandle>()
@@ -101,16 +173,121 @@ describe('LiveEditor', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('****abc'))
   })
 
-  // Pasting a screenshot is the same gesture as the toolbar's image import, so
-  // it belongs to the editor itself — not to whichever parent happened to pass
-  // an onPaste prop. EditorPane (Working Notes) and NoteItem both mount
-  // LiveEditor without one, which is why paste silently did nothing there.
-  describe('image paste', () => {
+  // Tauri intercepts OS file drops at the window level — there is no DOM drop
+  // event — so the editor subscribes and hit-tests the drop point itself.
+  describe('file drop', () => {
     const importHandlers = () => ({
       onImageUpload: vi.fn(),
+      onFileUpload: vi.fn(),
       onVideoUpload: vi.fn(),
       onAudioUpload: vi.fn(),
       onDocumentUpload: vi.fn(),
+      onDocumentPaste: vi.fn(),
+      onDroppedPath: vi.fn(),
+    })
+
+    const emit = async (payload: unknown) => {
+      await Promise.all(dragDropHandlers.map((h) => h({ payload })))
+    }
+
+    /** Point the drop at this editor (or not). jsdom has no elementFromPoint —
+     *  it's a layout query — so define one rather than spy on it. */
+    const aimAt = (container: HTMLElement, hit: boolean) => {
+      const content = container.querySelector('.cm-content') as HTMLElement
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: () => (hit ? content : document.body),
+      })
+    }
+
+    const mountEditor = async (handlers: ReturnType<typeof importHandlers>) => {
+      const { container } = render(
+        <LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} importHandlers={handlers} />,
+      )
+      await waitFor(() => expect(dragDropHandlers.length).toBeGreaterThan(0))
+      return container
+    }
+
+    it('imports every dropped path, in order', async () => {
+      const handlers = importHandlers()
+      const container = await mountEditor(handlers)
+      aimAt(container, true)
+
+      await emit({ type: 'drop', paths: ['C:\a\one.png', 'C:\a\two.docx'], position: { x: 10, y: 10 } })
+
+      expect(handlers.onDroppedPath.mock.calls.map((c) => c[0])).toEqual([
+        'C:\a\one.png',
+        'C:\a\two.docx',
+      ])
+    })
+
+    // Tauri sends no 'leave' after a drop, so the handler has to clear the
+    // affordance itself — it used to latch on and tint the editor permanently.
+    it('clears the drag affordance once the files land', async () => {
+      const handlers = importHandlers()
+      const container = await mountEditor(handlers)
+      aimAt(container, true)
+      const host = container.firstElementChild as HTMLElement
+
+      await emit({ type: 'over', position: { x: 10, y: 10 } })
+      await waitFor(() => expect(host.className).toContain('dropActive'))
+
+      await emit({ type: 'drop', paths: ['C:\a\one.png'], position: { x: 10, y: 10 } })
+      await waitFor(() => expect(host.className).not.toContain('dropActive'))
+    })
+
+    it('ignores a drop landing outside this editor', async () => {
+      const handlers = importHandlers()
+      const container = await mountEditor(handlers)
+      aimAt(container, false)
+
+      await emit({ type: 'drop', paths: ['C:\a\one.png'], position: { x: 10, y: 10 } })
+
+      expect(handlers.onDroppedPath).not.toHaveBeenCalled()
+    })
+
+    it('unsubscribes on unmount', async () => {
+      const { unmount } = render(<LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} />)
+      await waitFor(() => expect(dragDropHandlers.length).toBe(1))
+      unmount()
+      await waitFor(() => expect(dragDropHandlers.length).toBe(0))
+    })
+  })
+
+  // Pandoc's extracted text and anything off the Windows clipboard carry CRLF.
+  // CM6 normalizes line endings on the way into the document, so the inserted
+  // run is shorter there than in JS — computing the cursor as `from + md.length`
+  // overshot the end of the document and threw "Selection points outside of
+  // document", which the document importer then reported as a missing Pandoc.
+  // Only reproducible with the caret at the end: anywhere else, the text after
+  // it absorbs the overshoot.
+  it('inserts text containing CRLF at the end of the document', async () => {
+    const onChange = vi.fn()
+    const ref = createRef<LiveEditorHandle>()
+    const { container } = render(
+      <LiveEditor ref={ref} value="abc" onChange={onChange} notes={NOTES} />,
+    )
+    const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)
+    view!.dispatch({ selection: { anchor: view!.state.doc.length } })
+
+    expect(() => ref.current?.insertAtCursor('one\r\ntwo')).not.toThrow()
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('abcone\ntwo'))
+  })
+
+  // Pasting a screenshot or an OS-copied media file is the same gesture as the
+  // toolbar's import, so it belongs to the editor itself — not to whichever
+  // parent happened to pass an onPaste prop. EditorPane (Working Notes) and
+  // NoteItem both mount LiveEditor without one, which is why paste silently
+  // did nothing there.
+  describe('file paste', () => {
+    const importHandlers = () => ({
+      onImageUpload: vi.fn(),
+      onFileUpload: vi.fn(),
+      onVideoUpload: vi.fn(),
+      onAudioUpload: vi.fn(),
+      onDocumentUpload: vi.fn(),
+      onDocumentPaste: vi.fn(),
+      onDroppedPath: vi.fn(),
     })
 
     /**
@@ -125,7 +302,13 @@ describe('LiveEditor', () => {
       const e = new Event('paste', { bubbles: true, cancelable: true }) as Event & {
         clipboardData: unknown
       }
-      e.clipboardData = { items, getData: () => text, files: [] }
+      e.clipboardData = {
+        // `kind` is what separates a real file from the text/plain fallback
+        // that rides along with it — the handler filters on it.
+        items: items.map((i) => ({ kind: i.getAsFile ? 'file' : 'string', ...i })),
+        getData: () => text,
+        files: [],
+      }
       return e
     }
 
@@ -134,6 +317,59 @@ describe('LiveEditor', () => {
       expect(content).toBeTruthy()
       content!.dispatchEvent(e)
     }
+
+    it.each([
+      ['image/png', 'shot.png', 'image'],
+      ['video/mp4', 'clip.mp4', 'video'],
+      ['audio/mpeg', 'song.mp3', 'audio'],
+      ['application/pdf', 'paper.pdf', 'pdf'],
+    ])('uploads a pasted %s as a %s embed', (type, name, kind) => {
+      const handlers = importHandlers()
+      const { container } = render(
+        <LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} importHandlers={handlers} />,
+      )
+      const file = new File([new Uint8Array([1, 2, 3])], name, { type })
+
+      pasteInto(container, pasteEvent([{ type, getAsFile: () => file }], `C:\files\${name}`))
+
+      expect(handlers.onFileUpload).toHaveBeenCalledTimes(1)
+      expect(handlers.onFileUpload.mock.calls[0]).toEqual([file, kind])
+    })
+
+    // A document can't become an embed on its own — it goes to the importer,
+    // which asks convert / extract / link exactly as the toolbar button does.
+    it.each([
+      ['notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      // A file copied in the OS file manager often carries no usable MIME type,
+      // so the extension is what the handler matches on.
+      ['budget.xlsx', ''],
+      ['old.doc', 'application/octet-stream'],
+    ])('sends a pasted %s to the document importer', (name, type) => {
+      const handlers = importHandlers()
+      const { container } = render(
+        <LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} importHandlers={handlers} />,
+      )
+      const file = new File([new Uint8Array([1])], name, { type })
+
+      pasteInto(container, pasteEvent([{ type, getAsFile: () => file }], `C:\files\${name}`))
+
+      expect(handlers.onDocumentPaste).toHaveBeenCalledTimes(1)
+      expect(handlers.onDocumentPaste.mock.calls[0][0]).toBe(file)
+      expect(handlers.onFileUpload).not.toHaveBeenCalled()
+    })
+
+    it('leaves a file it cannot import to the editor', () => {
+      const handlers = importHandlers()
+      const { container } = render(
+        <LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} importHandlers={handlers} />,
+      )
+      const file = new File([new Uint8Array([1])], 'setup.exe', { type: 'application/octet-stream' })
+
+      pasteInto(container, pasteEvent([{ type: file.type, getAsFile: () => file }], 'C:\setup.exe'))
+
+      expect(handlers.onFileUpload).not.toHaveBeenCalled()
+      expect(handlers.onDocumentPaste).not.toHaveBeenCalled()
+    })
 
     it('uploads an image pasted from the clipboard', () => {
       const handlers = importHandlers()
@@ -146,8 +382,8 @@ describe('LiveEditor', () => {
 
       pasteInto(container, e)
 
-      expect(handlers.onImageUpload).toHaveBeenCalledTimes(1)
-      expect(handlers.onImageUpload.mock.calls[0][0]).toBe(file)
+      expect(handlers.onFileUpload).toHaveBeenCalledTimes(1)
+      expect(handlers.onFileUpload.mock.calls[0][0]).toBe(file)
       // CM6's own text insert must not also run, or the clipboard's text/plain
       // fallback (the file path, on Windows) lands in the document beside it.
       expect(onChange).not.toHaveBeenCalled()
@@ -161,7 +397,8 @@ describe('LiveEditor', () => {
 
       pasteInto(container, pasteEvent([{ type: 'text/plain' }], 'hello'))
 
-      expect(handlers.onImageUpload).not.toHaveBeenCalled()
+      expect(handlers.onFileUpload).not.toHaveBeenCalled()
+      expect(handlers.onDocumentPaste).not.toHaveBeenCalled()
     })
 
     it('ignores an image paste when there is nowhere to upload it', () => {
