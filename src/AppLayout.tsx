@@ -191,7 +191,7 @@ function AppInner() {
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>
-                <OnboardingNudge />
+                {!inSettings && <OnboardingNudge />}
                 <Suspense fallback={null}>
                     <Outlet />
                 </Suspense>
