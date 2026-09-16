@@ -78,7 +78,7 @@ export function useChatHistory(
   }, [mode, setActiveId])
 
   const persist = useCallback(
-    async (messages: unknown, scope: unknown, title: string, projectId?: string | null) => {
+    async (messages: unknown, scope: unknown, title: string, projectId?: string | null, ruleIds?: string[]) => {
       // Read the current id from the store in case it changed mid-request.
       const id = getViewState<string>(convKey) ?? activeId
       const now = Date.now()
@@ -92,6 +92,7 @@ export function useChatHistory(
         vaultId: activeVaultId,
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
+        ruleIds: ruleIds ?? [],
       }
       try {
         await saveConversation(conv)

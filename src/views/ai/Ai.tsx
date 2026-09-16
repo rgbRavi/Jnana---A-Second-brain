@@ -9,7 +9,6 @@ import { useRag } from '../../hooks/useRag'
 import { useViewState } from '../../hooks/useViewState'
 import { useScopedNoteIds } from '../../hooks/useScopedNoteIds'
 import { setRetrievalScope } from '../../core/ai'
-import { AiChat } from '../../ui/ai/AiChat'
 import { FreeChat } from '../../ui/ai/FreeChat'
 import { ChatHistory } from '../../ui/ai/ChatHistory'
 import { ProjectsView } from './ProjectsView'
@@ -17,12 +16,13 @@ import { ScopeBar } from '../../ui/ScopeBar'
 import { NoteModal } from '../../ui/NoteModal'
 import styles from '../../ui/ai/Ai.module.css'
 
-type AiMode = 'focused' | 'chat' | 'projects'
+// 'focused' merged into 'chat' — grounded actions are now armed from the composer.
+type AiMode = 'chat' | 'projects'
 
 function Ai() {
   const { notes, update, updateTags } = useNotesContext()
   const { config, reindexAll } = useRag()
-  const [mode, setMode] = useViewState<AiMode>('ai.mode', 'focused')
+  const [mode] = useViewState<AiMode>('ai.mode', 'chat')
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const openNote = notes.find((n) => n.id === openNoteId)
 
@@ -47,22 +47,6 @@ function Ai() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-          <div className={styles.scopeChips}>
-            <button
-              className={`${styles.btn} ${mode === 'focused' ? styles.btnActive : ''}`}
-              onClick={() => setMode('focused')}
-              title="Grounded analysis over your notes (topic / time / note scopes)"
-            >
-              Focused AI Assist
-            </button>
-            <button
-              className={`${styles.btn} ${mode === 'chat' ? styles.btnActive : ''}`}
-              onClick={() => setMode('chat')}
-              title="A normal chatbot — multi-turn, file/media upload, thinking toggle"
-            >
-              AI Chat
-            </button>
-          </div>
           <ScopeBar />
         </div>
         <NavLink to="/settings" className={styles.settingsBtn} title="Settings">
@@ -77,10 +61,8 @@ function Ai() {
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {mode === 'projects' ? (
             <ProjectsView />
-          ) : mode === 'focused' ? (
-            <AiChat config={config} notes={notes} onOpenNote={setOpenNoteId} onReindexAll={reindexAll} />
           ) : (
-            <FreeChat config={config} notes={notes} />
+            <FreeChat config={config} notes={notes} onOpenNote={setOpenNoteId} onReindexAll={reindexAll} />
           )}
         </div>
       </div>

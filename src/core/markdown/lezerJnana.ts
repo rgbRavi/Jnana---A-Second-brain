@@ -8,15 +8,17 @@
 // remark/mdast (react-markdown's AST) are different ecosystems with no
 // shared parsing code, only shared *patterns*.
 //
-// Defines two inline node types, `JnanaWikilink` and `JnanaTimestamp`. Nodes
-// only carry position (from/to) — LiveEditor.decorations.tsx re-slices the
-// source text and re-matches the same anchored regex to recover the title /
-// kind / index / time, which is the normal way lezer tree consumers recover
-// semantic detail (nodes intentionally carry no extra payload).
+// Defines three inline node types: `JnanaWikilink`, `JnanaTimestamp`, and
+// `JnanaDocRef`. Nodes only carry position (from/to) — LiveEditor.decorations.tsx
+// re-slices the source text and re-matches the same anchored regex to recover
+// the title / kind / index / time / page / coords, which is the normal way
+// lezer tree consumers recover semantic detail (nodes intentionally carry no
+// extra payload).
 
 import type { MarkdownConfig } from '@lezer/markdown'
 import {
   audioTimestampAnchored,
+  docRefAnchored,
   simpleTimestampAnchored,
   videoTimestampAnchored,
   wikilinkAnchored,
@@ -25,7 +27,7 @@ import {
 const OPEN_BRACKET = '['.charCodeAt(0)
 
 export const lezerJnana: MarkdownConfig = {
-  defineNodes: ['JnanaWikilink', 'JnanaTimestamp'],
+  defineNodes: ['JnanaWikilink', 'JnanaTimestamp', 'JnanaDocRef'],
   parseInline: [
     {
       name: 'JnanaTokens',
@@ -40,6 +42,9 @@ export const lezerJnana: MarkdownConfig = {
         if (wikilink && wikilink[1].trim()) {
           return cx.addElement(cx.elt('JnanaWikilink', pos, pos + wikilink[0].length))
         }
+
+        const docRef = docRefAnchored().exec(rest)
+        if (docRef) return cx.addElement(cx.elt('JnanaDocRef', pos, pos + docRef[0].length))
 
         for (const re of [videoTimestampAnchored(), audioTimestampAnchored(), simpleTimestampAnchored()]) {
           const match = re.exec(rest)

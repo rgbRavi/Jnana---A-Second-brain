@@ -7,6 +7,7 @@ mod commands;
 mod db;
 
 use commands::ai::*;
+use commands::ai_rules::*;
 use commands::ai_workspace::*;
 use commands::annotations::*;
 use commands::assets::*;
@@ -370,6 +371,11 @@ fn main() {
             list_project_knowledge,
             add_project_knowledge,
             remove_project_knowledge,
+            list_rules,
+            save_rule,
+            delete_rule,
+            list_project_rules,
+            set_project_rules,
             list_themes,
             save_theme,
             delete_theme,

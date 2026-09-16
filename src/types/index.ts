@@ -95,6 +95,8 @@ export interface StoredConversation {
   vaultId: string
   createdAt: number
   updatedAt: number
+  /** Adaptive Rules selected for this conversation (session-scoped). */
+  ruleIds?: string[]
 }
 
 /** Lightweight conversation summary for the history list. */
@@ -144,6 +146,16 @@ export interface AiPreset {
   body: string
   createdAt: number
   updatedAt: number
+}
+
+/** A user-authored Adaptive Rule: a short instruction re-injected to keep long chats on track. */
+export interface AiRule {
+  id: string
+  vaultId: string
+  name: string
+  text: string
+  critical: boolean
+  createdAt: number
 }
 
 export interface MediaRef {
@@ -446,20 +458,6 @@ export interface Plugin {
   /** Called before the plugin is unregistered (inline plugins only) */
   destroy?: () => void
 }
-
-export type AppEvent =
-  | { type: 'note:saved';        payload: Note }
-  | { type: 'note:opened';       payload: Note }
-  | { type: 'note:deleted';      payload: { id: string } }
-  | { type: 'link:created';      payload: Link }
-  | { type: 'link:removed';      payload: Link }
-  | { type: 'video:timestamp';   payload: TimestampEntry & { noteId: string } }
-  | { type: 'pdf:highlight';     payload: PdfAnnotation & { noteId: string } }
-  | { type: 'search:query';      payload: { query: string } }
-  | { type: 'plugin:registered';    payload: { id: string } }
-  | { type: 'annotation:created';   payload: Annotation }
-  | { type: 'annotation:updated';   payload: { id: string; content: string } }
-  | { type: 'annotation:deleted';   payload: { id: string } }
 
 // ─── Theme Studio ──────────────────────────────────────────────────────────
 

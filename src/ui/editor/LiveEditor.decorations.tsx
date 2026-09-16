@@ -34,6 +34,8 @@ import {
   wikilinkAnchored,
 } from '../../core/markdown/tokenPatterns'
 import { colorTokenRegex, highlightBackground, highlightTokenRegex, resolveColor } from '../../core/markdown/colors'
+import { parseDocRefToken } from '../../core/markdown/pdfRef'
+import { DocRefChip } from './DocRefChip'
 import {
   AudioEmbed,
   EditorTableWidget,
@@ -232,11 +234,13 @@ class YouTubeWidget extends ReactWidget<{
 class PdfWidget extends ReactWidget<{
   url: string
   noteId: string
+  pdfIndex: number
   mediaKey: string
   layout: MediaLayout | undefined
   moveMedia: LiveContext['moveMedia']
   onMediaDragStart: LiveContext['onMediaDragStart']
   onLayoutChange: LiveContext['onLayoutChange']
+  view: EditorView
 }> {
   renderWidget() {
     return (
@@ -249,7 +253,16 @@ class PdfWidget extends ReactWidget<{
         onDragStart={(e) => this.props.onMediaDragStart(this.props.mediaKey, e)}
         onLayoutChange={this.props.onLayoutChange}
       >
-        {(layout) => <PdfEmbed url={this.props.url} noteId={this.props.noteId} lazy={false} layout={layout} />}
+        {(layout) => (
+          <PdfEmbed
+            url={this.props.url}
+            noteId={this.props.noteId}
+            lazy={false}
+            layout={layout}
+            pdfIndex={this.props.pdfIndex}
+            onAppendRef={(token) => this.props.view.dispatch(this.props.view.state.replaceSelection(`\n${token}`))}
+          />
+        )}
       </ResizableMediaFrame>
     )
   }
@@ -310,6 +323,28 @@ class TimestampWidget extends ReactWidget<{
   renderWidget() {
     return (
       <TimestampButton kind={this.props.kind} index={this.props.index} time={this.props.time} onSeek={this.props.onSeek} />
+    )
+  }
+}
+
+class DocRefWidget extends ReactWidget<{
+  pdfIndex: number
+  page: number
+  x: number
+  y: number
+  noteId: string
+  content: string
+}> {
+  renderWidget() {
+    return (
+      <DocRefChip
+        pdfIndex={this.props.pdfIndex}
+        page={this.props.page}
+        x={this.props.x}
+        y={this.props.y}
+        noteId={this.props.noteId}
+        content={this.props.content}
+      />
     )
   }
 }
@@ -393,6 +428,7 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
 
   let videoIndex = 0
   let audioIndex = 0
+  let pdfIndex = 0
   // Mirrors remarkJnana.ts's media_key derivation (url + document-order
   // occurrence ordinal) so both renderers agree on which saved layout
   // applies to which embed.
@@ -520,10 +556,11 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
             }))
           }
         } else if (alt === 'pdf') {
+          const idx = pdfIndex++
           if (!revealed(from, to)) {
             applyAlign()
             builder.add(from, to, Decoration.replace({
-              widget: new PdfWidget({ url, noteId: context.noteId, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange }),
+              widget: new PdfWidget({ url, noteId: context.noteId, pdfIndex: idx, mediaKey, layout, moveMedia: context.moveMedia, onMediaDragStart: drag, onLayoutChange: context.onLayoutChange, view }),
             }))
           }
         } else if (alt === 'webpage') {
@@ -590,6 +627,25 @@ function buildDecorations(view: EditorView, context: LiveContext): DecorationSet
           builder.add(from, to, Decoration.replace({
             widget: new TimestampWidget({ kind, index, time, onSeek: (k, i, sec) => seekInView(view, k, i, sec) }),
           }))
+        }
+        return false
+      }
+
+      if (name === 'JnanaDocRef') {
+        if (!revealed(from, to)) {
+          const parsed = parseDocRefToken(text.slice(from, to))
+          if (parsed) {
+            builder.add(from, to, Decoration.replace({
+              widget: new DocRefWidget({
+                pdfIndex: parsed.index,
+                page: parsed.page,
+                x: parsed.x,
+                y: parsed.y,
+                noteId: context.noteId,
+                content: text,
+              }),
+            }))
+          }
         }
         return false
       }

@@ -34,6 +34,7 @@ function App() {
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>
                                     <Route path = "/settings" element = {<Settings />}/>
+                                    <Route path = "/settings/ai" element = {<Settings />}/>
                                     <Route path = "/trash" element = {<TrashView />}/>
                             </Route>
                         </Routes>

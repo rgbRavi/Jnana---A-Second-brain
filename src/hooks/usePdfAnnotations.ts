@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useMemo } from 'react'
-import { makePdfAnnotation, makePdfInkAnnotation, makePdfTextAnnotation } from '../core/annotations'
+import { makePdfAnnotation, makePdfInkAnnotation, makePdfRefAnnotation, makePdfTextAnnotation } from '../core/annotations'
 import { useAnnotations } from './useAnnotations'
 
 // Parsed, page-scoped views of the three PDF annotation kinds. All coordinates
@@ -28,6 +28,11 @@ export interface PdfText {
   /** Explicit text colour; undefined → viewer auto-contrasts the page bg. */
   color?: string
 }
+export interface PdfRef {
+  id: string
+  x: number
+  y: number
+}
 
 interface PdfPosition {
   page?: number
@@ -43,10 +48,11 @@ interface PdfPosition {
 export function usePdfAnnotations(noteId: string, mediaId: string, pageNumber: number) {
   const { annotations, create, update, updatePosition, remove, loading } = useAnnotations(noteId)
 
-  const { highlights, inks, texts } = useMemo(() => {
+  const { highlights, inks, texts, refs } = useMemo(() => {
     const highlights: PdfHighlight[] = []
     const inks: PdfInk[] = []
     const texts: PdfText[] = []
+    const refs: PdfRef[] = []
     for (const a of annotations) {
       if (a.mediaId !== mediaId) continue
       let pos: PdfPosition
@@ -62,9 +68,11 @@ export function usePdfAnnotations(noteId: string, mediaId: string, pageNumber: n
         inks.push({ id: a.id, points: pos.points, color: pos.color ?? '#7c6af7', size: pos.size ?? 4 })
       } else if (a.kind === 'pdf_text' && pos.x != null && pos.y != null) {
         texts.push({ id: a.id, x: pos.x, y: pos.y, fontSize: pos.fontSize ?? 14, text: a.content, color: pos.color })
+      } else if (a.kind === 'pdf_ref' && pos.x != null && pos.y != null) {
+        refs.push({ id: a.id, x: pos.x, y: pos.y })
       }
     }
-    return { highlights, inks, texts }
+    return { highlights, inks, texts, refs }
   }, [annotations, mediaId, pageNumber])
 
   const createHighlight = useCallback(
@@ -94,6 +102,15 @@ export function usePdfAnnotations(noteId: string, mediaId: string, pageNumber: n
     [create, mediaId, noteId, pageNumber],
   )
 
+  const createRef = useCallback(
+    async (x: number, y: number) => {
+      const annotation = makePdfRefAnnotation(noteId, mediaId, pageNumber, x, y)
+      await create(annotation)
+      return annotation
+    },
+    [create, mediaId, noteId, pageNumber],
+  )
+
   // Rewrite a text box's position JSON — used for drag-to-move and colour
   // changes, keeping page + the other fields intact. `color` undefined drops the
   // key, reverting the box to auto-contrast.
@@ -108,9 +125,11 @@ export function usePdfAnnotations(noteId: string, mediaId: string, pageNumber: n
     highlights,
     inks,
     texts,
+    refs,
     createHighlight,
     createInk,
     createText,
+    createRef,
     updateText: update,
     writeText,
     remove,

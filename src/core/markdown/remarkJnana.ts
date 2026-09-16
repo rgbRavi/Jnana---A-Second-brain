@@ -18,7 +18,7 @@
 import { visit } from 'unist-util-visit'
 import { findAndReplace } from 'mdast-util-find-and-replace'
 import type { PhrasingContent, RootContent, Root } from 'mdast'
-import { audioTimestampRegex, simpleTimestampRegex, videoTimestampRegex, wikilinkRegex } from './tokenPatterns'
+import { audioTimestampRegex, docRefRegex, simpleTimestampRegex, videoTimestampRegex, wikilinkRegex } from './tokenPatterns'
 import { colorAnyTokenRegex } from './colors'
 
 /** mdast-util-to-hast's `data.hProperties` convention isn't in `@types/mdast`. */
@@ -36,6 +36,7 @@ export function remarkJnana() {
   return (tree: Root): void => {
     let videoIndex = 0
     let audioIndex = 0
+    let pdfIndex = 0
     const mediaKeyOrdinals = new Map<string, number>()
 
     // Media indexing — must run before the text-token pass below makes no
@@ -55,6 +56,7 @@ export function remarkJnana() {
       const hProperties: Record<string, unknown> = { ...data.hProperties, 'data-media-key': `${url}#${ordinal}` }
       if (node.alt === 'video') hProperties['data-video-index'] = videoIndex++
       else if (node.alt === 'audio') hProperties['data-audio-index'] = audioIndex++
+      else if (node.alt === 'pdf') hProperties['data-pdf-index'] = pdfIndex++
       node.data = { ...data, hProperties } as typeof node.data
     })
 
@@ -121,6 +123,16 @@ export function remarkJnana() {
       [
         simpleTimestampRegex(),
         (_match: string, time: string) => customNode('jnana-timestamp', { kind: 'video', index: 0, time }),
+      ],
+      [
+        docRefRegex(),
+        (_match: string, index: string, page: string, x: string, y: string) =>
+          customNode('jnana-doc-ref', {
+            pdfIndex: Number(index),
+            page: Number(page),
+            x: Number(x),
+            y: Number(y),
+          }),
       ],
     ])
   }

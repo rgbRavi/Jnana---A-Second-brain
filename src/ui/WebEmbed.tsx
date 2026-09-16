@@ -16,6 +16,9 @@ interface Props {
   /** Defer the Open-Graph preview fetch until the card scrolls into view.
    *  On in note cards, off (default) in always-visible contexts like the canvas. */
   lazy?: boolean
+  /** Gallery-card preview: make the whole card non-interactive so a click opens
+   *  the note modal instead of the embed's own actions (Live view / Open). */
+  previewCard?: boolean
 }
 
 /**
@@ -34,7 +37,8 @@ function liveSrc(url: string): string {
  * sandboxed iframe (many sites block framing — hence the open-in-browser action).
  * Shared by the `![webpage](url)` note embed and canvas link nodes.
  */
-export function WebEmbed({ url, compact = false, lazy = false }: Props) {
+export function WebEmbed({ url, compact = false, lazy = false, previewCard = false }: Props) {
+  const passthrough = previewCard ? { pointerEvents: 'none' as const } : undefined
   const [preview, setPreview] = useState<LinkPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [live, setLive] = useState(false)
@@ -58,7 +62,7 @@ export function WebEmbed({ url, compact = false, lazy = false }: Props) {
 
   if (live) {
     return (
-      <div className={styles.liveWrap} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.liveWrap} onClick={(e) => e.stopPropagation()} style={passthrough}>
         <div className={styles.liveBar}>
           <span className={styles.liveDomain}>{domain}</span>
           <span className={styles.liveActions}>
@@ -82,7 +86,7 @@ export function WebEmbed({ url, compact = false, lazy = false }: Props) {
   const title = preview?.title?.trim() || url
 
   return (
-    <div ref={ref} className={`${styles.card} ${compact ? styles.compact : ''}`} onClick={(e) => e.stopPropagation()}>
+    <div ref={ref} className={`${styles.card} ${compact ? styles.compact : ''}`} onClick={(e) => e.stopPropagation()} style={passthrough}>
       {preview?.image && !compact && (
         <div className={styles.thumb}>
           <img src={preview.image} alt="" loading="lazy" referrerPolicy="no-referrer" />

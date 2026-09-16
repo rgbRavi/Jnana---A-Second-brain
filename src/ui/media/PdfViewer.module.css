@@ -100,3 +100,66 @@
   outline: none;
   border-color: var(--accent);
 }
+
+/* Reference-pin dot + its Copy/Append/Delete popover. #2f6fed is a deliberate
+   fixed reference blue (not --accent) so a pin reads consistently across
+   themes, independent of the active accent colour. */
+.refDot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px; /* center on the point */
+  border-radius: 999px;
+  background: #2f6fed;
+  border: 2px solid #fff;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  padding: 0;
+  z-index: 13;
+}
+
+.pinMenu {
+  position: absolute;
+  transform: translateY(8px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+}
+
+.pinMenu button {
+  padding: var(--space-2xs) var(--space-sm);
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.pinMenu button:hover {
+  background: var(--surface-hover);
+}
+
+/* Jump-back pulse for the `pdf:open` reveal path — same fixed reference blue
+   as .refDot (deliberate, theme-independent) so the pulse visually matches
+   the pin it points at. */
+.refPulse {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 999px;
+  background: #2f6fed;
+  box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6);
+  animation: refPulse 1.4s ease-out 1;
+  pointer-events: none;
+  z-index: 14;
+}
+
+@keyframes refPulse {
+  0% { box-shadow: 0 0 0 0 rgba(47, 111, 237, 0.6); }
+  100% { box-shadow: 0 0 0 22px rgba(47, 111, 237, 0); }
+}

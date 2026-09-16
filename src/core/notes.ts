@@ -42,13 +42,14 @@ export async function restoreNote(id: string): Promise<Note> {
   return invoke<Note>('restore_note', { id })
 }
 
-export async function listTrashedNotes(): Promise<TrashedNote[]> {
-  return invoke<TrashedNote[]>('list_trashed_notes')
+/** Trashed notes in one vault (Trash is vault-scoped, like the rest of the app). */
+export async function listTrashedNotes(vaultId: string): Promise<TrashedNote[]> {
+  return invoke<TrashedNote[]>('list_trashed_notes', { vaultId })
 }
 
-/** Permanently delete every trashed note. Returns the count removed. */
-export async function emptyTrash(): Promise<number> {
-  return invoke<number>('empty_trash')
+/** Permanently delete every trashed note in one vault. Returns the count removed. */
+export async function emptyTrash(vaultId: string): Promise<number> {
+  return invoke<number>('empty_trash', { vaultId })
 }
 
 /** Purge trashed notes older than `retentionDays` (<=0 = keep forever). Count removed. */

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useMemo, useState } from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import type { Note } from '../../../types'
 import styles from './canvas.module.css'
 
@@ -16,6 +17,7 @@ interface Props {
 
 /** Pick workspace notes (searchable, multi-select) to drop onto the canvas. */
 export function CanvasNotePicker({ notes, placedIds, onPick, onClose }: Props) {
+  useEscapeKey(onClose)
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
 

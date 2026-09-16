@@ -13,7 +13,7 @@
 | **Database** | SQLite (rusqlite 0.31, WAL mode) | Persistent storage with schema migrations |
 | **Frontend** | React 19 + TypeScript | UI framework |
 | **Build** | Vite 7 | Dev server & bundling |
-| **Search** | MiniSearch | Client-side full-text search with fuzzy matching (also the Ctrl/⌘-K palette) |
+| **Search** | MiniSearch | Client-side full-text search with fuzzy matching (also the Ctrl/⌘-` palette) |
 | **Graph** | react-force-graph-2d | Knowledge graph visualization (scopeable to a workspace) |
 | **Canvas** | Hand-rolled pointer-event board + perfect-freehand | Per-workspace freeform board + ink (no canvas lib — React-19/findDOMNode) |
 | **Web link previews** | reqwest (Rust) + Open-Graph scraping | `![webpage]` embeds, cached in `link_previews` |

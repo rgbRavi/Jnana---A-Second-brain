@@ -281,6 +281,18 @@ describe('MarkdownLite', () => {
     })
   })
 
+  it('renders a doc-ref chip and emits pdf:open on click', async () => {
+    const { eventBus } = await import('../../lib/eventBus')
+    const emit = vi.spyOn(eventBus, 'emit')
+    const content = '![pdf](jnana-asset://a.pdf)\n\nsee [D0::p4@0.42,0.68]'
+    const { getByText } = render(<MarkdownLite content={content} noteId="n1" />)
+    const chip = getByText('📄 p.4')
+    chip.click()
+    expect(emit).toHaveBeenCalledWith('pdf:open', {
+      filename: 'a.pdf', noteId: 'n1', page: 4, x: 0.42, y: 0.68,
+    })
+  })
+
   describe('urlTransform', () => {
     it('preserves jnana-asset:// urls through to the embed component', () => {
       const { getByTestId } = render(<MarkdownLite content="![photo](jnana-asset://my-file.png)" />)

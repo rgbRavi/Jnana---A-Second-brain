@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useMemo, useState } from 'react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { useNotesContext } from '../../context/NotesContext'
 import { addWorkspaceNotes } from '../../core/workspaces'
 import { toast } from '../../lib/toast'
@@ -17,6 +18,7 @@ interface Props {
 
 /** Pick existing notes (searchable, multi-select) and add them to a workspace. */
 export function AddNotesPicker({ workspaceId, existingIds, onClose, onAdded }: Props) {
+  useEscapeKey(onClose)
   const { notes } = useNotesContext()
   const [q, setQ] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())

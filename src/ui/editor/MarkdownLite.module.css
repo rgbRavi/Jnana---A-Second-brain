@@ -805,6 +805,21 @@
   transform: translateY(0);
 }
 
+/* Doc-ref chip (📄 p.N) */
+.docRefChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  padding: 0 var(--space-2xs);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.docRefChip:hover { background: var(--surface-hover); }
+
 /* Fullscreen / Lightbox overlay */
 .fullscreenOverlay {
   position: fixed;

@@ -8,6 +8,8 @@ import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
 import type { Element as HastElement } from 'hast'
 import { useNotesContext } from '../../context/NotesContext'
+import { saveNote } from '../../core/notes'
+import { DocRefChip } from './DocRefChip'
 import { remarkJnana } from '../../core/markdown/remarkJnana'
 import { remarkBreaks } from '../../core/markdown/remarkBreaks'
 import { colorAnyTokenRegex, highlightBackground, resolveColor } from '../../core/markdown/colors'
@@ -89,6 +91,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
   const notesRef = useRef(notes)
   notesRef.current = notes
 
+  const contentRef = useRef(content)
+  contentRef.current = content
+
   // Saved media sizes/alignment — loaded once per note (resize affordances
   // only exist in the live editor, so this never needs to update mid-view).
   // `layoutMap` is a dependency of the `components` memo below, so *replacing*
@@ -126,18 +131,29 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       const url = src ?? ''
       const mediaKey = String(hastProperties(node)['data-media-key'] ?? '')
       const layout = layoutMap.get(mediaKey)
+      // In a card preview (not `fullscreen`) media is passthrough so a click
+      // opens the note modal instead of playing/expanding the embed.
+      const preview = !fullscreen
       if (alt === 'video') {
         const idx = Number(hastProperties(node)['data-video-index'] ?? 0)
-        return <VideoEmbed url={url} videoIndex={idx} lazy={lazy} layout={layout} />
+        return <VideoEmbed url={url} videoIndex={idx} lazy={lazy} layout={layout} preview={preview} />
       }
       if (alt === 'audio') {
         const idx = Number(hastProperties(node)['data-audio-index'] ?? 0)
-        return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} />
+        return <AudioEmbed url={url} audioIndex={idx} noteId={noteId} lazy={lazy} layout={layout} preview={preview} />
       }
-      if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} />
-      if (alt === 'pdf') return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} />
-      if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} />
-      return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} />
+      if (alt === 'youtube') return <YouTubeEmbed url={url} lazy={lazy} layout={layout} preview={preview} />
+      if (alt === 'pdf') {
+        const pdfIdx = Number(hastProperties(node)['data-pdf-index'] ?? 0)
+        const appendRef = (token: string) => {
+          const note = notesRef.current.find((n) => n.id === noteId)
+          if (!note) return
+          void saveNote({ ...note, content: `${note.content}\n${token}` })
+        }
+        return <PdfEmbed url={url} noteId={noteId} lazy={lazy} layout={layout} preview={preview} pdfIndex={pdfIdx} onAppendRef={appendRef} />
+      }
+      if (alt === 'webpage') return <WebEmbed url={url} lazy={lazy} previewCard={preview} />
+      return <ImageEmbed url={url} altText={alt ?? ''} lazy={lazy} fullscreen={fullscreen} layout={layout} preview={preview} />
     }
 
     // Justify a paragraph when its media has a saved alignment — the read-mode
@@ -205,6 +221,20 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       return <TimestampButton kind={kind} index={index} time={time} onSeek={seek} />
     }
 
+    const docRef = ({ node }: { node?: HastElement }) => {
+      const p = hastProperties(node)
+      return (
+        <DocRefChip
+          pdfIndex={Number(p.pdfIndex ?? 0)}
+          page={Number(p.page ?? 1)}
+          x={Number(p.x ?? 0)}
+          y={Number(p.y ?? 0)}
+          noteId={noteId}
+          content={contentRef.current}
+        />
+      )
+    }
+
     const color = ({ node }: { node?: HastElement }) => {
       const props = hastProperties(node)
       const inner = renderColorTokens(String(props['data-text'] ?? ''))
@@ -230,6 +260,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
       img, a, p, pre, code,
       'jnana-wikilink': wikilink,
       'jnana-timestamp': timestamp,
+      'jnana-doc-ref': docRef,
       'jnana-color': color,
       'jnana-highlight': highlight,
       'jnana-table': table,

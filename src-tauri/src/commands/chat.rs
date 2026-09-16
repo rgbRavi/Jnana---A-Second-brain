@@ -21,6 +21,8 @@ pub struct ConversationRow {
     pub project_id: Option<String>,
     /// The vault this conversation belongs to (v16). Set on create.
     pub vault_id: String,
+    /// JSON array of rule ids applied to this conversation (v21), or null.
+    pub rule_ids: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }

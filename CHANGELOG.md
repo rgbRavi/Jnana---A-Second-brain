@@ -7,6 +7,15 @@ All notable changes to Jnana are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Adaptive Rules — keep the AI on-instruction in long chats.** Author reusable **Rules** and tick
+  which apply **per conversation** and **per project** (a project's rules are inherited by every chat
+  under it); Jnana ships a few defaults. Your rules are re-injected near the newest message so the model
+  keeps following them deep into a thread, instead of drifting as the conversation grows.
+  - **Settings → Advanced AI generation** — a new section to tune *when* rules refresh (off / always /
+    on turn+token thresholds / experimental conversation-drift / experimental rule-violation detection)
+    and *how* they're selected (all enabled / relevance-ranked), plus a local metrics export for
+    comparing strategies. The AI-powered strategies **degrade safely to the cheap defaults** when no AI
+    is configured, and the defaults match the previous behaviour — it's opt-in.
 - **Quizzes are graded, not just generated.** The quiz mode in AI chat now produces **multiple-choice,
   multi-answer and written** questions, you answer them in place, and you get a score.
   - **Quiz settings** (gear beside the mode picker, plus an optional compact toolbar): how many

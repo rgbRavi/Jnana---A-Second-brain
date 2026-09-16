@@ -14,11 +14,15 @@ export async function listConversations(
 }
 
 export async function getConversation(id: string): Promise<StoredConversation> {
-  return invoke<StoredConversation>('get_conversation', { id })
+  // Rust's `rule_ids` (→ camelCase `ruleIds`) is a JSON string column; the
+  // frontend-facing StoredConversation.ruleIds is the parsed array.
+  const row = await invoke<Omit<StoredConversation, 'ruleIds'> & { ruleIds?: string | null }>('get_conversation', { id })
+  return { ...row, ruleIds: row.ruleIds ? (JSON.parse(row.ruleIds) as string[]) : [] }
 }
 
 export async function saveConversation(conversation: StoredConversation): Promise<void> {
-  await invoke('save_conversation', { conversation })
+  const { ruleIds, ...rest } = conversation
+  await invoke('save_conversation', { conversation: { ...rest, ruleIds: JSON.stringify(ruleIds ?? []) } })
 }
 
 export async function deleteConversation(id: string): Promise<void> {

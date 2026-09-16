@@ -20,22 +20,22 @@ export async function getAnnotationsForMedia(mediaId: string): Promise<Annotatio
   return invoke<Annotation[]>('get_annotations_for_media', { mediaId })
 }
 
-export async function updateAnnotation(id: string, content: string): Promise<void> {
+export async function updateAnnotation(id: string, content: string, noteId?: string): Promise<void> {
   await invoke<void>('update_annotation', { id, content })
-  eventBus.emit('annotation:updated', { id, content })
+  eventBus.emit('annotation:updated', { id, content, noteId })
 }
 
 /// Update an annotation's opaque `position` JSON (e.g. dragging a PDF text box
 /// or ink stroke to a new spot). `update_annotation` only touches `content`, so
 /// this is the symmetric command for position moves.
-export async function updateAnnotationPosition(id: string, position: string): Promise<void> {
+export async function updateAnnotationPosition(id: string, position: string, noteId?: string): Promise<void> {
   await invoke<void>('update_annotation_position', { id, position })
-  eventBus.emit('annotation:updated', { id, position })
+  eventBus.emit('annotation:updated', { id, position, noteId })
 }
 
-export async function deleteAnnotation(id: string): Promise<void> {
+export async function deleteAnnotation(id: string, noteId?: string): Promise<void> {
   await invoke<void>('delete_annotation', { id })
-  eventBus.emit('annotation:deleted', { id })
+  eventBus.emit('annotation:deleted', { id, noteId })
 }
 
 /// Helper — build a video timestamp annotation payload.
@@ -124,6 +124,26 @@ export function makePdfTextAnnotation(
   }
 }
 
+/// Helper — build a PDF reference-pin annotation payload.
+/// (x, y) is the pinned point in PDF coordinate space; content is unused.
+export function makePdfRefAnnotation(
+  noteId: string,
+  mediaId: string,
+  page: number,
+  x: number,
+  y: number,
+): Annotation {
+  return {
+    id: crypto.randomUUID(),
+    noteId,
+    mediaId,
+    kind: 'pdf_ref',
+    position: JSON.stringify({ page, x, y }),
+    content: '',
+    createdAt: Date.now(),
+  }
+}
+
 /// Helper — build an audio marker annotation payload.
 export function makeAudioAnnotation(
   noteId: string,
@@ -140,4 +160,15 @@ export function makeAudioAnnotation(
     content,
     createdAt: Date.now(),
   }
+}
+
+/// Concatenated text of a note's textual PDF annotations (typed text boxes +
+/// highlight notes), for folding into the search/RAG index. Ink strokes and
+/// reference pins carry no text and are skipped.
+export async function listPdfAnnotationText(noteId: string): Promise<string> {
+  const annotations = await getAnnotationsForNote(noteId)
+  return annotations
+    .filter((a) => (a.kind === 'pdf_text' || a.kind === 'pdf_highlight') && a.content.trim())
+    .map((a) => a.content.trim())
+    .join('\n')
 }

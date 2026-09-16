@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState } from 'react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import {
   newWorkspace,
   saveWorkspace,
@@ -41,6 +42,7 @@ interface Props {
 /** Create/edit a workspace. Templates (create-only) prefill icon/description and
  *  seed starter collections. */
 export function WorkspaceEditDialog({ existing, onClose, onSaved }: Props) {
+  useEscapeKey(onClose)
   const editing = !!existing
   const [name, setName] = useState(existing?.name ?? '')
   const [icon, setIcon] = useState(existing?.icon || '📁')

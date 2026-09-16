@@ -9,7 +9,7 @@
 // Objective questions are graded locally by quizGrade; only descriptive answers
 // cost a model call.
 
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { AiConfig, QuizAttempt, QuizQuestion, QuizSettings } from '../../types'
 import { gradeDescriptive, recomputeTotals, scoreObjective, type DescriptiveItem } from '../../core/ai/quizGrade'
 import styles from './Ai.module.css'
@@ -37,7 +37,7 @@ const textOf = (attempt: QuizAttempt, i: number): string => {
 export function QuizRunner({ attempt, settings, config, reason, onChange, onIndexNow, onSave }: Props) {
   const [grading, setGrading] = useState(false)
   const [gradingIndex, setGradingIndex] = useState<number | null>(null)
-  const [submitted, setSubmitted] = useState(false)
+  const formId = useId()
 
   // Async grading (gradeDescriptive) can land after the user has already edited
   // another answer or after another grade has come back — merging onto the
@@ -45,6 +45,11 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
   // onto the latest attempt via this ref, never onto a pre-await snapshot.
   const attemptRef = useRef(attempt)
   attemptRef.current = attempt
+
+  const commitAttempt = (next: QuizAttempt) => {
+    attemptRef.current = next
+    onChange(next)
+  }
 
   if (attempt.questions.length === 0) {
     return (
@@ -72,21 +77,23 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
   // is "done" — it rides the chat thread and survives remount, so a graded
   // quiz reopened after navigation must not revert to a live, re-gradable form.
   const anyGraded = attempt.marks.some((m) => m !== null)
-  const done = submitted || (settings.feedback === 'end' && anyGraded)
+  const done = settings.feedback === 'end' && anyGraded
   /** True once question `i` is locked (graded already, or the whole quiz is done). */
   const isRevealed = (i: number) => done || attempt.marks[i] !== null
+  const isResponseLocked = (i: number) => isRevealed(i) || (settings.feedback === 'end' && grading)
 
   const setResponse = (i: number, value: number[] | string) => {
-    const responses = [...attempt.responses]
+    const current = attemptRef.current
+    const responses = [...current.responses]
     responses[i] = value
-    onChange({ ...attempt, responses })
+    commitAttempt({ ...current, responses })
   }
 
   const gradeOne = async (i: number) => {
-    const q = attempt.questions[i]
+    const q = attemptRef.current.questions[i]
 
     if (q.format === 'descriptive') {
-      const answerText = textOf(attempt, i)
+      const answerText = textOf(attemptRef.current, i)
       setGradingIndex(i)
       try {
         const [grade] = await gradeDescriptive(
@@ -97,7 +104,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
         const feedback = [...attemptRef.current.feedback]
         marks[i] = grade?.marks ?? null
         feedback[i] = grade?.feedback ?? ''
-        onChange(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+        commitAttempt(recomputeTotals({ ...attemptRef.current, marks, feedback }))
       } finally {
         setGradingIndex(null)
       }
@@ -106,64 +113,70 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
 
     const marks = [...attemptRef.current.marks]
     const feedback = [...attemptRef.current.feedback]
-    marks[i] = scoreObjective(q, pickedOf(attempt, i), settings)
-    onChange(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+    marks[i] = scoreObjective(q, pickedOf(attemptRef.current, i), settings)
+    commitAttempt(recomputeTotals({ ...attemptRef.current, marks, feedback }))
   }
 
   const submitAll = async () => {
-    // Lock the whole form the instant Submit is clicked, before the (possibly
     // slow) grading round-trip — not after it resolves.
-    setSubmitted(true)
+    const base = attemptRef.current
 
     const objective = new Map<number, number>()
-    attempt.questions.forEach((q, i) => {
-      if (q.format !== 'descriptive') objective.set(i, scoreObjective(q, pickedOf(attempt, i), settings))
+    base.questions.forEach((q, i) => {
+      if (q.format !== 'descriptive') objective.set(i, scoreObjective(q, pickedOf(base, i), settings))
     })
 
     const descriptive: { index: number; item: DescriptiveItem }[] = []
-    attempt.questions.forEach((q, i) => {
+    base.questions.forEach((q, i) => {
       if (q.format !== 'descriptive') return
       descriptive.push({
         index: i,
-        item: { question: q.question, reference: q.answer, answer: textOf(attempt, i), marks: q.marks },
+        item: { question: q.question, reference: q.answer, answer: textOf(base, i), marks: q.marks },
       })
     })
 
-    let grades: { marks: number | null; feedback: string }[] = []
-    if (descriptive.length > 0) {
-      setGrading(true)
-      grades = await gradeDescriptive(descriptive.map((d) => d.item), config)
-      setGrading(false)
+    if (objective.size > 0) {
+      const marks = [...base.marks]
+      const feedback = [...base.feedback]
+      objective.forEach((m, i) => {
+        marks[i] = m
+      })
+      commitAttempt(recomputeTotals({ ...base, marks, feedback }))
     }
 
-    const marks = [...attemptRef.current.marks]
-    const feedback = [...attemptRef.current.feedback]
-    objective.forEach((m, i) => {
-      marks[i] = m
-    })
-    descriptive.forEach((d, k) => {
-      marks[d.index] = grades[k]?.marks ?? null
-      feedback[d.index] = grades[k]?.feedback ?? ''
-    })
+    if (descriptive.length === 0) return
 
-    onChange(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+    setGrading(true)
+    try {
+      const grades = await gradeDescriptive(descriptive.map((d) => d.item), config)
+      const marks = [...attemptRef.current.marks]
+      const feedback = [...attemptRef.current.feedback]
+      descriptive.forEach((d, k) => {
+        marks[d.index] = grades[k]?.marks ?? null
+        feedback[d.index] = grades[k]?.feedback ?? ''
+      })
+      commitAttempt(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+    } finally {
+      setGrading(false)
+    }
   }
 
   const toggleChoice = (i: number, q: QuizQuestion, optionIndex: number) => {
-    if (isRevealed(i)) return
+    if (isResponseLocked(i)) return
+    const currentAttempt = attemptRef.current
     if (q.format === 'mcq') {
-      const responses = [...attempt.responses]
+      const responses = [...currentAttempt.responses]
       responses[i] = [optionIndex]
       if (settings.feedback === 'immediate') {
-        const marks = [...attempt.marks]
+        const marks = [...currentAttempt.marks]
         marks[i] = scoreObjective(q, [optionIndex], settings)
-        onChange(recomputeTotals({ ...attempt, responses, marks }))
+        commitAttempt(recomputeTotals({ ...currentAttempt, responses, marks }))
       } else {
-        onChange({ ...attempt, responses })
+        commitAttempt({ ...currentAttempt, responses })
       }
       return
     }
-    const current = pickedOf(attempt, i)
+    const current = pickedOf(currentAttempt, i)
     const next = current.includes(optionIndex)
       ? current.filter((x) => x !== optionIndex)
       : [...current, optionIndex]
@@ -184,6 +197,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
           : m,
       ),
     })
+  const canSave = Boolean(onSave && !grading && gradingIndex === null && (done || settings.feedback === 'immediate'))
 
   return (
     <div className={styles.analysisCard}>
@@ -196,6 +210,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
 
       {attempt.questions.map((q, i) => {
         const revealed = isRevealed(i)
+        const locked = isResponseLocked(i)
         const picked = pickedOf(attempt, i)
         const correct = q.correct ?? []
         return (
@@ -211,7 +226,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
                   <textarea
                     className={styles.quizTextarea}
                     value={textOf(attempt, i)}
-                    disabled={revealed || gradingIndex === i}
+                    disabled={locked || gradingIndex === i}
                     placeholder="Your answer…"
                     aria-label={`Answer to question ${i + 1}`}
                     onChange={(e) => setResponse(i, e.target.value)}
@@ -219,6 +234,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
                       if (
                         settings.feedback === 'immediate' &&
                         !revealed &&
+                        !locked &&
                         gradingIndex === null &&
                         textOf(attempt, i).trim()
                       )
@@ -240,9 +256,9 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
                     <label key={oi} className={`${styles.quizOption} ${state}`}>
                       <input
                         type={q.format === 'mcq' ? 'radio' : 'checkbox'}
-                        name={`q-${attempt.takenAt}-${i}`}
+                        name={`${formId}-q-${i}`}
                         checked={picked.includes(oi)}
-                        disabled={revealed}
+                        disabled={locked}
                         onChange={() => toggleChoice(i, q, oi)}
                       />
                       {opt}
@@ -253,7 +269,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
             </fieldset>
 
             {q.format === 'mcma' && !revealed && settings.feedback === 'immediate' && (
-              <button className={styles.quizReveal} onClick={() => void gradeOne(i)} disabled={picked.length === 0}>
+              <button className={styles.quizReveal} onClick={() => void gradeOne(i)} disabled={picked.length === 0 || gradingIndex === i}>
                 Check answer
               </button>
             )}
@@ -278,7 +294,7 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
             {grading ? 'Grading…' : 'Submit answers'}
           </button>
         )}
-        {onSave && (done || settings.feedback === 'immediate') && (
+        {canSave && onSave && (
           <button className={styles.btn} onClick={() => onSave(finalize(attempt))}>
             Save quiz
           </button>

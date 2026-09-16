@@ -100,4 +100,79 @@ describe('LiveEditor', () => {
     ref.current?.applyFormatAtSelection('bold')
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('****abc'))
   })
+
+  // Pasting a screenshot is the same gesture as the toolbar's image import, so
+  // it belongs to the editor itself — not to whichever parent happened to pass
+  // an onPaste prop. EditorPane (Working Notes) and NoteItem both mount
+  // LiveEditor without one, which is why paste silently did nothing there.
+  describe('image paste', () => {
+    const importHandlers = () => ({
+      onImageUpload: vi.fn(),
+      onVideoUpload: vi.fn(),
+      onAudioUpload: vi.fn(),
+      onDocumentUpload: vi.fn(),
+    })
+
+    /**
+     * A paste event carrying `items`, the way a real clipboard delivers files.
+     * `text` is the text/plain fallback that rides along — on Windows, copying
+     * an image file puts its path there, which CM6 would otherwise insert.
+     *
+     * Note `defaultPrevented` is useless as an assertion here: CM6 cancels every
+     * paste it sees, handled or not. Assert the observable effect instead.
+     */
+    function pasteEvent(items: { type: string; getAsFile?: () => File | null }[], text = '') {
+      const e = new Event('paste', { bubbles: true, cancelable: true }) as Event & {
+        clipboardData: unknown
+      }
+      e.clipboardData = { items, getData: () => text, files: [] }
+      return e
+    }
+
+    function pasteInto(container: HTMLElement, e: Event) {
+      const content = container.querySelector('.cm-content')
+      expect(content).toBeTruthy()
+      content!.dispatchEvent(e)
+    }
+
+    it('uploads an image pasted from the clipboard', () => {
+      const handlers = importHandlers()
+      const onChange = vi.fn()
+      const { container } = render(
+        <LiveEditor value="abc" onChange={onChange} notes={NOTES} importHandlers={handlers} />,
+      )
+      const file = new File([new Uint8Array([1, 2, 3])], 'image.png', { type: 'image/png' })
+      const e = pasteEvent([{ type: 'image/png', getAsFile: () => file }], 'C:\\shots\\image.png')
+
+      pasteInto(container, e)
+
+      expect(handlers.onImageUpload).toHaveBeenCalledTimes(1)
+      expect(handlers.onImageUpload.mock.calls[0][0]).toBe(file)
+      // CM6's own text insert must not also run, or the clipboard's text/plain
+      // fallback (the file path, on Windows) lands in the document beside it.
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('leaves a plain-text paste to the editor', () => {
+      const handlers = importHandlers()
+      const { container } = render(
+        <LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} importHandlers={handlers} />,
+      )
+
+      pasteInto(container, pasteEvent([{ type: 'text/plain' }], 'hello'))
+
+      expect(handlers.onImageUpload).not.toHaveBeenCalled()
+    })
+
+    it('ignores an image paste when there is nowhere to upload it', () => {
+      // No importHandlers — the mount sites that don't wire a composer. The
+      // optional chaining must hold rather than throwing into CM6's handler.
+      const { container } = render(<LiveEditor value="abc" onChange={vi.fn()} notes={NOTES} />)
+      const file = new File([new Uint8Array([1])], 'image.png', { type: 'image/png' })
+
+      expect(() =>
+        pasteInto(container, pasteEvent([{ type: 'image/png', getAsFile: () => file }])),
+      ).not.toThrow()
+    })
+  })
 })

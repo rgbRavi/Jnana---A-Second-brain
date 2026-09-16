@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+// Stringly-typed app-wide bus — no central event registry, just `emit`/`on`
+// with a matching string. Notable events: `note:saved`/`note:opened`/
+// `note:deleted`, `link:created`/`link:removed`, `annotation:created`/
+// `:updated`/`:deleted`, `workspace:changed`, and `pdf:open`
+// `{ filename, noteId, page, x, y }` — jump to a PDF reference pin, with
+// (x, y) normalized 0-1 within the page.
 type Handler<T = unknown> = (payload: T) => void
 
 export class EventBus {

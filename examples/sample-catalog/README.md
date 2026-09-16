@@ -12,7 +12,7 @@ this folder (repackaged from `../sample-plugin`).
    `C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/catalog.json`
    (the loader reads http(s) URLs *or* local paths).
 3. Click **Install** on "Sample Checklist" → approve consent → it loads and appears
-   in **Installed**. Ctrl/⌘-K → **New Checklist**.
+   in **Installed**. Ctrl/⌘-` → **New Checklist**.
 
 ## Test Updates
 
