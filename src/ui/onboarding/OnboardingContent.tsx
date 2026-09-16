@@ -173,7 +173,7 @@ export const STEP_COPY: Record<StepId, StepCopy> = {
     body: (
       <>
         <p>
-          <strong>Ctrl/⌘-K</strong> opens the command palette — notes, workspaces, commands.
+          <strong>Ctrl/⌘-{'`'}</strong> opens the command palette — notes, workspaces, commands.
         </p>
         <p>
           <strong>Canvas</strong> notes are freeform boards with ink, cards and connectors.{' '}

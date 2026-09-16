@@ -87,7 +87,7 @@ export function completeOnboarding(): void {
 }
 
 export function skipOnboarding(): void {
-  setOnboarding({ status: 'skipped' })
+  setOnboarding({ status: 'skipped', nudgeDismissedLaunch: state.launchCount })
   closeOnboarding()
 }
 

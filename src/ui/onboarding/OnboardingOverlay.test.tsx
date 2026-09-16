@@ -75,4 +75,45 @@ describe('OnboardingOverlay', () => {
     expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
     expect(getOnboardingState().status).toBe('pending')
   })
+
+  it('Enter advances when the card itself has focus', () => {
+    render(<OnboardingOverlay />)
+    act(() => openOnboarding())
+    expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
+    // Mount focuses the card (role="dialog" tabIndex={-1}) — mirror that here.
+    screen.getByRole('dialog').focus()
+    fireEvent.keyDown(window, { key: 'Enter' })
+    expect(screen.getByText('What will you use Jnana for?')).toBeInTheDocument()
+  })
+
+  it('Enter does not advance while a choice button has focus', () => {
+    render(<OnboardingOverlay />)
+    act(() => openOnboarding())
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    expect(screen.getByText('What will you use Jnana for?')).toBeInTheDocument()
+    const studentBtn = screen.getByRole('button', { name: /Student/ })
+    studentBtn.focus()
+    fireEvent.keyDown(window, { key: 'Enter' })
+    // Still on the same card — the overlay left the button's native Enter
+    // behaviour alone instead of also calling next().
+    expect(screen.getByText('What will you use Jnana for?')).toBeInTheDocument()
+  })
+
+  it('ArrowRight advances and ArrowLeft goes back', () => {
+    render(<OnboardingOverlay />)
+    act(() => openOnboarding())
+    expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(screen.getByText('What will you use Jnana for?')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+    expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
+  })
+
+  it('an arrow press with a modifier held does not navigate', () => {
+    render(<OnboardingOverlay />)
+    act(() => openOnboarding())
+    expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'ArrowRight', altKey: true })
+    expect(screen.getByText('Welcome to Jnana')).toBeInTheDocument()
+  })
 })

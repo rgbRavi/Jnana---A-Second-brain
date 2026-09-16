@@ -69,6 +69,13 @@ describe('useOnboarding store', () => {
     expect(getOnboardingState().nudgeDismissedLaunch).toBe(3)
   })
 
+  it('skipOnboarding also dismisses the nudge for the current launch', () => {
+    setOnboarding({ launchCount: 2 })
+    skipOnboarding()
+    expect(getOnboardingState().status).toBe('skipped')
+    expect(getOnboardingState().nudgeDismissedLaunch).toBe(2)
+  })
+
   it('startFresh clears answers and simulates launch 1 but keeps the dev switch', () => {
     setOnboarding({ role: 'researcher', comfort: 'power', status: 'done', forceOnLaunch: true })
     startFreshOnboarding()

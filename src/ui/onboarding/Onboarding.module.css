@@ -175,6 +175,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--accent-softer);
   color: var(--text-2);
+  flex-shrink: 0;
 }
 
 .nudgeActions {

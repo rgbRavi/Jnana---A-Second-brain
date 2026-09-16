@@ -65,18 +65,35 @@ export function OnboardingOverlay() {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') {
+        if (e.altKey || e.ctrlKey || e.metaKey) return // e.g. Alt+Left/Right = browser history nav
+        e.stopPropagation()
         next()
         return
       }
       if (e.key === 'ArrowLeft') {
+        if (e.altKey || e.ctrlKey || e.metaKey) return
+        e.stopPropagation()
         back()
         return
       }
+      if (e.key === 'Enter') {
+        // Only when focus sits on the card itself — a focused button already
+        // gets its native Enter-activates-click behaviour, and hijacking that
+        // would re-toggle a just-picked answer instead of advancing.
+        if (document.activeElement !== cardRef.current) return
+        e.stopPropagation()
+        e.preventDefault()
+        next()
+        return
+      }
       if (e.key !== 'Tab') return
+      e.stopPropagation()
       const root = cardRef.current
       if (!root) return
       const focusable = Array.from(
-        root.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])'),
+        root.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
       ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
       if (focusable.length === 0) return
       const first = focusable[0]
@@ -90,8 +107,18 @@ export function OnboardingOverlay() {
         first.focus()
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    // Capture phase + stopPropagation on every branch we act on: the overlay
+    // is visually modal (full-viewport scrim) but window keydown listeners
+    // are otherwise all bubble-phase, so without this the command palette
+    // (Ctrl/⌘-`) and the canvas board's arrow-key selection nudge both fire
+    // invisibly underneath the wizard. Keys we don't handle fall through
+    // untouched (see the early returns above).
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // No dependency array on purpose: this must always close over the
+    // freshest `next`/`back`, which are recreated every render from the
+    // current `index`/`deck`. Unlike DialogHost's `[dialog]`-scoped sibling,
+    // scoping this effect would trap navigation on a stale card.
   })
 
   // Return focus to whatever was focused before the wizard took over.
