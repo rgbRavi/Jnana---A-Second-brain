@@ -15,8 +15,11 @@
   flex-direction: column;
   gap: var(--space-md);
   width: min(680px, 100%);
-  max-height: 100%;
-  overflow-y: auto;
+  /* Fixed box, not content-sized: cards differ in height, and a card that grows
+     moves the footer — so Next/Back would sit somewhere new on every step and
+     the pointer would have to chase them. Shrinks to the viewport on short
+     windows, where `.content` takes over the scrolling. */
+  height: min(560px, 100%);
   padding: var(--space-xl);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -34,12 +37,45 @@
   height: 6px;
   border-radius: 999px;
   background: var(--border-strong);
-  transition: background var(--dur-fast) ease, width var(--dur-fast) ease;
+  /* Compositor-only properties: the active dot grows via transform, not width,
+     so advancing a card never reflows the dot row. */
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 
 .dotActive {
-  width: 18px;
   background: var(--accent);
+  transform: scale(1.5);
+}
+
+/* The only part that flexes. `min-height: 0` lets a flex child actually shrink
+   below its content size, which is what makes the overflow scroll instead of
+   pushing the footer out of the card. */
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Schematic figure, parked at the foot of the content region so it occupies
+   whatever slack a short card leaves rather than the card resizing. Capped so a
+   tall card still gets a figure without pushing its prose into a scroll. */
+.art {
+  margin-top: auto;
+  padding-top: var(--space-md);
+  display: flex;
+  justify-content: center;
+}
+
+.art > svg,
+.art > img {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  max-height: 180px;
+  object-fit: contain;
 }
 
 .title {

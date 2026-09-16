@@ -76,7 +76,6 @@ interface Props {
   onSubmit?: () => void
   /** Escape — typically "cancel edit". */
   onCancel?: () => void
-  onPaste?: (e: ClipboardEvent) => void
   placeholder?: string
   className?: string
   autoFocus?: boolean
@@ -132,7 +131,6 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     onChange,
     onSubmit,
     onCancel,
-    onPaste,
     placeholder,
     className,
     autoFocus,
@@ -170,8 +168,8 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   onSubmitRef.current = onSubmit
   const onCancelRef = useRef(onCancel)
   onCancelRef.current = onCancel
-  const onPasteRef = useRef(onPaste)
-  onPasteRef.current = onPaste
+  const importHandlersRef = useRef(importHandlers)
+  importHandlersRef.current = importHandlers
   const showMenuRef = useRef((_x: number, _y: number, _hasSelection: boolean) => {})
   showMenuRef.current = (x, y, hasSelection) => setMenuState({ x, y, hasSelection })
 
@@ -739,7 +737,22 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
             return false
           },
           paste(event) {
-            onPasteRef.current?.(event)
+            // Pasting a screenshot is the same gesture as the toolbar's image
+            // import, so the editor owns it. This used to hang off an optional
+            // `onPaste` prop that only NoteCreator passed — which is why paste
+            // silently did nothing in Working Notes and the inline note editor.
+            // Every mount site already passes `importHandlers`.
+            const upload = importHandlersRef.current?.onImageUpload
+            if (!upload) return false
+            const file = Array.from(event.clipboardData?.items ?? [])
+              .find((item) => item.type.startsWith('image/'))
+              ?.getAsFile()
+            if (!file) return false
+            event.preventDefault()
+            void upload(file)
+            // Handled — stops CM6 inserting the clipboard's text/plain fallback
+            // (on Windows, the file's path) alongside the image.
+            return true
           },
           contextmenu(event, view) {
             event.preventDefault()

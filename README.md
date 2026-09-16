@@ -102,7 +102,7 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - Multiple named canvases per workspace; stored in the portable [JSON Canvas](https://jsoncanvas.org) shape
 
 ### Command palette
-- Global **Ctrl/⌘-K** to fuzzy-jump to any note, switch workspaces, or run a command
+- Global **Ctrl/⌘-`** to fuzzy-jump to any note, switch workspaces, or run a command
   (including **Open Working Notes**)
 - **Ctrl/⌘+Shift+E** — jump to the Working Notes desk from anywhere (toggles back to the gallery
   when you're already there)

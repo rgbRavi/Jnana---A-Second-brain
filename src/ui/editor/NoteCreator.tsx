@@ -184,15 +184,6 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
 
   // Pasting an image attaches it inline, same as the ＋ menu's upload — plain
   // text keeps the browser's native paste.
-  const handleBodyPaste = (e: ClipboardEvent) => {
-    const file = Array.from(e.clipboardData?.items ?? [])
-      .find((item) => item.type.startsWith('image/'))
-      ?.getAsFile()
-    if (!file) return
-    e.preventDefault()
-    void toolbarProps.onImageUpload(file)
-  }
-
   const pillAlpha = Math.max(0, Math.min(1, (100 - options.transparency) / 100))
   const pillStyle: CSSProperties = {
     // color-mix against --surface directly (not the --surface-rgb companion var) so
@@ -288,7 +279,6 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
           onChange={setContent}
           onSubmit={() => void handleSave()}
           onCancel={handleCancel}
-          onPaste={handleBodyPaste}
           notes={notes}
           noteId={pendingNoteId.current}
           allowNavigate={false}

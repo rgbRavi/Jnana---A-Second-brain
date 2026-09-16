@@ -14,6 +14,7 @@ import {
   useOnboardingOpen,
   useOnboardingState,
 } from '../../hooks/useOnboarding'
+import { STEP_ART } from './OnboardingArt'
 import { COMFORT_COPY, ROLE_COPY, STEP_COPY } from './OnboardingContent'
 import styles from './Onboarding.module.css'
 
@@ -136,6 +137,7 @@ export function OnboardingOverlay() {
   if (!open) return null
 
   const copy = STEP_COPY[stepId]
+  const art = STEP_ART[stepId]
 
   return (
     <div className={styles.overlay} role="presentation">
@@ -157,42 +159,51 @@ export function OnboardingOverlay() {
           ))}
         </div>
 
-        <h1 className={styles.title}>{copy.title}</h1>
-        <div className={styles.body}>{copy.body}</div>
+        {/* Everything that varies in height lives in one scroll region, so the
+            card box stays a fixed size and the footer controls never move
+            between cards. */}
+        <div className={styles.content}>
+          <h1 className={styles.title}>{copy.title}</h1>
+          <div className={styles.body}>{copy.body}</div>
 
-        {stepId === 'role' && (
-          <div className={styles.choices}>
-            {ROLES.map((r) => (
-              <button
-                key={r}
-                type="button"
-                className={`${styles.choice} ${state.role === r ? styles.choiceOn : ''}`}
-                aria-pressed={state.role === r}
-                onClick={() => setOnboarding({ role: r })}
-              >
-                <span className={styles.choiceLabel}>{ROLE_COPY[r].label}</span>
-                <span className={styles.choiceHint}>{ROLE_COPY[r].hint}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          {stepId === 'role' && (
+            <div className={styles.choices}>
+              {ROLES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={`${styles.choice} ${state.role === r ? styles.choiceOn : ''}`}
+                  aria-pressed={state.role === r}
+                  onClick={() => setOnboarding({ role: r })}
+                >
+                  <span className={styles.choiceLabel}>{ROLE_COPY[r].label}</span>
+                  <span className={styles.choiceHint}>{ROLE_COPY[r].hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-        {stepId === 'comfort' && (
-          <div className={styles.choices}>
-            {COMFORTS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`${styles.choice} ${state.comfort === c ? styles.choiceOn : ''}`}
-                aria-pressed={state.comfort === c}
-                onClick={() => setOnboarding({ comfort: c })}
-              >
-                <span className={styles.choiceLabel}>{COMFORT_COPY[c].label}</span>
-                <span className={styles.choiceHint}>{COMFORT_COPY[c].hint}</span>
-              </button>
-            ))}
-          </div>
-        )}
+          {stepId === 'comfort' && (
+            <div className={styles.choices}>
+              {COMFORTS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className={`${styles.choice} ${state.comfort === c ? styles.choiceOn : ''}`}
+                  aria-pressed={state.comfort === c}
+                  onClick={() => setOnboarding({ comfort: c })}
+                >
+                  <span className={styles.choiceLabel}>{COMFORT_COPY[c].label}</span>
+                  <span className={styles.choiceHint}>{COMFORT_COPY[c].hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* `margin-top: auto` parks the figure at the foot of the scroll
+              region, so the slack a short card leaves is where it lands. */}
+          {art && <div className={styles.art}>{art}</div>}
+        </div>
 
         <footer className={styles.footer}>
           <button type="button" className={styles.ghostBtn} onClick={skipOnboarding}>
