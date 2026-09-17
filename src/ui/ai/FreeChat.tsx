@@ -233,14 +233,14 @@ export function FreeChat({
 
   // History wiring: load/new come from the drawer via the eventBus.
   // Switching chats never aborts a request — it carries on in `inflight`.
-  const resetChat = useCallback(() => {
+  const resetChat = useCallback((opts?: { projectId?: string }) => {
     setBusy(false)
     setMessages([])
     setError(null)
     setInput('')
     setAttachments([])
     setRuleIds([])
-    setProjectId('') // a fresh chat is project-less; project chats open from the project
+    setProjectId(opts?.projectId ?? '') // project-less unless started from a project
   }, [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId])
 
   const loadConv = useCallback(

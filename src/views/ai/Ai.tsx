@@ -57,7 +57,7 @@ function Ai() {
 
       {/* Body: history drawer + the active chat (each manages its own scroll) */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: '1rem', padding: '1rem 1.5rem', overflow: 'hidden' }}>
-        <ChatHistory mode={mode} />
+        <ChatHistory mode="chat" />
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {mode === 'projects' ? (
             <ProjectsView />

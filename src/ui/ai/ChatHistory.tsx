@@ -2,11 +2,12 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown, MessageSquare } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
+import { requestChatAction } from '../../hooks/useChatHistory'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import type { ConversationMeta } from '../../types'
 import styles from './Ai.module.css'
@@ -30,7 +31,8 @@ export function ChatHistory({ mode }: { mode: string }) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameText, setRenameText] = useState('')
   const [expandedChats, setExpandedChats] = useState(false)
-  const [aiMode, setAiMode] = useViewState('ai.mode', 'focused')
+  const [aiMode, setAiMode] = useViewState('ai.mode', 'chat')
+  const inProjects = aiMode === 'projects'
   const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
 
   const allVisible =
@@ -59,8 +61,20 @@ export function ChatHistory({ mode }: { mode: string }) {
     }
   }, [mode, refresh])
 
-  const newChat = () => eventBus.emit('ai:newChat', { mode })
-  const load = (id: string) => eventBus.emit('ai:loadConversation', { mode, id })
+  // Both work from Projects too: queue the action, then show the chat.
+  const newChat = () => {
+    requestChatAction(mode, { type: 'new' })
+    setAiMode('chat')
+  }
+  const load = (id: string) => {
+    requestChatAction(mode, { type: 'load', id })
+    setAiMode('chat')
+  }
+  const showChats = () => setAiMode('chat')
+  const showProjects = () => {
+    setForceOpenProject('')
+    setAiMode('projects')
+  }
 
   const iconBtn: React.CSSProperties = {
     background: 'var(--surface-2)',
@@ -100,7 +114,10 @@ export function ChatHistory({ mode }: { mode: string }) {
           <Plus size={16} />
         </button>
         <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: '4px 0' }} />
-        <button onClick={() => { setForceOpenProject(''); setAiMode('projects') }} title="Projects" aria-label="Projects" style={{ ...iconBtn, background: aiMode === 'projects' ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: aiMode === 'projects' ? 'var(--accent)' : 'var(--text-2)' }}>
+        <button onClick={showChats} title="Chats" aria-label="Chats" aria-current={!inProjects ? 'page' : undefined} style={{ ...iconBtn, background: !inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: !inProjects ? 'var(--accent)' : 'var(--text-2)' }}>
+          <MessageSquare size={16} />
+        </button>
+        <button onClick={showProjects} title="Projects" aria-label="Projects" aria-current={inProjects ? 'page' : undefined} style={{ ...iconBtn, background: inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: inProjects ? 'var(--accent)' : 'var(--text-2)' }}>
           <FolderKanban size={16} />
         </button>
       </div>
@@ -116,7 +133,7 @@ export function ChatHistory({ mode }: { mode: string }) {
     })
     if (!ok) return
     await deleteConversation(id).catch((e) => console.error(e))
-    if (id === activeId) eventBus.emit('ai:newChat', { mode }) // reset the open chat
+    if (id === activeId) requestChatAction(mode, { type: 'new' }) // reset the open chat
     eventBus.emit('ai:conversationDeleted', { mode })
   }
 
@@ -163,12 +180,31 @@ export function ChatHistory({ mode }: { mode: string }) {
         </button>
       </div>
 
-      <div style={{ marginTop: '0.2rem' }}>
+      <div style={{ marginTop: '0.2rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <button
-          onClick={() => {
-            setForceOpenProject('')
-            setAiMode('projects')
+          onClick={showChats}
+          aria-current={!inProjects ? 'page' : undefined}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '0.5rem 0.6rem',
+            background: !inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            color: !inProjects ? 'var(--text-1)' : 'var(--text-2)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: !inProjects ? 600 : 500,
+            textAlign: 'left',
           }}
+        >
+          <MessageSquare size={16} color={!inProjects ? 'var(--accent)' : 'var(--text-2)'} /> Chats
+        </button>
+        <button
+          onClick={showProjects}
+          aria-current={inProjects ? 'page' : undefined}
           style={{
             width: '100%',
             display: 'flex',
@@ -198,7 +234,7 @@ export function ChatHistory({ mode }: { mode: string }) {
           <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', padding: '0.4rem 0.2rem' }}>No saved chats yet.</p>
         )}
         {visible.map((c) => {
-          const active = c.id === activeId
+          const active = !inProjects && c.id === activeId
           return (
             <div
               key={c.id}

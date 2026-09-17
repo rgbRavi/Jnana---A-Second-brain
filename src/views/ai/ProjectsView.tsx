@@ -6,8 +6,8 @@ import { FileUp, Plus, X, FolderKanban, MessageSquarePlus } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
 import { useNotesContext } from '../../context/NotesContext'
 import { useViewState } from '../../hooks/useViewState'
+import { requestChatAction } from '../../hooks/useChatHistory'
 import { useActiveVaultId } from '../../hooks/useVaults'
-import { eventBus } from '../../lib/eventBus'
 import { listConversations } from '../../core/chat'
 import {
   listProjects,
@@ -61,7 +61,7 @@ export function ProjectsView() {
   const [chats, setChats] = useState<ConversationMeta[]>([])
   const [noteQuery, setNoteQuery] = useState('')
   const [projectRuleIds, setProjectRuleIds] = useState<string[]>([])
-  const [, setAiMode] = useViewState('ai.mode', 'focused')
+  const [, setAiMode] = useViewState('ai.mode', 'chat')
   const [, setActiveProjectId] = useViewState('ai.free.projectId', '')
   const [forceOpenProject, setForceOpenProject] = useViewState('ai.projects.openId', '')
 
@@ -174,15 +174,15 @@ export function ProjectsView() {
   const startNewChatInProject = () => {
     if (!editing) return
     setActiveProjectId(editing.id)
+    requestChatAction('chat', { type: 'new', projectId: editing.id })
     setAiMode('chat')
-    eventBus.emit('ai:newChat', { mode: 'chat' })
   }
 
   const openChat = (chatId: string) => {
     if (!editing) return
     setActiveProjectId(editing.id)
+    requestChatAction('chat', { type: 'load', id: chatId })
     setAiMode('chat')
-    eventBus.emit('ai:loadConversation', { mode: 'chat', id: chatId })
   }
 
   if (!editing) {
