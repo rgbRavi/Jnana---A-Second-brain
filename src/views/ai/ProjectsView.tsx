@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { FileUp, Plus, X, FolderKanban, MessageSquarePlus } from 'lucide-react'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { showConfirmDialog } from '../../lib/dialog'
 import { useNotesContext } from '../../context/NotesContext'
 import { useViewState } from '../../hooks/useViewState'
 import { useActiveVaultId } from '../../hooks/useVaults'
@@ -22,12 +22,11 @@ import {
 import { listProjectRules, setProjectRules } from '../../core/aiRules'
 import { pickAttachments as pickFiles } from '../../core/ai'
 import { RulesPicker } from '../../ui/ai/RulesPicker'
-import type { AiProject, Note, ProjectKnowledge, ConversationMeta } from '../../types'
+import { DEFAULT_VAULT_ID, type AiProject, type Note, type ProjectKnowledge, type ConversationMeta } from '../../types'
 
 const field: React.CSSProperties = {
   width: '100%',
-  background: 'color-mix(in srgb, var(--surface) 60%, transparent)',
-  backdropFilter: 'blur(12px)',
+  background: 'var(--bg)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-sm)',
   color: 'var(--text-1)',
@@ -42,10 +41,10 @@ const pill: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: '5px',
-  background: 'color-mix(in srgb, var(--surface-2) 90%, transparent)',
-  backdropFilter: 'blur(8px)',
+  background: 'color-mix(in srgb, var(--surface-2) var(--fx-alpha-light), transparent)',
+  backdropFilter: 'var(--fx-blur)',
   color: 'var(--text-2)',
-  border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
+  border: '1px solid var(--border)',
   borderRadius: '999px',
   padding: '0.4rem 0.9rem',
   fontSize: '0.85rem',
@@ -122,9 +121,11 @@ export function ProjectsView() {
   }
 
   const removeProject = async (p: AiProject) => {
-    const ok = await ask(`Delete project "${p.name}" and its knowledge list? (Your notes/files are not deleted.)`, {
+    const ok = await showConfirmDialog({
       title: 'Delete project',
-      kind: 'warning',
+      message: `“${p.name}” and its knowledge list will be deleted. Your notes and files are not touched.`,
+      confirmLabel: 'Delete',
+      danger: true,
     })
     if (!ok) return
     await deleteProject(p.id).catch((e) => console.error(e))
@@ -136,9 +137,10 @@ export function ProjectsView() {
     const q = noteQuery.trim().toLowerCase()
     if (!q) return []
     return notes
+      .filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId)
       .filter((n) => (n.title ?? '').toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
       .slice(0, 8)
-  }, [noteQuery, notes])
+  }, [noteQuery, notes, vaultId])
 
   const addNoteKnowledge = async (note: Note) => {
     if (!editing) return
@@ -190,7 +192,7 @@ export function ProjectsView() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <FolderKanban size={24} color="var(--accent)" /> AI Projects
           </h1>
-          <button style={{ ...pill, background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' }} onClick={createNew}>
+          <button style={{ ...pill, background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)' }} onClick={createNew}>
             <Plus size={16} /> New Project
           </button>
         </div>
@@ -201,28 +203,19 @@ export function ProjectsView() {
               key={p.id}
               onClick={() => openProject(p)}
               style={{
-                background: 'color-mix(in srgb, var(--surface) 50%, transparent)',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid color-mix(in srgb, var(--border) 50%, transparent)',
+                background: 'color-mix(in srgb, var(--surface) var(--fx-alpha-soft), transparent)',
+                backdropFilter: 'var(--fx-blur-strong)',
+                border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '1.25rem',
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                transition: 'border-color var(--dur-fast) var(--motion-ease)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.15)'
-                e.currentTarget.style.border = '1px solid color-mix(in srgb, var(--accent) 40%, transparent)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none'
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.1)'
-                e.currentTarget.style.border = '1px solid color-mix(in srgb, var(--border) 50%, transparent)'
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
@@ -373,25 +366,19 @@ export function ProjectsView() {
                 justifyContent: 'center',
                 gap: '8px',
                 padding: '0.8rem',
-                background: 'color-mix(in srgb, var(--surface) 35%, transparent)',
-                backdropFilter: 'blur(20px) saturate(150%)',
-                border: '1px solid color-mix(in srgb, var(--text-1) 12%, transparent)',
-                borderRadius: '28px',
+                background: 'color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent)',
+                backdropFilter: 'var(--fx-blur-strong)',
+                border: '1px solid var(--fx-composer-border)',
+                borderRadius: 'var(--fx-composer-radius)',
+                boxShadow: 'var(--fx-composer-shadow)',
                 color: 'var(--text-1)',
                 fontSize: '1rem',
                 fontWeight: 500,
                 cursor: 'pointer',
-                boxShadow: '0 12px 36px rgba(0,0,0,0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                transition: 'border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 16px 40px rgba(0,0,0,0.4), inset 0 1px 1px color-mix(in srgb, var(--text-1) 25%, transparent)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'none'
-                e.currentTarget.style.boxShadow = '0 12px 36px rgba(0,0,0,0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent)'
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent)' }}
             >
               <MessageSquarePlus size={20} color="var(--accent)" /> Start New Chat
             </button>

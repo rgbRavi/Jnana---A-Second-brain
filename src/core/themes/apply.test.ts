@@ -111,3 +111,15 @@ describe('apply.ts', () => {
     })
   })
 })
+
+describe('applyVars glass effects', () => {
+  it('stamps data-glass on/off from the theme (absent = off)', async () => {
+    const { applyVars } = await import('./apply')
+    const { themeFromPreset } = await import('./presets')
+    const el = document.createElement('div')
+    applyVars(el, themeFromPreset('dark'))
+    expect(el.dataset.glass).toBe('off')
+    applyVars(el, { ...themeFromPreset('dark'), glassEffects: true })
+    expect(el.dataset.glass).toBe('on')
+  })
+})

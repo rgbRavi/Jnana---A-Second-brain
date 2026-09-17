@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **Next up:** auto-backup; further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **AI view reliability + UX pass shipped (2026-09-17)** — grounded requests stream (fixes 30s gateway 500s), replies keep running across chat/view switches, retry keeps answer versions, keyboard-reachable message menus, explicit mutually-exclusive modes with a mode line, markdown replies, a user-set note-context token budget with semantic passage selection, PDF text + images/scanned PDFs sent to vision models, image paste/drop in chat, multi-note quiz scope, and an opt-in glass theme effect (see [PLAN.md](PLAN.md)). **Next up:** auto-backup; **web search for AI chat** (planned in PLAN.md); further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
 
-Last updated: 2026-07-29
+Last updated: 2026-09-17
 
 ---
 
@@ -591,10 +591,29 @@ Notes:
 - [x] Reasoning shown per step (`AgentSteps` renders the model's narration above each tool chip)
 - [x] Apply-all composes `[[wikilinks]]` into the note and saves once, so AI-applied links
       surface as graph edges (fixes a link-sync race from the old create-then-update path)
-- [x] Message actions — ↻ retry under each prompt; right-click menu: edit & retry, fork from here,
-      delete-from-here, delete message
+- [x] Message actions — ↻ retry under the newest prompt (keeps every answer as a ‹ n / N › version);
+      "⋯" button or right-click: copy, edit & retry, fork from here, delete-from-here, delete message
 - [ ] MCP client — Jnana's agent uses external MCP servers (Phase B)
 - [ ] MCP server — expose Jnana to Claude Desktop / other agents (Phase C)
+
+### AI view — reliability & UX pass (2026-09-17)
+- [x] Grounded one-shots (Analyze / Ask / Quiz / suggestions / grading) stream via `ai_chat_stream`
+- [x] Retry / Edit re-run a Focused action; failed Focused turns clean up and stay out of chat history
+- [x] Per-conversation in-flight threads: chat saved on send, no abort on switch, toast when a reply
+      lands elsewhere
+- [x] Retry answer versions (`freeThread.ts`, tested); retry only on the newest prompt
+- [x] Shared `ContextMenu` keyboard support; visible "⋯" message actions; Copy message
+- [x] Focused ⟂ Agent exclusivity, Deep research gating, mode line above the composer
+- [x] Empty-state starters (week quiz / ask notes / analyze last saved note)
+- [x] Markdown-rendered assistant replies
+- [x] Quiz: custom count, redesigned rail settings, multi-select note scope + Clear all
+- [x] Vault-scoped note pickers (chat attach, Focused scope, project knowledge)
+- [x] Note-context token budget (default 32k) with fair allocation, embedding-ranked passages or even
+      spread, PDF text, scaled note cap (`noteContext.ts`, tested)
+- [x] Vision: note images + scanned-PDF pages to vision models; chat image attach via picker / paste /
+      drop; per-model vision override
+- [x] Themed confirms, token colours, dead components removed; opt-in "Glass & gradient effects" theme
+      toggle (`--fx-*` tokens)
 
 ### View state persistence
 - [x] `useViewState` hook (module-store-backed `useState`) survives view switches

@@ -5,6 +5,7 @@ import { useAdvancedAiSettings, setAdvancedAiSettings } from '../../hooks/useAdv
 import { getRuleEvents, clearRuleEvents } from '../../core/ai/ruleMetrics'
 import { SettingSelect, SettingSlider, SettingToggle, type SelectOption } from './SettingControls'
 import { toast } from '../../lib/toast'
+import { useState } from 'react'
 import styles from './ComposerSettingsPanel.module.css'
 
 const REFRESH_OPTIONS: SelectOption[] = [
@@ -20,6 +21,15 @@ const SELECTION_OPTIONS: SelectOption[] = [
   { value: 'rag-topK', label: 'Retrieve most relevant (experimental — falls back to all)' },
 ]
 
+/** Token presets for how much note text grounded actions may read. */
+const CONTEXT_PRESETS = [4_000, 16_000, 32_000, 64_000, 100_000, 200_000]
+const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(n))
+const CONTEXT_HINTS: Record<number, string> = {
+  4000: 'small local models',
+  32000: 'default',
+  100000: 'most hosted models',
+}
+
 const DRIFT_MODE_OPTIONS: SelectOption[] = [
   { value: 'topic-shift', label: 'Topic shift (recommended)' },
   { value: 'rule-content', label: 'Rule-vs-content (spec-literal, noisy)' },
@@ -28,6 +38,20 @@ const DRIFT_MODE_OPTIONS: SelectOption[] = [
 /** Settings → Advanced AI generation: rule refresh/selection strategy knobs + metrics export. */
 export function AdvancedAiPanel() {
   const cfg = useAdvancedAiSettings()
+  const [contextDraft, setContextDraft] = useState<string | null>(null)
+  const contextOptions: SelectOption[] = [...new Set([...CONTEXT_PRESETS, cfg.noteContextTokens])]
+    .sort((a, b) => a - b)
+    .map((n) => ({
+      value: String(n),
+      label: `${fmtTokens(n)} tokens${CONTEXT_HINTS[n] ? ` — ${CONTEXT_HINTS[n]}` : CONTEXT_PRESETS.includes(n) ? '' : ' — custom'}`,
+    }))
+  const commitContext = () => {
+    if (contextDraft === null) return
+    const n = Math.round(Number(contextDraft.replace(/[,_\s]/g, '')))
+    if (Number.isFinite(n) && n >= 1000) setAdvancedAiSettings({ noteContextTokens: Math.min(2_000_000, n) })
+    else if (contextDraft.trim()) toast.error('Enter at least 1,000 tokens.')
+    setContextDraft(null)
+  }
 
   const exportMetrics = () => {
     const data = JSON.stringify(getRuleEvents(), null, 2)
@@ -40,9 +64,40 @@ export function AdvancedAiPanel() {
   return (
     <div className={styles.panel}>
       <p className={styles.intro}>
-        Controls how your Rules are re-injected to keep long chats on-instruction. Experimental options
-        are marked and fall back to the safe default until built.
+        Controls how much of your notes the grounded actions read, and how your Rules are re-injected to
+        keep long chats on-instruction. Experimental options are marked and fall back to the safe default
+        until built.
       </p>
+
+      <div className={styles.field}>
+        <div className={styles.fieldHead}>
+          <label htmlFor="advai-note-context">Notes the AI may read (Analyze, Ask, Quiz)</label>
+          <span className={styles.value}>{fmtTokens(cfg.noteContextTokens)}</span>
+        </div>
+        <SettingSelect
+          id="advai-note-context"
+          value={String(cfg.noteContextTokens)}
+          options={contextOptions}
+          onChange={(v) => setAdvancedAiSettings({ noteContextTokens: Number(v) })}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          className={styles.textInput}
+          placeholder="Or type a token count, e.g. 150000"
+          value={contextDraft ?? ''}
+          onChange={(e) => setContextDraft(e.target.value)}
+          onBlur={commitContext}
+          onKeyDown={(e) => { if (e.key === 'Enter') commitContext() }}
+          aria-label="Custom token count"
+        />
+        <span className={styles.hint}>
+          A token is about ¾ of a word. If your selected notes fit, they're sent whole (PDF text
+          included). If not, each long note sends the passages that best match your question or topic
+          — or an even spread across the note when there's nothing to match. Keep this below your
+          model's context window; larger amounts are slower and cost more per run.
+        </span>
+      </div>
 
       <div className={styles.field}>
         <div className={styles.fieldHead}>

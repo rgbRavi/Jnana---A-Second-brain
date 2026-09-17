@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect } from 'vitest'
-import { buildTimeScope, buildScope, scopeKey, emptyFocus, type FocusState } from './focusedScope'
+import { buildTimeScope, buildScope, scopeKey, scopeLabel, emptyFocus, type FocusState } from './focusedScope'
 
 describe('buildTimeScope', () => {
   it('is order-independent (swapped dates give the same window)', () => {
@@ -32,11 +32,26 @@ describe('buildScope', () => {
   })
 
   it('returns null for note mode with no note selected', () => {
-    expect(buildScope({ ...base, scopeKind: 'note', selectedNoteId: null })).toBeNull()
+    expect(buildScope({ ...base, scopeKind: 'note', selectedNotes: [] })).toBeNull()
   })
 
-  it('builds a note scope from the selected id', () => {
-    expect(buildScope({ ...base, scopeKind: 'note', selectedNoteId: 'n1' })).toEqual({ mode: 'note', noteId: 'n1' })
+  it('builds a note scope from every selected note, in pick order', () => {
+    const selectedNotes = [{ id: 'n2', title: 'B' }, { id: 'n1', title: 'A' }]
+    expect(buildScope({ ...base, scopeKind: 'note', selectedNotes })).toEqual({ mode: 'note', noteIds: ['n2', 'n1'] })
+  })
+
+  it('still reads a legacy single-note selection (older saved Focused turns)', () => {
+    const legacy = { ...base, scopeKind: 'note', selectedNoteId: 'n9', selectedNoteTitle: 'Old' } as FocusState
+    delete (legacy as Partial<FocusState>).selectedNotes
+    expect(buildScope(legacy)).toEqual({ mode: 'note', noteIds: ['n9'] })
+    expect(scopeLabel(legacy)).toBe('Note: Old')
+  })
+
+  it('labels one vs several notes', () => {
+    expect(scopeLabel({ ...base, scopeKind: 'note', selectedNotes: [{ id: 'a', title: 'Tensors' }] })).toBe('Note: Tensors')
+    expect(
+      scopeLabel({ ...base, scopeKind: 'note', selectedNotes: [{ id: 'a', title: 'Tensors' }, { id: 'b', title: 'X' }, { id: 'c', title: 'Y' }] }),
+    ).toBe('Notes: Tensors + 2 more')
   })
 
   it('time mode always yields a window', () => {
@@ -53,7 +68,7 @@ describe('scopeKey', () => {
   it('differs across modes', () => {
     const keys = new Set([
       scopeKey({ mode: 'topic', query: 'x' }),
-      scopeKey({ mode: 'note', noteId: 'x' }),
+      scopeKey({ mode: 'note', noteIds: ['x'] }),
       scopeKey({ mode: 'window', since: 1, until: 2, label: 'l' }),
     ])
     expect(keys.size).toBe(3)

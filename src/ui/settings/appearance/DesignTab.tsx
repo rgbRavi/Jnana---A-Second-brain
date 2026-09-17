@@ -7,7 +7,7 @@ import type { UseThemeApi } from '../../../hooks/useTheme'
 import { useInstalledFonts } from '../../../hooks/useInstalledFonts'
 import type { ThemeFonts } from '../../../types'
 import { ColorField, Segmented, SliderField } from './controls'
-import { SettingSelect, type SelectOption, type SelectGroup } from '../SettingControls'
+import { SettingSelect, SettingToggle, type SelectOption, type SelectGroup } from '../SettingControls'
 import { FontManager } from './FontManager'
 import styles from './Appearance.module.css'
 
@@ -18,7 +18,7 @@ const FONT_ROLES: { role: keyof ThemeFonts; label: string }[] = [
 ]
 
 export function DesignTab({ api }: { api: UseThemeApi }) {
-  const { theme, setToken, setBase, setRadius, patch, setFont } = api
+  const { theme, setToken, setBase, setRadius, setGlassEffects, patch, setFont } = api
   const { fonts: installed, install, remove } = useInstalledFonts()
   const accent = theme.tokens['--accent']
   const derived = deriveAccent(accent, theme.base)
@@ -70,6 +70,15 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         hint="Roundness of cards, buttons, inputs, and menus. 0 = sharp corners."
         onChange={setRadius}
       />
+
+      <div className={styles.field}>
+        <SettingToggle
+          checked={!!theme.glassEffects}
+          onChange={setGlassEffects}
+          label="Glass & gradient effects"
+          hint="frosted, translucent panels and a soft accent gradient behind the AI view. Off keeps surfaces solid and calm."
+        />
+      </div>
 
       <p className={styles.hint}>Interface = menus, lists, and controls. Reading = note reader body text. Monospace = code blocks.</p>
       {FONT_ROLES.map(({ role, label }) => {

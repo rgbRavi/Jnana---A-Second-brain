@@ -48,7 +48,7 @@ export function ProposalCard({
         <>
           <button
             onClick={onApply}
-            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.25rem 0.7rem', fontSize: '0.76rem', cursor: 'pointer' }}
+            style={{ background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.25rem 0.7rem', fontSize: '0.76rem', cursor: 'pointer' }}
           >
             Apply
           </button>

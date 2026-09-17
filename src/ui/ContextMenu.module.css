@@ -37,6 +37,7 @@
   white-space: nowrap;
 }
 
+.contextItem:focus-visible,
 .contextItem:hover:not(:disabled) {
   background: var(--surface-hover);
 }

@@ -176,6 +176,18 @@ through Rust to only the host you configured.
   selected — is configurable in **Settings → Advanced AI generation**, and all the AI-powered options
   fall back safely to the cheap defaults when no AI is set up
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
+- **One chat, grounding on demand** — a normal streaming chat, plus **Analyze / Ask / Quiz** over a
+  topic, a time range, or any set of notes you tick. A line above the composer always says what Send
+  will do; starters on an empty chat set up a quiz on this week's notes, a question over your notes, or
+  an analysis of your last saved note
+- **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
+  Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
+  notes send the passages that best match your question or topic
+- **Sees your images** — with a vision-capable model, images in your notes and pages of scanned PDFs
+  are sent too; attach images to a chat by picking, pasting or dragging them in (and tell Jnana a model
+  accepts images if it doesn't recognise it)
+- **Keeps going in the background** — switch chats or views mid-reply and the answer still lands, with
+  a notification; **Retry** keeps every answer as a version you can flip between
 
 ### Export
 - Export a single note or **all notes** to Markdown; each file carries YAML frontmatter (title, tags,
@@ -195,8 +207,9 @@ through Rust to only the host you configured.
 - **Derived accent** (hover/active/soft/softer), a corner-radius slider, and a live **WCAG contrast
   guardrail** (AA/AAA/AA Large/Fail) over the 5 critical text/surface pairs
 - Persisted to SQLite (with a localStorage mirror so the right theme applies before first paint —
-  no flash of default); density/motion/reading-scale controls are wired but not yet consumed by any
-  CSS, ahead of a follow-up pass
+  no flash of default); density, motion, reading scale and fonts apply app-wide
+- Optional **Glass & gradient effects** (Design tab) — frosted translucent surfaces and a soft accent
+  gradient behind the AI view; off by default for a calm, solid look
 
 ### Plugins
 - **A real plugin system** — plugins can add **custom note types** (their own view + editor over a
@@ -216,6 +229,8 @@ through Rust to only the host you configured.
 
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
+- **Web search in AI chat** — search through your own connection (self-hosted SearXNG, or a Brave /
+  Tavily key) and answer with cited, clickable sources; opt-in
 - **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
   highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
 - **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and

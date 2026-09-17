@@ -8,14 +8,20 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Hash, CalendarRange, NotebookPen } from 'lucide-react'
-import type { Note } from '../../types'
-import { toInputDate, emptyFocus, type FocusState, type ScopeKind } from '../../core/ai/focusedScope'
+import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import {
+  toInputDate,
+  emptyFocus,
+  selectedNotesOf,
+  type FocusState,
+  type ScopeKind,
+  type SelectedNote,
+} from '../../core/ai/focusedScope'
 import { useViewState } from '../../hooks/useViewState'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import { useNotesContext } from '../../context/NotesContext'
 import { closeFocusPanel } from '../../lib/activeFocus'
 import { actionMeta } from '../ai/FocusedMenu'
-import { MenuRow } from '../ai/ComposerMenu'
 import { QuizSettingsBody } from '../ai/QuizControls'
 import styles from '../ai/Ai.module.css'
 
@@ -25,6 +31,11 @@ export function FocusedScopePanel() {
   const [focus, setFocus] = useViewState<FocusState>('ai.free.focus', emptyFocus)
   const { notes } = useNotesContext()
   const vaultId = useActiveVaultId()
+  // The note picker lists the active vault only, like every other note surface.
+  const vaultNotes = useMemo(
+    () => notes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId),
+    [notes, vaultId],
+  )
   const action = focus.action
 
   // Disarmed elsewhere (chip ✕) — collapse the panel.
@@ -45,8 +56,8 @@ export function FocusedScopePanel() {
         </span>
       </div>
 
-      <div>
-        <div className={styles.cSectionLabel}>Scope</div>
+      <div className={styles.qField}>
+        <h4 className={styles.qGroupTitle}>Scope</h4>
         <ScopeKindTabs value={focus.scopeKind} onChange={(k) => patch({ scopeKind: k })} />
       </div>
 
@@ -62,15 +73,17 @@ export function FocusedScopePanel() {
       {focus.scopeKind === 'time' && <TimeScope focus={focus} patch={patch} />}
       {focus.scopeKind === 'note' && (
         <NoteScope
-          notes={notes}
-          selectedId={focus.selectedNoteId}
-          onPick={(n) => patch({ selectedNoteId: n.id, selectedNoteTitle: n.title?.trim() || 'Untitled' })}
+          notes={vaultNotes}
+          selected={selectedNotesOf(focus)}
+          onChange={(selectedNotes) =>
+            // Written once in the new shape; the legacy single-note fields go away.
+            setFocus((f) => ({ ...f, selectedNotes, selectedNoteId: undefined, selectedNoteTitle: undefined }))
+          }
         />
       )}
 
       {action === 'quiz' && (
         <div className={styles.focusQuiz}>
-          <span className={styles.cSectionLabel} style={{ padding: 0 }}>Quiz settings</span>
           <QuizSettingsBody vaultId={vaultId} />
         </div>
       )}
@@ -84,7 +97,7 @@ function ScopeKindTabs({ value, onChange }: { value: ScopeKind; onChange: (k: Sc
   const tabs: [ScopeKind, string, React.ReactNode][] = [
     ['topic', 'Topic', <Hash size={13} key="t" />],
     ['time', 'Time', <CalendarRange size={13} key="w" />],
-    ['note', 'Note', <NotebookPen size={13} key="n" />],
+    ['note', 'Notes', <NotebookPen size={13} key="n" />],
   ]
   return (
     <div className={styles.cSeg}>
@@ -125,28 +138,54 @@ function TimeScope({ focus, patch }: { focus: FocusState; patch: (p: Partial<Foc
   )
 }
 
-function NoteScope({ notes, selectedId, onPick }: { notes: Note[]; selectedId: string | null; onPick: (n: Note) => void }) {
+function NoteScope({
+  notes,
+  selected,
+  onChange,
+}: {
+  notes: Note[]
+  selected: SelectedNote[]
+  onChange: (next: SelectedNote[]) => void
+}) {
   const [q, setQ] = useState('')
+  const selectedIds = useMemo(() => new Set(selected.map((n) => n.id)), [selected])
   const matches = useMemo(() => {
     const s = q.trim().toLowerCase()
     return notes
       .filter((n) => !s || (n.title ?? '').toLowerCase().includes(s))
-      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+      // Picked notes stay on top so the selection is visible without scrolling.
+      .sort(
+        (a, b) =>
+          Number(selectedIds.has(b.id)) - Number(selectedIds.has(a.id)) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0),
+      )
       .slice(0, 40)
-  }, [q, notes])
+  }, [q, notes, selectedIds])
+
+  const toggle = (n: Note) =>
+    onChange(
+      selectedIds.has(n.id)
+        ? selected.filter((s) => s.id !== n.id)
+        : [...selected, { id: n.id, title: n.title?.trim() || 'Untitled' }],
+    )
+
   return (
-    <div>
+    <div className={styles.qField}>
       <input autoFocus className={styles.cField} placeholder="Search notes by title…" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div style={{ maxHeight: 220, overflowY: 'auto', marginTop: 4 }}>
+      <div className={styles.qFieldHead}>
+        <span className={styles.qFieldTrail} aria-live="polite">
+          {selected.length === 0 ? 'No notes selected' : `${selected.length} selected`}
+        </span>
+        <button type="button" className={styles.qTextBtn} onClick={() => onChange([])} disabled={selected.length === 0}>
+          Clear all
+        </button>
+      </div>
+      <div className={styles.notePickList} role="group" aria-label="Notes to ground on">
         {matches.length === 0 && <p className={styles.pickerEmpty}>No notes match.</p>}
         {matches.map((n) => (
-          <MenuRow
-            key={n.id}
-            icon={<NotebookPen size={14} />}
-            label={n.title?.trim() || 'Untitled'}
-            active={selectedId === n.id}
-            onClick={() => onPick(n)}
-          />
+          <label key={n.id} className={styles.notePickRow}>
+            <input type="checkbox" checked={selectedIds.has(n.id)} onChange={() => toggle(n)} />
+            <span className={styles.notePickTitle}>{n.title?.trim() || 'Untitled'}</span>
+          </label>
         ))}
       </div>
     </div>

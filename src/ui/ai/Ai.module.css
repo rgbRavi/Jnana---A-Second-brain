@@ -5,9 +5,7 @@
   min-height: 0;
   overflow-y: auto;
   padding: 1.25rem var(--space-xl) 3rem;
-  background: radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 40%),
-              radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 40%);
-  background-color: var(--bg);
+  background: var(--bg);
 }
 
 .wrap {
@@ -20,9 +18,9 @@
 
 /* ─── Settings panel ─── */
 .panel {
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) var(--fx-alpha-light), transparent);
+  backdrop-filter: var(--fx-blur);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-lg) 1.25rem;
   box-shadow: var(--shadow-sm);
@@ -120,9 +118,9 @@
 .btn {
   appearance: none;
   outline: none;
-  background: color-mix(in srgb, var(--surface-2) 90%, transparent);
-  backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface-2) var(--fx-alpha-light), transparent);
+  backdrop-filter: var(--fx-blur);
+  border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
   padding: var(--space-sm) 0.9rem;
@@ -417,32 +415,16 @@
 .chatA {
   align-self: flex-start;
   max-width: 95%;
-  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
-  backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface-2) var(--fx-alpha-soft), transparent);
+  backdrop-filter: var(--fx-blur);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   border-bottom-left-radius: 4px;
   padding: 0.65rem 0.9rem;
   font-size: 0.9rem;
   color: var(--text-2);
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
-  box-shadow: var(--shadow-sm);
-}
-
-.chatInputRow {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--text-1) 12%, transparent);
-  border-radius: 28px;
-  background: color-mix(in srgb, var(--surface) 35%, transparent);
-  backdrop-filter: blur(24px) saturate(150%);
-  box-shadow: 0 12px 36px rgba(0,0,0,0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent);
-  padding: 0.65rem var(--space-md) 0.65rem 1.25rem;
-  margin: 0.5rem 0.5rem 0.5rem;
-  transition: box-shadow var(--dur-base) var(--motion-ease);
 }
 
 .chatInput {
@@ -481,9 +463,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) var(--fx-alpha-light), transparent);
+  backdrop-filter: var(--fx-blur);
+  border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: 999px;
   padding: 0.45rem 0.6rem;
@@ -701,42 +683,182 @@
   box-shadow: var(--shadow-lg);
 }
 
-.quizPopoverRow {
+/* ── Quiz settings (docked in the narrow Focused rail) ──────────────────────
+   Labels stack over full-width controls so nothing wraps at 240px; groups are
+   separated by space + a hairline, titled in sentence case rather than caps. */
+.qGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+.qGroup:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.qGroupTitle {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.qField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  min-width: 0;
+}
+
+.qFieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.qFieldLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: 0.78rem;
+  color: var(--text-1);
+}
+
+.qFieldTrail {
+  font-size: 0.74rem;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qFieldHint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+.quizInfo {
+  display: inline-flex;
+  color: var(--text-2);
+  cursor: help;
+  border-radius: 999px;
+  transition: color var(--dur-fast) var(--motion-ease);
+}
+.quizInfo:hover,
+.quizInfo:focus-visible {
+  color: var(--text-1);
+}
+
+/* Presets + a typed "Other" count on one line. */
+.qCountRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2xs);
+}
+.qCountRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Compound selector: .cField (width:100%, --bg fill) is declared later in this
+   file and would otherwise win, stretching the box under its toggle. */
+.cField.qNumInput {
+  width: 4.25rem;
+  flex: none;
+  padding: 0.3rem 0.45rem;
+  text-align: center;
+  background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.qNumInput::-webkit-outer-spin-button,
+.qNumInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.qNumInput::placeholder {
+  color: var(--text-3);
+}
+.qNumInput:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* A custom count is the current selection — mark it like an active segment. */
+.cField.qNumInputActive {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.qTypeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.qTypeRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+  transition: opacity var(--dur-fast) var(--motion-ease);
+}
+.qTypeRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.qTypeRowOff .qTypeLabel {
+  color: var(--text-3);
+}
+
+/* Name over a one-line explanation; used by toggles in this panel. */
+.qTypeLabel {
+  display: flex;
+  flex-direction: column;
   font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-1);
+}
+.qTypeLabel small {
+  font-size: 0.72rem;
   color: var(--text-2);
 }
 
-/* SettingSlider sizes itself from its parent. In a space-between row the label
-   takes all the width and the track collapses to 0px — nothing to drag, and the
-   pointer maths divides by a zero-width rect. Give it a real share of the row. */
-.quizSliderCell {
-  flex: 1 1 auto;
-  min-width: 110px;
-}
+/* SettingSlider sizes itself from its parent — give it the full field width. */
 .quizSliderCell > * {
   width: 100%;
 }
 
-.quizPopoverSection {
-  margin-top: var(--space-xs);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-3);
+.qFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
 }
 
-.quizWeightInput {
-  width: 3.5rem;
-  padding: 0.25rem 0.4rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+.qTextBtn {
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), text-decoration-color var(--dur-fast) var(--motion-ease);
+}
+.qTextBtn:hover {
   color: var(--text-1);
-  font-size: 0.82rem;
+  text-decoration-color: currentColor;
 }
 
 /* Quiz runner */
@@ -982,6 +1104,8 @@
   transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 .cSegBtn:hover { color: var(--text-1); }
+.cSegBtn:active { background: var(--surface-hover-strong); }
+.cSegBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cSegBtnActive,
 .cSegBtnActive:hover {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -1022,9 +1146,7 @@
 .focusQuiz {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2xs);
-  padding-top: var(--space-sm);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--border);
 }
 
@@ -1040,7 +1162,8 @@
 .quizSettings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2xs);
+  gap: var(--space-md);
+  width: 100%;
 }
 
 /* Icon-only add/star affordances in the rules composer */
@@ -1057,3 +1180,284 @@
   transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 .cIconBtn:hover { color: var(--text-1); background: var(--surface-hover); }
+
+/* Retry answer versions — ‹ n / N › under a reply */
+.versionSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: 0.74rem;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.versionSwitch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.versionSwitch button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.versionSwitch button:disabled {
+  color: var(--text-3);
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Multi-select note picker in the Focused rail — the themed checkbox lives in
+   ImportExportPanel's .pickRow and is composed in, not copied. */
+.notePickList {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.notePickRow {
+  composes: pickRow from '../settings/ImportExportPanel.module.css';
+  gap: var(--space-xs);
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  transition: background var(--dur-fast) var(--motion-ease);
+}
+.notePickRow:hover {
+  background: var(--surface-hover);
+}
+.notePickRow:has(input:checked) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.notePickTitle {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qTextBtn:disabled {
+  color: var(--text-3);
+  text-decoration: none;
+  cursor: default;
+}
+
+/* Stop generating — danger-tinted so it reads as the interrupt it is. */
+.stopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.stopBtn:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+.stopBtn svg {
+  fill: currentColor;
+}
+
+/* Assistant replies render markdown (MarkdownLite) — trim its trailing block margin. */
+.chatA > div > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── Composer box — solid surface, accent ring while typing ─────────────── */
+.composerBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0.5rem 0.5rem;
+  padding: 0.85rem 1.1rem 0.7rem;
+  background: color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent);
+  backdrop-filter: var(--fx-blur-strong);
+  border: 1px solid var(--fx-composer-border);
+  border-radius: var(--fx-composer-radius);
+  box-shadow: var(--fx-composer-shadow);
+  transition: border-color var(--dur-fast) var(--motion-ease), box-shadow var(--dur-fast) var(--motion-ease);
+}
+.composerBox:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-strong));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), var(--fx-composer-shadow);
+}
+
+/* ── Mode line — what Send will do ──────────────────────────────────────── */
+.modeLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  margin: 0 1.1rem;
+  font-size: 0.76rem;
+  color: var(--text-2);
+}
+.modeLineIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-2);
+}
+.modeLineLabel {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.modeLineOn .modeLineIcon,
+.modeLineOn .modeLineLabel {
+  color: var(--accent);
+}
+.modeLineDetail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.modeLineOff {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.modeLineOff:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* ── Empty-state starters ───────────────────────────────────────────────── */
+.starters {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 2.5rem 1rem 1rem;
+}
+.startersLead {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-2);
+}
+.starterList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: min(460px, 100%);
+}
+.starter {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.starter:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.starter:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.starter svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.starter strong {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.starter small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/* ── Per-message actions — ⋯ shows on hover or keyboard focus ───────────── */
+.msgActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+}
+.msgMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.msgRow:hover .msgMoreBtn,
+.msgRow:focus-within .msgMoreBtn,
+.msgMoreBtn[aria-expanded='true'] {
+  opacity: 1;
+}
+.msgMoreBtn:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* Chat title in the header — opens the chat menu. */
+.chatTitleBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease);
+}
+.chatTitleBtn:hover,
+.chatTitleBtn[aria-expanded='true'] {
+  background: var(--surface-hover);
+}
+.chatTitleBtn svg {
+  color: var(--text-2);
+}
+
+/* A file dragged over the composer. */
+.composerBoxDrop {
+  border-color: var(--accent);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}

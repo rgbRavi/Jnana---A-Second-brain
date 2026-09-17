@@ -22,6 +22,8 @@ export interface AdvancedAiSettings {
   driftThreshold: number
   violationEveryNTurns: number
   violationModel: string
+  /** Tokens of note text Analyze / Ask / Quiz may send (see noteContext.ts). */
+  noteContextTokens: number
 }
 
 export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
@@ -35,6 +37,7 @@ export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
   driftThreshold: 0.6,
   violationEveryNTurns: 3,
   violationModel: '',
+  noteContextTokens: 32_000,
 }
 
 export interface RefreshState {

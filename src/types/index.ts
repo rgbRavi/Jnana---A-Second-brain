@@ -428,7 +428,7 @@ export interface AnalysisResult {
 export type AnalyzeInput =
   | { mode: 'topic'; query: string }
   | { mode: 'window'; since: number; until: number; label: string }
-  | { mode: 'note'; noteId: string }
+  | { mode: 'note'; noteIds: string[] }
 
 /**
  * The provider abstraction the rest of the AI layer codes against.
@@ -512,6 +512,9 @@ export interface Theme {
   fonts: ThemeFonts
   density: ThemeDensity
   readingScale: number
+  /** Opt-in frosted-glass surfaces + accent gradient backdrop (AI view). Absent
+   *  on older themes and every preset — i.e. off by default. */
+  glassEffects?: boolean
 }
 
 /** A saved theme row (built-in preset or user-saved custom theme). */

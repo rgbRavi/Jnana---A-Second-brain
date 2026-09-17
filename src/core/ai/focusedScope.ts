@@ -16,11 +16,26 @@ export interface FocusState {
   action: FocusAction | null
   scopeKind: ScopeKind
   topicPhrase: string
-  selectedNoteId: string | null
-  selectedNoteTitle: string
+  /** Note-scope selection, in the order picked. Titles ride along for the label. */
+  selectedNotes: SelectedNote[]
+  /** Legacy single-note selection — still present on Focused turns saved in older
+   *  conversations (Retry re-runs them). Read through `selectedNotesOf`. */
+  selectedNoteId?: string | null
+  selectedNoteTitle?: string
   /** yyyy-mm-dd */
   fromStr: string
   toStr: string
+}
+
+export interface SelectedNote {
+  id: string
+  title: string
+}
+
+/** The note selection, upgrading a legacy single-note state. */
+export function selectedNotesOf(f: FocusState): SelectedNote[] {
+  if (f.selectedNotes) return f.selectedNotes
+  return f.selectedNoteId ? [{ id: f.selectedNoteId, title: f.selectedNoteTitle || 'Untitled' }] : []
 }
 
 const DAY = 24 * 60 * 60 * 1000
@@ -44,8 +59,7 @@ export function emptyFocus(): FocusState {
     action: null,
     scopeKind: 'topic',
     topicPhrase: '',
-    selectedNoteId: null,
-    selectedNoteTitle: '',
+    selectedNotes: [],
     fromStr: toInputDate(new Date(today.getTime() - 6 * DAY)),
     toStr: toInputDate(today),
   }
@@ -67,21 +81,29 @@ export function buildTimeScope(fromStr: string, toStr: string): AnalyzeInput {
 /** Effective AnalyzeInput from the current focus state (null if incomplete). */
 export function buildScope(f: FocusState): AnalyzeInput | null {
   if (f.scopeKind === 'topic') return f.topicPhrase.trim() ? { mode: 'topic', query: f.topicPhrase.trim() } : null
-  if (f.scopeKind === 'note') return f.selectedNoteId ? { mode: 'note', noteId: f.selectedNoteId } : null
+  if (f.scopeKind === 'note') {
+    const noteIds = selectedNotesOf(f).map((n) => n.id)
+    return noteIds.length ? { mode: 'note', noteIds } : null
+  }
   return buildTimeScope(f.fromStr, f.toStr)
 }
 
 /** A stable identity for a scope, so a thread resets only when scope changes. */
 export function scopeKey(s: AnalyzeInput): string {
   if (s.mode === 'topic') return `topic:${s.query.trim().toLowerCase()}`
-  if (s.mode === 'note') return `note:${s.noteId}`
+  if (s.mode === 'note') return `note:${[...s.noteIds].sort().join(',')}`
   return `time:${s.since}-${s.until}`
 }
 
 /** Human label for the chip, card, and quiz attempt (e.g. "Topic: neural nets"). */
 export function scopeLabel(f: FocusState): string {
   if (f.scopeKind === 'topic') return f.topicPhrase.trim() ? `Topic: ${f.topicPhrase.trim()}` : 'Topic'
-  if (f.scopeKind === 'note') return f.selectedNoteTitle ? `Note: ${f.selectedNoteTitle}` : 'Selected note'
+  if (f.scopeKind === 'note') {
+    const picked = selectedNotesOf(f)
+    if (picked.length === 0) return 'Selected notes'
+    if (picked.length === 1) return `Note: ${picked[0].title}`
+    return `Notes: ${picked[0].title} + ${picked.length - 1} more`
+  }
   const s = buildTimeScope(f.fromStr, f.toStr)
   return s.mode === 'window' ? s.label : 'Time range'
 }
@@ -89,7 +111,7 @@ export function scopeLabel(f: FocusState): string {
 /** Missing-scope hint shown inline when a focused send has nothing to ground on. */
 export function scopeHint(kind: ScopeKind): string {
   if (kind === 'topic') return 'Enter a topic to ground on (open the Focused menu).'
-  if (kind === 'note') return 'Pick a note to ground on (open the Focused menu).'
+  if (kind === 'note') return 'Pick one or more notes to ground on (open the Focused menu).'
   return 'No notes in that time range.'
 }
 

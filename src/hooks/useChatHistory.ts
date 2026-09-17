@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { eventBus } from '../lib/eventBus'
 import { getConversation, saveConversation } from '../core/chat'
 import { useViewState, getViewState } from './useViewState'
-import { useActiveVaultId } from './useVaults'
+import { useActiveVaultId, getActiveVaultId } from './useVaults'
 import type { StoredConversation } from '../types'
 
 const newId = () =>
@@ -78,9 +78,18 @@ export function useChatHistory(
   }, [mode, setActiveId])
 
   const persist = useCallback(
-    async (messages: unknown, scope: unknown, title: string, projectId?: string | null, ruleIds?: string[]) => {
+    async (
+      messages: unknown,
+      scope: unknown,
+      title: string,
+      projectId?: string | null,
+      ruleIds?: string[],
+      /** Save to this conversation instead of the active one — a reply that
+       *  finishes after the user switched chats or vaults. */
+      target?: { id: string; vaultId: string },
+    ) => {
       // Read the current id from the store in case it changed mid-request.
-      const id = getViewState<string>(convKey) ?? activeId
+      const id = target?.id ?? getViewState<string>(convKey) ?? activeId
       const now = Date.now()
       const conv: StoredConversation = {
         id,
@@ -89,7 +98,7 @@ export function useChatHistory(
         messages: JSON.stringify(messages ?? []),
         scope: scope == null ? null : JSON.stringify(scope),
         projectId: projectId ?? null,
-        vaultId: activeVaultId,
+        vaultId: target?.vaultId ?? activeVaultId,
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
         ruleIds: ruleIds ?? [],
@@ -104,5 +113,11 @@ export function useChatHistory(
     [mode, activeId, convKey, activeVaultId],
   )
 
-  return { activeId, setActiveId, persist }
+  /** The active conversation id right now (live store read, safe in async code). */
+  const getActiveId = useCallback(
+    () => getViewState<string>(`ai.conv.${mode}.${getActiveVaultId()}`) ?? '',
+    [mode],
+  )
+
+  return { activeId, setActiveId, persist, getActiveId }
 }

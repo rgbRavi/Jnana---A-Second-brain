@@ -124,9 +124,10 @@ describe('rawScopeNotes', () => {
     note('2', 'Entropy', 'Entropy measures disorder.', 1500),
   ]
 
-  it('returns just the selected note in note mode', () => {
-    const input: AnalyzeInput = { mode: 'note', noteId: '2' }
-    expect(rawScopeNotes(input, notes).map((n) => n.id)).toEqual(['2'])
+  it('returns just the selected notes in note mode', () => {
+    expect(rawScopeNotes({ mode: 'note', noteIds: ['2'] }, notes).map((n) => n.id)).toEqual(['2'])
+    const both: AnalyzeInput = { mode: 'note', noteIds: ['2', '1'] }
+    expect(rawScopeNotes(both, notes).map((n) => n.id).sort()).toEqual(['1', '2'])
   })
 
   it('filters by the time window in window mode', () => {

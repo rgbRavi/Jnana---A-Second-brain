@@ -11,9 +11,14 @@ import type {
 import { getLinks } from '../notes'
 import { getChatProvider } from './provider'
 import { retrieve } from './rag'
+import { buildNoteContext, DEFAULT_CONTEXT_TOKENS, maxNotesFor } from './noteContext'
 
-const MAX_CONTEXT_NOTES = 8
-const MAX_CHARS_PER_NOTE = 1500
+/** Options shared by the grounded actions (Analyze / Ask / Quiz). */
+export interface GroundingOpts {
+  /** How many tokens of note text the model may read (Settings → Advanced AI
+   *  generation). Defaults to DEFAULT_CONTEXT_TOKENS. */
+  contextTokens?: number
+}
 const MAX_HISTORY_TURNS = 6
 
 const SYSTEM_PROMPT = `You are a study analyst embedded in a personal knowledge app.
@@ -46,11 +51,13 @@ export async function resolveContextNotes(
   input: AnalyzeInput,
   config: AiConfig,
   notes: Note[],
+  /** Cap for topic/time scopes and linked-note fill (see maxNotesFor). */
+  maxNotes = 8,
 ): Promise<Note[]> {
   const byId = new Map(notes.map((n) => [n.id, n]))
 
   if (input.mode === 'topic') {
-    const hits = await retrieve(input.query, config, MAX_CONTEXT_NOTES * 2)
+    const hits = await retrieve(input.query, config, maxNotes * 2)
     // Collapse chunk hits to unique notes, preserving relevance order.
     const seen = new Set<string>()
     const contextNotes: Note[] = []
@@ -59,27 +66,30 @@ export async function resolveContextNotes(
       seen.add(hit.noteId)
       const note = byId.get(hit.noteId)
       if (note) contextNotes.push(note)
-      if (contextNotes.length >= MAX_CONTEXT_NOTES) break
+      if (contextNotes.length >= maxNotes) break
     }
     return contextNotes
   }
 
   if (input.mode === 'note') {
-    // The selected note first, then its thread: notes linked in either
-    // direction, most recently touched first.
-    const root = byId.get(input.noteId)
-    if (!root) return []
+    // Every selected note (the user picked them explicitly, so none is dropped),
+    // then their threads — notes linked in either direction, most recently
+    // touched first — filling whatever room is left under the context cap.
+    const roots = input.noteIds.map((id) => byId.get(id)).filter((n): n is Note => !!n)
+    const room = maxNotes - roots.length
+    if (roots.length === 0 || room <= 0) return roots
+    const rootIds = new Set(roots.map((n) => n.id))
     let linkedIds: string[] = []
     try {
-      linkedIds = await getLinks(root.id)
+      linkedIds = (await Promise.all(roots.map((r) => getLinks(r.id)))).flat()
     } catch (err) {
       console.error('[analyze] failed to load linked notes:', err)
     }
-    const linked = linkedIds
+    const linked = [...new Set(linkedIds)]
       .map((id) => byId.get(id))
-      .filter((n): n is Note => !!n && n.id !== root.id)
+      .filter((n): n is Note => !!n && !rootIds.has(n.id))
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-    return [root, ...linked.slice(0, MAX_CONTEXT_NOTES - 1)]
+    return [...roots, ...linked.slice(0, room)]
   }
 
   return notes
@@ -88,7 +98,14 @@ export async function resolveContextNotes(
       return t >= input.since && t <= input.until
     })
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
-    .slice(0, MAX_CONTEXT_NOTES)
+    .slice(0, maxNotes)
+}
+
+/** "the note "A"" / "the notes "A", "B" and "C"" for the analysis prompt. */
+function noteSubject(selected: SourceNote[]): string {
+  const titles = selected.map((s) => `"${s.title}"`)
+  if (titles.length <= 1) return `the note ${titles[0] ?? '"Untitled"'}`
+  return `the notes ${titles.slice(0, -1).join(', ')} and ${titles[titles.length - 1]}`
 }
 
 function toSourceNotes(contextNotes: Note[]): SourceNote[] {
@@ -98,25 +115,12 @@ function toSourceNotes(contextNotes: Note[]): SourceNote[] {
   }))
 }
 
-/** Build the context block sent to the model from a set of notes. */
-function buildContext(snippets: { title: string; text: string }[]): string {
-  return snippets
-    .map((s, i) => `### Note ${i + 1}: ${s.title}\n${s.text.slice(0, MAX_CHARS_PER_NOTE)}`)
-    .join('\n\n')
-}
-
-export function contextBlockFor(contextNotes: Note[]): string {
-  return buildContext(
-    contextNotes.map((n) => ({ title: n.title?.trim() || 'Untitled', text: n.content })),
-  )
-}
-
 function emptyContextMessage(input: AnalyzeInput): string {
   switch (input.mode) {
     case 'topic':
       return 'No indexed notes matched that topic. Try indexing your notes or a different phrasing.'
     case 'note':
-      return 'That note could not be found — it may have been deleted.'
+      return 'The selected notes could not be found — they may have been deleted.'
     default:
       return 'No notes were found in that time window.'
   }
@@ -151,8 +155,10 @@ export async function analyze(
   input: AnalyzeInput,
   config: AiConfig,
   notes: Note[],
+  opts: GroundingOpts = {},
 ): Promise<AnalysisResult> {
-  const contextNotes = await resolveContextNotes(input, config, notes)
+  const budgetTokens = opts.contextTokens ?? DEFAULT_CONTEXT_TOKENS
+  const contextNotes = await resolveContextNotes(input, config, notes, maxNotesFor(budgetTokens))
   const sourceNotes = toSourceNotes(contextNotes)
 
   if (contextNotes.length === 0) {
@@ -165,20 +171,24 @@ export async function analyze(
     }
   }
 
-  const context = contextBlockFor(contextNotes)
+  const { text: context, images } = await buildNoteContext(contextNotes, {
+    budgetTokens,
+    config,
+    query: input.mode === 'topic' ? input.query : undefined,
+  })
   const focus =
     input.mode === 'topic'
       ? `The user wants to understand what they've learned about: "${input.query}".`
       : input.mode === 'note'
-        ? `The user wants an analysis of the note "${sourceNotes[0]?.title ?? 'Untitled'}"${
-            contextNotes.length > 1 ? ' together with the notes linked to it (its thread)' : ''
+        ? `The user wants an analysis of ${noteSubject(sourceNotes.slice(0, input.noteIds.length))}${
+            contextNotes.length > input.noteIds.length ? ' together with the notes linked to them (their threads)' : ''
           }.`
         : `The user wants a synthesis of what they recorded during: ${input.label}.`
 
   const provider = getChatProvider(config)
   const raw = await provider.complete(
     `${focus}\n\nHere are the relevant notes:\n\n${context}`,
-    { system: SYSTEM_PROMPT, temperature: 0.2 },
+    { system: SYSTEM_PROMPT, temperature: 0.2, images },
   )
 
   try {
@@ -218,8 +228,10 @@ export async function askNotes(
   history: AskTurn[],
   config: AiConfig,
   notes: Note[],
+  opts: GroundingOpts = {},
 ): Promise<AskResult> {
-  const contextNotes = await resolveContextNotes(input, config, notes)
+  const budgetTokens = opts.contextTokens ?? DEFAULT_CONTEXT_TOKENS
+  const contextNotes = await resolveContextNotes(input, config, notes, maxNotesFor(budgetTokens))
   const sourceNotes = toSourceNotes(contextNotes)
 
   if (contextNotes.length === 0) {
@@ -231,8 +243,10 @@ export async function askNotes(
     .map((t) => `Q: ${t.question}\nA: ${t.answer}`)
     .join('\n\n')
 
+  // The question picks the most relevant passages from any note too long to send whole.
+  const { text: context, images } = await buildNoteContext(contextNotes, { budgetTokens, config, query: question })
   const prompt = [
-    `Here are the user's notes:\n\n${contextBlockFor(contextNotes)}`,
+    `Here are the user's notes:\n\n${context}`,
     convo ? `Earlier in this conversation:\n\n${convo}` : '',
     `Question: ${question}`,
   ]
@@ -243,6 +257,7 @@ export async function askNotes(
   const answer = await provider.complete(prompt, {
     system: ASK_SYSTEM_PROMPT,
     temperature: 0.3,
+    images,
   })
 
   return { answer: answer.trim(), sourceNotes }

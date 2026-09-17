@@ -131,6 +131,12 @@ function patch(obj: Partial<Pick<Theme, 'density' | 'readingScale'>>): void {
   commit({ ...theme, ...obj, presetId: null })
 }
 
+/** A look preference layered on any palette — toggling it doesn't turn a preset
+ *  into "Custom", and switching presets keeps it (see pickPreset/reset). */
+function setGlassEffects(on: boolean): void {
+  commit({ ...theme, glassEffects: on })
+}
+
 function setBase(base: Theme['base']): void {
   commit(swapBase(theme, base))
 }
@@ -154,7 +160,7 @@ function setRadius(v: number): void {
 }
 
 function pickPreset(id: string): void {
-  commit(themeFromPreset(id))
+  commit({ ...themeFromPreset(id), glassEffects: theme.glassEffects })
 }
 
 /** Merge a (possibly partial, e.g. from pasted JSON) theme object over the
@@ -171,7 +177,7 @@ function importTheme(obj: Partial<Theme>): void {
 }
 
 function reset(): void {
-  commit(themeFromPreset('dark'))
+  commit({ ...themeFromPreset('dark'), glassEffects: theme.glassEffects })
 }
 
 async function saveCurrent(name: string): Promise<void> {
@@ -202,6 +208,7 @@ export interface UseThemeApi {
   setBase: (base: Theme['base']) => void
   setFont: (role: keyof Theme['fonts'], id: string) => void
   setRadius: (v: number) => void
+  setGlassEffects: (on: boolean) => void
   patch: (obj: Partial<Pick<Theme, 'density' | 'readingScale'>>) => void
   pickPreset: (id: string) => void
   importTheme: (obj: Partial<Theme>) => void
@@ -226,6 +233,7 @@ export function useTheme(): UseThemeApi {
     setBase,
     setFont,
     setRadius,
+    setGlassEffects,
     patch,
     pickPreset,
     importTheme,

@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown } from 'lucide-react'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { showConfirmDialog } from '../../lib/dialog'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
@@ -96,7 +96,7 @@ export function ChatHistory({ mode }: { mode: string }) {
         <button onClick={() => setCollapsed(false)} title="Expand side toolbar" aria-label="Expand side toolbar" style={iconBtn}>
           <ChevronsRight size={16} />
         </button>
-        <button onClick={newChat} title="New chat" aria-label="New chat" style={{ ...iconBtn, color: '#fff', background: 'var(--accent)', border: 'none' }}>
+        <button onClick={newChat} title="New chat" aria-label="New chat" style={{ ...iconBtn, color: 'var(--on-accent)', background: 'var(--accent)', border: 'none' }}>
           <Plus size={16} />
         </button>
         <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: '4px 0' }} />
@@ -108,7 +108,12 @@ export function ChatHistory({ mode }: { mode: string }) {
   }
 
   const remove = async (id: string, title: string) => {
-    const ok = await ask(`Delete chat "${title || 'Untitled'}"?`, { title: 'Delete chat', kind: 'warning' })
+    const ok = await showConfirmDialog({
+      title: 'Delete chat',
+      message: `“${title || 'Untitled'}” and all its messages will be deleted. This can't be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    })
     if (!ok) return
     await deleteConversation(id).catch((e) => console.error(e))
     if (id === activeId) eventBus.emit('ai:newChat', { mode }) // reset the open chat
@@ -202,11 +207,11 @@ export function ChatHistory({ mode }: { mode: string }) {
                 alignItems: 'center',
                 gap: '4px',
                 background: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
-                backdropFilter: active ? 'blur(8px)' : 'none',
                 border: '1px solid ' + (active ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'transparent'),
                 borderRadius: 'var(--radius-sm)',
                 padding: '0.4rem 0.45rem',
-                boxShadow: active ? '0 0 10px color-mix(in srgb, var(--accent) 20%, transparent)' : 'none',
+                backdropFilter: active ? 'var(--fx-blur)' : 'none',
+                boxShadow: active ? 'var(--fx-glow)' : 'none',
               }}
             >
               {renamingId === c.id ? (

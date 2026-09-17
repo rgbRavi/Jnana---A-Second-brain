@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { GitFork, ListX, Pencil, RotateCcw, Trash2, ChevronDown, Star, EyeOff, FolderMinus, Trash, FolderInput } from 'lucide-react'
-import type { AiConfig, AiRule, AnalysisResult, Note, ProjectKnowledge, QuizAttempt, SourceNote, StoredConversation } from '../../types'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { Bot, ChevronLeft, ChevronRight, ChevronDown, FileSearch, GraduationCap, MoreHorizontal, RotateCcw } from 'lucide-react'
+import type { AiConfig, AiRule, Note, ProjectKnowledge, StoredConversation } from '../../types'
+import { DEFAULT_VAULT_ID } from '../../types'
 import {
   streamChat,
   buildUserTurn,
   pickAttachments,
+  attachmentFromFile,
+  attachmentFromPath,
+  detectVision,
   makeNoteAttachment,
   modelCapabilities,
   hasDeepResearchEndpoint,
@@ -23,8 +27,18 @@ import {
   type AgentStep,
   type ProposedAction,
 } from '../../core/ai'
+import { settleVersions, showVersion, versionsToKeep, type FreeMessage, type ReplyVersion } from './freeThread'
 import { emptyAttempt } from '../../core/ai/quizGrade'
-import { buildScope, scopeLabel, scopeHint, emptyFocus, ACTION_VERB, type FocusState } from '../../core/ai/focusedScope'
+import {
+  buildScope,
+  scopeLabel,
+  scopeHint,
+  emptyFocus,
+  toInputDate,
+  ACTION_VERB,
+  type FocusAction,
+  type FocusState,
+} from '../../core/ai/focusedScope'
 import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { listRules, listProjectRules, resolveEffectiveRules, buildRulesSystem } from '../../core/aiRules'
@@ -38,11 +52,17 @@ import { useViewState, getViewState, setViewState } from '../../hooks/useViewSta
 import { useChatHistory } from '../../hooks/useChatHistory'
 import { usePresets } from '../../hooks/usePresets'
 import { useProjects } from '../../hooks/useProjects'
-import { getActiveVaultId } from '../../hooks/useVaults'
+import { getActiveVaultId, useActiveVaultId } from '../../hooks/useVaults'
 import { useNotesContext } from '../../context/NotesContext'
 import { serializeAttempt } from '../../plugins/quiz/quizNote'
 import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
-import { closeFocusPanel } from '../../lib/activeFocus'
+import { closeFocusPanel, openFocusPanel } from '../../lib/activeFocus'
+import { showConfirmDialog } from '../../lib/dialog'
+import { getVisionOverrides, setVisionOverride, subscribeVisionOverrides } from '../../lib/visionOverride'
+import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { MarkdownLite } from '../editor/MarkdownLite'
+import { openRailPanel } from '../rail/RightRail'
+import { FOCUSED_PANEL_ID } from './FocusedMenu'
 import { toast } from '../../lib/toast'
 import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
@@ -71,32 +91,37 @@ const toAskHistory = (msgs: FreeMessage[]): AskTurn[] => {
   return turns
 }
 
+/** Turns fed to the model as chat history. A grounded turn with no text reply
+ *  (quiz/analysis card, failed request) is dropped along with its label — an
+ *  empty assistant turn or a bare "Quiz — Topic: …" only confuses the model. */
+const toChatHistory = (msgs: FreeMessage[]): FreeMessage[] =>
+  msgs.filter((m, i) => {
+    if (m.role === 'assistant') return !!m.content
+    const next = msgs[i + 1]
+    return !m.focus || (next?.role === 'assistant' && !!next.content)
+  })
+
+/**
+ * Requests in flight, keyed by conversation id. The reply writes here, so it
+ * keeps landing after the user switches chats or leaves the AI view; the visible
+ * thread (`ai.free.messages`) only mirrors an entry while its chat is active.
+ * Module scope, so it outlives FreeChat unmounting.
+ */
+interface InflightThread {
+  messages: FreeMessage[]
+  vaultId: string
+  projectId: string | null
+  ruleIds: string[]
+  controller?: AbortController
+  /** The save made at send time — finishing awaits it so the existence check can't race it. */
+  saved?: Promise<void>
+}
+const inflight = new Map<string, InflightThread>()
+/** Mounted FreeChat instances — 0 means the user left the AI chat view. */
+let chatMounted = 0
+
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
-
-/** A grounded ("Focused") result rendered as an assistant card. Serializable
- *  data only (no React nodes) so it round-trips through the conversation JSON. */
-type FreeCard =
-  | { type: 'analysis'; result: AnalysisResult }
-  | { type: 'quiz'; attempt: QuizAttempt; reason?: 'empty-index' | 'empty-scope' }
-
-/** A message in the free-chat thread. `content` is the model-facing text;
- *  `displayText` (user only) is the raw text shown in the bubble. */
-interface FreeMessage {
-  role: 'user' | 'assistant'
-  content: string
-  displayText?: string
-  attachments?: ChatAttachment[]
-  pending?: boolean
-  // Agent runs attach their steps + proposed actions to the assistant message.
-  steps?: AgentStep[]
-  proposals?: ProposedAction[]
-  appliedIds?: string[]
-  skippedIds?: string[]
-  // Grounded (Focused) results ride the assistant message.
-  card?: FreeCard
-  sources?: SourceNote[]
-}
 
 const chipStyle: React.CSSProperties = {
   background: 'var(--surface-2)',
@@ -109,7 +134,7 @@ const chipStyle: React.CSSProperties = {
 
 export function FreeChat({
   config,
-  notes,
+  notes: allNotes,
   onOpenNote,
   onReindexAll,
 }: {
@@ -142,7 +167,22 @@ export function FreeChat({
 
   // Adaptive Rules — session-scoped selection, round-tripped through the conversation.
   const [ruleIds, setRuleIds] = useViewState<string[]>('ai.free.ruleIds', [])
-  const vaultId = getActiveVaultId()
+  // Everything note-facing here (attach picker, grounding, agent, re-index) is
+  // limited to the active vault, like the rest of the app.
+  const vaultId = useActiveVaultId()
+  const notes = useMemo(
+    () => allNotes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId),
+    [allNotes, vaultId],
+  )
+  // The "Analyze last saved note" starter's target: newest plain-markdown note in
+  // this vault (typed notes — canvas, quiz — hold JSON, not prose worth analyzing).
+  const lastSavedNote = useMemo(
+    () =>
+      notes
+        .filter((n) => !n.kind)
+        .reduce<Note | null>((best, n) => ((n.updatedAt ?? n.createdAt) > (best ? (best.updatedAt ?? best.createdAt) : -1) ? n : best), null),
+    [notes],
+  )
 
   // Focused (grounded) mode — arm an Analyze/Ask/Quiz action over a note scope.
   const [focus, setFocus] = useViewState<FocusState>('ai.free.focus', emptyFocus)
@@ -179,33 +219,44 @@ export function FreeChat({
   const [chatTitle, setChatTitle] = useState('New chat')
   const [isRenamingChat, setIsRenamingChat] = useState(false)
   const [chatTitleInput, setChatTitleInput] = useState('')
-  const [isChatMenuOpen, setIsChatMenuOpen] = useState(false)
-  const [showProjectSubmenu, setShowProjectSubmenu] = useState(false)
-  const [starredChats, setStarredChats] = useViewState<Record<string, boolean>>('ai.chat.starred', {})
-  const [unreadChats, setUnreadChats] = useViewState<Record<string, boolean>>('ai.chat.unread', {})
+  const [chatMenu, setChatMenu] = useState<{ x: number; y: number } | null>(null)
+  const composerInputRef = useRef<HTMLTextAreaElement>(null)
 
-  const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  // Re-render when the user flips "Send images to this model" (caps reads the override).
+  useSyncExternalStore(subscribeVisionOverrides, getVisionOverrides, getVisionOverrides)
   const caps = modelCapabilities(config.chatModel)
+  const visionDetected = detectVision(config.chatModel)
+  const changeVision = (on: boolean) =>
+    // Store an answer only when it disagrees with the name guess.
+    setVisionOverride(config.chatModel, on === visionDetected ? undefined : on)
 
   // History wiring: load/new come from the drawer via the eventBus.
+  // Switching chats never aborts a request — it carries on in `inflight`.
   const resetChat = useCallback(() => {
-    abortRef.current?.abort()
+    setBusy(false)
     setMessages([])
     setError(null)
     setInput('')
     setAttachments([])
     setRuleIds([])
     setProjectId('') // a fresh chat is project-less; project chats open from the project
-  }, [setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId])
+  }, [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId])
 
   const loadConv = useCallback(
     (c: StoredConversation) => {
-      abortRef.current?.abort()
-      try {
-        setMessages(JSON.parse(c.messages) as FreeMessage[])
-      } catch {
-        setMessages([])
+      // A chat with a reply still in flight shows the live thread, not the
+      // partial copy saved when it was sent.
+      const live = inflight.get(c.id)
+      setBusy(!!live)
+      if (live) {
+        setMessages(live.messages)
+      } else {
+        try {
+          setMessages(JSON.parse(c.messages) as FreeMessage[])
+        } catch {
+          setMessages([])
+        }
       }
       setError(null)
       setInput('')
@@ -213,7 +264,7 @@ export function FreeChat({
       setRuleIds(c.ruleIds ?? [])
       setProjectId(c.projectId || '') // projectId always mirrors the active conversation
     },
-    [setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId],
+    [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId],
   )
 
   // Debounced quiz-answer persistence needs to flush before the active id
@@ -227,7 +278,71 @@ export function FreeChat({
     persistNowRef.current()
   }, [])
 
-  const { persist, setActiveId, activeId } = useChatHistory('chat', loadConv, resetChat, flushPersist)
+  const { persist, setActiveId, activeId, getActiveId } = useChatHistory('chat', loadConv, resetChat, flushPersist)
+
+  useEffect(() => {
+    chatMounted++
+    // Re-sync after remount: a request may have finished while the view was away.
+    setBusy(inflight.has(getActiveId()))
+    return () => {
+      chatMounted--
+    }
+  }, [getActiveId, setBusy])
+
+  // ── In-flight thread plumbing (see `inflight`) ──
+  /** Register a request's thread, show it, and save it right away so the chat
+   *  exists in history even if the user switches before any reply arrives. */
+  const beginThread = (convId: string, next: FreeMessage[], controller?: AbortController) => {
+    const entry: InflightThread = {
+      messages: next,
+      vaultId: getActiveVaultId(),
+      projectId: getViewState<string>('ai.free.projectId') || null,
+      ruleIds: getViewState<string[]>('ai.free.ruleIds') ?? [],
+      controller,
+    }
+    inflight.set(convId, entry)
+    if (getActiveId() === convId) setMessages(next)
+    entry.saved = persist(next, null, titleFrom(next), entry.projectId, entry.ruleIds, { id: convId, vaultId: entry.vaultId })
+  }
+  const patchThread = (convId: string, fn: (prev: FreeMessage[]) => FreeMessage[]) => {
+    const entry = inflight.get(convId)
+    if (!entry) return
+    entry.messages = fn(entry.messages)
+    if (getActiveId() === convId) setMessages(entry.messages)
+  }
+  const patchLastReply = (convId: string, patch: Partial<FreeMessage>) =>
+    patchThread(convId, (p) => {
+      const next = p.slice()
+      const last = next[next.length - 1]
+      if (last && last.role === 'assistant') next[next.length - 1] = { ...last, ...patch }
+      return next
+    })
+  /** An error belongs to its chat: inline when it's on screen, a toast otherwise. */
+  const reportError = (convId: string, message: string) => {
+    if (chatMounted > 0 && getActiveId() === convId) setError(message)
+    else toast.error(`AI chat “${titleFrom(inflight.get(convId)?.messages ?? [])}”: ${message}`)
+  }
+  /** Save the finished thread, and tell the user if they're elsewhere. */
+  const finishThread = async (convId: string) => {
+    const entry = inflight.get(convId)
+    if (!entry) return
+    patchThread(convId, (p) => {
+      const last = p[p.length - 1]
+      return last?.role === 'assistant' ? [...p.slice(0, -1), settleVersions(last)] : p
+    })
+    inflight.delete(convId)
+    const onScreen = chatMounted > 0 && getActiveId() === convId
+    if (getActiveId() === convId) setBusy(false)
+    await entry.saved
+    // Deleted while the reply was running? Don't resurrect it.
+    const exists = await getConversation(convId).then(() => true, () => false)
+    if (!exists) return
+    await persist(entry.messages, null, titleFrom(entry.messages), entry.projectId, entry.ruleIds, {
+      id: convId,
+      vaultId: entry.vaultId,
+    })
+    if (!onScreen) toast.success(`AI replied in “${titleFrom(entry.messages)}” — open it from Chat history.`)
+  }
 
   const persistNow = useCallback(() => {
     const m = getViewState<FreeMessage[]>('ai.free.messages') ?? []
@@ -270,8 +385,15 @@ export function FreeChat({
   }
 
   const handleDeleteChat = async () => {
+    const ok = await showConfirmDialog({
+      title: 'Delete chat',
+      message: `“${chatTitle}” and all its messages will be deleted. This can't be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    inflight.get(activeId)?.controller?.abort()
     await deleteConversation(activeId).catch(e => console.error(e))
-    setIsChatMenuOpen(false)
     resetChat()
     eventBus.emit('ai:conversationDeleted', { mode: 'chat' })
     eventBus.emit('ai:newChat', { mode: 'chat' })
@@ -284,8 +406,6 @@ export function FreeChat({
       c.updatedAt = Date.now()
       await saveConversation(c)
       setProjectId(newProjectId || '')
-      setIsChatMenuOpen(false)
-      setShowProjectSubmenu(false)
       eventBus.emit('ai:conversationSaved', { mode: 'chat' })
     } catch (e) {
       console.error(e)
@@ -300,6 +420,19 @@ export function FreeChat({
     try {
       const picked = await pickAttachments()
       if (picked.length) setAttachments((prev) => [...prev, ...picked])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const addAttachmentsFrom = async <T,>(items: T[], make: (item: T) => Promise<ChatAttachment>) => {
+    try {
+      const made: ChatAttachment[] = []
+      for (const item of items) made.push(await make(item))
+      setAttachments((prev) => [...prev, ...made])
+      if (!caps.vision && made.some((a) => a.kind === 'image')) {
+        toast.info(`${config.chatModel || 'This model'} isn't set to receive images — turn on Attach → "Send images to this model" if it can.`)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -323,9 +456,11 @@ export function FreeChat({
 
   // ── Focused (grounded) send: route to analyze / askNotes / generateQuiz and
   //    render the result as an assistant card in the same thread. ──
-  const runFocused = async (f: FocusState, text: string) => {
+  // `keepComposer`: a Retry/Edit re-run must not wipe the user's current draft.
+  // `versions`: earlier answers a Retry keeps (see freeThread.ts).
+  const runFocused = async (f: FocusState, text: string, keepComposer = false, versions?: ReplyVersion[]) => {
     const action = f.action
-    if (!action) return
+    if (!action || busy) return
     const scope = buildScope(f)
     if (!scope) {
       setError(scopeHint(f.scopeKind))
@@ -339,55 +474,58 @@ export function FreeChat({
 
     setError(null)
     setBusy(true)
-    setInput('')
-    setAttachments([])
+    if (!keepComposer) {
+      setInput('')
+      setAttachments([])
+    }
 
     // Capture prior turns for Ask history BEFORE appending this turn.
+    const convId = getActiveId()
     const priorMsgs = getViewState<FreeMessage[]>('ai.free.messages') ?? []
     const label = scopeLabel(f)
     const reqText = action === 'ask' ? question : `${ACTION_VERB[action]} — ${label}`
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: reqText, displayText: reqText },
-      { role: 'assistant', content: '', pending: true },
+    beginThread(convId, [
+      ...priorMsgs,
+      { role: 'user', content: reqText, displayText: reqText, focus: f },
+      { role: 'assistant', content: '', pending: true, versions },
     ])
-
-    const patchLast = (patch: Partial<FreeMessage>) =>
-      setMessages((p) => {
-        const next = p.slice()
-        const last = next[next.length - 1]
-        if (last && last.role === 'assistant') next[next.length - 1] = { ...last, ...patch }
-        return next
-      })
+    const patchLast = (patch: Partial<FreeMessage>) => patchLastReply(convId, patch)
+    const grounding = { contextTokens: getAdvancedAiSettings().noteContextTokens }
 
     try {
       if (action === 'analyze') {
-        const result = await analyze(scope, config, notes)
+        const result = await analyze(scope, config, notes, grounding)
         patchLast({ card: { type: 'analysis', result }, pending: false })
       } else if (action === 'quiz') {
-        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId)
+        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId, grounding)
         console.warn('[quiz-debug] generateQuiz result', { count: questions.length, reason, scope, formats: quizSettings.formats })
         patchLast({ card: { type: 'quiz', attempt: emptyAttempt(questions, label), reason }, pending: false })
       } else {
-        const res = await askNotes(scope, question, toAskHistory(priorMsgs), config, notes)
+        const res = await askNotes(scope, question, toAskHistory(priorMsgs), config, notes, grounding)
         patchLast({ content: res.answer, sources: res.sourceNotes, pending: false })
       }
-      persistNow()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Focused request failed.')
-      patchLast({ pending: false })
+      reportError(convId, e instanceof Error ? e.message : 'Focused request failed.')
+      // Drop the empty reply; the request stays in the thread with its Retry button.
+      // A retry keeps its reply so finishThread can restore the previous answer.
+      patchThread(convId, (p) => {
+        const last = p[p.length - 1]
+        if (!last || last.role !== 'assistant' || !last.pending) return p
+        return last.versions?.length ? [...p.slice(0, -1), { ...last, pending: false }] : p.slice(0, -1)
+      })
     } finally {
-      setBusy(false)
+      await finishThread(convId)
     }
   }
 
-  const send = async (opts?: { text?: string; atts?: ChatAttachment[] }) => {
+  const send = async (opts?: { text?: string; atts?: ChatAttachment[]; versions?: ReplyVersion[] }) => {
     if (busy) return
     // `opts.text` is set by edit-&-retry; otherwise use the composer.
     const explicit = typeof opts?.text === 'string'
     const text = (explicit ? (opts!.text as string) : input).trim()
     const atts = opts?.atts ?? (explicit ? [] : attachments)
-    // Grounded mode routes to the focused pipeline (edit-&-retry stays plain chat).
+    // Grounded mode routes to the focused pipeline. Edit/Retry pass `text` and
+    // never land here for a Focused turn — they re-run it via its stored `focus`.
     // Read the armed state from the store, not the closure — the rail panel can
     // arm it out-of-tree, so the freshest value is authoritative (same reason the
     // rest of send() reads messages/projectId/ruleIds via getViewState).
@@ -408,7 +546,11 @@ export function FreeChat({
     }
 
     // Capture prior turns from the store (fresh — edit-&-retry truncates first).
-    const prior: ChatTurn[] = (getViewState<FreeMessage[]>('ai.free.messages') ?? []).map((m) => ({
+    // The request belongs to the chat it was sent from, even if the user switches
+    // chats while attachments/rules below are still resolving.
+    const convId = getActiveId()
+    const baseMsgs = getViewState<FreeMessage[]>('ai.free.messages') ?? []
+    const prior: ChatTurn[] = toChatHistory(baseMsgs).map((m) => ({
       role: m.role,
       content: m.content,
     }))
@@ -459,18 +601,23 @@ export function FreeChat({
       : { refresh: false, trigger: 'none' as const }
     if (refreshFired) setViewState('ai.free.ruleAnchor', query)
 
-    setMessages((prev) => [
-      ...prev,
-      { role: 'user', content: userTurn.content, displayText: text, attachments: atts },
-      { role: 'assistant', content: '', pending: true },
-    ])
-    if (warnings.length) setError(warnings.join('  '))
+    const controller = new AbortController()
+    beginThread(
+      convId,
+      [
+        ...baseMsgs,
+        { role: 'user', content: userTurn.content, displayText: text, attachments: atts },
+        { role: 'assistant', content: '', pending: true, versions: opts?.versions },
+      ],
+      controller,
+    )
+    if (warnings.length) reportError(convId, warnings.join('  '))
 
     // ── Agent mode: tool-loop over the vault (writes staged as proposals) ──
     if (agent) {
       const history: AgentMessage[] = prior.map((m) => ({ role: m.role, content: m.content }))
       const onStep = (s: AgentStep) =>
-        setMessages((p) => {
+        patchThread(convId, (p) => {
           const next = p.slice()
           const last = next[next.length - 1]
           if (last && last.role === 'assistant') next[next.length - 1] = { ...last, steps: [...(last.steps ?? []), s] }
@@ -481,23 +628,11 @@ export function FreeChat({
           onStep,
           rulesSystem: rulesBlock || undefined,
         })
-        setMessages((p) => {
-          const next = p.slice()
-          const last = next[next.length - 1]
-          if (last && last.role === 'assistant')
-            next[next.length - 1] = { ...last, content: result.answer, steps: result.steps, proposals: result.proposals, pending: false }
-          return next
-        })
+        patchLastReply(convId, { content: result.answer, steps: result.steps, proposals: result.proposals, pending: false })
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-        setMessages((p) => {
-          const next = p.slice()
-          const last = next[next.length - 1]
-          if (last && last.role === 'assistant') next[next.length - 1] = { ...last, pending: false }
-          return next
-        })
+        reportError(convId, e instanceof Error ? e.message : String(e))
+        patchLastReply(convId, { pending: false })
       } finally {
-        setBusy(false)
         if (cfg.logMetrics && rulesBlock) {
           recordRuleEvent({
             ts: Date.now(),
@@ -510,14 +645,7 @@ export function FreeChat({
             trigger,
           })
         }
-        const finalMessages = getViewState<FreeMessage[]>('ai.free.messages') ?? []
-        void persist(
-          finalMessages,
-          null,
-          titleFrom(finalMessages),
-          getViewState<string>('ai.free.projectId') || null,
-          getViewState<string[]>('ai.free.ruleIds') ?? [],
-        )
+        await finishThread(convId)
       }
       return
     }
@@ -569,11 +697,8 @@ export function FreeChat({
       })
     }
 
-    const controller = new AbortController()
-    abortRef.current = controller
-
     const onToken = (delta: string) =>
-      setMessages((prev) => {
+      patchThread(convId, (prev) => {
         const next = prev.slice()
         const last = next[next.length - 1]
         if (last && last.role === 'assistant') next[next.length - 1] = { ...last, content: last.content + delta }
@@ -583,26 +708,10 @@ export function FreeChat({
     try {
       await streamChat(config, turns, { think, signal: controller.signal, route }, onToken)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      reportError(convId, e instanceof Error ? e.message : String(e))
     } finally {
-      abortRef.current = null
-      setBusy(false)
-      setMessages((prev) => {
-        const next = prev.slice()
-        const last = next[next.length - 1]
-        if (last && last.role === 'assistant') next[next.length - 1] = { ...last, pending: false }
-        return next
-      })
-      // Persist the conversation (reads the freshly-updated store, so it works
-      // even if we've navigated away while streaming).
-      const finalMessages = getViewState<FreeMessage[]>('ai.free.messages') ?? []
-      void persist(
-        finalMessages,
-        null,
-        titleFrom(finalMessages),
-        getViewState<string>('ai.free.projectId') || null,
-        getViewState<string[]>('ai.free.ruleIds') ?? [],
-      )
+      patchLastReply(convId, { pending: false })
+      await finishThread(convId)
     }
   }
 
@@ -726,8 +835,23 @@ export function FreeChat({
     const text = editText.trim()
     setEditingIndex(null)
     if (idx == null || !text) return
+    const focusOf = messages[idx]?.focus
     setMessages((prev) => prev.slice(0, idx)) // drop the old message + everything after
-    await send({ text })
+    if (focusOf?.action) await runFocused(focusOf, text, true)
+    else await send({ text })
+  }
+  /** What "Copy message" puts on the clipboard — what the user saw, not the
+   *  attachment-expanded prompt. Cards (quiz/analysis) have no text. */
+  const copyableText = (m?: FreeMessage) => (m ? (m.role === 'user' ? (m.displayText ?? m.content) : m.content) : '')
+  const copyMessage = async (index: number) => {
+    setMsgMenu(null)
+    try {
+      await navigator.clipboard.writeText(copyableText(messages[index]))
+      toast.success('Message copied.', 2000)
+    } catch (e) {
+      log.error('Failed to copy message', e)
+      toast.error('Could not copy the message.')
+    }
   }
   const openMenu = (e: React.MouseEvent, index: number) => {
     e.preventDefault()
@@ -739,9 +863,81 @@ export function FreeChat({
     if (!m || m.role !== 'user') return
     const text = m.displayText ?? m.content
     const atts = m.attachments ?? []
+    const versions = versionsToKeep(messages[index + 1])
     setMsgMenu(null)
     setMessages((prev) => prev.slice(0, index))
-    await send({ text, atts })
+    if (m.focus?.action) await runFocused(m.focus, text, true, versions)
+    else await send({ text, atts, versions })
+  }
+  const switchVersion = (index: number, target: number) => {
+    setMessages((prev) => prev.map((m, j) => (j === index ? showVersion(m, target) : m)))
+    persistNow()
+  }
+  // Retry sits under the newest prompt only — older ones have later turns built on them.
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user')
+
+  /** Open the per-message menu from its visible "⋯" button (keyboard-reachable
+   *  twin of the right-click menu). */
+  const openMenuFrom = (e: React.MouseEvent<HTMLElement>, index: number) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    setMsgMenu({ index, x: r.left, y: r.bottom + 4 })
+  }
+  const messageMenuItems = (index: number): MenuItem[] => {
+    const m = messages[index]
+    return [
+      ...(copyableText(m) ? [{ label: 'Copy message', onClick: () => void copyMessage(index) }] : []),
+      ...(m?.role === 'user' ? [{ label: 'Edit & retry', onClick: () => startEdit(index), disabled: busy }] : []),
+      { label: 'Fork from here', onClick: () => forkFrom(index) },
+      { label: 'Delete from here', onClick: () => deleteFrom(index), separator: true },
+      { label: 'Delete message', onClick: () => deleteMessage(index), danger: true },
+    ]
+  }
+
+  // ── Modes: a Focused action and Agent can't combine (a Focused send never
+  //    reaches the agent loop), so arming one turns the other off and says so.
+  const updateFocus = (updater: (f: FocusState) => FocusState) => {
+    const prev = getViewState<FocusState>('ai.free.focus') ?? focus
+    const next = updater(prev)
+    setFocus(next)
+    if (next.action && getViewState<boolean>('ai.free.agent')) {
+      setAgent(false)
+      toast.info(`Agent turned off — ${ACTION_VERB[next.action]} works from your notes directly.`)
+    }
+  }
+  const changeAgent = (on: boolean) => {
+    const f = getViewState<FocusState>('ai.free.focus') ?? focus
+    if (on && f.action) {
+      setFocus({ ...f, action: null })
+      closeFocusPanel()
+      toast.info(`${ACTION_VERB[f.action]} turned off — Agent can't run alongside a note action.`)
+    }
+    setAgent(on)
+  }
+
+  // ── Empty-state starters: set a mode up, never send on their own.
+  const armFocused = (action: FocusAction, patch: Partial<FocusState> = {}) => {
+    updateFocus((f) => ({ ...f, ...patch, action }))
+    openFocusPanel()
+    openRailPanel(FOCUSED_PANEL_ID)
+  }
+  const startWeekQuiz = () => {
+    const now = Date.now()
+    armFocused('quiz', {
+      scopeKind: 'time',
+      fromStr: toInputDate(new Date(now - 6 * 24 * 60 * 60 * 1000)),
+      toStr: toInputDate(new Date(now)),
+    })
+  }
+  const startAsk = () => {
+    armFocused('ask')
+    composerInputRef.current?.focus()
+  }
+  const startAnalyzeLast = () => {
+    if (!lastSavedNote) return
+    armFocused('analyze', {
+      scopeKind: 'note',
+      selectedNotes: [{ id: lastSavedNote.id, title: lastSavedNote.title?.trim() || 'Untitled' }],
+    })
   }
 
   if (!config.enabled) {
@@ -797,111 +993,18 @@ export function FreeChat({
               }}
             />
           ) : (
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}
-                style={{
-                  background: isChatMenuOpen ? 'var(--surface-2)' : 'none',
-                  border: 'none',
-                  color: 'var(--text-1)',
-                  cursor: 'pointer',
-                  padding: '4px 6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontWeight: 500,
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={e => !isChatMenuOpen && (e.currentTarget.style.background = 'var(--surface-2)')}
-                onMouseLeave={e => !isChatMenuOpen && (e.currentTarget.style.background = 'none')}
-              >
-                {chatTitle} <ChevronDown size={14} color="var(--text-3)" />
-              </button>
-
-              {isChatMenuOpen && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => { setIsChatMenuOpen(false); setShowProjectSubmenu(false) }} />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      marginTop: '4px',
-                      zIndex: 50,
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: '4px',
-                      minWidth: '220px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
-                      boxShadow: '0 10px 38px -10px rgba(0,0,0,0.5)',
-                    }}
-                  >
-                    <MenuItem onClick={() => { setStarredChats(p => ({ ...p, [activeId]: !p[activeId] })); setIsChatMenuOpen(false) }}>
-                      <Star size={14} fill={starredChats[activeId] ? 'var(--text-1)' : 'none'} /> {starredChats[activeId] ? 'Unstar' : 'Star'}
-                    </MenuItem>
-                    <MenuItem onClick={() => { setUnreadChats(p => ({ ...p, [activeId]: !p[activeId] })); setIsChatMenuOpen(false) }}>
-                      <EyeOff size={14} /> {unreadChats[activeId] ? 'Mark as read' : 'Mark as unread'}
-                    </MenuItem>
-                    <MenuItem onClick={() => { setIsChatMenuOpen(false); setChatTitleInput(chatTitle); setIsRenamingChat(true) }}>
-                      <Pencil size={14} /> Rename
-                    </MenuItem>
-                    
-                    <div style={{ position: 'relative' }} onMouseEnter={() => setShowProjectSubmenu(true)} onMouseLeave={() => setShowProjectSubmenu(false)}>
-                      <MenuItem onClick={() => {}}>
-                        <FolderInput size={14} /> Change project <span style={{ marginLeft: 'auto', fontSize: '0.7rem' }}>▶</span>
-                      </MenuItem>
-                      {showProjectSubmenu && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: '100%',
-                            marginLeft: '4px',
-                            zIndex: 51,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            padding: '4px',
-                            minWidth: '180px',
-                            maxHeight: '200px',
-                            overflowY: 'auto',
-                            boxShadow: '0 10px 38px -10px rgba(0,0,0,0.5)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '2px',
-                          }}
-                        >
-                          {projects.length === 0 ? (
-                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: 'var(--text-3)' }}>No projects</div>
-                          ) : (
-                            projects.map(p => (
-                              <MenuItem key={p.id} onClick={() => handleChangeProject(p.id)}>
-                                {p.name}
-                              </MenuItem>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {activeProject && (
-                      <MenuItem onClick={() => handleChangeProject(null)}>
-                        <FolderMinus size={14} /> Remove from project
-                      </MenuItem>
-                    )}
-                    
-                    <div style={{ height: '1px', background: 'var(--border)', margin: '4px 0' }} />
-                    <MenuItem danger onClick={handleDeleteChat}>
-                      <Trash size={14} /> Delete
-                    </MenuItem>
-                  </div>
-                </>
-              )}
-            </div>
+            <button
+              type="button"
+              className={styles.chatTitleBtn}
+              aria-haspopup="menu"
+              aria-expanded={!!chatMenu}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect()
+                setChatMenu(chatMenu ? null : { x: r.left, y: r.bottom + 4 })
+              }}
+            >
+              {chatTitle} <ChevronDown size={14} />
+            </button>
           )}
         </div>
 
@@ -912,17 +1015,44 @@ export function FreeChat({
 
       {/* Scrollable message area */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingBottom: '0.5rem', transition: 'max-width 0.3s ease' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingBottom: '0.5rem', transition: 'max-width var(--dur-base) var(--motion-ease)' }}>
           {messages.length === 0 ? (
-            <p className={styles.hint} style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-              Ask anything, or attach a document/image/audio or one of your notes. This is a normal chatbot —
-              your notes aren't auto-searched here (use Focused AI Assist for that).
-            </p>
+            <div className={styles.starters}>
+              <p className={styles.startersLead}>Start from your notes, or just talk.</p>
+              <div className={styles.starterList}>
+                <button type="button" className={styles.starter} onClick={startWeekQuiz}>
+                  <GraduationCap size={17} />
+                  <span>
+                    <strong>Quiz me on this week's notes</strong>
+                    <small>Sets up a quiz over the past 7 days — review the settings, then press Quiz me.</small>
+                  </span>
+                </button>
+                <button type="button" className={styles.starter} onClick={startAsk}>
+                  <Bot size={17} />
+                  <span>
+                    <strong>Ask my notes…</strong>
+                    <small>Answers only from the notes you pick, with sources.</small>
+                  </span>
+                </button>
+                <button type="button" className={styles.starter} onClick={startAnalyzeLast} disabled={!lastSavedNote}>
+                  <FileSearch size={17} />
+                  <span>
+                    <strong>Analyze last saved note</strong>
+                    <small>
+                      {lastSavedNote
+                        ? `“${lastSavedNote.title?.trim() || 'Untitled'}” — summary, key concepts and weak spots.`
+                        : 'No notes in this vault yet.'}
+                    </small>
+                  </span>
+                </button>
+              </div>
+            </div>
           ) : (
             messages.map((m, i) =>
               m.role === 'user' ? (
                 <div
                   key={i}
+                  className={styles.msgRow}
                   onContextMenu={(e) => openMenu(e, i)}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}
                 >
@@ -964,7 +1094,18 @@ export function FreeChat({
                           ))}
                         </div>
                       )}
+                      <div className={styles.msgActions}>
                       <button
+                        type="button"
+                        className={styles.msgMoreBtn}
+                        onClick={(e) => openMenuFrom(e, i)}
+                        aria-haspopup="menu"
+                        title="Message actions"
+                        aria-label="Message actions"
+                      >
+                        <MoreHorizontal size={15} />
+                      </button>
+                      {i === lastUserIndex && <button
                         onClick={() => void retryMessage(i)}
                         disabled={busy}
                         title="Retry this prompt"
@@ -980,13 +1121,15 @@ export function FreeChat({
                         }}
                       >
                         <RotateCcw size={15} />
-                      </button>
+                      </button>}
+                      </div>
                     </>
                   )}
                 </div>
               ) : (
                 <div
                   key={i}
+                  className={styles.msgRow}
                   onContextMenu={(e) => openMenu(e, i)}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.4rem', width: '100%' }}
                 >
@@ -1026,11 +1169,46 @@ export function FreeChat({
                   ) : (
                     <div className={styles.chatA}>
                       {m.content ? (
-                        <span style={{ whiteSpace: 'pre-wrap' }}>{m.content}</span>
+                        <MarkdownLite content={m.content} />
                       ) : (
                         <span className={styles.spinner}>{m.pending ? (m.steps?.length ? 'Working…' : 'Thinking…') : ''}</span>
                       )}
                     </div>
+                  )}
+                  {!m.pending && (
+                  <div className={styles.msgActions}>
+                  <button
+                    type="button"
+                    className={styles.msgMoreBtn}
+                    onClick={(e) => openMenuFrom(e, i)}
+                    aria-haspopup="menu"
+                    title="Message actions"
+                    aria-label="Message actions"
+                  >
+                    <MoreHorizontal size={15} />
+                  </button>
+                  {m.versions && m.versions.length > 1 && m.versionIndex !== undefined && (
+                    <div className={styles.versionSwitch} aria-label="Answer versions">
+                      <button
+                        onClick={() => switchVersion(i, m.versionIndex! - 1)}
+                        disabled={busy || m.versionIndex === 0}
+                        title="Previous answer"
+                        aria-label="Previous answer"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span>{m.versionIndex + 1} / {m.versions.length}</span>
+                      <button
+                        onClick={() => switchVersion(i, m.versionIndex! + 1)}
+                        disabled={busy || m.versionIndex === m.versions.length - 1}
+                        title="Next answer"
+                        aria-label="Next answer"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                  </div>
                   )}
                   {m.sources && m.sources.length > 0 && (
                     <div className={styles.sources}>
@@ -1076,19 +1254,19 @@ export function FreeChat({
       </div>
 
       {error && (
-        <p className={styles.error} style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0.25rem auto 0', width: '100%', transition: 'max-width 0.3s ease' }}>
+        <p className={styles.error} role="alert" style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0.25rem auto 0', width: '100%', transition: 'max-width var(--dur-base) var(--motion-ease)' }}>
           {error}
         </p>
       )}
 
       {/* Composer pinned to the bottom */}
       <div style={{ paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
+        <div style={{ maxWidth: collapsed ? '920px' : '760px', margin: '0 auto', transition: 'max-width var(--dur-base) var(--motion-ease)' }}>
           <ChatComposer
             value={input}
             onChange={setInput}
             onSend={() => void send()}
-            onStop={() => abortRef.current?.abort()}
+            onStop={() => inflight.get(getActiveId())?.controller?.abort()}
             busy={busy}
             attachments={attachments}
             onAttach={handleAttach}
@@ -1102,8 +1280,13 @@ export function FreeChat({
             deepResearch={deepResearch}
             onDeepResearchChange={setDeepResearch}
             agent={agent}
-            onAgentChange={setAgent}
+            onAgentChange={changeAgent}
             vision={caps.vision}
+            visionDetected={visionDetected}
+            onVisionChange={changeVision}
+            model={config.chatModel}
+            onPasteFiles={(files) => void addAttachmentsFrom(files, attachmentFromFile)}
+            onDropPaths={(paths) => void addAttachmentsFrom(paths, attachmentFromPath)}
             stylePresets={stylePresets}
             skillPresets={skillPresets}
             styleId={styleId}
@@ -1115,67 +1298,35 @@ export function FreeChat({
             ruleIds={ruleIds}
             onRuleIds={setRuleIds}
             focus={focus}
-            onFocus={setFocus}
+            onFocus={updateFocus}
+            projectName={activeProject?.name}
+            inputRef={composerInputRef}
           />
         </div>
       </div>
 
-      {/* Per-message right-click menu */}
+      {/* Per-message menu — right-click or the ⋯ button */}
       {msgMenu && (
-        <>
-          <div onClick={() => setMsgMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMsgMenu(null) }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-          <div
-            style={{
-              position: 'fixed',
-              top: Math.min(msgMenu.y, window.innerHeight - 200),
-              left: Math.min(msgMenu.x, window.innerWidth - 230),
-              zIndex: 41,
-              width: '220px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: '0 12px 34px rgba(0,0,0,0.5)',
-              padding: '6px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-            }}
-          >
-            {messages[msgMenu.index]?.role === 'user' && (
-              <MenuItem onClick={() => startEdit(msgMenu.index)}><Pencil size={14} /> Edit &amp; retry</MenuItem>
-            )}
-            <MenuItem onClick={() => forkFrom(msgMenu.index)}><GitFork size={14} /> Fork from here</MenuItem>
-            <MenuItem onClick={() => deleteFrom(msgMenu.index)}><ListX size={14} /> Delete from here</MenuItem>
-            <MenuItem danger onClick={() => deleteMessage(msgMenu.index)}><Trash2 size={14} /> Delete message</MenuItem>
-          </div>
-        </>
+        <ContextMenu x={msgMenu.x} y={msgMenu.y} items={messageMenuItems(msgMenu.index)} onClose={() => setMsgMenu(null)} />
+      )}
+      {chatMenu && (
+        <ContextMenu
+          x={chatMenu.x}
+          y={chatMenu.y}
+          onClose={() => setChatMenu(null)}
+          items={[
+            { label: 'Rename', onClick: () => { setChatTitleInput(chatTitle); setIsRenamingChat(true) } },
+            {
+              label: 'Move to project',
+              children: projects.length
+                ? projects.map((p) => ({ label: p.name, disabled: p.id === projectId, onClick: () => void handleChangeProject(p.id) }))
+                : [{ label: 'No projects yet', disabled: true }],
+            },
+            ...(activeProject ? [{ label: 'Remove from project', onClick: () => void handleChangeProject(null) }] : []),
+            { label: 'Delete chat…', danger: true, separator: true, onClick: () => void handleDeleteChat() },
+          ]}
+        />
       )}
     </div>
-  )
-}
-
-function MenuItem({ onClick, danger, children }: { onClick: () => void; danger?: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        width: '100%',
-        textAlign: 'left',
-        background: 'transparent',
-        border: 'none',
-        borderRadius: 'var(--radius-sm)',
-        color: danger ? '#e5484d' : 'var(--text-1)',
-        fontSize: '0.82rem',
-        padding: '0.5rem 0.6rem',
-        cursor: 'pointer',
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = danger ? 'rgba(229,72,77,0.12)' : 'var(--surface-2)')}
-      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-    >
-      {children}
-    </button>
   )
 }

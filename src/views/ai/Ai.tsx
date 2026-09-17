@@ -34,7 +34,7 @@ function Ai() {
   }, [noteIds])
 
   return (
-    <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg)', background: 'radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 50%), radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 50%), radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%)' }}>
+    <div style={{ flex: 1, minHeight: 0, height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--fx-view-bg)' }}>
       {/* Header: mode toggle + settings link */}
       <div
         style={{

@@ -11,7 +11,8 @@ import type {
   QuizSettings,
 } from '../../types'
 import { DEFAULT_VAULT_ID } from '../../types'
-import { contextBlockFor, resolveContextNotes } from './analyze'
+import { resolveContextNotes, type GroundingOpts } from './analyze'
+import { buildNoteContext, DEFAULT_CONTEXT_TOKENS, maxNotesFor } from './noteContext'
 import { extractJsonArray } from './jsonish'
 import { getAskedQuestions, normalizeQuestion, rememberQuestions } from './quizMemory'
 import { getChatProvider } from './provider'
@@ -163,8 +164,11 @@ export function parseQuiz(raw: string, settings: QuizSettings, asked: string[]):
  * when the user sets `source: 'raw'`. Topic mode degrades to a substring match,
  * which is exactly what "don't use retrieval" has to mean.
  */
-export function rawScopeNotes(input: AnalyzeInput, notes: Note[]): Note[] {
-  if (input.mode === 'note') return notes.filter((n) => n.id === input.noteId)
+export function rawScopeNotes(input: AnalyzeInput, notes: Note[], maxNotes = MAX_RAW_NOTES): Note[] {
+  if (input.mode === 'note') {
+    const ids = new Set(input.noteIds)
+    return notes.filter((n) => ids.has(n.id))
+  }
 
   if (input.mode === 'window') {
     return notes
@@ -172,14 +176,14 @@ export function rawScopeNotes(input: AnalyzeInput, notes: Note[]): Note[] {
         const t = n.updatedAt ?? n.createdAt
         return t >= input.since && t <= input.until
       })
-      .slice(0, MAX_RAW_NOTES)
+      .slice(0, maxNotes)
   }
 
   const q = input.query.trim().toLowerCase()
-  if (!q) return notes.slice(0, MAX_RAW_NOTES)
+  if (!q) return notes.slice(0, maxNotes)
   return notes
     .filter((n) => `${n.title ?? ''}\n${n.content}`.toLowerCase().includes(q))
-    .slice(0, MAX_RAW_NOTES)
+    .slice(0, maxNotes)
 }
 
 /**
@@ -193,7 +197,10 @@ export async function generateQuiz(
   notes: Note[],
   settings: QuizSettings,
   vaultId: string,
+  opts: GroundingOpts = {},
 ): Promise<QuizGeneration> {
+  const budgetTokens = opts.contextTokens ?? DEFAULT_CONTEXT_TOKENS
+  const maxNotes = maxNotesFor(budgetTokens)
   // rawScopeNotes bypasses retrieve()'s own vault scope by substring-matching
   // notes directly — without this filter it crosses vault boundaries (another
   // vault's notes could get quizzed here, and their questions remembered
@@ -201,8 +208,8 @@ export async function generateQuiz(
   const vaultNotes = notes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId)
   const contextNotes =
     settings.source === 'raw'
-      ? rawScopeNotes(input, vaultNotes)
-      : await resolveContextNotes(input, config, vaultNotes)
+      ? rawScopeNotes(input, vaultNotes, maxNotes)
+      : await resolveContextNotes(input, config, vaultNotes, maxNotes)
 
   if (contextNotes.length === 0) {
     // Retrieval coming back empty usually means an unbuilt index, which the UI
@@ -215,17 +222,22 @@ export async function generateQuiz(
   const asked = getAskedQuestions(vaultId)
   const system = buildQuizSystemPrompt(settings)
   const provider = getChatProvider(config)
-  const userPrompt = `Make a quiz from these notes:\n\n${contextBlockFor(contextNotes)}${exclusionBlock(asked)}`
+  const { text: context, images } = await buildNoteContext(contextNotes, {
+    budgetTokens,
+    config,
+    query: input.mode === 'topic' ? input.query : undefined,
+  })
+  const userPrompt = `Make a quiz from these notes:\n\n${context}${exclusionBlock(asked)}`
 
-  const first = await provider.complete(userPrompt, { system, temperature: 0.7 })
+  const first = await provider.complete(userPrompt, { system, temperature: 0.7, images })
   let questions = parseQuiz(first, settings, asked)
 
   // Filtering (disabled formats, malformed choices, repeats) can leave the quiz
   // short. One retry, with what we kept added to the exclusion list.
   if (questions.length < settings.count - 1) {
     const askedPlus = [...asked, ...questions.map((q) => q.question)]
-    const retryPrompt = `Make a quiz from these notes:\n\n${contextBlockFor(contextNotes)}${exclusionBlock(askedPlus)}`
-    const second = await provider.complete(retryPrompt, { system, temperature: 0.8 })
+    const retryPrompt = `Make a quiz from these notes:\n\n${context}${exclusionBlock(askedPlus)}`
+    const second = await provider.complete(retryPrompt, { system, temperature: 0.8, images })
     questions = [...questions, ...parseQuiz(second, settings, askedPlus)]
   }
 
