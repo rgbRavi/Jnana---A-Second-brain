@@ -2,7 +2,10 @@
 // Copyright (c) 2026 Jnana Project
 
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import type { RecentMedia } from '../types'
+import type { NoteMedia } from './markdown/noteMedia'
+import { eventBus } from '../lib/eventBus'
 
 /**
  * Copy a media file into the assets directory.
@@ -53,6 +56,23 @@ export async function registerMediaRef(
  */
 export async function getAssetPath(filename: string): Promise<string> {
   return invoke<string>('get_asset_path', { filename })
+}
+
+/**
+ * Open one of a note's embedded media (see core/markdown/noteMedia.ts). A PDF
+ * opens in the in-app viewer (keeps its markup); other assets and document
+ * chips open in the OS default app via `open_asset`, which only opens files
+ * inside the assets dir; web embeds open in the browser.
+ */
+export async function openNoteMedia(media: NoteMedia, noteId: string): Promise<void> {
+  if (media.kind === 'pdf' && media.source === 'asset') {
+    eventBus.emit('pdf:open', { filename: media.target, noteId, page: 1, x: -1, y: -1 })
+  } else if (media.source === 'url') {
+    await openUrl(media.target)
+  } else {
+    const path = media.source === 'asset' ? await getAssetPath(media.target) : media.target
+    await invoke('open_asset', { path })
+  }
 }
 
 /**

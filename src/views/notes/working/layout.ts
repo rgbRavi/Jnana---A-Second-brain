@@ -228,6 +228,79 @@ export function splitGroup(
   return { root, activeGroup: srcGroup.id }
 }
 
+/** Close every tab in `groupId` except `keepNoteId`, which becomes active. */
+export function closeOtherTabs(layout: WorkingLayout, groupId: string, keepNoteId: string): WorkingLayout {
+  if (!layout.root) return layout
+  const g = findGroup(layout.root, groupId)
+  if (!g || !g.tabs.includes(keepNoteId) || g.tabs.length === 1) return layout
+  return {
+    root: updateGroup(layout.root, groupId, (grp) => ({ ...grp, tabs: [keepNoteId], activeTab: keepNoteId })),
+    activeGroup: groupId,
+  }
+}
+
+export type SplitSide = 'left' | 'right' | 'above' | 'below'
+
+/** Move `noteId` into a new pane on `side` of the `anchorGroupId` pane (the tab
+ *  context menu's "Split above/below/left/right", anchored on the pane the user
+ *  last worked in). The note leaves its current group, which is pruned if that
+ *  empties it. Splitting a pane's only tab against that same pane is a no-op.
+ *  The new pane is focused. */
+export function splitBeside(
+  layout: WorkingLayout,
+  anchorGroupId: string,
+  side: SplitSide,
+  noteId: string,
+): WorkingLayout {
+  if (!layout.root) return layout
+  const from = groupOf(layout.root, noteId)
+  if (!from || !findGroup(layout.root, anchorGroupId)) return layout
+  // A pane's only tab split against that same pane would just leave an empty
+  // pane behind — treat it as a no-op (e.g. dragging a lone tab to its own edge).
+  if (from.id === anchorGroupId && from.tabs.length === 1) return layout
+
+  let root: PaneNode | null = updateGroup(layout.root, from.id, (g) => ({
+    ...g,
+    tabs: g.tabs.filter((t) => t !== noteId),
+    activeTab: g.activeTab === noteId ? neighbourTab(g.tabs, noteId) : g.activeTab,
+  }))
+  if (from.id !== anchorGroupId && findGroup(root, from.id)?.tabs.length === 0) {
+    root = removeGroup(root, from.id)
+  }
+  if (!root) return layout // unreachable: the anchor survives
+
+  const newGroup: GroupNode = { kind: 'group', id: newId(), tabs: [noteId], activeTab: noteId }
+  const before = side === 'left' || side === 'above'
+  root =
+    transform(root, anchorGroupId, (anchor) => ({
+      kind: 'split',
+      id: newId('s'),
+      dir: side === 'left' || side === 'right' ? 'row' : 'col',
+      sizes: [0.5, 0.5],
+      children: before ? [newGroup, anchor] : [anchor, newGroup],
+    })) ?? root
+  return { root, activeGroup: newGroup.id }
+}
+
+/** Place `noteId` as a tab of `groupId` at `index` (a drop from the file
+ *  explorer). Already open elsewhere → moved there (a note opens once); unknown
+ *  group → plain `openNote`. */
+export function openNoteAt(
+  layout: WorkingLayout,
+  noteId: string,
+  groupId: string,
+  index: number,
+): WorkingLayout {
+  if (!layout.root || !findGroup(layout.root, groupId)) return openNote(layout, noteId)
+  if (groupOf(layout.root, noteId)) return moveTab(layout, noteId, groupId, index)
+  const root = updateGroup(layout.root, groupId, (g) => {
+    const tabs = g.tabs.slice()
+    tabs.splice(Math.max(0, Math.min(index, tabs.length)), 0, noteId)
+    return { ...g, tabs, activeTab: noteId }
+  })
+  return { root, activeGroup: groupId }
+}
+
 /** Close an entire pane (group) and everything in it, collapsing/rebalancing the
  *  tree — the surviving siblings auto-resize (transform renormalizes sizes). */
 export function closeGroup(layout: WorkingLayout, groupId: string): WorkingLayout {

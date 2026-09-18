@@ -10,38 +10,30 @@
   background: radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 3%, transparent) 0%, transparent 40%);
 }
 
+/* The one divider on the surface: a hairline between title and body. */
 .header {
   display: flex;
   align-items: center;
   gap: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border);
 }
 
 .titleInput {
   flex: 1;
   min-width: 0;
-  font-size: 2.2rem;
+  font-size: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-1);
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  padding: var(--space-sm) var(--space-md);
+  border: none;
+  padding: var(--space-sm) 0;
   font-family: var(--font-body);
-  transition: all var(--dur-base) var(--motion-ease);
-  margin-left: -0.75rem; /* align with content padding visually */
-}
-
-.titleInput:hover {
-  background: color-mix(in srgb, var(--surface-hover) 50%, transparent);
-  border-color: var(--border);
 }
 
 .titleInput:focus {
   outline: none;
-  background: var(--surface-hover);
-  border-color: var(--accent);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .headerActions {
@@ -49,11 +41,6 @@
   align-items: center;
   gap: 0.4rem;
   flex-shrink: 0;
-  background: var(--surface-2);
-  padding: 0.35rem var(--space-sm);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
 }
 
 .status {
@@ -86,7 +73,7 @@
   background: transparent;
   border: none;
   color: var(--text-2);
-  font-size: 1.15rem;
+  font-size: 1.125rem;
   cursor: pointer;
   width: 36px;
   height: 36px;
@@ -116,18 +103,8 @@
 .editor {
   display: flex;
   flex-direction: column;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
   flex: 1;
   min-height: 0;
-  box-shadow: var(--shadow-sm);
-  transition: border-color var(--dur-base) var(--motion-ease), box-shadow var(--dur-base) var(--motion-ease);
-}
-
-.editor:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md), 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .editor :global(.cm-editor) {
@@ -141,24 +118,15 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-xl);
+  padding: 0 var(--space-lg) var(--space-xl) 0;
   color: var(--text-1);
   font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-size: 1.125rem;
   line-height: 1.7;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  margin-top: 0.5rem;
-  padding: 0 var(--space-sm);
-}
-
 .recording {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   color: var(--danger);
   font-family: var(--font-mono);
   font-weight: 500;
@@ -188,7 +156,7 @@
   color: var(--text-2);
   line-height: 1.7;
   /* The reader honours the Reading-scale and Reading-font theme controls. */
-  font-size: calc(1.05rem * var(--reading-scale));
+  font-size: calc(1.125rem * var(--reading-scale));
   font-family: var(--font-reading);
   padding: 0 var(--space-lg) 0 0;
 }
@@ -210,7 +178,7 @@
 
 .time {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
   font-family: var(--font-mono);
   color: var(--text-3);
   margin-top: 2rem;
@@ -224,7 +192,7 @@
   align-items: center;
   justify-content: center;
   color: var(--text-3);
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 500;
 }
 
@@ -267,7 +235,7 @@
   border: none;
   color: var(--text-2);
   padding: 0.6rem 0.8rem;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
   font-weight: 500;
   cursor: pointer;
@@ -281,4 +249,9 @@
 .dropdownItem:hover {
   background: var(--surface-hover);
   color: var(--text-1);
+}
+
+.dropdownItemDanger,
+.dropdownItemDanger:hover {
+  color: var(--danger);
 }

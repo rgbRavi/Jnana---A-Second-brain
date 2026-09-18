@@ -2,8 +2,10 @@
 // Copyright (c) 2026 Jnana Project
 
 // src/hooks/useNotes.ts
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Note } from '../types/index'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { noteLinkText } from '../lib/noteTypes'
+import { DEFAULT_VAULT_ID, type Note } from '../types/index'
+import { notesLinkingTo } from '../lib/noteLinks'
 import { getAllNotes, saveNote, trashNote, syncLinksForNote } from '../core/notes'
 import { inferTags, isAutoTag } from '../core/tags'
 import { getActiveVaultId } from './useVaults'
@@ -12,10 +14,36 @@ import { showConfirmDialog } from '../lib/dialog'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
 
+// Bump when link resolution changes so stored edges are rebuilt once: v1 made
+// links vault-scoped (and live-notes-only) and gave canvases real links.
+const LINK_RESYNC_KEY = 'jnana.links.resync.v1'
+
+/** Re-derive every note's outbound links once per LINK_RESYNC_KEY — edges are
+ *  otherwise only rebuilt when a note is saved. Sequential: one IPC at a time.
+ *  ponytail: runs every note through Rust's title scan (O(n²)); fine once. */
+async function resyncAllLinksOnce(notes: Note[]): Promise<void> {
+  try {
+    if (localStorage.getItem(LINK_RESYNC_KEY)) return
+  } catch {
+    return
+  }
+  const titles = new Map(notes.map((n) => [n.id, n.title]))
+  const titleOf = (id: string) => titles.get(id)
+  try {
+    for (const n of notes) await syncLinksForNote(n.id, noteLinkText(n, titleOf))
+    localStorage.setItem(LINK_RESYNC_KEY, String(Date.now()))
+  } catch (err) {
+    log.error('One-time link resync failed (will retry next launch)', err)
+  }
+}
+
 export function useNotes() {
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const notesRef = useRef(notes)
+  notesRef.current = notes
+  const syncedTitles = useRef(new Map<string, string>())
 
   // Load all notes on mount
   useEffect(() => {
@@ -23,6 +51,8 @@ export function useNotes() {
       .then((fetched) => {
         setNotes(fetched)
         setLoading(false)
+        for (const n of fetched) syncedTitles.current.set(n.id, n.title)
+        void resyncAllLinksOnce(fetched)
       })
       .catch((err) => {
         // Don't leave the list hung on "Loading…" with no signal.
@@ -70,14 +100,44 @@ export function useNotes() {
     return () => eventBus.off('note:moved', handler)
   }, [])
 
+  // Reflect a blank note's type conversion (convertNoteKind) in memory.
+  useEffect(() => {
+    const handler = ({ noteId, kind, content }: { noteId: string; kind: string | null; content: string }) => {
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, kind, content } : n)))
+    }
+    eventBus.on('note:kind-changed', handler)
+    return () => eventBus.off('note:kind-changed', handler)
+  }, [])
+
   // Drive [[wikilink]] syncing from the note:saved event.
   // This is the single place syncLinksForNote is triggered —
   // GraphView and NoteCreator no longer call it directly.
+  //
+  // Edges only exist between existing notes, so a note that appears under a
+  // title (created, or renamed to it) must also re-sync every note that already
+  // links to that title — and a rename away from a title must re-sync the notes
+  // pointing at the old one so their now-dangling edges drop. `syncedTitles`
+  // remembers each note's last-synced title to spot both cases.
   useEffect(() => {
     const handler = (saved: Note) => {
-      syncLinksForNote(saved.id, saved.content).catch((err) => {
-        log.error('syncLinksForNote failed', err)
-      })
+      const all = notesRef.current
+      const titleOf = (id: string) => all.find((n) => n.id === id)?.title
+      const sync = (n: Note) =>
+        syncLinksForNote(n.id, noteLinkText(n, titleOf)).catch((err) => {
+          log.error('syncLinksForNote failed', err)
+        })
+      void sync(saved)
+
+      const previous = syncedTitles.current.get(saved.id)
+      syncedTitles.current.set(saved.id, saved.title)
+      if (previous === saved.title) return
+      const vault = saved.vaultId ?? DEFAULT_VAULT_ID
+      const affected = new Map<string, Note>()
+      for (const title of [previous, saved.title]) {
+        if (!title) continue
+        for (const n of notesLinkingTo(title, vault, all, saved.id)) affected.set(n.id, n)
+      }
+      affected.forEach((n) => void sync(n))
     }
     eventBus.on('note:saved', handler)
     return () => eventBus.off('note:saved', handler)
@@ -145,7 +205,7 @@ export function useNotes() {
     if (needConfirm) {
       const ok = await showConfirmDialog({
         title: 'Delete note?',
-        message: 'This permanently removes the note. This cannot be undone.',
+        message: 'The note moves to Trash — you can restore it from there.',
         confirmLabel: 'Delete',
         danger: true,
       })

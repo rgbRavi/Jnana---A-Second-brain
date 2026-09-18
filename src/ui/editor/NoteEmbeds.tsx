@@ -27,6 +27,8 @@ import { useInView } from '../../hooks/useInView'
 import { useNotesContext } from '../../context/NotesContext'
 import { useTranscription } from '../../context/TranscriptionContext'
 import { eventBus } from '../../lib/eventBus'
+import { getActiveVaultId } from '../../hooks/useVaults'
+import { resolveNoteByTitle } from '../../core/markdown/wikilinks'
 import { showConfirmDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
 import { saveCsvFile } from '../../core/saveCsv'
@@ -1161,8 +1163,11 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 /** `allowNavigate` gates clicking through to the linked note (confirm dialog
  *  first) — false in contexts where navigating away doesn't make sense, e.g.
  *  an unsaved draft in NoteCreator. */
-export function WikilinkButton({ title, notes, allowNavigate }: { title: string; notes: Note[]; allowNavigate: boolean }) {
-  const foundNote = notes.find((n) => n.title.toLowerCase() === title.toLowerCase())
+export function WikilinkButton({ title, notes, allowNavigate, noteId }: { title: string; notes: Note[]; allowNavigate: boolean; noteId?: string }) {
+  // Resolve inside the linking note's vault (the active vault for a draft) —
+  // links never cross vaults, matching the Rust `sync_links`.
+  const vaultId = notes.find((n) => n.id === noteId)?.vaultId ?? getActiveVaultId()
+  const foundNote = resolveNoteByTitle(title, notes, vaultId)
   const onClick = !allowNavigate
     ? undefined
     : foundNote

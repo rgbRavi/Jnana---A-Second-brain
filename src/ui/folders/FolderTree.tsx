@@ -9,7 +9,7 @@
 // events (the Tauri webview swallows native HTML5 DnD — same as Canvas / TabStrip),
 // hit-testing rows via elementFromPoint + `data-folder-drop`.
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import {
@@ -31,6 +31,10 @@ import { DEFAULT_VAULT_ID, type Folder, type Note } from '../../types'
 import { CANVAS_NOTE_KIND } from '../../plugins/canvas'
 import { EMPTY_CANVAS_CONTENT } from '../../plugins/canvas/canvasNote'
 import { Folder as FolderIcon, FolderOpen, FileText, ChevronRight, Plus } from 'lucide-react'
+import { hitTestDrop, getTabDrag, setTabDrag, type TabDropTarget } from '../../views/notes/working/tabDrag'
+import { openNoteInWorking, openNoteInWorkingAt, splitWorkingBeside } from '../../views/notes/working/useWorkingLayout'
+import { useLinkRename } from '../../hooks/useLinkRename'
+import { addWorkspaceNote, addCollectionNote, listNoteWorkspaceIds } from '../../core/workspaces'
 import styles from './FolderTree.module.css'
 
 interface DragState {
@@ -41,6 +45,56 @@ interface DragState {
   y: number
   /** The `data-folder-drop` value under the pointer ('root' | folder id). */
   over: string | null
+  /** A note over a Working Notes pane (tab index resolved) … */
+  pane?: TabDropTarget | null
+  /** … or over the empty Working Notes desk. */
+  desk?: boolean
+  /** … or over a workspace page / collection chip. */
+  ws?: WorkspaceDrop | null
+}
+
+// ─── Workspace drop targets ─────────────────────────────
+// A workspace page marks itself `data-workspace-drop={id}` and each collection
+// chip `data-collection-drop={id}` + `data-workspace-id`; both carry a
+// `data-drop-label` for the confirmation toast. The hovered target gets a
+// `data-drop-active` attribute (styled by the workspace CSS) during a drag.
+
+interface WorkspaceDrop {
+  workspaceId: string
+  collectionId?: string
+  label: string
+}
+
+function workspaceDropOf(el: HTMLElement): WorkspaceDrop | null {
+  const { collectionDrop, workspaceId, workspaceDrop, dropLabel = '' } = el.dataset
+  if (collectionDrop && workspaceId) return { workspaceId, collectionId: collectionDrop, label: dropLabel }
+  return workspaceDrop ? { workspaceId: workspaceDrop, label: dropLabel } : null
+}
+
+let markedDrop: HTMLElement | null = null
+function markWorkspaceDrop(el: HTMLElement | null): void {
+  if (el === markedDrop) return
+  markedDrop?.removeAttribute('data-drop-active')
+  el?.setAttribute('data-drop-active', '')
+  markedDrop = el
+}
+
+/** Add a note to a workspace (and a collection, which implies workspace
+ *  membership). Both inserts are idempotent Rust-side; the toast says which. */
+async function dropIntoWorkspace(noteId: string, drop: WorkspaceDrop): Promise<void> {
+  try {
+    const already = (await listNoteWorkspaceIds(noteId)).includes(drop.workspaceId)
+    if (!already) await addWorkspaceNote(drop.workspaceId, noteId)
+    if (drop.collectionId) {
+      await addCollectionNote(drop.collectionId, noteId)
+      toast.success(`Added to “${drop.label}”.`)
+    } else {
+      toast.success(already ? `Already in “${drop.label}”.` : `Added to “${drop.label}”.`)
+    }
+  } catch (e) {
+    log.error('Failed to add note to workspace', e)
+    toast.error('Could not add the note to the workspace.')
+  }
 }
 
 interface MenuState {
@@ -55,10 +109,63 @@ interface EditState {
   id: string
 }
 
+// ─── Reveal request (module store) ──────────────────────
+// Set by FileExplorer on `explorer:reveal`; held until a mounted tree consumes
+// it, since the tree may not exist yet when the explorer was collapsed.
+let pendingReveal: string | null = null
+const revealListeners = new Set<() => void>()
+
+export function requestReveal(noteId: string | null): void {
+  pendingReveal = noteId
+  revealListeners.forEach((l) => l())
+}
+
+function usePendingReveal(): string | null {
+  return useSyncExternalStore(
+    (l) => {
+      revealListeners.add(l)
+      return () => revealListeners.delete(l)
+    },
+    () => pendingReveal,
+    () => pendingReveal,
+  )
+}
+
 export function FolderTree({ vaultId }: { vaultId: string }) {
   const { notes, create, update, remove } = useNotesContext()
+  const offerLinkRename = useLinkRename()
   const { folders: allFolders } = useFolders()
   const expanded = useFolderExpansion()
+  const revealId = usePendingReveal()
+  const [flashId, setFlashId] = useState<string | null>(null)
+
+  // Consume a reveal: open every ancestor folder, then flash + scroll to the row.
+  useEffect(() => {
+    if (!revealId) return
+    const note = notes.find((n) => n.id === revealId)
+    if (!note) return // notes still loading — keep it pending
+    requestReveal(null)
+    if ((note.vaultId ?? DEFAULT_VAULT_ID) !== vaultId) {
+      toast.info('That note is in another vault.')
+      return
+    }
+    let folder = note.folderId ? allFolders.find((f) => f.id === note.folderId) : undefined
+    while (folder) {
+      setFolderExpanded(folder.id, true)
+      const parentId: string | null = folder.parentId
+      folder = parentId ? allFolders.find((f) => f.id === parentId) : undefined
+    }
+    setFlashId(note.id)
+  }, [revealId, notes, allFolders, vaultId])
+
+  useEffect(() => {
+    if (!flashId) return
+    document
+      .querySelector(`[data-note-row="${CSS.escape(flashId)}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
+    const t = window.setTimeout(() => setFlashId(null), 1600)
+    return () => window.clearTimeout(t)
+  }, [flashId])
 
   const [drag, setDrag] = useState<DragState | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
@@ -111,13 +218,14 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
         const note = notes.find((n) => n.id === target.id)
         if (note && name !== note.title) {
           await update(note.id, name, note.content)
+          void offerLinkRename(note.id, note.title, name)
         }
       }
     } catch (e) {
       log.error('Inline rename failed', e)
       toast.error('Could not rename')
     }
-  }, [editing, draft, allFolders, notes, update])
+  }, [editing, draft, allFolders, notes, update, offerLinkRename])
 
   const cancelEdit = useCallback(() => setEditing(null), [])
 
@@ -164,7 +272,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
           {
             value: 'folder-notes',
             label: 'Delete folder + notes',
-            description: 'Permanently deletes the folder and every note inside it.',
+            description: 'Deletes the folder and moves every note inside it to Trash.',
             icon: '⚠️',
           },
         ],
@@ -221,7 +329,23 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
   const noteMenu = useCallback(
     (note: Note): MenuItem[] => [
       { label: 'Open', onClick: () => openNote(note) },
-      { label: 'Rename', onClick: () => beginEdit('note', note.id, note.title) },
+      // Keyboard/menu alternative to dragging a note onto a pane edge; the split
+      // is beside the Working Notes pane last worked in.
+      {
+        label: 'Open in split right',
+        onClick: () => {
+          splitWorkingBeside(note.id, 'right')
+          openNote(note)
+        },
+      },
+      {
+        label: 'Open in split below',
+        onClick: () => {
+          splitWorkingBeside(note.id, 'below')
+          openNote(note)
+        },
+      },
+      { label: 'Rename', separator: true, onClick: () => beginEdit('note', note.id, note.title) },
       {
         label: 'Remove from folder',
         onClick: () => void setNoteFolder(note.id, null, vaultId).catch(() => {}),
@@ -247,14 +371,34 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
         }
         const el = document.elementFromPoint(ev.clientX, ev.clientY)
         const dropEl = el?.closest('[data-folder-drop]') as HTMLElement | null
-        setDrag({ kind, id, label, x: ev.clientX, y: ev.clientY, over: dropEl?.dataset.folderDrop ?? null })
+        // A note can also be dropped onto a Working Notes pane (or its empty desk).
+        const pane = kind === 'note' && !dropEl ? hitTestDrop(ev.clientX, ev.clientY) : null
+        const desk = kind === 'note' && !dropEl && !pane && !!el?.closest('[data-working-drop]')
+        if (pane || getTabDrag()) {
+          setTabDrag(pane ? { noteId: id, fromGroup: '', title: label, x: ev.clientX, y: ev.clientY, target: pane, external: true } : null)
+        }
+        // … or onto a workspace page / one of its collection chips (adds membership).
+        const wsEl =
+          kind === 'note' && !dropEl && !pane && !desk
+            ? (el?.closest('[data-collection-drop], [data-workspace-drop]') as HTMLElement | null)
+            : null
+        markWorkspaceDrop(wsEl)
+        const ws = wsEl ? workspaceDropOf(wsEl) : null
+        setDrag({ kind, id, label, x: ev.clientX, y: ev.clientY, over: dropEl?.dataset.folderDrop ?? null, pane, desk, ws })
       }
       const up = async () => {
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
         const state = dragRef.current
         setDrag(null)
-        if (state && armed) await performDrop(state)
+        if (getTabDrag()) setTabDrag(null)
+        markWorkspaceDrop(null)
+        if (!state || !armed) return
+        if (state.pane?.side) splitWorkingBeside(state.id, state.pane.side, state.pane.groupId)
+        else if (state.pane) openNoteInWorkingAt(state.id, state.pane.groupId, state.pane.index)
+        else if (state.desk) openNoteInWorking(state.id)
+        else if (state.ws) await dropIntoWorkspace(state.id, state.ws)
+        else await performDrop(state)
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
@@ -346,7 +490,8 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
   const renderNote = (note: Note, depth: number) => (
     <div
       key={note.id}
-      className={`${styles.row} ${styles.noteRow}`}
+      data-note-row={note.id}
+      className={`${styles.row} ${styles.noteRow} ${flashId === note.id ? styles.revealFlash : ''}`}
       style={{ paddingLeft: 8 + depth * 12 }}
       onPointerDown={(e) => startDrag('note', note.id, note.title || 'Untitled', e)}
       onClick={() => openNote(note)}

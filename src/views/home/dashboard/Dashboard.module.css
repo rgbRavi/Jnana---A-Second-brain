@@ -386,6 +386,14 @@
   border-color: var(--accent);
 }
 
+/* The handle grip is a :hover effect, and the card resizes out from under the
+   pointer — so mid-drag it blinked on and off along the edge. The accent border
+   above already marks the active card; hide the grip while it moves. */
+.gridItemMoving .rgHandle::after {
+  opacity: 0;
+  background: transparent;
+}
+
 /* ── Hero stat grid ──────────────────────────────────────────────────────── */
 .statGrid {
   display: grid;

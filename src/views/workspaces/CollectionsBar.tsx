@@ -77,6 +77,10 @@ export function CollectionsBar({ api, notes, activeId, onSelect }: Props) {
         {collections.map((c) => (
           <button
             key={c.id}
+            // Drop target for explorer notes: adds to this collection (+ workspace).
+            data-collection-drop={c.id}
+            data-workspace-id={c.workspaceId}
+            data-drop-label={c.name}
             className={`${styles.collChip} ${activeId === c.id ? styles.collChipOn : ''}`}
             onClick={() => onSelect(c.id)}
           >

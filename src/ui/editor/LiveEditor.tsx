@@ -20,7 +20,8 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { commonmarkLanguage, markdown } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
-import type { Note } from '../../types'
+import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import { getActiveVaultId } from '../../hooks/useVaults'
 import { applyColor, applyFormat, applyHighlight, escapeMarkdownText, moveMediaBlock, rearrangeMedia, type FormatKind, type MediaPlacement } from '../../core/markdown/format'
 import { COLOR_PALETTE } from '../../core/markdown/colors'
 import { lezerJnana } from '../../core/markdown/lezerJnana'
@@ -478,7 +479,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     const onKey = (e: KeyboardEvent) => {
       const s = wlRef.current
       if (!s) return
-      const items = buildWikilinkItems(s.query, contextRef.current.notes)
+      const items = buildWikilinkItems(s.query, pickerNotes())
       if (items.length === 0) return
       switch (e.key) {
         case 'ArrowDown':
@@ -684,6 +685,15 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   // Same real-document-text model as the slash menu: `[[` and the query are
   // literal text, so this is pure inspection. `contextRef.current.notes` gives
   // the always-fresh note list without adding it to any closure deps.
+  // The picker only offers notes from this note's vault (the active vault for a
+  // not-yet-saved draft, which is where `create` will put it) — vaults are
+  // separate worlds app-wide. Rendering/resolving existing links is unchanged.
+  const pickerNotes = (): Note[] => {
+    const { notes: all, noteId: id } = contextRef.current
+    const vault = all.find((n) => n.id === id)?.vaultId ?? getActiveVaultId()
+    return all.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vault)
+  }
+
   const updateWikilink = (state: EditorState, head: number, docChanged: boolean) => {
     const view = viewRef.current
     const sel = state.selection.main
@@ -693,7 +703,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     }
     const ctx = detectWikilinkContext(state.doc.toString(), head)
     const coords = ctx ? view.coordsAtPos(ctx.contentStart) : null
-    if (!ctx || !coords || buildWikilinkItems(ctx.query, contextRef.current.notes).length === 0) {
+    if (!ctx || !coords || buildWikilinkItems(ctx.query, pickerNotes()).length === 0) {
       setWl((prev) => (prev ? null : prev))
       return
     }
@@ -701,7 +711,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     // insert) — never spontaneously when the caret merely lands inside an
     // existing `[[Foo]]`. Once open, keep tracking so navigating out closes it.
     if (!docChanged && !wlRef.current) return
-    const len = buildWikilinkItems(ctx.query, contextRef.current.notes).length
+    const len = buildWikilinkItems(ctx.query, pickerNotes()).length
     setWl((prev) => ({
       contentStart: ctx.contentStart,
       query: ctx.query,
@@ -948,7 +958,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       )}
       {wl && (
         <WikilinkMenu
-          items={buildWikilinkItems(wl.query, notes)}
+          items={buildWikilinkItems(wl.query, pickerNotes())}
           activeIndex={wl.index}
           coords={wl.coords}
           onPick={(item) => completeWikilink(item)}

@@ -15,7 +15,8 @@ import { toast } from '../../lib/toast'
 import { showConfirmDialog } from '../../lib/dialog'
 import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
-import { FolderTree } from './FolderTree'
+import { FolderTree, requestReveal } from './FolderTree'
+import { eventBus } from '../../lib/eventBus'
 import { PanelLeftClose, PanelLeftOpen, Package, ChevronDown } from 'lucide-react'
 import styles from './FileExplorer.module.css'
 
@@ -61,6 +62,17 @@ export function FileExplorer() {
   const switcherRef = useRef<HTMLButtonElement>(null)
 
   const activeVault = vaults.find((v) => v.id === activeVaultId)
+
+  // "Reveal in file explorer" (e.g. the Working Notes tab menu): un-collapse,
+  // then hand the note to the tree — which may only mount after this render.
+  useEffect(() => {
+    const handler = ({ noteId }: { noteId: string }) => {
+      setCollapsed(false)
+      requestReveal(noteId)
+    }
+    eventBus.on('explorer:reveal', handler)
+    return () => eventBus.off('explorer:reveal', handler)
+  }, [])
 
   // If the active vault vanished (deleted elsewhere), fall back to a real one.
   useEffect(() => {

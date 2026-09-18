@@ -144,25 +144,24 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
         let width = pxW(item.w)
         let height = pxH(item.h)
 
+        // The ghost follows the pointer in raw pixels on every edge — snapping it
+        // to whole cells on the w/n edges (as the grid target below does) made
+        // those drags visibly step instead of glide.
         if (axis === 'e' || axis === 'ne' || axis === 'se') {
-          width = Math.max(80, pxW(item.w) + dx)
+          width = Math.max(pxW(item.minW ?? 1), pxW(item.w) + dx)
         }
         if (axis === 'w' || axis === 'nw' || axis === 'sw') {
-          const minX = item.x + item.w - (item.minW ?? 1)
-          const nextX = clamp(Math.round((pxLeft(item.x) + dx) / unitX), 0, minX)
-          const nextLeft = pxLeft(nextX)
-          width = Math.max(80, pxW(item.w) + (pxLeft(item.x) - nextLeft))
-          left = nextLeft
+          const maxLeft = pxLeft(item.x) + pxW(item.w) - pxW(item.minW ?? 1)
+          left = clamp(pxLeft(item.x) + dx, 0, maxLeft)
+          width = pxW(item.w) + (pxLeft(item.x) - left)
         }
         if (axis === 's' || axis === 'se' || axis === 'sw') {
-          height = Math.max(40, pxH(item.h) + dy)
+          height = Math.max(pxH(item.minH ?? 1), pxH(item.h) + dy)
         }
         if (axis === 'n' || axis === 'ne' || axis === 'nw') {
-          const minY = item.y + item.h - (item.minH ?? 1)
-          const nextY = clamp(Math.round((pxTop(item.y) + dy) / unitY), 0, minY)
-          const nextTop = pxTop(nextY)
-          height = Math.max(40, pxH(item.h) + (pxTop(item.y) - nextTop))
-          top = nextTop
+          const maxTop = pxTop(item.y) + pxH(item.h) - pxH(item.minH ?? 1)
+          top = clamp(pxTop(item.y) + dy, 0, maxTop)
+          height = pxH(item.h) + (pxTop(item.y) - top)
         }
 
         ghost = { left, top, width, height }

@@ -61,7 +61,7 @@ function ToolBtn({
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className={styles.section}>
       <div className={styles.sectionTitle}>{title}</div>

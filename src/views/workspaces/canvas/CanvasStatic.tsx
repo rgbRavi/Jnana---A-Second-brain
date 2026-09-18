@@ -11,6 +11,10 @@ import { parseDoc, type CanvasNode } from '../../../core/canvas'
 import type { Note } from '../../../types'
 import { preview } from '../../home/dashboard/format'
 import { DrawLayer } from './DrawLayer'
+import { CanvasWikilinkText } from './CanvasWikilinkText'
+import { resolveNoteByTitle } from '../../../core/markdown/wikilinks'
+import { getActiveVaultId } from '../../../hooks/useVaults'
+import { eventBus } from '../../../lib/eventBus'
 import styles from './canvas.module.css'
 
 interface Props {
@@ -47,6 +51,13 @@ function nodeLabel(n: CanvasNode, noteMap: Map<string, Note>): string {
 export function CanvasStatic({ content, height = 220, allNotes }: Props) {
   const doc = useMemo(() => parseDoc(content), [content])
   const noteMap = useMemo(() => new Map(allNotes.map((n) => [n.id, n])), [allNotes])
+
+  // A [[link]] in a text card opens its note (in this vault), or creates it.
+  const openWikilink = (title: string) => {
+    const target = resolveNoteByTitle(title, allNotes, getActiveVaultId())
+    if (target) eventBus.emit('note:navigate', target)
+    else eventBus.emit('wikilink:create', { title })
+  }
 
   const isEmpty = doc.nodes.length === 0 && doc.drawings.length === 0
   const { minX, minY, maxY } = useMemo(() => bounds(doc.nodes, doc.drawings), [doc])
@@ -89,7 +100,13 @@ export function CanvasStatic({ content, height = 220, allNotes }: Props) {
               background: n.color || 'var(--surface-2)',
             }}
           >
-            {nodeLabel(n, noteMap)}
+            {n.type === 'text' && n.text ? (
+              <span className={styles.staticText}>
+                <CanvasWikilinkText text={n.text} onOpen={openWikilink} />
+              </span>
+            ) : (
+              nodeLabel(n, noteMap)
+            )}
           </div>
         ))}
         <DrawLayer drawings={doc.drawings} live={null} />

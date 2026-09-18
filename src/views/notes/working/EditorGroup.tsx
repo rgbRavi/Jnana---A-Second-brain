@@ -20,15 +20,20 @@ export function EditorGroup({
   const active = group.activeTab && group.tabs.includes(group.activeTab) ? group.activeTab : group.tabs[0]
   const drag = useTabDrag()
   const isDropTarget = drag?.target?.groupId === group.id
+  const dropSide = isDropTarget ? drag?.target?.side : undefined
 
   return (
     <div
       data-group-id={group.id}
-      className={`${Styles.group} ${isActive ? Styles.groupActive : ''} ${isDropTarget ? Styles.groupDropTarget : ''}`}
-      onPointerDownCapture={() => {
-        if (!isActive) setWorkingActiveGroup(group.id)
+      className={`${Styles.group} ${isDropTarget && !dropSide ? Styles.groupDropTarget : ''}`}
+      onPointerDownCapture={(e) => {
+        // Left press only: a right-click (tab menu) must not move the "last
+        // worked in" pane that Split above/below/left/right anchors on.
+        if (e.button === 0 && !isActive) setWorkingActiveGroup(group.id)
       }}
     >
+      {/* Edge drop preview: the half of this pane the dropped note will take. */}
+      {dropSide && <div className={Styles.dropZone} data-side={dropSide} aria-hidden="true" />}
       <TabStrip group={group} multiPane={multiPane} />
       {active ? (
         <EditorPane key={active} noteId={active} />
@@ -36,7 +41,7 @@ export function EditorGroup({
         <div className={Styles.emptyGroup}>
           <p className={Styles.emptyGroupTitle}>Empty pane</p>
           <span className={Styles.emptyHint}>
-            Drag a tab here, or open a note — it lands in the focused pane.
+            Drag a tab here (or onto a pane edge to split), or open a note — it lands in the focused pane.
           </span>
         </div>
       )}

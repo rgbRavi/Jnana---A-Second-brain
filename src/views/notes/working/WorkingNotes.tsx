@@ -24,7 +24,7 @@ import Styles from './WorkingNotes.module.css'
  *  none` (in CSS) so it doesn't block `elementFromPoint` hit-testing. */
 function TabDragGhost() {
   const drag = useTabDrag()
-  if (!drag) return null
+  if (!drag || drag.external) return null
   return createPortal(
     <div className={Styles.ghost} style={{ left: drag.x + 12, top: drag.y + 12 }}>
       {drag.title || 'Untitled'}
@@ -96,7 +96,7 @@ export function WorkingNotes() {
 
   if (!layout.root) {
     return (
-      <div className={Styles.empty}>
+      <div className={Styles.empty} data-working-drop>
         <div className={Styles.emptyInner}>
           <p className={Styles.emptyTitle}>No open notes</p>
           <p className={Styles.emptySub}>

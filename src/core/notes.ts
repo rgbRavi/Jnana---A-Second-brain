@@ -37,6 +37,14 @@ export async function trashNote(id: string): Promise<void> {
   eventBus.emit('note:deleted', { id })
 }
 
+/** Convert a blank note to another note type (e.g. canvas) with its starter
+ *  content. Resolves `false` (and changes nothing) if the note isn't blank. */
+export async function convertNoteKind(id: string, kind: string | null, content: string): Promise<boolean> {
+  const ok = await invoke<boolean>('convert_note_kind', { id, kind, content })
+  if (ok) eventBus.emit('note:kind-changed', { noteId: id, kind, content })
+  return ok
+}
+
 /** Restore a trashed note; returns the full note so callers can re-surface it. */
 export async function restoreNote(id: string): Promise<Note> {
   return invoke<Note>('restore_note', { id })

@@ -166,3 +166,9 @@
   align-items: center;
   gap: 6px;
 }
+
+/* "Reveal in file explorer" — a brief accent wash on the revealed row. */
+.revealFlash {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  transition: background var(--dur-slow) var(--motion-ease);
+}

@@ -10,7 +10,7 @@
 // composer full). Mirrors the FileExplorer second-sidebar + persisted-store pattern.
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react'
-import { PanelRightClose, Sparkles, Table } from 'lucide-react'
+import { Link2, PanelRightClose, SlidersHorizontal, Sparkles, Table } from 'lucide-react'
 import {
   getRailPanelsVersion,
   listRailPanels,
@@ -22,6 +22,9 @@ import { useActiveTable } from '../../lib/activeTable'
 import { useActiveFocus } from '../../lib/activeFocus'
 import { TableToolPanel } from './TableToolPanel'
 import { FocusedScopePanel } from './FocusedScopePanel'
+import { NoteToolsPanel } from './NoteToolsPanel'
+import { LinksPanel } from './LinksPanel'
+import { useActiveNote } from '../../lib/activeNote'
 import styles from './RightRail.module.css'
 
 // ── Which panel is open (persisted module store; '' = collapsed to icon strip) ──
@@ -191,6 +194,22 @@ export function registerBuiltinRailPanels(): void {
     order: 10,
     useAvailable: () => useActiveTable().present,
     Component: TableToolPanel,
+  })
+  registerRailPanel({
+    id: 'note-tools',
+    title: 'Note tools',
+    icon: SlidersHorizontal,
+    order: 20,
+    useAvailable: () => useActiveNote() !== null,
+    Component: NoteToolsPanel,
+  })
+  registerRailPanel({
+    id: 'note-links',
+    title: 'Links',
+    icon: Link2,
+    order: 25,
+    useAvailable: () => useActiveNote() !== null,
+    Component: LinksPanel,
   })
   registerRailPanel({
     id: 'focused-scope',

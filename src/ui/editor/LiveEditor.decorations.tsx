@@ -308,9 +308,9 @@ class ExternalDocWidget extends ReactWidget<{ name: string; path: string }> {
   }
 }
 
-class WikilinkWidget extends ReactWidget<{ title: string; notes: Note[]; allowNavigate: boolean }> {
+class WikilinkWidget extends ReactWidget<{ title: string; notes: Note[]; allowNavigate: boolean; noteId: string }> {
   renderWidget() {
-    return <WikilinkButton title={this.props.title} notes={this.props.notes} allowNavigate={this.props.allowNavigate} />
+    return <WikilinkButton title={this.props.title} notes={this.props.notes} allowNavigate={this.props.allowNavigate} noteId={this.props.noteId} />
   }
 }
 
@@ -607,7 +607,7 @@ function buildDecorations(view: EditorView, context: LiveContext): LiveSets {
           const match = wikilinkAnchored().exec(text.slice(from, to))
           const title = match?.[1]?.trim() ?? ''
           builder.add(from, to, Decoration.replace({
-            widget: new WikilinkWidget({ title, notes: context.notes, allowNavigate: context.allowNavigate }),
+            widget: new WikilinkWidget({ title, notes: context.notes, allowNavigate: context.allowNavigate, noteId: context.noteId }),
           }))
         }
         return false

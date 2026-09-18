@@ -8,6 +8,7 @@ import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPref
 import { useWorkspaces } from "../hooks/useWorkspaces"
 import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
+import { ContextMenu } from "./ContextMenu"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
 import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
@@ -31,11 +32,11 @@ const itemClass =
 export function Sidebar() {
   const { jobs } = useTranscription()
   const { collapsed } = useSidebarPrefs()
-  // Pinned/open are cross-vault shortcuts — resolve them against ALL workspaces
-  // (not just the active vault's) so they never vanish when you switch vaults;
-  // clicking one switches the active vault to match (see onOpenWorkspace).
+  // Open workspaces are cross-vault shortcuts — resolve them against ALL
+  // workspaces (not just the active vault's) so they never vanish when you
+  // switch vaults; clicking one switches the active vault to match.
   const { allWorkspaces } = useWorkspaces()
-  const { pinnedWorkspaceIds, openWorkspaceIds } = useActiveWorkspace()
+  const { openWorkspaceIds } = useActiveWorkspace()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const subView = useNotesSubView()
@@ -44,13 +45,10 @@ export function Sidebar() {
   const [trayOpen, setTrayOpen] = useState(false)
   const [wsExpanded, setWsExpanded] = useState(true)
   const [notesExpanded, setNotesExpanded] = useState(true)
+  const [wsMenu, setWsMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const runningCount = jobs.filter((j) => j.status === "running").length
-  const pinnedWorkspaces = allWorkspaces.filter((w) => pinnedWorkspaceIds.includes(w.id))
-  // "Open" excludes pinned ones so a workspace never appears in both lists.
-  const openWorkspaces = allWorkspaces.filter(
-    (w) => openWorkspaceIds.includes(w.id) && !pinnedWorkspaceIds.includes(w.id),
-  )
-  const hasSubWorkspaces = pinnedWorkspaces.length > 0 || openWorkspaces.length > 0
+  const openWorkspaces = allWorkspaces.filter((w) => openWorkspaceIds.includes(w.id))
+  const hasSubWorkspaces = openWorkspaces.length > 0
 
   // One-click capture: land on Notes and open the (app-level) composer expanded.
   const handleQuickNote = () => {
@@ -155,7 +153,7 @@ export function Sidebar() {
         )}
 
         {/* Workspaces entry carries the single disclosure toggle for its whole
-            sub-tree (pinned + open), shown only when there's something to show. */}
+            sub-tree (open workspaces), shown only when there's something to show. */}
         <div className={SidebarStyles.wsNavRow}>
           <NavLink to="/workspaces" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Workspaces" : undefined}>
             <span className={SidebarStyles.navIcon}>{ICONS.workspaces}</span>
@@ -176,32 +174,22 @@ export function Sidebar() {
 
         {hasSubWorkspaces && (wsExpanded || collapsed) && (
           <div className={SidebarStyles.wsSub}>
-            {pinnedWorkspaces.map((w) => (
-              <NavLink
-                key={w.id}
-                to={`/workspaces/${w.id}`}
-                className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem}`}
-                title={collapsed ? w.name : undefined}
-              >
-                <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || <Folder size={16} />}</span>
-                <span className={SidebarStyles.label}>{w.name}</span>
-              </NavLink>
-            ))}
-
-            {/* Open workspaces — visited this run; each has a hover × to dismiss it
-                from the sidebar (closeWorkspace). Labelled only when pinned ones
-                also show, to separate the two groups. */}
+            {/* Open workspaces — each has a hover × (and a right-click Close) to
+                dismiss it from the sidebar (closeWorkspace). */}
             {openWorkspaces.length > 0 && (
               <>
-                {pinnedWorkspaces.length > 0 && (
-                  <span className={SidebarStyles.wsGroupLabel}>Open</span>
-                )}
                 {openWorkspaces.map((w) => (
                   <div key={w.id} className={SidebarStyles.openWsRow}>
                     <NavLink
                       to={`/workspaces/${w.id}`}
                       className={({ isActive }) => `${itemClass(isActive)} ${SidebarStyles.subItem} ${SidebarStyles.openWsLink}`}
                       title={collapsed ? w.name : undefined}
+                      // Right-click → Close: the only way to dismiss it when the
+                      // sidebar is collapsed (no room for the hover ×).
+                      onContextMenu={(e) => {
+                        e.preventDefault()
+                        setWsMenu({ x: e.clientX, y: e.clientY, id: w.id })
+                      }}
                     >
                       <span className={SidebarStyles.navIcon} aria-hidden="true">{w.icon || <Folder size={16} />}</span>
                       <span className={SidebarStyles.label}>{w.name}</span>
@@ -273,6 +261,15 @@ export function Sidebar() {
           <span className={SidebarStyles.label}>Settings</span>
         </NavLink>
       </div>
+
+      {wsMenu && (
+        <ContextMenu
+          x={wsMenu.x}
+          y={wsMenu.y}
+          items={[{ label: 'Close workspace', onClick: () => handleCloseWorkspace(wsMenu.id) }]}
+          onClose={() => setWsMenu(null)}
+        />
+      )}
     </aside>
   )
 }

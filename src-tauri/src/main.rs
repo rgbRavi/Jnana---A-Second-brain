@@ -268,6 +268,7 @@ fn main() {
             save_note,
             delete_note,
             trash_note,
+            convert_note_kind,
             restore_note,
             list_trashed_notes,
             empty_trash,

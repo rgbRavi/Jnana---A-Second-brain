@@ -2,19 +2,13 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Download, Pencil, Pin, PinOff, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Download, Pencil, Trash2, X } from 'lucide-react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useNotesContext } from '../../context/NotesContext'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import { useWorkspaceNotes } from '../../hooks/useWorkspaceNotes'
 import { useWorkspaceTab, setWorkspaceTab, type WorkspaceTab } from './useWorkspaceTab'
-import {
-  useActiveWorkspace,
-  setActiveWorkspace,
-  togglePinnedWorkspace,
-  openWorkspace,
-  closeWorkspace,
-} from '../../hooks/useActiveWorkspace'
+import { setActiveWorkspace, openWorkspace, closeWorkspace } from '../../hooks/useActiveWorkspace'
 import { getActiveVaultId, setActiveVaultId } from '../../hooks/useVaults'
 import { deleteWorkspace, workspaceColor } from '../../core/workspaces'
 import { exportNotes } from '../../core/export'
@@ -32,18 +26,16 @@ import styles from './Workspaces.module.css'
 function Workspace() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  // Resolve against ALL vaults so a workspace opened from another vault (a pinned
+  // Resolve against ALL vaults so a workspace opened from another vault (an open
   // sidebar shortcut, a direct URL) still loads.
   const { allWorkspaces } = useWorkspaces()
   const { create, update, remove } = useNotesContext()
   const { notes: wsNotes } = useWorkspaceNotes(id)
-  const { pinnedWorkspaceIds } = useActiveWorkspace()
   const tab = useWorkspaceTab(id)
   const setTab = (t: WorkspaceTab) => setWorkspaceTab(id, t)
   const [editing, setEditing] = useState(false)
 
   const workspace = allWorkspaces.find((w) => w.id === id)
-  const pinned = pinnedWorkspaceIds.includes(id)
 
   // Opening a workspace switches the app to its vault, so the page's vault-scoped
   // content (its notes, graph, dashboard) matches — same as opening a cross-vault
@@ -109,21 +101,17 @@ function Workspace() {
   const accent = workspaceColor(workspace)
 
   return (
-    <div className={styles.page}>
-      <div className={styles.topBar}>
-        <button className={styles.backLink} onClick={() => navigate('/workspaces')}>
-          <ArrowLeft size={15} /> Workspaces
-        </button>
-        <button
-          className={styles.closeLink}
-          onClick={handleClose}
-          title="Close workspace (remove from sidebar) and return"
-        >
-          <X size={15} /> Close
-        </button>
-      </div>
-
+    // Drop a note here from the file explorer to add it (FolderTree drag).
+    <div className={styles.page} data-workspace-drop={id} data-drop-label={workspace.name}>
       <div className={styles.header}>
+        <button
+          className={`${styles.iconBtn} ${styles.headerBack}`}
+          onClick={() => navigate('/workspaces')}
+          title="Back to workspaces"
+          aria-label="Back to workspaces"
+        >
+          <ArrowLeft size={16} />
+        </button>
         <span className={styles.headerIcon}>{workspace.icon || '📁'}</span>
         <div className={styles.headerMain}>
           <h1 className={styles.headerTitle}>
@@ -134,12 +122,12 @@ function Workspace() {
         </div>
         <div className={styles.headerActions}>
           <button
-            className={styles.iconBtn}
-            onClick={() => togglePinnedWorkspace(id)}
-            title={pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
-            aria-label={pinned ? 'Unpin from sidebar' : 'Pin to sidebar'}
+            className={`${styles.iconBtn} ${styles.iconBtnClose}`}
+            onClick={handleClose}
+            title="Close workspace (remove from sidebar) and return"
+            aria-label="Close workspace"
           >
-            {pinned ? <Pin size={16} /> : <PinOff size={16} />}
+            <X size={16} />
           </button>
           <button className={styles.iconBtn} onClick={handleExport} title="Export workspace notes" aria-label="Export workspace notes">
             <Download size={16} />

@@ -189,6 +189,19 @@ pub fn trash_note(state: State<'_, DbState>, id: String) -> Result<(), String> {
         .map_err(|e| format!("Failed to trash note {}: {}", id, e))
 }
 
+/// Convert a blank note to another note type; `false` if the note isn't blank.
+#[command]
+pub fn convert_note_kind(
+    state: State<'_, DbState>,
+    id: String,
+    kind: Option<String>,
+    content: String,
+) -> Result<bool, String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    queries::convert_blank_note_kind(&conn, &id, kind.as_deref(), &content, now_ms())
+        .map_err(|e| format!("Failed to convert note {}: {}", id, e))
+}
+
 #[command]
 pub fn restore_note(state: State<'_, DbState>, id: String) -> Result<Note, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;

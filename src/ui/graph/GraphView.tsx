@@ -12,9 +12,10 @@ import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hook
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
 import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/markdown/wikilinks'
+import { noteLinkText } from '../../lib/noteTypes'
 import { toast } from '../../lib/toast'
 import { eventBus } from '../../lib/eventBus'
-import type { Note } from '../../types'
+import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import styles from './GraphView.module.css'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -487,7 +488,7 @@ function JumpToNote({
 }
 
 export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 'workspace', instanceKey = 'main' }: Props) {
-  const { graphData, loading, syncNoteLinks } = useGraph()
+  const { graphData, loading } = useGraph()
 
   // Per-instance session caches (layout + viewport), so a workspace's local graph
   // never shares positions/zoom with the main graph.
@@ -717,18 +718,19 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     // resolve to an existing note (edges to unresolved titles aren't stored
     // server-side, so this is content-derived on the fly). Clicking one creates
     // the note. Only sourced from visible notes so filters/scope still apply.
+    // Keyed per vault: a title only resolves to a note in the linking note's vault.
+    const vaultKey = (vaultId: string | null | undefined, title: string) => `${vaultId ?? DEFAULT_VAULT_ID}|${normalizeTitle(title)}`
     const titleToId = new Map<string, string>()
     for (const n of graphData.nodes) {
-      const key = normalizeTitle(n.title)
-      if (key) titleToId.set(key, n.id)
+      if (normalizeTitle(n.title)) titleToId.set(vaultKey(n.vaultId, n.title), n.id)
     }
     const pseudoNodes = new Map<string, any>()
     for (const n of visibleNodes) {
-      // Typed notes (e.g. canvas) store non-markdown JSON — never scan for wikilinks.
-      if (n.kind) continue
-      for (const title of extractWikilinkTitles(n.content)) {
+      // Typed notes (e.g. canvas) store JSON — scan only their link projection.
+      // Placed note cards always resolve, so no titleOf is needed for pseudo-nodes.
+      for (const title of extractWikilinkTitles(noteLinkText(n, () => undefined))) {
         const key = normalizeTitle(title)
-        if (!key || titleToId.has(key)) continue
+        if (!key || titleToId.has(vaultKey(n.vaultId, title))) continue
         const pid = pseudoNodeId(title)
         if (!pseudoNodes.has(pid)) {
           const cached = pseudoCacheStore.get(pid)
@@ -866,29 +868,25 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [graphData.nodes, graphData.edges, onUpdate],
   )
 
-  // Materialize a pseudo-node: create the note for its title, then re-sync the
-  // notes that already reference it so their edges resolve immediately (the
-  // links table gains no rows until each referencing note is synced).
+  // Materialize a pseudo-node: create the note for its title (useNotes then
+  // re-syncs the notes already referencing it, so their edges resolve at once).
   const createFromPseudo = useCallback(
     async (title: string) => {
       const name = title.trim()
       if (!name) return
       const ok = await ask(`Create note “${name}”?`, { title: 'Create note', kind: 'info' })
       if (!ok) return
-      const key = normalizeTitle(name)
-      const referencing = graphData.nodes.filter((n) =>
-        !n.kind && extractWikilinkTitles(n.content).some((t) => normalizeTitle(t) === key),
-      )
       try {
+        // useNotes re-syncs the notes already linking to this title on save, so
+        // their edges to the new note appear without any work here.
         const created = await onCreate(name, '')
-        await Promise.all(referencing.map((n) => syncNoteLinks(n.id, n.content)))
         setFocusNodeId(created.id)
       } catch (err) {
         console.error('Failed to create note from pseudo-node:', err)
         toast.error('Could not create the note.')
       }
     },
-    [graphData.nodes, onCreate, syncNoteLinks],
+    [onCreate],
   )
 
   const handleNodeClick = useCallback(

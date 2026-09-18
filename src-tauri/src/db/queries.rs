@@ -114,6 +114,24 @@ pub fn trash_note(conn: &Connection, id: &str, at: i64) -> Result<()> {
     Ok(())
 }
 
+/// Convert a *blank* note to another note type (e.g. a plain note → canvas),
+/// replacing its content with the type's starter content. Guarded to blank notes
+/// so a conversion can never discard writing. Returns whether a row changed.
+pub fn convert_blank_note_kind(
+    conn: &Connection,
+    id: &str,
+    kind: Option<&str>,
+    content: &str,
+    at: i64,
+) -> Result<bool> {
+    let n = conn.execute(
+        "UPDATE notes SET kind = ?2, content = ?3, updated_at = ?4
+         WHERE id = ?1 AND TRIM(content) = ''",
+        params![id, kind, content, at],
+    )?;
+    Ok(n > 0)
+}
+
 /// Restore a trashed note (clears deleted_at).
 pub fn restore_note(conn: &Connection, id: &str) -> Result<()> {
     conn.execute("UPDATE notes SET deleted_at = NULL WHERE id = ?1", params![id])?;
@@ -186,11 +204,18 @@ pub fn sync_links_for_note(
 
     let tx = conn.transaction()?;
 
-    // Resolve wikilink titles → note ids (skipping self-links).
+    // Resolve wikilink titles → note ids (skipping self-links). Only live notes in
+    // the linking note's own vault are candidates — vaults are separate worlds, so
+    // a same-titled note elsewhere (or in Trash) never becomes a link target.
     let mut target_ids: HashSet<String> = HashSet::new();
     {
-        let mut stmt = tx.prepare("SELECT id, title FROM notes")?;
-        let rows = stmt.query_map([], |row| {
+        let mut stmt = tx.prepare(
+            "SELECT id, title FROM notes
+             WHERE deleted_at IS NULL
+               AND COALESCE(vault_id, 'vault-default') =
+                   (SELECT COALESCE(vault_id, 'vault-default') FROM notes WHERE id = ?1)",
+        )?;
+        let rows = stmt.query_map(params![note_id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
         for row in rows {
@@ -1556,6 +1581,36 @@ mod tests {
     }
 
     #[test]
+    fn convert_blank_note_kind_only_touches_blank_notes() {
+        let conn = setup_db();
+        let mut note = NoteRow {
+            id: "blank".to_string(),
+            title: "".to_string(),
+            content: "  ".to_string(),
+            tags: "[]".to_string(),
+            created_at: 1,
+            updated_at: 1,
+            folder_id: None,
+            vault_id: None,
+            kind: None,
+        };
+        insert_or_update_note(&conn, &note).unwrap();
+        note.id = "written".to_string();
+        note.content = "keep me".to_string();
+        insert_or_update_note(&conn, &note).unwrap();
+
+        assert!(convert_blank_note_kind(&conn, "blank", Some("canvas"), "{}", 2).unwrap());
+        let blank = fetch_note(&conn, "blank").unwrap();
+        assert_eq!(blank.kind.as_deref(), Some("canvas"));
+        assert_eq!(blank.content, "{}");
+
+        assert!(!convert_blank_note_kind(&conn, "written", Some("canvas"), "{}", 2).unwrap());
+        let written = fetch_note(&conn, "written").unwrap();
+        assert_eq!(written.kind, None);
+        assert_eq!(written.content, "keep me");
+    }
+
+    #[test]
     fn test_sync_links_for_note() {
         let mut conn = setup_db();
         
@@ -1585,6 +1640,31 @@ mod tests {
 
         let links = fetch_links_for_note(&conn, "1").unwrap();
         assert_eq!(links, vec!["3".to_string()]);
+    }
+
+    #[test]
+    fn sync_links_resolves_only_live_notes_in_the_same_vault() {
+        let mut conn = setup_db();
+        conn.execute(
+            "INSERT INTO vaults (id, name, created_at, updated_at) VALUES ('v2', 'Second', 1, 1)",
+            [],
+        )
+        .unwrap();
+        let row = |id: &str, title: &str, vault: Option<&str>| NoteRow {
+            id: id.to_string(), title: title.to_string(), content: "".to_string(), tags: "[]".to_string(),
+            created_at: 0, updated_at: 0, folder_id: None, vault_id: vault.map(str::to_string), kind: None,
+        };
+        insert_or_update_note(&conn, &row("src", "Source", None)).unwrap();
+        insert_or_update_note(&conn, &row("other-vault", "Target", Some("v2"))).unwrap();
+        insert_or_update_note(&conn, &row("trashed", "Target", None)).unwrap();
+        trash_note(&conn, "trashed", 5).unwrap();
+
+        let (added, _) = sync_links_for_note(&mut conn, "src", &vec!["target".to_string()]).unwrap();
+        assert!(added.is_empty(), "no live same-vault note is titled Target");
+
+        insert_or_update_note(&conn, &row("same-vault", "Target", None)).unwrap();
+        let (added, _) = sync_links_for_note(&mut conn, "src", &vec!["target".to_string()]).unwrap();
+        assert_eq!(added, vec!["same-vault".to_string()]);
     }
 
     #[test]

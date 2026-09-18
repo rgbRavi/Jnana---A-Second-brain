@@ -8,6 +8,9 @@ import {
   closeTab,
   closeGroup,
   splitGroup,
+  splitBeside,
+  closeOtherTabs,
+  openNoteAt,
   moveTab,
   setActiveTab,
   reconcile,
@@ -201,5 +204,76 @@ describe('reconcile', () => {
   it('returns the same reference when nothing changed (skip re-persist)', () => {
     const l = withNotes('a', 'b')
     expect(reconcile(l, new Set(['a', 'b']))).toBe(l)
+  })
+})
+
+describe('splitBeside', () => {
+  it('moves a tab into a new pane on the given side of the anchor', () => {
+    const l0 = withNotes('a', 'b')
+    const anchor = firstGroup(l0.root)!.id
+    const right = splitBeside(l0, anchor, 'right', 'b')
+    expect(right.root?.kind === 'split' && right.root.dir).toBe('row')
+    expect(allGroups(right.root).map((g) => g.tabs)).toEqual([['a'], ['b']])
+    expect(right.activeGroup).toBe(groupOf(right.root, 'b')!.id)
+
+    const above = splitBeside(l0, anchor, 'above', 'b')
+    expect(above.root?.kind === 'split' && above.root.dir).toBe('col')
+    expect(allGroups(above.root).map((g) => g.tabs)).toEqual([['b'], ['a']])
+  })
+
+  it('prunes the source pane it empties when that pane is not the anchor', () => {
+    let l = withNotes('a')
+    const anchor = firstGroup(l.root)!.id
+    l = splitGroup(l, anchor, 'row') // ['a'] moves right; anchor left empty + active
+    l = openNote(l, 'b') // b lands in the (active) left pane
+    const left = groupOf(l.root, 'b')!.id
+    l = splitBeside(l, left, 'below', 'a') // a's pane empties → pruned
+    expect(allGroups(l.root).map((g) => g.tabs)).toEqual([['b'], ['a']])
+    expect(l.root?.kind === 'split' && l.root.dir).toBe('col')
+  })
+
+  it("is a no-op for a pane's only tab split against that same pane", () => {
+    const l = withNotes('a')
+    expect(splitBeside(l, firstGroup(l.root)!.id, 'right', 'a')).toBe(l)
+  })
+
+  it('ignores an unknown note or anchor', () => {
+    const l = withNotes('a')
+    expect(splitBeside(l, 'nope', 'left', 'a')).toBe(l)
+    expect(splitBeside(l, firstGroup(l.root)!.id, 'left', 'zzz')).toBe(l)
+  })
+})
+
+describe('openNoteAt', () => {
+  it('inserts a closed note at the index and focuses it', () => {
+    const l0 = withNotes('a', 'b')
+    const g = firstGroup(l0.root)!.id
+    const l = openNoteAt(l0, 'c', g, 1)
+    expect(firstGroup(l.root)?.tabs).toEqual(['a', 'c', 'b'])
+    expect(firstGroup(l.root)?.activeTab).toBe('c')
+  })
+
+  it('moves an already-open note instead of duplicating it', () => {
+    const l0 = withNotes('a', 'b', 'c')
+    const l = openNoteAt(l0, 'c', firstGroup(l0.root)!.id, 0)
+    expect(firstGroup(l.root)?.tabs).toEqual(['c', 'a', 'b'])
+  })
+
+  it('falls back to openNote on an empty layout', () => {
+    expect(allOpenNoteIds(openNoteAt(EMPTY_LAYOUT, 'a', 'x', 0))).toEqual(['a'])
+  })
+})
+
+describe('closeOtherTabs', () => {
+  it('keeps only the chosen tab and makes it active', () => {
+    const l0 = withNotes('a', 'b', 'c')
+    const l = closeOtherTabs(l0, firstGroup(l0.root)!.id, 'b')
+    expect(firstGroup(l.root)?.tabs).toEqual(['b'])
+    expect(firstGroup(l.root)?.activeTab).toBe('b')
+  })
+  it('is a no-op for a lone tab or a tab not in the group', () => {
+    const l = withNotes('a')
+    expect(closeOtherTabs(l, firstGroup(l.root)!.id, 'a')).toBe(l)
+    expect(closeOtherTabs(l, firstGroup(l.root)!.id, 'zzz')).toBe(l)
   })
 })

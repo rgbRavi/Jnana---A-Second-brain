@@ -210,7 +210,7 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
 
     const wikilink = ({ node }: { node?: HastElement }) => {
       const title = String(hastProperties(node).title ?? '')
-      return <WikilinkButton title={title} notes={notesRef.current} allowNavigate={fullscreen} />
+      return <WikilinkButton title={title} notes={notesRef.current} allowNavigate={fullscreen} noteId={noteId} />
     }
 
     const timestamp = ({ node }: { node?: HastElement }) => {
