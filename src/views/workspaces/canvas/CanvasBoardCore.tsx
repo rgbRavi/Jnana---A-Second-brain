@@ -13,9 +13,9 @@ import {
 } from 'react'
 import { Check, Link2, Maximize2, Minimize2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { openUrl, openPath } from '@tauri-apps/plugin-opener'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
-import { importMedia, getAssetPath } from '../../../core/media'
+import { importMedia, openAssetFile } from '../../../core/media'
 import { uploadAsset } from '../../../core/notes'
 import {
   newId, bringToFront, bringForward, sendBackward, sendToBack, eraseAt,
@@ -636,7 +636,7 @@ export function CanvasBoardCore({
   const openNodeExternally = useCallback(async (node: CanvasNode) => {
     try {
       if (node.type === 'link' && node.url) await openUrl(node.url)
-      else if (node.type === 'media' && node.file) await openPath(await getAssetPath(node.file))
+      else if (node.type === 'media' && node.file) await openAssetFile(node.file)
     } catch (err) {
       toast.error('Could not open: ' + String(err))
     }

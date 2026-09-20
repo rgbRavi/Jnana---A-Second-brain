@@ -14,6 +14,7 @@ import { AdvancedAiPanel } from '../../ui/settings/AdvancedAiPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { GeneralSettingsPanel } from '../../ui/settings/GeneralSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
+import { DashboardSettingsPanel } from '../../ui/settings/DashboardSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
 import { DeveloperPanel } from '../../ui/settings/DeveloperPanel'
@@ -26,6 +27,7 @@ import styles from './Settings.module.css'
 const SECTIONS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'composer', label: 'Composer' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'ai', label: 'AI Providers' },
   { id: 'advanced-ai', label: 'Advanced AI generation' },
@@ -87,6 +89,7 @@ function Settings() {
         <div className={styles.content}>
           {tab === 'general' && <GeneralSettingsPanel />}
           {tab === 'composer' && <ComposerSettingsPanel />}
+          {tab === 'dashboard' && <DashboardSettingsPanel />}
           {tab === 'appearance' && <AppearancePanel />}
           {tab === 'ai' && (
             <AiSettingsPanel

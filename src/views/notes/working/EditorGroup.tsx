@@ -12,10 +12,15 @@ export function EditorGroup({
   group,
   isActive,
   multiPane,
+  onBack,
+  backLabel,
 }: {
   group: GroupNode
   isActive: boolean
   multiPane: boolean
+  /** Only the leftmost pane gets this — see WorkingNotes. */
+  onBack?: () => void
+  backLabel?: string
 }) {
   const active = group.activeTab && group.tabs.includes(group.activeTab) ? group.activeTab : group.tabs[0]
   const drag = useTabDrag()
@@ -34,7 +39,7 @@ export function EditorGroup({
     >
       {/* Edge drop preview: the half of this pane the dropped note will take. */}
       {dropSide && <div className={Styles.dropZone} data-side={dropSide} aria-hidden="true" />}
-      <TabStrip group={group} multiPane={multiPane} />
+      <TabStrip group={group} multiPane={multiPane} onBack={onBack} backLabel={backLabel} />
       {active ? (
         <EditorPane key={active} noteId={active} />
       ) : (

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { ReactNode } from 'react'
-import { ChevronDown, GripVertical, RotateCw, X } from 'lucide-react'
+import { ChevronDown, GripVertical } from 'lucide-react'
 import styles from '../Dashboard.module.css'
 
 interface Props {
@@ -10,17 +10,14 @@ interface Props {
   icon?: string
   collapsed?: boolean
   onToggleCollapse?: () => void
-  onHide?: () => void
-  onRefresh?: () => void
-  /** Right-aligned slot in the header. */
-  action?: ReactNode
   children: ReactNode
 }
 
 /** The shell every dashboard widget renders inside. Fills its grid cell; the
- *  ⠿ grip is react-grid-layout's drag handle. Resize is handled by RGL's edge
- *  handles, so there's no manual resize control here. */
-export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide, onRefresh, action, children }: Props) {
+ *  ⠿ grip is DashboardGrid's drag handle, resize is its edge handles — so the
+ *  header carries only collapse. Hiding a section lives in Customize, and
+ *  refreshing is one dashboard-wide button in the header. */
+export function DashboardCard({ title, icon, collapsed, onToggleCollapse, children }: Props) {
   return (
     <section className={styles.card}>
       <header className={styles.cardHeader}>
@@ -49,19 +46,6 @@ export function DashboardCard({ title, icon, collapsed, onToggleCollapse, onHide
             )}
             {title}
           </button>
-        </div>
-        <div className={styles.cardActions}>
-          {action}
-          {onRefresh && (
-            <button type="button" className={styles.cardBtn} onClick={onRefresh} title="Refresh" aria-label="Refresh">
-              <RotateCw size={15} />
-            </button>
-          )}
-          {onHide && (
-            <button type="button" className={styles.cardBtn} onClick={onHide} title="Hide section" aria-label="Hide section">
-              <X size={15} />
-            </button>
-          )}
         </div>
       </header>
       {!collapsed && <div className={styles.cardBody}>{children}</div>}

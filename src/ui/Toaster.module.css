@@ -112,3 +112,19 @@
     transform: translateY(0);
   }
 }
+
+/* Inline link inside a toast message ("…downloaded here"). Styled as text, not
+   a button, so it reads as part of the sentence. */
+.actionLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.actionLink:hover {
+  color: var(--accent-hover);
+}

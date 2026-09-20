@@ -7,7 +7,7 @@ import { useNotesContext } from '../../../context/NotesContext'
 import { useActiveVaultId } from '../../../hooks/useVaults'
 import { DEFAULT_VAULT_ID } from '../../../types'
 import type { PaneNode } from './layout'
-import { findGroup, allGroups } from './layout'
+import { findGroup, allGroups, firstGroup } from './layout'
 import {
   useWorkingLayout,
   reconcileWorking,
@@ -33,7 +33,12 @@ function TabDragGhost() {
   )
 }
 
-function renderNode(node: PaneNode, activeGroup: string | null, multiPane: boolean): ReactNode {
+function renderNode(
+  node: PaneNode,
+  activeGroup: string | null,
+  multiPane: boolean,
+  back?: { groupId: string; onBack: () => void; label: string },
+): ReactNode {
   if (node.kind === 'group') {
     return (
       <EditorGroup
@@ -41,6 +46,8 @@ function renderNode(node: PaneNode, activeGroup: string | null, multiPane: boole
         group={node}
         isActive={node.id === activeGroup}
         multiPane={multiPane}
+        onBack={back && back.groupId === node.id ? back.onBack : undefined}
+        backLabel={back?.label}
       />
     )
   }
@@ -48,7 +55,7 @@ function renderNode(node: PaneNode, activeGroup: string | null, multiPane: boole
     <SplitContainer
       key={node.id}
       split={node}
-      renderNode={(child) => renderNode(child, activeGroup, multiPane)}
+      renderNode={(child) => renderNode(child, activeGroup, multiPane, back)}
     />
   )
 }
@@ -58,7 +65,7 @@ function renderNode(node: PaneNode, activeGroup: string | null, multiPane: boole
  * recursively; reconciles it against the live note set on mount and whenever a
  * note is deleted so tabs pointing at gone notes disappear.
  */
-export function WorkingNotes() {
+export function WorkingNotes({ onBack, backLabel }: { onBack?: () => void; backLabel?: string } = {}) {
   const { notes, loading } = useNotesContext()
   const activeVaultId = useActiveVaultId()
   const layout = useWorkingLayout()
@@ -109,9 +116,12 @@ export function WorkingNotes() {
   }
 
   const multiPane = allGroups(layout.root).length > 1
+  // Show the back control once, on the leftmost pane's strip.
+  const firstId = firstGroup(layout.root)?.id
+  const back = onBack && firstId ? { groupId: firstId, onBack, label: backLabel ?? 'Back' } : undefined
   return (
     <div className={Styles.surface}>
-      {renderNode(layout.root, layout.activeGroup, multiPane)}
+      {renderNode(layout.root, layout.activeGroup, multiPane, back)}
       <TabDragGhost />
     </div>
   )

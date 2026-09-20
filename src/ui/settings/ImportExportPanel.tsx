@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useNotesContext } from '../../context/NotesContext'
-import { exportNotes } from '../../core/export'
+import { exportNotes, toastExported } from '../../core/export'
 import { log } from '../../lib/logger'
 import {
   createBackup,
@@ -62,10 +62,10 @@ export function ImportExportPanel() {
 
   const exportAll = () =>
     run('exportAll', async () => {
-      const n = await exportNotes(notes)
-      if (n === null) return // cancelled
+      const result = await exportNotes(notes)
+      if (result === null) return // cancelled
       setHistory(markExport())
-      toast.success(`Exported ${n} note${n !== 1 ? 's' : ''} as Markdown.`)
+      toastExported(result)
     })
 
   const exportSelected = () =>
@@ -75,11 +75,11 @@ export function ImportExportPanel() {
         toast.error('No notes selected.')
         return
       }
-      const n = await exportNotes(chosen)
-      if (n === null) return
+      const result = await exportNotes(chosen)
+      if (result === null) return
       setHistory(markExport())
       setPicking(false)
-      toast.success(`Exported ${n} note${n !== 1 ? 's' : ''}.`)
+      toastExported(result)
     })
 
   const doExportAssets = () =>

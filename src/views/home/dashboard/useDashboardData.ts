@@ -11,11 +11,12 @@ import { useTranscription } from '../../../context/TranscriptionContext'
 import { getAllLinks, getFavouriteNoteIds, listNoteProgress } from '../../../core/notes'
 import { recentMedia } from '../../../core/media'
 import { listProjects, listProjectKnowledge } from '../../../core/aiWorkspace'
-import { getIndexStats, getIndexTimes, staleNotes } from '../../../core/ai'
-import { isAutoTag } from '../../../core/tags'
+import { getIndexStats, getIndexTimes, hasEmbeddableText, staleNotes } from '../../../core/ai'
 import { getLastOpened } from '../../../hooks/useSaveLastOpened'
 import { useActiveVaultId } from '../../../hooks/useVaults'
 import { eventBus } from '../../../lib/eventBus'
+import { useSuggestedPairs } from '../../../lib/suggestedLinks'
+import { useDashboardPrefs } from './useDashboardPrefs'
 import { DEFAULT_VAULT_ID, type AiProject, type Note, type RecentMedia } from '../../../types'
 
 const PALETTE = [
@@ -68,10 +69,21 @@ export interface SnapshotNode {
 export interface DashboardData {
   loading: boolean
   notes: Note[]
-  totals: { notes: number; connections: number; projects: number; indexedPct: number }
+  totals: {
+    notes: number
+    connections: number
+    projects: number
+    indexedPct: number
+    /** Notes with text to embed — the denominator behind indexedPct. */
+    embeddable: number
+    /** Notes that actually have vectors stored. */
+    indexedNotes: number
+  }
   orphanCount: number
   untaggedCount: number
   staleCount: number
+  /** The notes behind staleCount — never indexed, or edited since. */
+  staleNotes: Note[]
   suggestedConnections: number
   clusters: { count: number; largest: number }
   continueLearning: ContinueItem[]
@@ -108,7 +120,8 @@ export function useDashboardData(): DashboardData {
   const [allProjects, setProjects] = useState<AiProject[]>([])
   const [projectCounts, setProjectCounts] = useState<Record<string, number>>({})
   const [indexedCount, setIndexedCount] = useState(0)
-  const [staleCount, setStaleCount] = useState(0)
+  // The list, not just its length: the "Need indexing" tile indexes exactly these.
+  const [stale, setStale] = useState<Note[]>([])
   const [progress, setProgress] = useState<Record<string, number>>({})
   const [imports, setImports] = useState<RecentMedia[]>([])
   const [favIds, setFavIds] = useState<string[]>([])
@@ -131,7 +144,7 @@ export function useDashboardData(): DashboardData {
       setRawLinks(allLinks)
       setProjects(projs)
       setIndexedCount(stats.indexedNoteCount)
-      setStaleCount(stats.indexedNoteCount > 0 ? staleNotes(notesRef.current, times).length : 0)
+      setStale(stats.indexedNoteCount > 0 ? staleNotes(notesRef.current, times) : [])
       setProgress(Object.fromEntries(prog.map((p) => [p.noteId, p.progress])))
       setImports(media)
       setFavIds(favs)
@@ -170,11 +183,20 @@ export function useDashboardData(): DashboardData {
     }
   }, [refresh])
 
-  // ── Derived metrics (memoized over notes + fetched state) ──
-  const data = useMemo<Omit<DashboardData, 'refresh'>>(() => {
-    // Keep only links whose both endpoints are in this vault (links are global).
+  // Links are global; keep only those with both ends in this vault. Hoisted out
+  // of the metrics memo because the suggestion engine needs them too.
+  const links = useMemo(() => {
     const vaultNoteIds = new Set(notes.map((n) => n.id))
-    const links = rawLinks.filter(([a, b]) => vaultNoteIds.has(a) && vaultNoteIds.has(b))
+    return rawLinks.filter(([a, b]) => vaultNoteIds.has(a) && vaultNoteIds.has(b))
+  }, [notes, rawLinks])
+
+  // Pairs of notes that look related but aren't linked — shared with the graph
+  // overlay through lib/suggestedLinks, so both show the same set.
+  const { suggestSource } = useDashboardPrefs()
+  const suggested = useSuggestedPairs(notes, links, suggestSource)
+
+  // ── Derived metrics (memoized over notes + fetched state) ──
+  const data = useMemo<Omit<DashboardData, 'refresh' | 'suggestedConnections'>>(() => {
     // Projects are per-vault too (v15) — scope them alongside notes.
     const projects = allProjects.filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId)
 
@@ -184,8 +206,12 @@ export function useDashboardData(): DashboardData {
       degree.set(to, (degree.get(to) ?? 0) + 1)
     }
 
+    const embeddable = notes.filter(hasEmbeddableText).length
+
     const orphanCount = notes.filter((n) => !degree.get(n.id)).length
-    const untaggedCount = notes.filter((n) => n.tags.filter((t) => !isAutoTag(t)).length === 0).length
+    // Untagged = no tags at all, so this matches the Notes view's `untagged`
+    // status filter the tile navigates to (auto-tags count as tags there).
+    const untaggedCount = notes.filter((n) => n.tags.length === 0).length
 
     // Connected components (union-find) → cluster count + largest.
     const parent = new Map<string, string>()
@@ -211,33 +237,6 @@ export function useDashboardData(): DashboardData {
     for (const s of sizes.values()) {
       if (s >= 2) clusterCount++
       if (s > largest) largest = s
-    }
-
-    // Suggested connections: unlinked pairs sharing a user tag (bounded).
-    const linkedKey = new Set<string>()
-    for (const [from, to] of links) {
-      linkedKey.add(from < to ? `${from}|${to}` : `${to}|${from}`)
-    }
-    const tagIndex = new Map<string, string[]>()
-    for (const n of notes) {
-      for (const t of n.tags) {
-        if (isAutoTag(t)) continue
-        const arr = tagIndex.get(t) ?? []
-        arr.push(n.id)
-        tagIndex.set(t, arr)
-      }
-    }
-    const suggestedPairs = new Set<string>()
-    for (const ids of tagIndex.values()) {
-      if (ids.length < 2 || ids.length > 25) continue // skip generic tags
-      for (let i = 0; i < ids.length; i++) {
-        for (let j = i + 1; j < ids.length; j++) {
-          const a = ids[i]
-          const b = ids[j]
-          const key = a < b ? `${a}|${b}` : `${b}|${a}`
-          if (!linkedKey.has(key)) suggestedPairs.add(key)
-        }
-      }
     }
 
     // Continue learning (from last-opened, with timestamps).
@@ -319,12 +318,18 @@ export function useDashboardData(): DashboardData {
         notes: notes.length,
         connections: links.length,
         projects: projects.length,
-        indexedPct: notes.length > 0 ? Math.round((indexedCount / notes.length) * 100) : 0,
+        // Denominator is notes that CAN be embedded: an empty or media-only
+        // note never gets a vector, so counting it would cap the bar below 100%
+        // even with nothing left to index. Clamped because a PDF-only note can
+        // be indexed off its attachment text while failing this test.
+        indexedPct: embeddable > 0 ? Math.min(100, Math.round((indexedCount / embeddable) * 100)) : 100,
+        embeddable,
+        indexedNotes: Math.min(indexedCount, embeddable),
       },
       orphanCount,
       untaggedCount,
-      staleCount,
-      suggestedConnections: suggestedPairs.size,
+      staleCount: stale.length,
+      staleNotes: stale,
       clusters: { count: clusterCount, largest },
       continueLearning,
       favourites,
@@ -335,7 +340,7 @@ export function useDashboardData(): DashboardData {
       streak,
       graph: { nodes: snapNodes, links: snapLinks },
     }
-  }, [notes, rawLinks, allProjects, activeVaultId, projectCounts, indexedCount, staleCount, progress, imports, favIds, jobs, notesLoading, loaded])
+  }, [notes, links, allProjects, activeVaultId, projectCounts, indexedCount, stale, progress, imports, favIds, jobs, notesLoading, loaded])
 
-  return { ...data, refresh: () => void refresh() }
+  return { ...data, suggestedConnections: suggested.pairs.length, refresh: () => void refresh() }
 }

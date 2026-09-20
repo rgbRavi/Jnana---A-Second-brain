@@ -39,6 +39,13 @@ interface Props {
   removeTitle?: string
   /** Show a "file into workspace" action (All-Notes view). */
   onAddToWorkspace?: (id: string) => void
+  /** Part of the current multi-selection (accent ring). */
+  selected?: boolean
+  /**
+   * Ctrl/Cmd-click ('toggle') or Shift-click ('range') on the card. Given this,
+   * the card leaves modifier-clicks to the caller instead of opening the note.
+   */
+  onSelect?: (id: string, mode: 'toggle' | 'range') => void
 }
 
 /** Auto-tag → chip glyph + label, shown on non-default variants. */
@@ -203,6 +210,8 @@ function NoteItemImpl({
   onTogglePin,
   removeTitle = 'Delete note',
   onAddToWorkspace,
+  selected,
+  onSelect,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false)
 
@@ -224,8 +233,24 @@ function NoteItemImpl({
 
   return (
     <div
-      className={`${Styles.noteCard} ${Styles[variant]}`}
-      onClick={() => { if (!isEditing) onExpand?.(note) }}
+      className={`${Styles.noteCard} ${Styles[variant]} ${selected ? Styles.noteCardSelected : ''}`}
+      onClick={(e) => {
+        if (isEditing) return
+        // Modifier-clicks build a selection; a plain click still opens the note.
+        if (onSelect && (e.ctrlKey || e.metaKey)) {
+          onSelect(note.id, 'toggle')
+          return
+        }
+        if (onSelect && e.shiftKey) {
+          // Stops the browser turning a Shift-click into a text selection
+          // across the cards it spans.
+          e.preventDefault()
+          onSelect(note.id, 'range')
+          return
+        }
+        onExpand?.(note)
+      }}
+      aria-selected={selected || undefined}
     >
       <div className={Styles.noteCardHeader}>
         <span className={Styles.noteCardTitle}>{note.title || 'Untitled'}</span>

@@ -13,8 +13,14 @@ import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
 import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/markdown/wikilinks'
 import { noteLinkText } from '../../lib/noteTypes'
+import { showChoiceDialog } from '../../lib/dialog'
+import { setGraphSpotlight, useGraphSpotlight } from '../../lib/graphSpotlight'
+import { useSuggestedPairs } from '../../lib/suggestedLinks'
+import { nearestPair, type SuggestedPair } from '../../core/graph/suggestedLinks'
+import { useDashboardPrefs } from '../../views/home/dashboard/useDashboardPrefs'
 import { toast } from '../../lib/toast'
 import { eventBus } from '../../lib/eventBus'
+import { resolveColor } from '../../lib/themeColor'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import styles from './GraphView.module.css'
 
@@ -70,16 +76,8 @@ let FOCUS_COLOR = '#7c6af7'
 // so we derive a concrete rgba() from the resolved accent (via the browser's own
 // parser) and re-derive it on `theme:changed`, same as HUB/FOCUS above.
 let LINK_COLOR = 'rgba(124, 106, 247, 0.4)'
-
-function accentToRgba(color: string, alpha: number): string | null {
-  const probe = document.createElement('span')
-  probe.style.color = color
-  document.body.appendChild(probe)
-  const computed = getComputedStyle(probe).color
-  probe.remove()
-  const m = computed.match(/-?\d+(?:\.\d+)?/g)
-  return m && m.length >= 3 ? `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${alpha})` : null
-}
+// Dashed "you could link these" strokes for the suggested-links spotlight.
+let SUGGEST_COLOR = 'rgba(63, 185, 80, 0.55)' // --success, translucent
 
 function readGraphColors(): void {
   const cs = getComputedStyle(document.documentElement)
@@ -88,13 +86,14 @@ function readGraphColors(): void {
   if (accent) {
     HUB_COLOR = accent
     FOCUS_COLOR = accent
-    LINK_COLOR = accentToRgba(accent, 0.4) ?? accent
+    LINK_COLOR = resolveColor(accent, 0.4) ?? accent
   }
   DEFAULT_NODE_COLOR = g('--text-3') || DEFAULT_NODE_COLOR
   ORPHAN_COLOR = g('--warning') || ORPHAN_COLOR
   CONNECT_COLOR = g('--success') || CONNECT_COLOR
+  SUGGEST_COLOR = resolveColor(CONNECT_COLOR, 0.55) ?? SUGGEST_COLOR
   PSEUDO_COLOR = g('--text-2') || PSEUDO_COLOR
-  PSEUDO_FILL = accentToRgba(PSEUDO_COLOR, 0.25) ?? PSEUDO_FILL
+  PSEUDO_FILL = resolveColor(PSEUDO_COLOR, 0.25) ?? PSEUDO_FILL
   LABEL_COLOR = g('--text-1') || LABEL_COLOR
   LABEL_DIM_COLOR = g('--text-2') || LABEL_DIM_COLOR
 }
@@ -103,6 +102,21 @@ eventBus.on('theme:changed', readGraphColors)
 
 // A note linked to this many or more notes (in + out) counts as a hub.
 const HUB_DEGREE = 4
+
+// How near (in graph units) a click has to land to count as hitting a suggested
+// link's line, and how far the orphan halo reaches past the node's own radius.
+const SUGGEST_HIT_RADIUS = 6
+const ORPHAN_HALO_SCALE = 4
+
+// The halo breathes, and the canvas can't inherit the CSS reduced-motion rule —
+// so track the query here. Read once (plus on change) rather than per frame,
+// since the paint callbacks run continuously.
+const motionQuery =
+  typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : undefined
+let reducedMotion = !!motionQuery?.matches
+motionQuery?.addEventListener?.('change', (e) => {
+  reducedMotion = e.matches
+})
 
 // Force defaults live in useGraphForces (persisted to localStorage).
 // Display defaults.
@@ -230,7 +244,7 @@ interface Props {
 
 const presetBtnStyle: React.CSSProperties = {
   flex: 1,
-  background: 'var(--surface-2, rgba(255,255,255,0.05))',
+  background: 'var(--surface-2)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-sm)',
   color: 'var(--text-1)',
@@ -326,7 +340,7 @@ function Toggle({
           borderRadius: '999px',
           border: 'none',
           cursor: 'pointer',
-          background: checked ? 'var(--accent, #7c6af7)' : 'var(--border)',
+          background: checked ? 'var(--accent)' : 'var(--border)',
           position: 'relative',
           transition: 'background 0.15s',
           flexShrink: 0,
@@ -340,7 +354,7 @@ function Toggle({
             width: '16px',
             height: '16px',
             borderRadius: '50%',
-            background: '#fff',
+            background: 'var(--on-accent)',
             transition: 'left 0.15s',
           }}
         />
@@ -382,7 +396,7 @@ function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ width: '100%', accentColor: 'var(--accent, #7c6af7)', cursor: 'pointer' }}
+        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
       />
       {hint && <span style={{ fontSize: '0.68rem', color: 'var(--text-3)', lineHeight: 1.35 }}>{hint}</span>}
     </div>
@@ -434,7 +448,7 @@ function JumpToNote({
           ...inputStyle,
           width: '100%',
           background: 'var(--surface)',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+          boxShadow: 'var(--shadow-md)',
         }}
       />
       {open && matches.length > 0 && (
@@ -447,7 +461,7 @@ function JumpToNote({
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-sm)',
-            boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-lg)',
             overflow: 'hidden',
             maxHeight: '280px',
             overflowY: 'auto',
@@ -510,6 +524,41 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   // Right-click context menu (per node).
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+
+  // ── Spotlight (requested by the dashboard's insight tiles) ──
+  // 'orphans' haloes unlinked notes; 'suggested' draws dashed lines between
+  // notes that look related but aren't linked. Cleared by the dismiss chip.
+  const spotlight = useGraphSpotlight()
+  const { suggestSource } = useDashboardPrefs()
+
+  // The suggestion engine wants Notes; graph nodes carry the same fields plus
+  // simulation state. Scope-filtered so a workspace graph only suggests within
+  // its own notes.
+  const suggestionNotes = useMemo(
+    () =>
+      graphData.nodes
+        .filter((n) => !scopeIds || scopeIds.has(n.id))
+        .map((n) => ({
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          tags: n.tags ?? [],
+          createdAt: n.createdAt ?? n.updatedAt,
+          updatedAt: n.updatedAt,
+          vaultId: n.vaultId,
+        })),
+    [graphData.nodes, scopeIds],
+  )
+  const suggestionLinks = useMemo<[string, string][]>(
+    () => graphData.edges.map((e) => [e.source, e.target] as [string, string]),
+    [graphData.edges],
+  )
+  const { pairs: suggestedPairs, loading: suggestionsLoading } = useSuggestedPairs(
+    suggestionNotes,
+    suggestionLinks,
+    suggestSource,
+    spotlight === 'suggested',
+  )
 
   // Settings panel — all of the controls below persist across view switches
   // (via useViewState) so the graph's configuration isn't lost when navigating.
@@ -577,6 +626,17 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     if (!connectingFrom) pointerRef.current = null
   }, [connectingFrom])
 
+  // The canvas callbacks run per frame, outside React — mirror spotlight state
+  // into refs so they don't paint from a stale closure.
+  const spotlightRef = useRef(spotlight)
+  spotlightRef.current = spotlight
+  const suggestedPairsRef = useRef<SuggestedPair[]>(suggestedPairs)
+  suggestedPairsRef.current = suggestedPairs
+
+  // No repaint pump needed: force-graph's canvas loop calls the paint callbacks
+  // every frame whether or not the simulation is still settling, which is what
+  // lets the halo below breathe off a clock.
+
   // Esc cancels a pending connection and closes the context menu.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -603,11 +663,20 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     return d
   }, [graphData.nodes, graphData.edges])
 
+  // Counted off the same scoped set the halo paints, so the chip and the canvas
+  // can't disagree.
+  const orphanCount = useMemo(
+    () => (spotlight === 'orphans' ? scopedNodes.filter((n) => (degrees.get(n.id) ?? 0) === 0).length : 0),
+    [spotlight, scopedNodes, degrees],
+  )
+
   // Every user tag present (auto-tags like has:* excluded), sorted, with a color
   // — used to style the filter tag chips.
+  // Scoped, not global: a chip for a tag that only exists in another vault (or
+  // outside this workspace) filters the graph down to nothing.
   const tagColors = useMemo(() => {
     const tags = new Set<string>()
-    graphData.nodes.forEach((n) =>
+    scopedNodes.forEach((n) =>
       (n.tags ?? []).forEach((t) => {
         if (!isAutoTag(t)) tags.add(t)
       }),
@@ -615,7 +684,15 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     const map = new Map<string, string>()
     ;[...tags].sort().forEach((t, i) => map.set(t, TAG_PALETTE[i % TAG_PALETTE.length]))
     return map
-  }, [graphData.nodes])
+  }, [scopedNodes])
+
+  // A tag selected before a vault/workspace switch may not exist here. Its chip
+  // is gone with the scoping above, so honouring it would blank the graph with
+  // no way to clear it — ignore it while out of scope, keep it for the trip back.
+  const activeFilterTags = useMemo(
+    () => new Set([...filterTags].filter((t) => tagColors.has(t))),
+    [filterTags, tagColors],
+  )
 
   const filterSince = useMemo(() => {
     const day = 24 * 60 * 60 * 1000
@@ -671,7 +748,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       if (!inScope(n.id)) return false
       if (orphansOnly && (degrees.get(n.id) ?? 0) !== 0) return false
       if (filterSince && n.updatedAt < filterSince) return false
-      if (filterTags.size > 0 && !(n.tags ?? []).some((t) => filterTags.has(t))) return false
+      if (activeFilterTags.size > 0 && !(n.tags ?? []).some((t) => activeFilterTags.has(t))) return false
       if (q) {
         const hay = `${n.title}\n${n.content}\n${(n.tags ?? []).join(' ')}`.toLowerCase()
         if (!hay.includes(q)) return false
@@ -757,7 +834,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     graphData.edges,
     focusNodeId,
     filterText,
-    filterTags,
+    activeFilterTags,
     filterSince,
     orphansOnly,
     degrees,
@@ -765,6 +842,11 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     nodeCacheStore,
     pseudoCacheStore,
   ])
+
+  // Real notes on screen. forceData.nodes also carries pseudo-nodes (faded
+  // placeholders for unresolved [[wikilinks]]), which aren't notes and would
+  // push the count past the total.
+  const shownCount = useMemo(() => forceData.nodes.filter((n: any) => !n.isPseudo).length, [forceData])
 
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
   // effect. Re-runs when a slider moves or the visible data changes (force-graph
@@ -889,6 +971,31 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [onCreate],
   )
 
+  // Clicking a suggested line offers to make it real. Direction matters for
+  // wikilinks (the [[link]] lives in the source note), so ask rather than guess.
+  const promptConnect = useCallback(
+    async (pair: SuggestedPair) => {
+      const nameOf = (id: string) =>
+        graphData.nodes.find((n) => n.id === id)?.title?.trim() || 'Untitled'
+      const aName = nameOf(pair.a)
+      const bName = nameOf(pair.b)
+      const choice = await showChoiceDialog({
+        title: 'Link these notes?',
+        message: `${aName} and ${bName} — ${pair.reason}.`,
+        options: [
+          { value: 'both', label: 'Link both ways', description: `Each note gets a [[link]] to the other`, primary: true },
+          { value: 'a-b', label: `${aName} → ${bName}`, description: `Adds [[${bName}]] to ${aName}` },
+          { value: 'b-a', label: `${bName} → ${aName}`, description: `Adds [[${aName}]] to ${bName}` },
+        ],
+        cancelLabel: 'Not now',
+      })
+      if (!choice) return
+      if (choice === 'a-b' || choice === 'both') connect(pair.a, pair.b)
+      if (choice === 'b-a' || choice === 'both') connect(pair.b, pair.a)
+    },
+    [graphData.nodes, connect],
+  )
+
   const handleNodeClick = useCallback(
     (node: any) => {
       // A faded pseudo-node → offer to create the real note.
@@ -959,7 +1066,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Track the cursor in graph coordinates so the rubber-band connect line can be
   // drawn. Only needed while a connection is pending.
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!connectingFromRef.current || !fgRef.current || !containerRef.current) return
+    // Needed by the connect rubber-band and by suggestion-line hit-testing.
+    const tracking = connectingFromRef.current || spotlightRef.current === 'suggested'
+    if (!tracking || !fgRef.current || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
     pointerRef.current = fgRef.current.screen2GraphCoords(e.clientX - rect.left, e.clientY - rect.top)
   }, [])
@@ -1111,14 +1220,32 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             transform: 'translateX(-50%)',
             zIndex: 20,
             background: CONNECT_COLOR,
-            color: '#fff',
+            color: 'var(--on-accent)',
             borderRadius: 'var(--radius-sm)',
             padding: '0.45rem 0.9rem',
             fontSize: '0.8rem',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           Click a target note to link it — or press Esc to cancel
+        </div>
+      )}
+
+      {/* Spotlight chip (top-center): what the dashboard asked us to highlight. */}
+      {spotlight && !connectingFrom && (
+        <div className={styles.spotlightChip}>
+          <span>
+            {spotlight === 'orphans'
+              ? `${orphanCount} orphan${orphanCount === 1 ? '' : 's'} highlighted`
+              : suggestionsLoading
+                ? 'Finding suggested links…'
+                : suggestedPairs.length === 0
+                  ? 'No suggested links found'
+                  : `${suggestedPairs.length} suggested link${suggestedPairs.length === 1 ? '' : 's'} — click one to connect`}
+          </span>
+          <button type="button" onClick={() => setGraphSpotlight(null)} title="Dismiss">
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -1159,8 +1286,29 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         onNodeDragEnd={handleNodeDragEnd}
         onBackgroundClick={() => {
           setContextMenu(null)
-          if (connectingFrom) setConnectingFrom(null)
-          else setFocusNodeId(null)
+          if (connectingFrom) {
+            setConnectingFrom(null)
+            return
+          }
+          // A suggestion line is painted over empty canvas, so its click arrives
+          // here. Hit-test before falling through to "clear the focus".
+          const p = pointerRef.current
+          if (spotlight === 'suggested' && p) {
+            const hit = nearestPair(
+              suggestedPairs,
+              (id) => {
+                const n = nodeCacheStore.get(id)
+                return n && Number.isFinite(n.x) && Number.isFinite(n.y) ? { x: n.x, y: n.y } : undefined
+              },
+              p,
+              SUGGEST_HIT_RADIUS,
+            )
+            if (hit) {
+              void promptConnect(hit)
+              return
+            }
+          }
+          setFocusNodeId(null)
         }}
         onBackgroundRightClick={(e: MouseEvent) => {
           e.preventDefault?.()
@@ -1168,6 +1316,28 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           setConnectingFrom(null)
         }}
         onRenderFramePost={(ctx, globalScale) => {
+          // Suggested links: dashed strokes between notes that aren't linked yet.
+          if (spotlightRef.current === 'suggested') {
+            ctx.save()
+            ctx.strokeStyle = SUGGEST_COLOR
+            ctx.lineWidth = 1.2 / globalScale
+            ctx.setLineDash([6 / globalScale, 5 / globalScale])
+            for (const pair of suggestedPairsRef.current) {
+              const a = nodeCacheStore.get(pair.a)
+              const b = nodeCacheStore.get(pair.b)
+              // Same unplaced-node caveat as the halo: NaN coords would pass a
+              // null check and paint nothing useful.
+              if (!a || !b) continue
+              if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) continue
+              if (!Number.isFinite(b.x) || !Number.isFinite(b.y)) continue
+              ctx.beginPath()
+              ctx.moveTo(a.x, a.y)
+              ctx.lineTo(b.x, b.y)
+              ctx.stroke()
+            }
+            ctx.restore()
+          }
+
           // Rubber-band line from the connect source to the cursor.
           const from = connectingFromRef.current
           if (!from) return
@@ -1234,6 +1404,24 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           }
           if (isFocus) fill = FOCUS_COLOR
           if (isConnectSource) fill = CONNECT_COLOR
+
+          // Orphan spotlight: a breathing gradient halo behind unlinked notes.
+          // Independent of `highlightStructure` so the two never fight over fill.
+          // A node the simulation hasn't placed yet has undefined/NaN coords.
+          // ctx.arc tolerates that (it just draws nothing), but
+          // createRadialGradient throws on a non-finite value — which took the
+          // whole view down through the error boundary. Skip the halo instead.
+          if (spotlightRef.current === 'orphans' && deg === 0 && Number.isFinite(node.x) && Number.isFinite(node.y)) {
+            const pulse = reducedMotion ? 1 : 0.55 + 0.45 * Math.sin(Date.now() / 450)
+            const haloR = radius * ORPHAN_HALO_SCALE
+            const halo = ctx.createRadialGradient(node.x, node.y, radius * 0.6, node.x, node.y, haloR)
+            halo.addColorStop(0, resolveColor(ORPHAN_COLOR, 0.55 * pulse) ?? ORPHAN_COLOR)
+            halo.addColorStop(1, resolveColor(ORPHAN_COLOR, 0) ?? 'transparent')
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, haloR, 0, 2 * Math.PI, false)
+            ctx.fillStyle = halo
+            ctx.fill()
+          }
 
           ctx.beginPath()
           ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
@@ -1306,7 +1494,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              boxShadow: '0 12px 34px rgba(0,0,0,0.45)',
+              boxShadow: 'var(--shadow-lg)',
               zIndex: 20,
               padding: '0.2rem 0.9rem',
             }}
@@ -1362,6 +1550,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                             onClick={() => toggleFilterTag(tag)}
                             style={{
                               background: on ? (tagColors.get(tag) as string) : 'transparent',
+                              // Literal on purpose: the fill is a categorical
+                              // data colour, which doesn't re-theme, so --on-accent
+                              // (derived from --accent) would be the wrong contrast
+                              // partner — dark text on a saturated chip in a light theme.
                               color: on ? '#fff' : 'var(--text-2)',
                               border: '1px solid ' + (on ? (tagColors.get(tag) as string) : 'var(--border)'),
                               borderRadius: '999px',
@@ -1380,7 +1572,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
                   <span>
-                    Showing {forceData.nodes.length} of {graphData.nodes.length}
+                    Showing {shownCount} of {scopedNodes.length}
                   </span>
                   {filterActive && (
                     <button onClick={clearFilters} style={{ ...presetBtnStyle, flex: 'unset', padding: '0.3rem 0.6rem' }}>
@@ -1482,7 +1674,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                   hint="How thick the lines between linked notes are."
                   tip="Link thickness — the width of the lines drawn between linked notes."
                 />
-                <button onClick={animate} style={{ ...presetBtnStyle, flex: 'unset', background: 'var(--accent, #7c6af7)', color: '#fff', border: 'none', padding: '0.55rem', marginTop: '0.5rem', fontWeight: 600 }}>
+                <button onClick={animate} style={{ ...presetBtnStyle, flex: 'unset', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', padding: '0.55rem', marginTop: '0.5rem', fontWeight: 600 }}>
                   Animate
                 </button>
               </div>
@@ -1577,7 +1769,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               color: 'var(--text-1)',
               fontSize: '1.125rem',
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+              boxShadow: 'var(--shadow-md)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1608,7 +1800,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               background: 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              boxShadow: '0 12px 34px rgba(0,0,0,0.5)',
+              boxShadow: 'var(--shadow-lg)',
               padding: '6px',
               display: 'flex',
               flexDirection: 'column',
@@ -1686,7 +1878,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             overflowY: 'auto',
             background: 'var(--bg)',
             borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-xl)',
             border: '1px solid var(--border)',
           }}
         >
@@ -1743,7 +1935,7 @@ function ContextMenuItem({
   children: React.ReactNode
 }) {
   const [hover, setHover] = useState(false)
-  const color = danger ? '#e5484d' : 'var(--text-1)'
+  const color = danger ? 'var(--danger)' : 'var(--text-1)'
   return (
     <button
       onClick={onClick}
@@ -1755,7 +1947,7 @@ function ContextMenuItem({
         gap: '8px',
         width: '100%',
         textAlign: 'left',
-        background: hover ? (danger ? 'rgba(229,72,77,0.12)' : 'var(--surface-2, rgba(255,255,255,0.06))') : 'transparent',
+        background: hover ? (danger ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'var(--surface-2)') : 'transparent',
         border: 'none',
         borderRadius: 'var(--radius-sm)',
         color,

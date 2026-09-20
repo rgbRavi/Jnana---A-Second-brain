@@ -28,7 +28,7 @@ export function WorkspaceCanvasList({ workspaceId }: { workspaceId: string }) {
 
   const newCanvas = async () => {
     try {
-      const note = await create('Canvas', EMPTY_CANVAS_CONTENT, undefined, [], CANVAS_NOTE_KIND)
+      const note = await create('', EMPTY_CANVAS_CONTENT, undefined, [], CANVAS_NOTE_KIND)
       await addNotes([note.id])
       refresh()
       open(note)

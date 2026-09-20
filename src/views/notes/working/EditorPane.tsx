@@ -9,7 +9,7 @@ import { isAutoTag } from '../../../core/tags'
 import { setNoteProgress, convertNoteKind } from '../../../core/notes'
 import { CANVAS_NOTE_KIND } from '../../../plugins/canvas'
 import { EMPTY_CANVAS_CONTENT } from '../../../plugins/canvas/canvasNote'
-import { exportNotes } from '../../../core/export'
+import { exportNotes, toastExported } from '../../../core/export'
 import { toast } from '../../../lib/toast'
 import { NoteView, NoteTypeEditor } from '../../../ui/editor/NoteRenderer'
 import { getNoteType } from '../../../lib/noteTypes'
@@ -301,8 +301,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
                   onClick={async () => {
                     setMenuOpen(false)
                     try {
-                      const n = await exportNotes([{ ...note, title, content }])
-                      if (n) toast.success('Exported note as Markdown.')
+                      toastExported(await exportNotes([{ ...note, title, content }]))
                     } catch (err) {
                       toast.error('Export failed: ' + String(err))
                     }

@@ -7,9 +7,11 @@
 // layouts) only adds UI.
 
 import { useSyncExternalStore } from 'react'
+import type { SuggestionSource } from '../../../core/graph/suggestedLinks'
 import {
   ALL_SECTIONS,
   DEFAULT_LAYOUT_ID,
+  DEFAULT_SUGGEST_SOURCE,
   defaultGrid,
   PRESET_LAYOUTS,
   type DashboardLayout,
@@ -63,7 +65,8 @@ function load(): DashboardPrefs {
   const activeLayoutId = layouts.some((l) => l.id === stored?.activeLayoutId)
     ? (stored!.activeLayoutId as string)
     : DEFAULT_LAYOUT_ID
-  return { layouts, activeLayoutId }
+  const suggestSource: SuggestionSource = stored?.suggestSource === 'ai' ? 'ai' : DEFAULT_SUGGEST_SOURCE
+  return { layouts, activeLayoutId, suggestSource }
 }
 
 let prefs: DashboardPrefs = load()
@@ -107,7 +110,7 @@ function switchLayout(id: string) {
 function createLayout(name: string): string {
   const id = newId()
   const copy: DashboardLayout = { ...activeLayout(prefs), id, name: name.trim() || 'New layout', builtin: false }
-  commit({ layouts: [...prefs.layouts, copy], activeLayoutId: id })
+  commit({ ...prefs, layouts: [...prefs.layouts, copy], activeLayoutId: id })
   return id
 }
 function renameLayout(id: string, name: string) {
@@ -120,7 +123,11 @@ function deleteLayout(id: string) {
   if (!target || target.builtin) return
   const layouts = prefs.layouts.filter((l) => l.id !== id)
   const activeLayoutId = prefs.activeLayoutId === id ? DEFAULT_LAYOUT_ID : prefs.activeLayoutId
-  commit({ layouts, activeLayoutId })
+  commit({ ...prefs, layouts, activeLayoutId })
+}
+
+function setSuggestSource(source: SuggestionSource) {
+  if (source !== prefs.suggestSource) commit({ ...prefs, suggestSource: source })
 }
 
 export interface LayoutMeta {
@@ -145,6 +152,9 @@ export interface DashboardPrefsApi {
   createLayout: (name: string) => string
   renameLayout: (id: string, name: string) => void
   deleteLayout: (id: string) => void
+  /** Where the "Suggested links" tile and the graph overlay get their pairs. */
+  suggestSource: SuggestionSource
+  setSuggestSource: (source: SuggestionSource) => void
 }
 
 export function useDashboardPrefs(): DashboardPrefsApi {
@@ -160,6 +170,8 @@ export function useDashboardPrefs(): DashboardPrefsApi {
     toggleCollapsed: (id) => mutateActive((l) => ({ ...l, collapsed: toggleInList(l.collapsed, id) })),
     setGrid: (grid) => mutateActive((l) => ({ ...l, grid })),
     resetLayout: () => mutateActive((l) => ({ ...l, grid: defaultGrid(), hidden: [], collapsed: [] })),
+    suggestSource: p.suggestSource,
+    setSuggestSource,
     switchLayout,
     createLayout,
     renameLayout,

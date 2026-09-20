@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Notes from './Notes'
 import { WorkingNotes } from './working/WorkingNotes'
@@ -23,6 +22,10 @@ export default function NotesView() {
   // handler). Offers a one-click return to that workspace/view.
   const [returnTo] = useViewState<string | null>('notes.returnTo', null)
 
+  const backLabel = returnTo
+    ? `Back to ${returnTo.startsWith('/workspaces/') ? 'workspace' : returnTo}`
+    : ''
+
   const goBack = () => {
     const dest = returnTo ?? '/'
     setViewState<string | null>('notes.returnTo', null)
@@ -31,22 +34,14 @@ export default function NotesView() {
 
   return (
     <div className={Styles.container}>
-      {returnTo && (
-        <div className={Styles.segmentBar}>
-          <button
-            className={Styles.backBtn}
-            onClick={goBack}
-            title={`Back to ${returnTo.startsWith('/workspaces/') ? 'workspace' : returnTo}`}
-          >
-            <ArrowLeft size={15} /> Back
-          </button>
-        </div>
-      )}
       <div className={Styles.body}>
         {/* Keep both mounted? No — the gallery is cheap to remount and Working
             Notes' state lives in the module store, so a plain switch is fine and
             avoids paying for offscreen CM6 editors. */}
-        {sub === 'gallery' ? <Notes /> : <WorkingNotes />}
+        {/* The "back to where you came from" control lives *in* the tab strip
+            (see TabStrip): a row of its own above the tabs shifted the whole
+            editor down whenever it appeared, and sat on a different surface. */}
+        {sub === 'gallery' ? <Notes /> : <WorkingNotes onBack={returnTo ? goBack : undefined} backLabel={backLabel} />}
       </div>
     </div>
   )

@@ -41,8 +41,8 @@
   flex-shrink: 0;
 }
 
-/* Icon-only pill; the "Customize" label reveals as a tooltip on hover/focus. */
-.customizeBtn {
+/* Icon-only pill — the label comes from title= via the global Tooltip. */
+.iconBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -59,41 +59,11 @@
   flex-shrink: 0;
   transition: background-color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
-.customizeBtn:hover {
+.iconBtn:hover {
   background: var(--surface-hover-strong);
   border-color: var(--accent);
   color: var(--text-1);
 }
-.customizeLbl {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(-4px);
-  background: var(--surface-2);
-  color: var(--text-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: var(--shadow-sm);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
-}
-.customizeBtn:hover .customizeLbl,
-.customizeBtn:focus-visible .customizeLbl {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-@media (prefers-reduced-motion: reduce) {
-  .customizeBtn,
-  .customizeLbl {
-    transition: none;
-  }
-}
-
 /* ── Layout switcher ─────────────────────────────────────────────────────── */
 .layoutSwitch {
   position: relative;
@@ -232,20 +202,13 @@
   box-shadow: var(--shadow-lg);
 }
 
-/* Resize handles — comfortable hit zones with a themed grip. */
+/* Resize handles — invisible hit zones; the resize cursor is the whole
+   affordance. A drawn grip was a :hover effect, so it flashed for a frame
+   whenever the pointer crossed between an edge zone and the card body. */
 .rgHandle {
   position: absolute;
   z-index: 5;
   touch-action: none;
-  background: transparent;
-  border-radius: var(--radius-xs);
-}
-.rgHandle::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: transparent;
-  border-radius: inherit;
 }
 .rgHandle_n {
   left: 12px;
@@ -302,96 +265,6 @@
   left: 0;
   bottom: 0;
   cursor: nesw-resize;
-}
-.gridItem:hover .rgHandle {
-  background: transparent;
-}
-.gridItem:hover .rgHandle::after {
-  background: transparent;
-}
-.rgHandle_n,
-.rgHandle_s,
-.rgHandle_e,
-.rgHandle_w,
-.rgHandle_ne,
-.rgHandle_nw,
-.rgHandle_se,
-.rgHandle_sw {
-  background: transparent;
-}
-
-.rgHandle_n::after,
-.rgHandle_s::after,
-.rgHandle_e::after,
-.rgHandle_w::after,
-.rgHandle_ne::after,
-.rgHandle_nw::after,
-.rgHandle_se::after,
-.rgHandle_sw::after {
-  background: transparent;
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
-}
-
-.rgHandle_n:hover::after,
-.rgHandle_s:hover::after,
-.rgHandle_e:hover::after,
-.rgHandle_w:hover::after,
-.rgHandle_ne:hover::after,
-.rgHandle_nw:hover::after,
-.rgHandle_se:hover::after,
-.rgHandle_sw:hover::after {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.rgHandle_n:hover::after,
-.rgHandle_s:hover::after {
-  left: 50%;
-  right: auto;
-  width: 1px;
-  height: 100%;
-}
-.rgHandle_e:hover::after,
-.rgHandle_w:hover::after {
-  top: 50%;
-  bottom: auto;
-  width: 100%;
-  height: 1px;
-}
-.rgHandle_e:hover::after {
-  left: auto;
-  right: 0;
-}
-.rgHandle_w:hover::after {
-  left: 0;
-  right: auto;
-}
-.rgHandle_ne:hover::after,
-.rgHandle_nw:hover::after,
-.rgHandle_se:hover::after,
-.rgHandle_sw:hover::after {
-  border-width: 1px;
-  opacity: 0.8;
-  background: transparent;
-}
-.gridItem:hover .rgHandle::after {
-  background: var(--accent);
-}
-.gridItem:hover .rgHandle_ne::after,
-.gridItem:hover .rgHandle_nw::after,
-.gridItem:hover .rgHandle_se::after,
-.gridItem:hover .rgHandle_sw::after {
-  background: transparent;
-  border-color: var(--accent);
-}
-
-/* The handle grip is a :hover effect, and the card resizes out from under the
-   pointer — so mid-drag it blinked on and off along the edge. The accent border
-   above already marks the active card; hide the grip while it moves. */
-.gridItemMoving .rgHandle::after {
-  opacity: 0;
-  background: transparent;
 }
 
 /* ── Hero stat grid ──────────────────────────────────────────────────────── */
@@ -530,11 +403,6 @@
   font-size: 0.875rem;
 }
 
-.cardActions {
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-}
 .cardBtn {
   background: none;
   border: none;

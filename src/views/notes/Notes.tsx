@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Download, Folder, Frame, Trash2, X } from 'lucide-react'
 import { useNotesContext } from '../../context/NotesContext'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { useActiveVaultId } from '../../hooks/useVaults'
@@ -15,10 +16,13 @@ import { useViewState } from '../../hooks/useViewState'
 import { useFavourites } from '../../hooks/useFavourites'
 import { useNotesViewPrefs, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import { applyFilters, sortNotes, buildLinkCounts } from './filterNotes'
+import { selectRange, toggleSelected } from './selection'
+import { exportNotes, toastExported } from '../../core/export'
+import { showConfirmDialog } from '../../lib/dialog'
+import { toast } from '../../lib/toast'
 import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
 import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
-import { setNotesSubView } from './working/useWorkingLayout'
 import { CANVAS_NOTE_KIND } from '../../plugins/canvas'
 import { EMPTY_CANVAS_CONTENT } from '../../plugins/canvas/canvasNote'
 
@@ -39,7 +43,11 @@ function Notes() {
     [allNotes, activeVaultId],
   )
   const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null)
-  const [workspaceMenuNoteId, setWorkspaceMenuNoteId] = useState<string | null>(null)
+  const [workspaceMenuNoteIds, setWorkspaceMenuNoteIds] = useState<string[] | null>(null)
+  // Multi-selection: Ctrl/Cmd-click toggles, Shift-click extends from the last
+  // card clicked. No checkboxes — a plain click still just opens the note.
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const selectionAnchor = useRef<string | null>(null)
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
   const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
@@ -47,7 +55,7 @@ function Notes() {
 
   const newCanvas = useCallback(async () => {
     try {
-      const note = await create('Canvas', EMPTY_CANVAS_CONTENT, undefined, [], CANVAS_NOTE_KIND)
+      const note = await create('', EMPTY_CANVAS_CONTENT, undefined, [], CANVAS_NOTE_KIND)
       eventBus.emit('note:navigate', note)
     } catch {
       /* NotesContext surfaces its own errors */
@@ -129,10 +137,59 @@ function Notes() {
   // Clicking a card opens the read-focused peek modal; its "Edit in Working
   // Notes" button routes into the tabbed editor.
   const handleExpand = useCallback((note: Note) => {
+    // Opening a note ends the selection — the same way a plain click clears a
+    // selection in a file manager.
+    setSelected(new Set())
+    selectionAnchor.current = null
     eventBus.emit('note:opened', note)
     setExpandedNoteId(note.id)
   }, [])
-  const handleAddToWorkspace = useCallback((id: string) => setWorkspaceMenuNoteId(id), [])
+  const handleAddToWorkspace = useCallback((id: string) => setWorkspaceMenuNoteIds([id]), [])
+
+  // Selection is keyed off what's on screen, so a range follows the current
+  // sort/filter order. `visibleIdsRef` keeps that out of the callback's deps.
+  const visibleIdsRef = useRef<string[]>([])
+  const handleSelect = useCallback((id: string, mode: 'toggle' | 'range') => {
+    setSelected((prev) =>
+      mode === 'toggle'
+        ? toggleSelected(prev, id)
+        : selectRange(prev, visibleIdsRef.current, selectionAnchor.current, id),
+    )
+    selectionAnchor.current = id
+  }, [])
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set())
+    selectionAnchor.current = null
+  }, [])
+
+  const selectedNotes = useMemo(() => notes.filter((n) => selected.has(n.id)), [notes, selected])
+
+  const downloadSelected = useCallback(async () => {
+    try {
+      toastExported(await exportNotes(selectedNotes))
+    } catch (err) {
+      toast.error('Export failed: ' + String(err))
+    }
+  }, [selectedNotes])
+
+  const deleteSelected = useCallback(async () => {
+    const count = selectedNotes.length
+    if (count === 0) return
+    const ok = await showConfirmDialog({
+      title: `Delete ${count} note${count === 1 ? '' : 's'}?`,
+      message: 'They move to Trash — you can restore them from there.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    // confirm:false — the one dialog above stands in for all of them, instead of
+    // asking once per note.
+    for (const n of selectedNotes) await remove(n.id, { confirm: false })
+    setSelected(new Set())
+    selectionAnchor.current = null
+    toast.success(`Moved ${count} note${count === 1 ? '' : 's'} to Trash.`)
+  }, [selectedNotes, remove])
 
   // All tags across notes (user tags first, then auto-tags), for the tag picker.
   const allTags = useMemo(() => {
@@ -146,10 +203,32 @@ function Notes() {
     })
   }, [notes])
 
+  useEffect(() => {
+    if (selected.size === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearSelection()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected.size, clearSelection])
+
   const visible = useMemo(() => {
     const filtered = applyFilters(notes, prefs.filters, search, favSet, linkCounts)
     return sortNotes(filtered, prefs.sortBy, prefs.sortOrder, linkCounts)
   }, [notes, prefs.filters, prefs.sortBy, prefs.sortOrder, search, favSet, linkCounts])
+
+  visibleIdsRef.current = visible.map((n) => n.id)
+
+  // A note that's been filtered away (or deleted) can't stay selected — the
+  // action bar would count notes the user can no longer see.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev
+      const shown = new Set(visible.map((n) => n.id))
+      const next = new Set([...prev].filter((id) => shown.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [visible])
 
   // Incremental rendering. Reset the window when the *filter criteria* change —
   // not when `visible` merely gets a new identity from a note save, which would
@@ -180,8 +259,6 @@ function Notes() {
   return (
     <div className={NoteStyles.notesContainer}>
       <NotesToolbar
-        count={visible.length}
-        total={notes.length}
         search={search}
         onSearch={setSearch}
         filtersOpen={filtersOpen}
@@ -190,25 +267,19 @@ function Notes() {
         extraActions={
           <>
             <button
-              className={NoteStyles.workingBtn}
+              className={`${NoteStyles.workingBtn} ${NoteStyles.iconOnlyBtn}`}
+              onClick={() => navigate('/trash')}
+              title="Open Trash"
+              aria-label="Open Trash"
+            >
+              <Trash2 size={15} />
+            </button>
+            <button
+              className={NoteStyles.canvasBtn}
               onClick={() => void newCanvas()}
               title="Create a canvas note"
             >
-              New canvas
-            </button>
-            <button
-              className={NoteStyles.workingBtn}
-              onClick={() => navigate('/trash')}
-              title="Open Trash"
-            >
-              Trash
-            </button>
-            <button
-              className={NoteStyles.workingBtn}
-              onClick={() => setNotesSubView('working')}
-              title="Open Working Notes"
-            >
-              Working Notes
+              <Frame size={15} /> New canvas
             </button>
           </>
         }
@@ -225,6 +296,36 @@ function Notes() {
           <p className={NoteStyles.noteEmpty}>No notes match your filters.</p>
         )}
 
+        {/* The empty states above already say there's nothing — don't add "0 notes". */}
+        {visible.length > 0 && (
+          selected.size > 0 ? (
+            <div className={NoteStyles.selectionBar}>
+              <span className={NoteStyles.selectionCount}>{selected.size} selected</span>
+              <button className={NoteStyles.selectionBtn} onClick={() => setWorkspaceMenuNoteIds([...selected])}>
+                <Folder size={14} /> Add to workspace
+              </button>
+              <button className={NoteStyles.selectionBtn} onClick={() => void downloadSelected()}>
+                <Download size={14} /> Download
+              </button>
+              <button
+                className={`${NoteStyles.selectionBtn} ${NoteStyles.selectionBtnDanger}`}
+                onClick={() => void deleteSelected()}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+              <button className={NoteStyles.selectionBtn} onClick={clearSelection} title="Clear selection (Esc)">
+                <X size={14} /> Clear
+              </button>
+            </div>
+          ) : (
+            <p className={NoteStyles.listCount}>
+              {visible.length === notes.length
+                ? `${notes.length} note${notes.length === 1 ? '' : 's'}`
+                : `${visible.length} of ${notes.length} notes`}
+              <span className={NoteStyles.listHint}>Ctrl-click to select</span>
+            </p>
+          )
+        )}
         <div className={`${NoteStyles.list} ${NoteStyles[prefs.displayMode]}`}>
           {shown.map((note) => (
             <NoteItem
@@ -237,14 +338,16 @@ function Notes() {
               onRemove={remove}
               onAddToWorkspace={handleAddToWorkspace}
               onExpand={handleExpand}
+              selected={selected.has(note.id)}
+              onSelect={handleSelect}
             />
           ))}
         </div>
         {limit < visible.length && <div ref={sentinelRef} aria-hidden="true" />}
       </div>
 
-      {workspaceMenuNoteId && (
-        <AddToWorkspaceMenu noteId={workspaceMenuNoteId} onClose={() => setWorkspaceMenuNoteId(null)} />
+      {workspaceMenuNoteIds && (
+        <AddToWorkspaceMenu noteIds={workspaceMenuNoteIds} onClose={() => setWorkspaceMenuNoteIds(null)} />
       )}
 
       {expandedNote && (

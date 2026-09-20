@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useRef, useEffect } from 'react'
-import { Download, Maximize2, Minimize2, MoreVertical, SquarePen, Star, X } from 'lucide-react'
+import { Download, Maximize2, Minimize2, MoreVertical, RotateCcw, SquarePen, Star, Trash2, X } from 'lucide-react'
 import { NoteView } from './editor/NoteRenderer'
 import { getNoteType } from '../lib/noteTypes'
 import type { Note } from '../types'
@@ -12,7 +12,7 @@ import { useSidebarPrefs } from '../hooks/useSidebarPrefs'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import NoteModalStyles from './NoteModal.module.css'
 import { useFavourites } from '../hooks/useFavourites'
-import { exportNotes } from '../core/export'
+import { exportNotes, toastExported } from '../core/export'
 import { setNoteProgress } from '../core/notes'
 import { useNotesContext } from '../context/NotesContext'
 import { ComposerSuggestions } from './ai/ComposerSuggestions'
@@ -26,6 +26,15 @@ interface Props {
   /** Kept for the inline "add link" suggestion; editing itself moves to Working Notes. */
   onUpdate?: (id: string, title: string, content: string, tags?: string[]) => Promise<Note | undefined>
   onUpdateTags?: (id: string, userTags: string[]) => Promise<void>
+  /**
+   * Viewing a note that's in Trash. It isn't editable, favouritable or
+   * deletable-to-Trash from here — the menu offers Restore and Delete forever
+   * instead, and the caller performs them (Trash owns its own list state).
+   */
+  trashActions?: {
+    onRestore: () => void
+    onDeleteForever: () => void
+  }
 }
 
 /**
@@ -35,7 +44,7 @@ interface Props {
  * "Edit in Working Notes ↗" emits `note:navigate`, which the global handler in
  * AppLayout turns into an open tab (routing to /notes as needed).
  */
-export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Props) {
+export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trashActions }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -43,7 +52,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   // Guards click-to-close: only close when the press *started* on the backdrop
   // (a text-selection drag that ends over the backdrop shouldn't close it).
   const overlayPressRef = useRef(false)
-  const { notes } = useNotesContext()
+  const { notes, remove } = useNotesContext()
   const { collapsed: sidebarCollapsed } = useSidebarPrefs()
   const currentUserTags = note.tags.filter((t) => !isAutoTag(t))
 
@@ -59,17 +68,19 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
   const [isFavourite, setIsFavourite] = useState(false)
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !trashActions) {
       fetchFavourites().then(ids => setIsFavourite(ids.includes(note.id)))
     }
-  }, [note.id, isOpen])
+  }, [note.id, isOpen, trashActions])
 
   useEffect(() => {
     setExpanded(false)
   }, [note])
 
   // Track reading progress (max scroll fraction) and persist on close/note change.
+  // Pointless for a trashed note — it isn't in any "continue reading" list.
   useEffect(() => {
+    if (trashActions) return
     maxProgressRef.current = 0
     const noteId = note.id
     const probe = window.setTimeout(() => {
@@ -122,30 +133,41 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             </button>
             {menuOpen && (
               <div className={`${NoteModalStyles.noteModalDropdown} ${NoteModalStyles.dropdownLeft}`}>
-                <button
-                  className={NoteModalStyles.noteModalDropdownItem}
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    if (isFavourite) {
-                      await removeFromFavourites(note.id)
-                      setIsFavourite(false)
-                    } else {
-                      await addToFavourites(note.id)
-                      setIsFavourite(true)
-                    }
-                  }}
-                >
-                  {isFavourite
-                    ? <><Star size={14} fill="currentColor" /> Remove from favourites</>
-                    : <><Star size={14} /> Add to favourites</>}
-                </button>
+                {trashActions ? (
+                  <button
+                    className={NoteModalStyles.noteModalDropdownItem}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      trashActions.onRestore()
+                    }}
+                  >
+                    <RotateCcw size={14} /> Restore
+                  </button>
+                ) : (
+                  <button
+                    className={NoteModalStyles.noteModalDropdownItem}
+                    onClick={async () => {
+                      setMenuOpen(false)
+                      if (isFavourite) {
+                        await removeFromFavourites(note.id)
+                        setIsFavourite(false)
+                      } else {
+                        await addToFavourites(note.id)
+                        setIsFavourite(true)
+                      }
+                    }}
+                  >
+                    {isFavourite
+                      ? <><Star size={14} fill="currentColor" /> Remove from favourites</>
+                      : <><Star size={14} /> Add to favourites</>}
+                  </button>
+                )}
                 <button
                   className={NoteModalStyles.noteModalDropdownItem}
                   onClick={async () => {
                     setMenuOpen(false)
                     try {
-                      const n = await exportNotes([note])
-                      if (n) toast.success('Exported note as Markdown.')
+                      toastExported(await exportNotes([note]))
                     } catch (err) {
                       toast.error('Export failed: ' + String(err))
                     }
@@ -153,6 +175,31 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
                 >
                   <Download size={14} /> Download/Export
                 </button>
+                {trashActions ? (
+                  <button
+                    className={`${NoteModalStyles.noteModalDropdownItem} ${NoteModalStyles.noteModalDropdownDanger}`}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      trashActions.onDeleteForever()
+                    }}
+                  >
+                    <Trash2 size={14} /> Delete forever
+                  </button>
+                ) : (
+                  <button
+                    className={`${NoteModalStyles.noteModalDropdownItem} ${NoteModalStyles.noteModalDropdownDanger}`}
+                    onClick={async () => {
+                      setMenuOpen(false)
+                      // `remove` runs the confirm dialog itself (per the user's
+                      // confirmBeforeDelete setting) and reports whether it went
+                      // ahead — only close the peek if the note actually went.
+                      const deleted = await remove(note.id)
+                      if (deleted) onClose()
+                    }}
+                  >
+                    <Trash2 size={14} /> Delete note
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -177,23 +224,25 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags }: Pro
             <div className={NoteModalStyles.noteModalTitleWrapper}>
               <h2 className={NoteModalStyles.noteModalTitle}>{note.title || 'Untitled'}</h2>
             </div>
-            <div className={NoteModalStyles.noteModalHeaderActions}>
-              <button
-                className={NoteModalStyles.noteModalEditBtn}
-                onClick={editInWorking}
-                aria-label="Edit in Working Notes"
-                title="Edit in Working Notes"
-              >
-                <SquarePen size={16} />
-              </button>
-            </div>
+            {!trashActions && (
+              <div className={NoteModalStyles.noteModalHeaderActions}>
+                <button
+                  className={NoteModalStyles.noteModalEditBtn}
+                  onClick={editInWorking}
+                  aria-label="Edit in Working Notes"
+                  title="Edit in Working Notes"
+                >
+                  <SquarePen size={16} />
+                </button>
+              </div>
+            )}
           </div>
           <TagEditor
             tags={note.tags}
             onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             disabled
           />
-          {!getNoteType(note) && <ComposerSuggestions
+          {!trashActions && !getNoteType(note) && <ComposerSuggestions
             note={note}
             allNotes={notes}
             currentTags={currentUserTags}

@@ -13,7 +13,9 @@
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  background: var(--graph-bg, #0d0d0f);
+  /* --graph-bg is never defined, so the fallback was the only value this ever
+     took — pinning the ripple backdrop to the dark preset on every theme. */
+  background: var(--bg);
 }
 
 .rippleBg::before,
@@ -58,4 +60,41 @@
   .rippleBg::after {
     animation: none;
   }
+}
+
+/* Spotlight chip — says what the dashboard asked the graph to highlight, and
+   offers the way out. Sits where the connect banner does; the two never show
+   at once. */
+.spotlightChip {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  color: var(--text-1);
+  box-shadow: var(--shadow-lg);
+}
+
+.spotlightChip button {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--motion-ease);
+}
+
+.spotlightChip button:hover {
+  background: var(--accent-hover);
 }

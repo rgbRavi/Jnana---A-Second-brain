@@ -58,3 +58,50 @@ describe('chunkNote', () => {
     expect(all).toContain('photosynthesis')
   })
 })
+
+describe('surrogate pairs (astral characters)', () => {
+  // U+1D434 MATHEMATICAL ITALIC CAPITAL A — two UTF-16 code units, and exactly
+  // what a maths PDF's extracted text is full of.
+  const MATH_A = '𝐴'
+
+  const hasLoneSurrogate = (s: string) => {
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i)
+      if (c >= 0xd800 && c <= 0xdbff) {
+        const next = s.charCodeAt(i + 1)
+        if (!(next >= 0xdc00 && next <= 0xdfff)) return true
+        i++
+      } else if (c >= 0xdc00 && c <= 0xdfff) {
+        return true
+      }
+    }
+    return false
+  }
+
+  it('never splits a pair across chunk boundaries', () => {
+    // One long paragraph of astral characters forces the hard-split path. The
+    // odd-length prefix matters: it pushes every pair onto an odd index, so the
+    // fixed-width cut lands *between* the two halves. Every chunk must still be
+    // encodable.
+    const para = 'x' + MATH_A.repeat(4000)
+    const chunks = chunkNote(makeNote(para))
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const c of chunks) {
+      expect(hasLoneSurrogate(c.chunkText)).toBe(false)
+      // JSON.stringify is what the IPC layer runs; the round trip must survive.
+      expect(() => JSON.parse(JSON.stringify(c.chunkText))).not.toThrow()
+    }
+  })
+
+  it('keeps the characters themselves intact', () => {
+    const chunks = chunkNote(makeNote(`before ${MATH_A} after`))
+    expect(chunks[0].chunkText).toContain(MATH_A)
+  })
+
+  it('replaces a surrogate that arrives already unpaired', () => {
+    // Half a pair, as a broken PDF extractor can emit.
+    const chunks = chunkNote(makeNote(`text \uD835 more text`))
+    expect(hasLoneSurrogate(chunks[0].chunkText)).toBe(false)
+    expect(chunks[0].chunkText).toContain('�')
+  })
+})

@@ -21,6 +21,14 @@ import { Skeleton, SkeletonRows } from './components/Skeleton'
 export interface DashboardActions {
   openNote: (note: Note) => void
   goto: (path: string) => void
+  /** Open the Notes view filtered down to notes carrying no tags at all. */
+  showUntagged: () => void
+  /** Embed the notes that need indexing, reporting progress in a toast. */
+  indexStale: () => void
+  /** Open the graph with unlinked notes lit up. */
+  showOrphans: () => void
+  /** Open the graph with suggested links drawn between unlinked pairs. */
+  showSuggestedLinks: () => void
   newNote: () => void
   recordAudio: () => void
   importFile: () => void
@@ -39,7 +47,7 @@ export function HeroSection({ data }: { data: DashboardData }) {
       <StatCard icon="📝" label="Notes" value={t.notes} accent="var(--accent)" />
       <StatCard icon="🔗" label="Connections" value={t.connections} accent="#3ba7f7" />
       <StatCard icon="📂" label="Projects" value={t.projects} accent="#3fb950" />
-      <StatCard icon="🧠" label="Indexed" value={`${t.indexedPct}%`} sub={`${data.notes.length} notes`} accent="#e3b341" />
+      <StatCard icon="🧠" label="Indexed" value={`${t.indexedPct}%`} sub={`${t.indexedNotes} of ${t.embeddable} notes`} accent="#e3b341" />
     </div>
   )
 }
@@ -142,10 +150,10 @@ export function FavouritesSection({ data, actions }: SectionProps) {
 export function InsightsSection({ data, actions }: SectionProps) {
   return (
     <div className={styles.insightGrid}>
-      <InsightCard count={data.orphanCount} label="Orphan notes" tone="warn" icon="🌱" onClick={() => actions.goto('/graph')} />
-      <InsightCard count={data.staleCount} label="Need indexing" tone="accent" icon="🧠" onClick={() => actions.goto('/settings')} />
-      <InsightCard count={data.suggestedConnections} label="Suggested links" tone="good" icon="🔗" onClick={() => actions.goto('/graph')} />
-      <InsightCard count={data.untaggedCount} label="Untagged notes" tone="neutral" icon="🏷" onClick={() => actions.goto('/search')} />
+      <InsightCard count={data.orphanCount} label="Orphan notes" tone="warn" icon="🌱" onClick={actions.showOrphans} />
+      <InsightCard count={data.staleCount} label="Need indexing" tone="accent" icon="🧠" onClick={actions.indexStale} />
+      <InsightCard count={data.suggestedConnections} label="Suggested links" tone="good" icon="🔗" onClick={actions.showSuggestedLinks} />
+      <InsightCard count={data.untaggedCount} label="Untagged notes" tone="neutral" icon="🏷" onClick={actions.showUntagged} />
     </div>
   )
 }

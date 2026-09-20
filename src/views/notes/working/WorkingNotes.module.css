@@ -130,6 +130,27 @@
   min-height: 38px;
 }
 
+/* Sits inside the strip (not in a row above it), so showing it never shifts the
+   editor down and it shares the tabs' surface. */
+.stripBack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-3);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+
+.stripBack:hover {
+  color: var(--text-1);
+  background: var(--surface-hover);
+}
+
 .tabs {
   display: flex;
   align-items: stretch;

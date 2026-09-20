@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState } from 'react'
-import { Plus, PanelRight, PanelBottom, X } from 'lucide-react'
+import { ArrowLeft, Plus, PanelRight, PanelBottom, X } from 'lucide-react'
 import { useNotesContext } from '../../../context/NotesContext'
 import { ContextMenu } from '../../../ui/ContextMenu'
 import type { GroupNode } from './layout'
@@ -22,7 +22,18 @@ import Styles from './WorkingNotes.module.css'
 
 const DRAG_THRESHOLD = 5
 
-export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: boolean }) {
+export function TabStrip({
+  group,
+  multiPane,
+  onBack,
+  backLabel,
+}: {
+  group: GroupNode
+  multiPane: boolean
+  /** Return to the view this desk was opened from; only the first strip gets it. */
+  onBack?: () => void
+  backLabel?: string
+}) {
   const { notes, create } = useNotesContext()
   const [tabMenu, setTabMenu] = useState<{ x: number; y: number; noteId: string } | null>(null)
 
@@ -80,6 +91,16 @@ export function TabStrip({ group, multiPane }: { group: GroupNode; multiPane: bo
 
   return (
     <div className={Styles.tabStrip} data-tab-strip>
+      {onBack && (
+        <button
+          className={Styles.stripBack}
+          onClick={onBack}
+          title={backLabel || 'Back'}
+          aria-label={backLabel || 'Back'}
+        >
+          <ArrowLeft size={15} />
+        </button>
+      )}
       <div className={Styles.tabs} role="tablist">
         {group.tabs.map((id) => (
           <div

@@ -1014,6 +1014,9 @@ pub fn insert_media_ref(
 /// Most-recently imported media, joined to its note title. Scoped to `vault_id`
 /// when given (a media's vault is its note's vault) so the dashboard's "recent
 /// imports" follows the active vault; `None` returns across all vaults.
+/// Recently imported media still referenced by a live note. Trashed notes and
+/// refs whose embed has been deleted from the content are left out — see
+/// `fetch_media_types` for why the rows themselves aren't deleted.
 pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Result<Vec<RecentMediaRow>> {
     let map_row = |row: &rusqlite::Row| {
         Ok(RecentMediaRow {
@@ -1030,6 +1033,8 @@ pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Re
                 "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
                  FROM media_refs m JOIN notes n ON n.id = m.note_id
                  WHERE n.vault_id = ?2
+                   AND n.deleted_at IS NULL
+                   AND instr(n.content, m.path) > 0
                  ORDER BY m.created_at DESC, m.rowid DESC
                  LIMIT ?1",
             )?;
@@ -1040,6 +1045,8 @@ pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Re
             let mut stmt = conn.prepare(
                 "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
                  FROM media_refs m JOIN notes n ON n.id = m.note_id
+                 WHERE n.deleted_at IS NULL
+                   AND instr(n.content, m.path) > 0
                  ORDER BY m.created_at DESC, m.rowid DESC
                  LIMIT ?1",
             )?;
@@ -1055,10 +1062,45 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
     rows.collect()
 }
 
-pub fn fetch_media_types(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT DISTINCT media_type FROM media_refs WHERE note_id = ?1")?;
-    let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
-    rows.collect()
+/// Media types a note still embeds. Filtered by content, not just by the
+/// media_refs rows: a row survives the embed being deleted from the note (it
+/// anchors annotations via an ON DELETE CASCADE foreign key, so removing it
+/// would take the user's annotations with it), and a stale row would keep
+/// `has:image` and friends on a note whose media is long gone.
+pub fn fetch_media_types(
+    conn: &Connection,
+    note_id: &str,
+    content: Option<&str>,
+) -> Result<Vec<String>> {
+    // `content` is the caller's live text, for the common case of re-tagging a
+    // note that hasn't been saved yet — the stored copy would still show media
+    // the user just deleted. Falls back to the stored content when absent.
+    match content {
+        Some(text) => {
+            let mut stmt =
+                conn.prepare("SELECT DISTINCT media_type, path FROM media_refs WHERE note_id = ?1")?;
+            let rows = stmt.query_map(params![note_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            let mut types: Vec<String> = Vec::new();
+            for row in rows {
+                let (media_type, path) = row?;
+                if text.contains(&path) && !types.contains(&media_type) {
+                    types.push(media_type);
+                }
+            }
+            Ok(types)
+        }
+        None => {
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT m.media_type
+                   FROM media_refs m JOIN notes n ON n.id = m.note_id
+                  WHERE m.note_id = ?1 AND instr(n.content, m.path) > 0",
+            )?;
+            let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+            rows.collect()
+        }
+    }
 }
 
 // ─── Note reading progress ──────────────────────────────
@@ -1243,13 +1285,20 @@ fn blob_to_vector(bytes: &[u8]) -> Vec<f32> {
 
 /// Replace every embedding for a note in a single transaction.
 /// Re-indexing a note deletes its stale chunks first, then inserts the new set.
+/// Write a note's embeddings. `replace` clears the note's existing rows first;
+/// pass false to append a later slice of the same pass — a long note's chunks
+/// arrive across several calls, because one JSON payload carrying every vector
+/// exceeds what the IPC layer will move in one piece.
 pub fn replace_embeddings_for_note(
     conn: &mut Connection,
     note_id: &str,
     rows: &[EmbeddingRow],
+    replace: bool,
 ) -> Result<()> {
     let tx = conn.transaction()?;
-    tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    if replace {
+        tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    }
     for row in rows {
         let blob = vector_to_blob(&row.vector);
         tx.execute(
@@ -1484,6 +1533,49 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         run_migrations(&mut conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn media_refs_stop_counting_once_their_embed_is_gone() {
+        let conn = setup_db();
+        // n1 still embeds the image; n2's embed was deleted from the content but
+        // its media_refs row survives (annotations cascade off it).
+        conn.execute(
+            "INSERT INTO notes (id, title, content, tags, vault_id, deleted_at, created_at, updated_at)
+             VALUES ('n1', 'Kept',    '![image](jnana-asset://keep.png)', '[]', 'vault-default', NULL, 1, 1),
+                    ('n2', 'Removed', 'just text now',                   '[]', 'vault-default', NULL, 1, 1),
+                    ('n3', 'Trashed', '![image](jnana-asset://trash.png)','[]', 'vault-default', 9,    1, 1)",
+            [],
+        )
+        .unwrap();
+        for (id, note, path) in [
+            ("keep.png", "n1", "keep.png"),
+            ("gone.png", "n2", "gone.png"),
+            ("trash.png", "n3", "trash.png"),
+        ] {
+            conn.execute(
+                "INSERT INTO media_refs (id, note_id, media_type, path, meta, created_at)
+                 VALUES (?1, ?2, 'image', ?3, '{}', 1)",
+                params![id, note, path],
+            )
+            .unwrap();
+        }
+
+        // Auto-tags: only the note whose content still references the file.
+        assert_eq!(fetch_media_types(&conn, "n1", None).unwrap(), vec!["image"]);
+        assert!(fetch_media_types(&conn, "n2", None).unwrap().is_empty());
+
+        // With caller-supplied content (the unsaved edit), the stored text is ignored.
+        assert!(fetch_media_types(&conn, "n1", Some("embed deleted")).unwrap().is_empty());
+        assert_eq!(
+            fetch_media_types(&conn, "n2", Some("![image](jnana-asset://gone.png)")).unwrap(),
+            vec!["image"]
+        );
+
+        // Recent imports: live, still-referenced media only.
+        let recent = recent_media(&conn, 10, Some("vault-default")).unwrap();
+        let paths: Vec<String> = recent.into_iter().map(|r| r.filename).collect();
+        assert_eq!(paths, vec!["keep.png"]);
     }
 
     #[test]

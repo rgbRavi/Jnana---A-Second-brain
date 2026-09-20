@@ -11,7 +11,7 @@ import { useWorkspaceTab, setWorkspaceTab, type WorkspaceTab } from './useWorksp
 import { setActiveWorkspace, openWorkspace, closeWorkspace } from '../../hooks/useActiveWorkspace'
 import { getActiveVaultId, setActiveVaultId } from '../../hooks/useVaults'
 import { deleteWorkspace, workspaceColor } from '../../core/workspaces'
-import { exportNotes } from '../../core/export'
+import { exportNotes, toastExported } from '../../core/export'
 import { openComposer } from '../../ui/editor/NoteCreator'
 import { GraphView } from '../../ui/graph/GraphView'
 import { showConfirmDialog } from '../../lib/dialog'
@@ -59,8 +59,7 @@ function Workspace() {
 
   const handleExport = async () => {
     try {
-      const n = await exportNotes(wsNotes)
-      if (n) toast.success(`Exported ${n} note${n !== 1 ? 's' : ''}.`)
+      toastExported(await exportNotes(wsNotes))
     } catch (err) {
       toast.error('Export failed: ' + String(err))
     }
