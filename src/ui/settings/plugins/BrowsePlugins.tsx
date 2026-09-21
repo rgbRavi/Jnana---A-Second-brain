@@ -3,14 +3,22 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { FileArchive, Search, Download, Check } from 'lucide-react'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import { FileArchive, Search, Download, Check, ShieldCheck, ExternalLink } from 'lucide-react'
 import {
   readZipManifest,
-  installPluginZip,
+  previewPluginDownload,
+  installPlugin,
   loadInstalledPlugin,
   listInstalledPlugins,
 } from '../../../core/plugins/loader'
-import { fetchPluginCatalog, installFromUrl, isNewerVersion, DEFAULT_CATALOG_URL, type CatalogEntry } from '../../../core/plugins/catalog'
+import {
+  fetchPluginCatalog,
+  verifyCatalogPackage,
+  isNewerVersion,
+  DEFAULT_CATALOG_URL,
+  type CatalogEntry,
+} from '../../../core/plugins/catalog'
 import { confirmPluginInstall } from './consent'
 import { setPluginSubview, useCatalogUrl, setCatalogUrl } from './usePluginManager'
 import { toast } from '../../../lib/toast'
@@ -55,10 +63,17 @@ export function BrowsePlugins() {
   }, [])
 
   const install = async (entry: CatalogEntry) => {
-    const granted = await confirmPluginInstall(entry)
-    if (!granted) return
     try {
-      const info = await installFromUrl(entry.downloadUrl, granted)
+      // Download + inspect first: the consent prompt must show the *package's* own
+      // manifest, and the package must be the one this entry advertised.
+      const pkg = await previewPluginDownload(entry.downloadUrl)
+      const problem = verifyCatalogPackage(entry, pkg)
+      if (problem) {
+        toast.error(problem)
+        return
+      }
+      if (!(await confirmPluginInstall(pkg))) return
+      const info = await installPlugin(pkg.consentToken)
       const ok = await loadInstalledPlugin(info)
       toast.success(ok ? `Installed ${info.name}.` : `Installed ${info.name}, but it failed to load (see Developer → console).`)
       refreshInstalled()
@@ -72,9 +87,8 @@ export function BrowsePlugins() {
     if (typeof zip !== 'string') return
     try {
       const manifest = await readZipManifest(zip)
-      const granted = await confirmPluginInstall(manifest)
-      if (!granted) return
-      const info = await installPluginZip(zip, granted)
+      if (!(await confirmPluginInstall(manifest))) return
+      const info = await installPlugin(manifest.consentToken)
       const ok = await loadInstalledPlugin(info)
       toast.success(ok ? `Installed ${info.name}.` : `Installed ${info.name}, but it failed to load.`)
       setPluginSubview('installed')
@@ -131,13 +145,30 @@ export function BrowsePlugins() {
                 <div className={Styles.cardMain}>
                   <div className={Styles.cardHead}>
                     <span className={Styles.cardName}>{entry.name}</span>
+                    {entry.runtime === 'worker' && (
+                      <span
+                        className={Styles.sandboxTag}
+                        title="Runs in the plugin sandbox — it can only do what it asks for, and Jnana answers"
+                      >
+                        <ShieldCheck size={12} /> Sandboxed
+                      </span>
+                    )}
                     <span className={Styles.version}>v{entry.version}</span>
                     {entry.author && <span className={Styles.muted}>· {entry.author}</span>}
                   </div>
                   <div className={Styles.cardMeta}>
                     {entry.description && <span>{entry.description}</span>}
                     {entry.permissions.length > 0 && (
-                      <span className={Styles.muted}>· Permissions: {entry.permissions.join(', ')}</span>
+                      <span className={Styles.muted}>· Asks to: {entry.permissions.join(', ')}</span>
+                    )}
+                    {entry.homepage && (
+                      <button
+                        className={Styles.linkBtn}
+                        onClick={() => void openUrl(entry.homepage as string)}
+                        title={entry.homepage}
+                      >
+                        <ExternalLink size={12} /> Source
+                      </button>
                     )}
                   </div>
                 </div>

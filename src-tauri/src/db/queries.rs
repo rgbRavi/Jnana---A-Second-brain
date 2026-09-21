@@ -880,6 +880,36 @@ pub fn plugin_kv_list(conn: &Connection, plugin_id: &str) -> Result<Vec<(String,
     rows.collect()
 }
 
+/// Set or clear a note's `kind` (`None` makes it an ordinary markdown note).
+pub fn set_note_kind(conn: &Connection, note_id: &str, kind: Option<&str>, at: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE notes SET kind = ?2, updated_at = ?3 WHERE id = ?1",
+        params![note_id, kind, at],
+    )?;
+    Ok(())
+}
+
+/// Bytes one plugin currently occupies in `plugin_kv` (keys + values).
+pub fn plugin_kv_bytes(conn: &Connection, plugin_id: &str) -> Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(length(key) + length(value)), 0) FROM plugin_kv WHERE plugin_id = ?1",
+        params![plugin_id],
+        |row| row.get(0),
+    )
+}
+
+/// Every plugin id that has stored something, with its key count and size. Used to
+/// find rows whose plugin is no longer installed — data that would otherwise sit in
+/// the DB (and every backup) with nothing in the UI able to reach it.
+pub fn plugin_kv_owners(conn: &Connection) -> Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT plugin_id, count(*), COALESCE(SUM(length(key) + length(value)), 0)
+         FROM plugin_kv GROUP BY plugin_id ORDER BY plugin_id",
+    )?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    rows.collect()
+}
+
 /// Drop all of a plugin's stored keys (the manager's "Clear data" action).
 pub fn plugin_kv_clear(conn: &Connection, plugin_id: &str) -> Result<()> {
     conn.execute("DELETE FROM plugin_kv WHERE plugin_id = ?1", params![plugin_id])?;

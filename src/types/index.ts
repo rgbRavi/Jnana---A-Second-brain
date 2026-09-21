@@ -448,14 +448,11 @@ export interface Plugin {
   id: string
   name: string
   version: string
-  /** Set to true and provide workerUrl to run the plugin in an isolated Web Worker thread */
-  worker?: boolean
-  /** Required when worker: true. Use: new URL('./myPlugin.worker.ts', import.meta.url) */
-  workerUrl?: URL
-  /** Called once at load with a sandboxed context (event bus + scoped storage +
-   *  scoped notes API + `registerNoteType`) for inline (non-worker) plugins. */
-  init?: (ctx: import('../lib/pluginApi').PluginContext) => void
-  /** Called before the plugin is unregistered (inline plugins only) */
+  /** Called once at load with a context (event bus + scoped storage + scoped notes
+   *  API + `registerNoteType` + `ui`). A worker plugin gets the same shape across
+   *  postMessage, minus the rendering hooks — see `core/plugins/workerHost.ts`. */
+  init?: (ctx: import('../lib/pluginApi').PluginContext) => void | Promise<void>
+  /** Called before the plugin is unregistered. */
   destroy?: () => void
 }
 

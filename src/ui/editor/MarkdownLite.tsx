@@ -27,6 +27,7 @@ import {
   YouTubeEmbed,
 } from './NoteEmbeds'
 import { WebEmbed } from '../WebEmbed'
+import { PluginFence } from '../plugins/PluginFence'
 import MdStyles from './MarkdownLite.module.css'
 
 interface Props {
@@ -201,7 +202,9 @@ export function MarkdownLite({ content, noteId = '', lazy = true, fullscreen = f
         const lang = langClass ? langClass.slice('language-'.length) : undefined
         const textNode = codeNode.children?.[0]
         const text = textNode?.type === 'text' ? textNode.value.replace(/\n$/, '') : ''
-        return <CodeBlock code={text} lang={lang} />
+        // A plugin may claim this fence language and render it as blocks; when
+        // none does (or its render fails) this is the plain code block again.
+        return <PluginFence lang={lang} source={text} fallback={<CodeBlock code={text} lang={lang} />} />
       }
       return <pre className={MdStyles.pre}>{props.children}</pre>
     }

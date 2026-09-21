@@ -11,8 +11,9 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { listVaults } from '../core/vaults'
 import { eventBus } from '../lib/eventBus'
+import { subscribeActiveVault, getActiveVaultSnapshot } from '../lib/activeVault'
 import { log } from '../lib/logger'
-import { DEFAULT_VAULT_ID, type Vault } from '../types'
+import { type Vault } from '../types'
 
 /** Loads the vault list, refreshing on create/rename/delete. */
 export function useVaults() {
@@ -39,47 +40,14 @@ export function useVaults() {
   return { vaults, loading, refresh }
 }
 
-// ─── Active vault (persisted module store) ──────────────
+// ─── Active vault ───────────────────────────────────────
+// The store itself lives in lib/activeVault.ts (core/ reads it too — the plugin
+// notes API scopes to the active vault). Re-exported here so callers keep their
+// existing import.
 
-const STORAGE_KEY = 'jnana.vault.active.v1'
-
-function load(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) || DEFAULT_VAULT_ID
-  } catch {
-    return DEFAULT_VAULT_ID
-  }
-}
-
-let activeVaultId = load()
-const listeners = new Set<() => void>()
-
-export function setActiveVaultId(id: string): void {
-  if (id === activeVaultId) return
-  activeVaultId = id
-  try {
-    localStorage.setItem(STORAGE_KEY, id)
-  } catch {
-    /* storage unavailable */
-  }
-  listeners.forEach((l) => l())
-}
-
-/** Non-reactive read — for the composer's auto-assign-on-create. */
-export function getActiveVaultId(): string {
-  return activeVaultId
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
-
-const getSnapshot = () => activeVaultId
+export { setActiveVaultId, getActiveVaultId } from '../lib/activeVault'
 
 /** Reactive read of the active vault id. */
 export function useActiveVaultId(): string {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return useSyncExternalStore(subscribeActiveVault, getActiveVaultSnapshot, getActiveVaultSnapshot)
 }

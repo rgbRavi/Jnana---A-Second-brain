@@ -19,6 +19,15 @@ export async function saveNote(note: Note): Promise<Note> {
   return saved
 }
 
+/**
+ * Set or clear a note's `kind`. A plain save never touches `kind`, so this is the
+ * only way to un-type a note — used to rescue a typed note whose plugin is gone,
+ * turning it back into ordinary markdown the app can always read.
+ */
+export async function setNoteKind(noteId: string, kind: string | null): Promise<void> {
+  await invoke<void>('set_note_kind', { noteId, kind })
+}
+
 export async function deleteNote(id: string): Promise<void> {
   await invoke<void>('delete_note', { id })
   eventBus.emit('note:deleted', { id })

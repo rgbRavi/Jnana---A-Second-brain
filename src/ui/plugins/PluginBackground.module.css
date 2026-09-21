@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (c) 2026 Jnana Project */
+
+/* Behind everything, and untouchable: the app shell paints over it, and pointer
+   events pass straight through, so a backdrop can never intercept a click. */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-size: 200% 200%;
+  background-repeat: no-repeat;
+  animation: drift linear infinite;
+}
+
+.aurora {
+  background-size: 160% 160%;
+  filter: blur(40px) saturate(1.1);
+  animation-name: wander;
+}
+
+@keyframes drift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes wander {
+  0% { background-position: 0% 0%; }
+  33% { background-position: 100% 30%; }
+  66% { background-position: 30% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* Someone who asked for less motion gets a still backdrop, not a slow one. */
+@media (prefers-reduced-motion: reduce) {
+  .layer {
+    animation: none;
+  }
+}

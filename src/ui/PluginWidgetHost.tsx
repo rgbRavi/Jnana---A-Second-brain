@@ -4,6 +4,8 @@
 import { useState, useSyncExternalStore } from 'react'
 import { Puzzle, X } from 'lucide-react'
 import { listWidgets, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
+import PluginErrorBoundary from './PluginErrorBoundary'
+import { pluginRegistry } from '../lib/pluginRegistry'
 import Styles from './PluginWidgetHost.module.css'
 
 /**
@@ -13,7 +15,7 @@ import Styles from './PluginWidgetHost.module.css'
  * loaded/enabled. Renders nothing when no widgets are registered.
  */
 export function PluginWidgetHost() {
-  useSyncExternalStore(subscribeContributions, getContributionsVersion)
+  const version = useSyncExternalStore(subscribeContributions, getContributionsVersion)
   const [open, setOpen] = useState(false)
   const widgets = listWidgets()
 
@@ -38,7 +40,9 @@ export function PluginWidgetHost() {
                   <header className={Styles.widgetTitle}>
                     {Icon && <Icon size={14} />} {w.title}
                   </header>
-                  <Component />
+                  <PluginErrorBoundary key={version} name={w.title} pluginId={pluginRegistry.pluginIdForWidget(w.id)}>
+                    <Component />
+                  </PluginErrorBoundary>
                 </section>
               )
             })}

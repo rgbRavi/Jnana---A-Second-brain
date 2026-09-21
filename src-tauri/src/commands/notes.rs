@@ -112,6 +112,24 @@ pub fn get_all_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
         .map_err(|e| format!("Failed to fetch notes: {}", e))
 }
 
+/// Change (or clear) a note's `kind`. A plain save deliberately never touches
+/// `kind`, so this is the one way to un-type a note — used to recover a typed note
+/// whose plugin is gone for good, turning it back into ordinary markdown.
+#[command]
+pub fn set_note_kind(
+    state: State<'_, DbState>,
+    note_id: String,
+    kind: Option<String>,
+) -> Result<(), String> {
+    let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    queries::set_note_kind(&conn, &note_id, kind.as_deref(), at)
+        .map_err(|e| format!("Failed to change note type: {}", e))
+}
+
 #[command]
 pub fn get_note(state: State<'_, DbState>, id: String) -> Result<Note, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;

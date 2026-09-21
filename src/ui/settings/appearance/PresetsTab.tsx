@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
-import { PRESETS } from '../../../core/themes/presets'
+import { PRESETS, themeFromPreset } from '../../../core/themes/presets'
+import {
+  applyPluginTheme,
+  getPluginThemesVersion,
+  listPluginThemes,
+  subscribePluginThemes,
+} from '../../../lib/pluginThemes'
+import { pluginRegistry } from '../../../lib/pluginRegistry'
 import type { UseThemeApi } from '../../../hooks/useTheme'
 import styles from './Appearance.module.css'
 
@@ -15,6 +22,12 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
   const [importError, setImportError] = useState<string | null>(null)
 
   const customThemes = savedThemes.filter((s) => !s.isBuiltin)
+
+  // Themes contributed by loaded plugins. They live in the registry, not the DB:
+  // unloading the plugin takes its themes with it, and the user's active theme is
+  // a plain saved theme by then, so nothing they are looking at disappears.
+  useSyncExternalStore(subscribePluginThemes, getPluginThemesVersion, getPluginThemesVersion)
+  const pluginThemes = listPluginThemes()
 
   async function handleSaveCurrent() {
     const name = await showPromptDialog({
@@ -96,6 +109,46 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
           )
         })}
       </div>
+
+      {pluginThemes.length > 0 && (
+        <section className={styles.section}>
+          <p className={styles.sectionLabel}>From plugins</p>
+          <div className={styles.presetGrid}>
+            {pluginThemes.map((t) => {
+              const owner = pluginRegistry.get(t.pluginId)?.name ?? t.pluginId
+              const swatch = [
+                t.tokens['--bg'] ?? 'var(--bg)',
+                t.tokens['--accent'] ?? 'var(--accent)',
+                t.tokens['--text-1'] ?? 'var(--text-1)',
+              ]
+              const active = theme.name === t.name && theme.presetId === null
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`${styles.presetCard} ${active ? styles.presetCardActive : ''}`}
+                  onClick={() => importTheme(applyPluginTheme(themeFromPreset(t.base === 'light' ? 'light' : 'dark'), t))}
+                  title={`${t.name} — from ${owner}`}
+                >
+                  <div className={styles.presetSwatchStrip}>
+                    <span style={{ background: swatch[0], flex: 1 }} />
+                    <span style={{ background: swatch[1], flex: 1.3 }} />
+                    <span style={{ background: swatch[2], flex: 1 }} />
+                  </div>
+                  <div className={styles.presetCardFooter}>
+                    <span className={styles.presetName}>{t.name}</span>
+                    {active && <span className={styles.activeBadge}>ACTIVE</span>}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          <p className={styles.hint}>
+            Provided by a plugin. Applying one copies it into your theme — save it under
+            “Your themes” to keep it after the plugin is removed.
+          </p>
+        </section>
+      )}
 
       <section className={styles.section}>
         <p className={styles.sectionLabel}>Your themes</p>

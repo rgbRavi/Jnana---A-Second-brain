@@ -265,6 +265,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_all_notes,
             get_note,
+            set_note_kind,
             save_note,
             delete_note,
             trash_note,
@@ -393,17 +394,22 @@ fn main() {
             plugin_kv_delete,
             plugin_kv_list,
             plugin_kv_clear,
+            plugin_kv_owners,
             scaffold_plugin,
             list_installed_plugins,
             read_zip_manifest,
             read_local_manifest,
-            install_plugin_zip,
-            install_local_plugin,
+            install_plugin,
+            revoke_plugin_permissions,
+            preview_plugin_grant,
+            apply_plugin_grant,
             remove_plugin,
             read_plugin_main,
             package_plugin,
             fetch_plugin_catalog,
-            install_from_url,
+            preview_plugin_download,
+            plugin_fetch,
+            plugin_read_asset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

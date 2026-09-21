@@ -4,10 +4,38 @@
       "id": "com.jnana.sample-checklist",
       "name": "Sample Checklist",
       "version": "1.0.0",
-      "description": "A checklist note type — the reference sample plugin, served from a local test catalog.",
+      "description": "A checklist note type — the reference third-party plugin used to smoke-test the loader runtime.",
       "author": "Jnana Project",
-      "downloadUrl": "C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/sample-checklist.zip",
-      "permissions": [],
+      "downloadUrl": "C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/sample-plugin.zip",
+      "sha256": "0b0c54e88e90f9839394a7723e45d9b96639a189b81d55e603ab545e2aca4e33",
+      "minAppVersion": "0.1.0"
+    },
+    {
+      "id": "com.jnana.sample-worker",
+      "name": "Sample Worker",
+      "version": "1.0.0",
+      "description": "A sandboxed plugin: runs in a Web Worker, contributes a command, reads notes through the host.",
+      "author": "Jnana Project",
+      "downloadUrl": "C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/sample-worker-plugin.zip",
+      "sha256": "24592e452b344826509fe88451449fda9718b903b68c95e42c5c2e08502eeff2",
+      "runtime": "worker",
+      "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+      "permissions": [
+        "notes"
+      ],
+      "minAppVersion": "0.1.0"
+    },
+    {
+      "id": "com.jnana.sample-theme",
+      "name": "Dusk & Parchment",
+      "version": "1.0.0",
+      "description": "Two themes and an optional drifting backdrop. Sandboxed, and asks for nothing.",
+      "author": "Jnana Project",
+      "downloadUrl": "C:/Jnana-project/Jnana---A-Second-brain/examples/sample-catalog/sample-theme.zip",
+      "sha256": "26411e8f36faa8f568e22c2e502f2028eb98f3ef15482cb11b7a3df6f38d1a9e",
+      "runtime": "worker",
+      "type": "theme",
+      "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
       "minAppVersion": "0.1.0"
     }
   ]

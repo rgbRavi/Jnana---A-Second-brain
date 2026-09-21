@@ -3,8 +3,21 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, RefreshCw, ArrowUpCircle } from 'lucide-react'
-import { listInstalledPlugins, loadInstalledPlugin, type InstalledPlugin } from '../../../core/plugins/loader'
-import { fetchPluginCatalog, installFromUrl, isNewerVersion, type CatalogEntry } from '../../../core/plugins/catalog'
+import {
+  listInstalledPlugins,
+  loadInstalledPlugin,
+  previewPluginDownload,
+  installPlugin,
+  type InstalledPlugin,
+} from '../../../core/plugins/loader'
+import {
+  fetchPluginCatalog,
+  verifyCatalogPackage,
+  isNewerVersion,
+  type CatalogEntry,
+} from '../../../core/plugins/catalog'
+import { confirmPluginInstall } from './consent'
+import { setOutdatedPlugins, invalidateUpdateCheck } from '../../../core/plugins/updates'
 import { pluginRegistry } from '../../../lib/pluginRegistry'
 import { useCatalogUrl } from './usePluginManager'
 import { toast } from '../../../lib/toast'
@@ -40,6 +53,8 @@ export function PluginUpdates() {
         if (entry && isNewerVersion(entry.version, p.version)) found.push({ installed: p, entry })
       }
       setUpgrades(found)
+      // Keep the nav badge honest with what this tab is showing.
+      setOutdatedPlugins(found.map((u) => u.installed.id))
     } catch (err) {
       setError(String(err))
       setUpgrades(null)
@@ -54,10 +69,22 @@ export function PluginUpdates() {
 
   const update = async (u: Upgrade) => {
     try {
+      const pkg = await previewPluginDownload(u.entry.downloadUrl)
+      const problem = verifyCatalogPackage(u.entry, pkg)
+      if (problem) {
+        toast.error(problem)
+        return
+      }
+      // A quiet update must not widen what the plugin may do: if the new version
+      // declares a capability the installed one didn't, ask again.
+      const widened = pkg.permissions.filter((p) => !u.installed.granted.includes(p))
+      if (widened.length > 0 && !(await confirmPluginInstall(pkg))) return
+
       pluginRegistry.unregister(u.installed.id)
-      const info = await installFromUrl(u.entry.downloadUrl, u.installed.granted)
+      const info = await installPlugin(pkg.consentToken)
       await loadInstalledPlugin(info)
       toast.success(`Updated ${info.name} to v${info.version}.`)
+      invalidateUpdateCheck()
       void check()
     } catch (err) {
       toast.error('Update failed: ' + String(err))

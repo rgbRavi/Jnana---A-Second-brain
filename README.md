@@ -214,14 +214,25 @@ through Rust to only the host you configured.
 ### Plugins
 - **A real plugin system** — plugins can add **custom note types** (their own view + editor over a
   note, e.g. the built-in **Flashcard deck** with spaced repetition), **UI widgets** (e.g. the
-  built-in **Pomodoro** timer in a floating tray), and **command-palette commands**
+  built-in **Pomodoro** timer in a floating tray), **command-palette commands** with a keyboard
+  shortcut you can rebind, **right-rail panels**, and renderers for **fenced code blocks** (a
+  ```` ```weather ```` block becomes whatever the plugin makes of it)
+- **A real sandbox** — a plugin can declare `"runtime": "worker"` and run in a Web Worker with no
+  DOM, no file access and no network of its own: every capability is answered by Jnana, and one it
+  wasn't granted is refused rather than quietly missing. These carry a **Sandboxed** badge, and you
+  can tell Jnana to run nothing else
+- **Themes are plugins too** — a plugin can declare `"type": "theme"`, ship colour schemes and an
+  animated backdrop, and ask for no permissions at all. They are grouped and badged as themes in
+  Settings, and a "theme" that also wants your notes gets that pointed out before you install it
+- **Permissions you can take back** — `notes`, `media` (a note's attachments) and `network`
+  (host-allowlisted) are granted at install and revocable per plugin afterwards, with a visible
+  trail of what each plugin has actually read, written and requested
 - **Plugin manager** (Settings → Plugins) — enable/disable, per-plugin storage + "clear data", a live
   Plugin Console, and developer tools (scaffold a new plugin, package, load a local folder, reload)
 - **Install from anywhere** — a local `.zip`, an unpacked folder, or a **curated community catalog**
   ([JnanaApp/JnanaPlugins](https://github.com/JnanaApp/JnanaPlugins)); installs show a **permission
-  consent** prompt and updates surface newer catalog versions
-- **First-party by default, third-party by choice** — bundled plugins ship with the app; third-party
-  plugins run as trusted code after you approve them
+  consent** prompt, catalog packages are checksum- and manifest-checked before you are asked, and
+  updates surface newer catalog versions
 
 ---
 

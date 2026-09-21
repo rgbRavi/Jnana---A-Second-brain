@@ -230,6 +230,7 @@ export function SettingToggle({
   label,
   hint,
   ariaLabel,
+  disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
@@ -238,6 +239,8 @@ export function SettingToggle({
   /** Trailing muted clause (rendered after an em dash). */
   hint?: string
   ariaLabel?: string
+  /** Block interaction while a change is in flight. */
+  disabled?: boolean
 }) {
   const id = useId()
   const button = (
@@ -247,6 +250,7 @@ export function SettingToggle({
       role="switch"
       aria-checked={checked}
       aria-label={ariaLabel}
+      disabled={disabled}
       className={`${styles.switch} ${checked ? styles.switchOn : ''}`}
       onClick={() => onChange(!checked)}
     >

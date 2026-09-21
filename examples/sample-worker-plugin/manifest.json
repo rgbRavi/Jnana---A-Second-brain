@@ -1,0 +1,12 @@
+{
+  "id": "com.jnana.sample-worker",
+  "name": "Sample Worker",
+  "version": "1.0.0",
+  "description": "A sandboxed plugin: runs in a Web Worker, contributes a command, reads notes through the host.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "runtime": "worker",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": ["notes"]
+}

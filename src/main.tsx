@@ -11,6 +11,7 @@ import { registerBuiltinPlugins } from "./plugins";
 import { registerBuiltinRailPanels } from "./ui/rail/RightRail";
 import "./core/plugins/hostBridge"; // side-effect: expose host React for loaded plugins
 import { loadAllInstalledPlugins } from "./core/plugins/loader";
+import { installPluginHotkeys } from "./lib/pluginHotkeys";
 import type { Theme } from "./types";
 import "./main.css"
 
@@ -42,6 +43,9 @@ registerBuiltinRailPanels()
 // Then load enabled third-party plugins from disk (async — they register shortly
 // after mount; note-type views re-resolve reactively when they do).
 void loadAllInstalledPlugins()
+// Listen for plugin command shortcuts. One listener for every plugin command,
+// resolved at press time, so a plugin loading later is bound without re-wiring.
+installPluginHotkeys()
 
 if (!window.location.hash || window.location.hash === "#" || window.location.hash === "#/") {
   window.location.replace(`${window.location.pathname}#/jnana`);

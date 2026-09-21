@@ -4,6 +4,7 @@
 import type { Plugin } from '../types'
 import { pluginRegistry } from '../lib/pluginRegistry'
 import { isPluginEnabled, setPluginEnabledState } from '../lib/pluginEnabled'
+import { loadAllInstalledPlugins } from '../core/plugins/loader'
 import { flashcardsPlugin } from './flashcards'
 import { pomodoroPlugin } from './pomodoro'
 import { canvasPlugin } from './canvas'
@@ -34,10 +35,14 @@ export function setPluginEnabled(id: string, enabled: boolean): void {
   else pluginRegistry.unregister(id)
 }
 
-/** Tear down and re-register all built-ins (Developer → Reload). */
-export function reloadBuiltinPlugins(): void {
+/** Tear down and re-register everything (Developer → Reload) — built-ins *and*
+ *  installed third-party plugins, which are re-read from disk, so a rebuilt local
+ *  plugin picks up its new bundle. Unregistering all and re-registering only the
+ *  built-ins would silently leave installed plugins dead until restart. */
+export async function reloadAllPlugins(): Promise<void> {
   for (const plugin of pluginRegistry.getAll()) {
     pluginRegistry.unregister(plugin.id)
   }
   registerBuiltinPlugins()
+  await loadAllInstalledPlugins()
 }

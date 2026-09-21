@@ -1,0 +1,13 @@
+{
+  "id": "com.jnana.sample-theme",
+  "name": "Dusk & Parchment",
+  "version": "1.0.0",
+  "description": "Two themes and an optional drifting backdrop. Sandboxed, and asks for nothing.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "runtime": "worker",
+  "type": "theme",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": []
+}

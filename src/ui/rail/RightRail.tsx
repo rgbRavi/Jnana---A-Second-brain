@@ -10,7 +10,7 @@
 // composer full). Mirrors the FileExplorer second-sidebar + persisted-store pattern.
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react'
-import { Link2, PanelRightClose, SlidersHorizontal, Sparkles, Table } from 'lucide-react'
+import { Link2, PanelRightClose, Plug, SlidersHorizontal, Sparkles, Table } from 'lucide-react'
 import {
   getRailPanelsVersion,
   listRailPanels,
@@ -18,6 +18,12 @@ import {
   subscribeRailPanels,
   type RailPanel,
 } from '../../lib/rightRailPanels'
+import {
+  getContributionsVersion,
+  listBlockPanels,
+  subscribeContributions,
+} from '../../lib/pluginContributions'
+import { blockPanelComponent } from '../plugins/BlockPanel'
 import { useActiveTable } from '../../lib/activeTable'
 import { useActiveFocus } from '../../lib/activeFocus'
 import { TableToolPanel } from './TableToolPanel'
@@ -100,7 +106,18 @@ function useRailWidth(): number {
 
 function useRailPanels(): RailPanel[] {
   useSyncExternalStore(subscribeRailPanels, getRailPanelsVersion, getRailPanelsVersion)
-  return listRailPanels()
+  // Block panels aren't in the rail registry: they're plugin *data*, re-declared
+  // whenever the plugin updates them, so they're adapted here rather than
+  // registered and unregistered on every change.
+  useSyncExternalStore(subscribeContributions, getContributionsVersion, getContributionsVersion)
+  const blockPanels: RailPanel[] = listBlockPanels().map((p) => ({
+    id: p.id,
+    title: p.title,
+    icon: Plug,
+    order: 200,
+    Component: blockPanelComponent(p.id),
+  }))
+  return [...listRailPanels(), ...blockPanels].sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
 }
 
 // One invisible probe per registered panel calls that panel's availability hook

@@ -160,25 +160,48 @@ Events in active use:
 
 ### Plugin system
 
-A full plugin system ships. Plugins get a sandboxed `PluginContext` (`bus`, scoped `storage`,
-gated `notes`, `registerNoteType`, `ui`) and can contribute **note types**, **UI widgets**, and
-**commands**. Trust model: trusted main-thread render + install-time permission consent (no sandbox).
+A full plugin system ships, on **two runtimes**. `"runtime": "worker"` runs a plugin in a Web
+Worker where every capability is answered by the host and an ungranted one is *refused* — a real
+boundary. The default main-thread runtime is a trust decision instead: install-time consent bounds
+what is recorded and shown, not what the code can reach.
 
 What exists now:
-- Registry + capability-gated context; inline (main-thread) and Web Worker modes
+- Registry + capability-gated context (`bus`, scoped `storage`, gated `notes` / `media` / `net`,
+  `registerNoteType`, `ui`); both runtimes
 - **Custom note types** — a typed note is still a `Note` (data in `content`, `notes.kind` column);
   read/edit choke-point (`NoteRenderer`) falls back to markdown; registry is reactive
-- **UI widgets + commands** — floating widget tray (`PluginWidgetHost`) + command-palette entries
-- **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id)
+- **UI widgets + commands** — floating widget tray (`PluginWidgetHost`) + command-palette entries,
+  with user-rebindable **keyboard shortcuts** (`lib/pluginHotkeys.ts`)
+- **Right-rail panels + fenced-block renderers** — React for main-thread plugins, or declared as
+  **blocks** (`lib/pluginBlocks.ts`) so a sandboxed plugin can own them too
+- **Attachments** — the `media` permission, separate from `notes`: list a note's media, read bytes
+  (capped at 25 MB, checked in Rust), write a new asset
+- **Themes + backdrops** — `registerTheme` / `setBackground` (`lib/pluginThemes.ts`): a plugin ships
+  colour schemes and an animated backdrop as **validated token data**, never CSS. Themes are offered
+  in Settings → Appearance and *copied* into the user's theme when picked, so uninstalling changes
+  nothing they are looking at. Sandbox-safe
+- **Plugin types** — a manifest declares `"type": "theme"` or `"utility"`. A label, not a capability
+  gate: it groups and badges the Installed list (filter + sections + sort by name or install date)
+  and lets the consent prompt flag a "theme" that also wants notes or the network
+- **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id, 5 MB cap)
 - **Loader** — install from a local `.zip`, an unpacked folder, or a curated remote **catalog**;
   built ESM entry loaded via a Blob URL with `react` rewritten to host shims
+- **Consent + revocation** — preview → one-shot Rust-minted token → install; per-permission revoke
+  afterwards; a "sandboxed plugins only" policy enforced at load
+- **Runtime safety** — every API call rate-limited and counted (`guard`), workers heartbeat-watched,
+  every plugin surface inside its own error boundary
 - **Plugin manager** (Settings → Plugins) — Installed / Browse / Updates / Developer, with
   enable/disable, uninstall, storage clear, a Plugin Console, and scaffold/package/load-local/reload
 - **Built-ins**: Flashcard deck (note type + SM-2), Pomodoro (widget + commands)
-- **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with install-time permission consent
+- **Reference plugins** in `examples/`: `sample-plugin` (main thread, note type), `sample-worker-plugin`
+  (sandboxed: command, block panel, fence), `sample-theme` (a theme plugin — no permissions, no build
+  step) and `plugin-testbed` (a manual harness claiming every surface at once)
+- **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with checksum + manifest agreement checked
+  before the consent prompt
 
-Still deferred (hardening): granular per-permission grants, download signature verification, an
-optional sandbox for untrusted plugins, and editor/markdown extension points.
+Still deferred: download **signature** verification (the catalog's `sha256` is not a signature),
+rendered fenced blocks in **edit mode** (read mode only today), and a full route/tab extension
+point.
 
 ### State ownership
 
