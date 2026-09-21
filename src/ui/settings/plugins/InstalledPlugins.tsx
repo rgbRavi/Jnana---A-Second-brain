@@ -432,11 +432,14 @@ export function InstalledPlugins() {
                   // What this plugin has actually done since launch. For a plugin the
                   // app can't confine, being able to see it is the protection.
                   const a = activity[row.id]
-                  if (!a || a.reads + a.writes + a.requests === 0) return null
+                  if (!a || a.reads + a.writes + a.requests + a.ui === 0) return null
                   const parts = [
                     a.reads ? `${a.reads} read${a.reads === 1 ? '' : 's'}` : null,
                     a.writes ? `${a.writes} write${a.writes === 1 ? '' : 's'}` : null,
                     a.requests ? `${a.requests} request${a.requests === 1 ? '' : 's'}` : null,
+                    // UI declarations are cheap one at a time; a large number here
+                    // is the shape of a plugin redeclaring in a loop.
+                    a.ui ? `${a.ui} UI update${a.ui === 1 ? '' : 's'}` : null,
                   ].filter(Boolean)
                   return (
                     <span className={Styles.activity} title="What this plugin has done since Jnana started (details in Developer → Plugin console)">

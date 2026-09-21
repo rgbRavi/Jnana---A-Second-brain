@@ -9,6 +9,7 @@ import type { ThemeFonts } from '../../../types'
 import { ColorField, Segmented, SliderField } from './controls'
 import { SettingSelect, SettingToggle, type SelectOption, type SelectGroup } from '../SettingControls'
 import { FontManager } from './FontManager'
+import { WallpaperField } from './WallpaperField'
 import styles from './Appearance.module.css'
 
 const FONT_ROLES: { role: keyof ThemeFonts; label: string }[] = [
@@ -79,6 +80,8 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
           hint="frosted, translucent panels and a soft accent gradient behind the AI view. Off keeps surfaces solid and calm."
         />
       </div>
+
+      <WallpaperField api={api} />
 
       <p className={styles.hint}>Interface = menus, lists, and controls. Reading = note reader body text. Monospace = code blocks.</p>
       {FONT_ROLES.map(({ role, label }) => {

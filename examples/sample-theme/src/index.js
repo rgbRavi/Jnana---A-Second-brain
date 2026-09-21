@@ -68,6 +68,13 @@ const plugin = {
         ctx.ui.setBackground(null)
         return
       }
+      if (kind === 'image') {
+        // A path inside this plugin's own folder. There is no URL form: a remote
+        // image would be an outbound request on every paint, and Jnana's CSP
+        // blocks it anyway. The host reads the file and draws it.
+        ctx.ui.setBackground({ kind: 'image', file: 'bg/dusk.png', fit: 'cover', dim: 0.5, blur: 0 })
+        return
+      }
       // No `colors`, so it uses the active theme's own — switch themes and the
       // backdrop follows instead of fighting it.
       ctx.ui.setBackground({
@@ -90,6 +97,7 @@ const plugin = {
             { value: 'off', label: 'Off' },
             { value: 'gradient', label: 'Drifting gradient' },
             { value: 'aurora', label: 'Aurora' },
+            { value: 'image', label: 'Image (shipped with this plugin)' },
           ],
         },
       ],

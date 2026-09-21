@@ -5,7 +5,7 @@
 // a plugin that will not stop gets handed to the registry to be switched off.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { guard, resetPluginBudget } from './guard'
+import { chargePluginCall, guard, resetPluginBudget } from './guard'
 import { eventBus } from '../../lib/eventBus'
 import { activityOf, clearPluginActivity } from '../../lib/pluginActivity'
 
@@ -52,5 +52,43 @@ describe('plugin rate limiting', () => {
 
     expect(runaway).toHaveBeenCalledWith(expect.objectContaining({ pluginId: ID }))
     eventBus.off('plugin:runaway', runaway)
+  })
+})
+
+describe('chargePluginCall (synchronous registrations)', () => {
+  it('refuses once the budget is gone, and disables a plugin that keeps going', () => {
+    const id = 'com.test.spam'
+    resetPluginBudget(id)
+    const runaway = vi.fn()
+    eventBus.on('plugin:runaway', runaway)
+
+    // Registering UI is sync and returns nothing, so it can't go through `guard`
+    // — but a loop of it re-renders the app as fast as the plugin can call.
+    let allowed = 0
+    for (let i = 0; i < 200; i++) if (chargePluginCall(id)) allowed += 1
+
+    expect(allowed).toBeLessThan(200)
+    expect(allowed).toBeGreaterThan(0)
+
+    // Keep hammering past the strike limit and it is treated as runaway, exactly
+    // like an async caller that ignores its refusals.
+    for (let i = 0; i < 200; i++) chargePluginCall(id)
+    expect(runaway).toHaveBeenCalled()
+
+    eventBus.off('plugin:runaway', runaway)
+    resetPluginBudget(id)
+  })
+
+  it('counts what it allowed as ui activity', () => {
+    const id = 'com.test.counted'
+    resetPluginBudget(id)
+    clearPluginActivity(id)
+
+    chargePluginCall(id)
+    chargePluginCall(id)
+
+    expect(activityOf(id).ui).toBe(2)
+    clearPluginActivity(id)
+    resetPluginBudget(id)
   })
 })

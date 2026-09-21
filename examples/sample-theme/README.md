@@ -33,6 +33,11 @@ Settings → Plugins → Developer → **Load Local Plugin** → pick this folde
    default — an animated background is a strong opinion to impose on someone who
    installed a colour scheme). Turn it on, then switch themes: the backdrop
    follows, because it declares no colours of its own.
+4. The same setting has an **Image** option, which uses `bg/dusk.png` from inside
+   this package. Note what it is *not*: there is no URL anywhere. A plugin ships
+   the file, Jnana reads it out of the plugin's own folder and draws it. Set a
+   wallpaper of your own in Settings → Appearance and this backdrop steps aside —
+   your picture wins over a plugin's.
 
 ## Writing your own
 
@@ -52,6 +57,14 @@ label colours from your accent and surface by channel arithmetic, and that maths
 only reads `#rrggbb`. An `rgb()` value wouldn't fail loudly — it would flatten
 every hover state and can pick an unreadable label colour, so it is dropped and
 the preset's value is kept instead.
+
+### Backdrops
+
+`ctx.ui.setBackground({ kind })` takes `gradient`, `aurora` or `image`. For an
+image, `file` is a path **inside your own package** (`bg/dusk.png`) — png, jpg,
+webp, avif or gif, up to 8 MB. `dim` (0–1, default 0.4) blends it toward the
+theme background and `blur` softens it; both exist because text over an undimmed
+photo is a contrast problem before it is a style choice.
 
 Leave tokens out and they come from the matching built-in preset, so a
 three-token theme is perfectly valid. Anything that isn't in the table — an

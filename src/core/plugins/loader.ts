@@ -101,6 +101,12 @@ export function previewPluginDownload(downloadUrl: string): Promise<PluginManife
   return invoke<PluginManifestPreview>('preview_plugin_download', { downloadUrl })
 }
 
+/** Read an image a plugin ships (for its backdrop) as a `data:` URI. Rust keeps
+ *  the read inside that plugin's own folder, to image types, and under 8 MB. */
+export function readPluginFile(pluginId: string, path: string): Promise<string> {
+  return invoke<string>('plugin_read_file', { pluginId, path })
+}
+
 function readPluginMain(id: string): Promise<string> {
   return invoke<string>('read_plugin_main', { id })
 }

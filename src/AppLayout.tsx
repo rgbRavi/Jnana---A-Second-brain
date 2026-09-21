@@ -17,7 +17,7 @@ import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
 import { PdfRefViewerHost } from "./ui/PdfRefViewerHost";
 import { PluginWidgetHost } from "./ui/PluginWidgetHost";
-import { PluginBackground } from "./ui/plugins/PluginBackground"
+import { AppBackdrop } from "./ui/AppBackdrop"
 import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
 import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
@@ -207,9 +207,10 @@ function AppInner() {
     const inSettings = pathname === "/settings"
     return (
         <div className={AppStyles.appShell}>
-            {/* First child, so a plugin backdrop paints over the body background
-                and under every surface — it can never sit on top of the UI. */}
-            <PluginBackground />
+            {/* First child, so the backdrop (the user's wallpaper, or a plugin's)
+                paints over the body background and under every surface — it can
+                never sit on top of the UI. */}
+            <AppBackdrop />
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
             <main className={AppStyles.mainContent}>

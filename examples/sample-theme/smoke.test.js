@@ -72,6 +72,20 @@ describe('sample theme plugin', () => {
     expect(backgrounds[backgrounds.length - 1]).toBeNull()
   })
 
+  it('ships its backdrop image inside the package, by relative path', async () => {
+    const { ctx, settings, backgrounds } = stubContext()
+    plugin.init(ctx)
+
+    settings[0].onChange({ backdrop: 'image' })
+    const bg = backgrounds[backgrounds.length - 1]
+    expect(sanitizeBackground('p', bg)).toMatchObject({ kind: 'image', file: 'bg/dusk.png' })
+
+    // The file it names has to actually be in the package, or the backdrop is a
+    // dead reference that only shows up at runtime.
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(join(here, bg.file))).toBe(true)
+  })
+
   it('toggles the backdrop from its command', () => {
     const { ctx, commands, backgrounds } = stubContext()
     plugin.init(ctx)

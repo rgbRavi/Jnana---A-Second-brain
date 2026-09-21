@@ -275,6 +275,27 @@ describe('worker plugin runtime', () => {
     expect(getPluginBackground()).toBeNull()
   })
 
+  it('rate-limits a worker that spams registrations, not just its rpcs', async () => {
+    const w = new FakeWorker()
+    pluginRegistry.registerWorker(meta(), w)
+
+    // A worker redeclaring a panel in a loop makes no rpc at all, and answers
+    // every heartbeat — `guard` and the watchdog both see a model citizen. The
+    // cost is real though: each one re-sanitizes and notifies every subscriber.
+    for (let i = 0; i < 400; i++) {
+      w.say({ k: 'panel', id: 'spam.panel', title: `n${i}`, blocks: [{ type: 'text', text: 'x' }] })
+    }
+
+    // Refusals are silent to the worker by design (there is nobody to throw to),
+    // so the evidence is that it stopped being applied and the plugin was cut off.
+    await vi.waitFor(() => {
+      expect(pluginRegistry.isRegistered('com.test.worker')).toBe(false)
+    })
+    expect(listBlockPanels().find((p) => p.id === 'spam.panel')).toBeUndefined()
+
+    setPluginEnabledState('com.test.worker', true)
+  })
+
   it('unregisters on a fatal load error, tearing its contributions down', () => {
     const w = new FakeWorker()
     pluginRegistry.registerWorker(meta(), w)

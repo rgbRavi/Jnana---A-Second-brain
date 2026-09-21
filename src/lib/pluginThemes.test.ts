@@ -18,6 +18,7 @@ import {
   sanitizeTheme,
   sanitizeTokens,
   setPluginBackground,
+  setPluginBackgroundSrc,
 } from './pluginThemes'
 import { themeFromPreset } from '../core/themes/presets'
 
@@ -113,6 +114,40 @@ describe('plugin background', () => {
 
   it('refuses an unknown kind', () => {
     expect(sanitizeBackground('p', { kind: 'video', src: 'https://x/y.mp4' })).toBeNull()
+  })
+
+  it('takes an image the plugin ships, by relative path only', () => {
+    expect(sanitizeBackground('p', { kind: 'image', file: 'bg/dusk.jpg' })).toMatchObject({
+      kind: 'image',
+      file: 'bg/dusk.jpg',
+      fit: 'cover',
+      // A photo behind a text app is a contrast problem first, so dim is not 0.
+      dim: 0.4,
+    })
+  })
+
+  it('refuses an image path that leaves the plugin, or a type it should not have', () => {
+    // No URL form at all: a remote image is a request on every paint, and the CSP
+    // blocks it regardless.
+    expect(sanitizeBackground('p', { kind: 'image', file: 'https://x/y.png' })).toBeNull()
+    expect(sanitizeBackground('p', { kind: 'image', file: '../../../etc/passwd' })).toBeNull()
+    expect(sanitizeBackground('p', { kind: 'image', file: '/etc/hosts.png' })).toBeNull()
+    expect(sanitizeBackground('p', { kind: 'image', file: 'C:/win.png' })).toBeNull()
+    // SVG can carry script and external references; a backdrop needs none of it.
+    expect(sanitizeBackground('p', { kind: 'image', file: 'bg/art.svg' })).toBeNull()
+    expect(sanitizeBackground('p', { kind: 'image' })).toBeNull()
+  })
+
+  it('attaches resolved image data only to the background still in force', () => {
+    setPluginBackground('com.test.a', { kind: 'image', file: 'bg/a.png' })
+    // A late answer for a background that has since been replaced must be dropped,
+    // or a switched-away image would flash back in.
+    setPluginBackgroundSrc('com.test.a', 'bg/old.png', 'data:image/png;base64,AAA')
+    expect(getPluginBackground()?.src).toBeUndefined()
+
+    setPluginBackgroundSrc('com.test.a', 'bg/a.png', 'data:image/png;base64,AAA')
+    expect(getPluginBackground()?.src).toBe('data:image/png;base64,AAA')
+    clearPluginAppearance('com.test.a')
   })
 })
 

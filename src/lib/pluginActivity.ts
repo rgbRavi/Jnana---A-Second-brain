@@ -17,19 +17,22 @@ export interface PluginActivity {
   writes: number
   /** Outbound HTTP requests made on the plugin's behalf. */
   requests: number
+  /** UI the plugin declared or redeclared: panels, fences, themes, backdrops,
+   *  commands, settings. Cheap individually, but a loop of them re-renders the
+   *  app as fast as it can, so they are counted like everything else. */
+  ui: number
   /** When the plugin last did any of the above. */
   lastAt: number
 }
 
-const EMPTY: PluginActivity = { reads: 0, writes: 0, requests: 0, lastAt: 0 }
+const EMPTY: PluginActivity = { reads: 0, writes: 0, requests: 0, ui: 0, lastAt: 0 }
 
 let activity: Record<string, PluginActivity> = {}
 const listeners = new Set<() => void>()
 
-export function recordPluginActivity(
-  pluginId: string,
-  kind: 'reads' | 'writes' | 'requests',
-): void {
+export type PluginActivityKind = 'reads' | 'writes' | 'requests' | 'ui'
+
+export function recordPluginActivity(pluginId: string, kind: PluginActivityKind): void {
   const current = activity[pluginId] ?? EMPTY
   activity = {
     ...activity,

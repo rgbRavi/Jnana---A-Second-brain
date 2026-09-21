@@ -8,15 +8,28 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-size: 200% 200%;
   background-repeat: no-repeat;
+}
+
+/* The readability scrim: the theme's own background colour over the image, so it
+   re-tints when the theme changes instead of being baked in. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--bg);
+}
+
+.drift {
+  background-size: 200% 200%;
   animation: drift linear infinite;
 }
 
 .aurora {
   background-size: 160% 160%;
   filter: blur(40px) saturate(1.1);
-  animation-name: wander;
+  animation: wander linear infinite;
 }
 
 @keyframes drift {
@@ -34,7 +47,8 @@
 
 /* Someone who asked for less motion gets a still backdrop, not a slow one. */
 @media (prefers-reduced-motion: reduce) {
-  .layer {
+  .drift,
+  .aurora {
     animation: none;
   }
 }

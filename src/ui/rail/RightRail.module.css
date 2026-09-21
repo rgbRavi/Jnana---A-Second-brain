@@ -215,3 +215,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Separates the hide control from the panel icons: they do different kinds of
+   thing, and the strip is narrow enough that adjacency alone reads as one group. */
+.stripDivider {
+  width: 18px;
+  height: 1px;
+  margin: var(--space-3xs) 0;
+  background: var(--border);
+}

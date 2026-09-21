@@ -221,6 +221,8 @@ through Rust to only the host you configured.
   DOM, no file access and no network of its own: every capability is answered by Jnana, and one it
   wasn't granted is refused rather than quietly missing. These carry a **Sandboxed** badge, and you
   can tell Jnana to run nothing else
+- **Your own wallpaper** (Settings → Appearance) — pick any image; it is copied into Jnana so
+  moving the original can't break it, with dim and blur controls so text stays readable over it
 - **Themes are plugins too** — a plugin can declare `"type": "theme"`, ship colour schemes and an
   animated backdrop, and ask for no permissions at all. They are grouped and badged as themes in
   Settings, and a "theme" that also wants your notes gets that pointed out before you install it

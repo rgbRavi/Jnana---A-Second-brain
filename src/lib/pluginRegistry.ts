@@ -19,11 +19,18 @@ import {
   unregisterFence,
 } from './pluginContributions'
 import { registerRailPanel, unregisterRailPanel } from './rightRailPanels'
-import { clearPluginAppearance, registerPluginTheme, setPluginBackground } from './pluginThemes'
+import {
+  clearPluginAppearance,
+  getPluginBackground,
+  registerPluginTheme,
+  setPluginBackground,
+  setPluginBackgroundSrc,
+} from './pluginThemes'
+import { readPluginFile } from '../core/plugins/loader'
 import { sanitizeBlocks } from './pluginBlocks'
 import { setPluginEnabledState } from './pluginEnabled'
 import { clearPluginActivity } from './pluginActivity'
-import { resetPluginBudget } from '../core/plugins/guard'
+import { chargePluginCall, resetPluginBudget } from '../core/plugins/guard'
 import { toast } from './toast'
 import { pluginLog } from './pluginLog'
 import { makePluginStorage } from '../core/plugins/storage'
@@ -46,6 +53,28 @@ export interface WorkerPluginMeta {
   version: string
   /** Permissions granted at install; gates which RPC namespaces are answered. */
   granted: string[]
+}
+
+/**
+ * Apply a plugin's backdrop, reading the image out of its own folder when it
+ * shipped one. The read is async and the answer may arrive late, so
+ * `setPluginBackgroundSrc` re-checks that this is still the background in force.
+ */
+function applyPluginBackground(pluginId: string, input: unknown): void {
+  if (!setPluginBackground(pluginId, input ?? null)) {
+    pluginLog('warn', 'Background refused — unknown kind, bad colours or an unusable image path', pluginId)
+    return
+  }
+  const bg = getPluginBackground()
+  if (bg?.pluginId !== pluginId || bg.kind !== 'image' || !bg.file) return
+  const file = bg.file
+  void readPluginFile(pluginId, file)
+    .then((src) => setPluginBackgroundSrc(pluginId, file, src))
+    .catch((err: unknown) => {
+      pluginLog('warn', `Backdrop image "${file}" could not be read: ${err instanceof Error ? err.message : String(err)}`, pluginId)
+      // Left with no `src`, so the layer renders nothing rather than a broken
+      // image — the rest of the plugin is unaffected.
+    })
 }
 
 // Core app events that worker plugins are not allowed to emit
@@ -265,6 +294,13 @@ class PluginRegistry {
 
     worker.onmessage = (event: { data: WorkerToHost }) => {
       const m = event.data
+      // Everything a worker can say that costs the host something is charged to
+      // its budget. `rpc` is excluded because `guard` charges it on the way
+      // through, and the bookkeeping answers (`pong`, `bye`, `renderResult`) are
+      // replies to messages the host itself sent — rate-limiting those would
+      // punish a plugin for answering.
+      const FREE: WorkerToHost['k'][] = ['rpc', 'pong', 'bye', 'renderResult', 'ready', 'fatal']
+      if (!FREE.includes(m.k) && !chargePluginCall(meta.id)) return
       switch (m.k) {
         case 'subscribe': {
           // One forward per event, however often the plugin subscribes — its own
@@ -354,9 +390,7 @@ class PluginRegistry {
           return
         }
         case 'background': {
-          if (!setPluginBackground(meta.id, m.background ?? null)) {
-            pluginLog('warn', 'Background refused — unknown kind or bad colours', meta.id)
-          }
+          applyPluginBackground(meta.id, m.background ?? null)
           return
         }
         case 'renderResult': {
@@ -494,20 +528,27 @@ class PluginRegistry {
       net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
       media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
       registerNoteType: (def) => {
+        if (!chargePluginCall(plugin.id)) return
         registerNoteType(def)
         registeredKinds.push(def.id)
       },
       ui: {
         registerWidget: (w) => {
+          if (!chargePluginCall(plugin.id)) return
           registerWidget(w)
           contribWidgets.push(w.id)
         },
         registerCommand: (c) => {
+          if (!chargePluginCall(plugin.id)) return
           registerCommand(c)
           contribCommands.push(c.id)
         },
-        registerSettings: (definition) => registerSettings(plugin.id, definition),
+        registerSettings: (definition) => {
+          if (!chargePluginCall(plugin.id)) return
+          registerSettings(plugin.id, definition)
+        },
         registerRailPanel: (panel) => {
+          if (!chargePluginCall(plugin.id)) return
           // The rail's icon strip is Lucide icons; a plugin bundle has no access
           // to them (only react is shimmed), so every plugin panel wears the plug.
           registerRailPanel({
@@ -520,20 +561,22 @@ class PluginRegistry {
           contribRailPanels.push(panel.id)
         },
         registerBlockPanel: (panel) => {
+          if (!chargePluginCall(plugin.id)) return
           registerBlockPanel(plugin.id, panel)
           if (!contribBlockPanels.includes(panel.id)) contribBlockPanels.push(panel.id)
         },
         registerTheme: (theme) => {
+          if (!chargePluginCall(plugin.id)) return
           if (!registerPluginTheme(plugin.id, theme)) {
             pluginLog('warn', 'Theme refused — every token was missing or unparseable', plugin.id)
           }
         },
         setBackground: (background) => {
-          if (!setPluginBackground(plugin.id, background)) {
-            pluginLog('warn', 'Background refused — unknown kind or bad colours', plugin.id)
-          }
+          if (!chargePluginCall(plugin.id)) return
+          applyPluginBackground(plugin.id, background)
         },
         registerFence: (fence) => {
+          if (!chargePluginCall(plugin.id)) return
           if (!registerFence(plugin.id, fence)) {
             pluginLog('warn', `Another plugin already renders \`\`\`${fence.lang}`, plugin.id)
             return

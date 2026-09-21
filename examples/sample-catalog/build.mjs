@@ -103,8 +103,16 @@ for (const sample of SAMPLES) {
   const manifest = JSON.parse(readFileSync(join(dir, 'manifest.json'), 'utf8'))
 
   const files = walk(dir)
-    // Ship what a real package ships: the manifest and the code it points at.
-    .filter((name) => name === 'manifest.json' || name.startsWith('dist/') || name.startsWith('src/'))
+    // Ship what a real package ships: the manifest, the code it points at, and
+    // any asset the plugin references (a backdrop image lives in `bg/`).
+    .filter(
+      (name) =>
+        name === 'manifest.json' ||
+        name.startsWith('dist/') ||
+        name.startsWith('src/') ||
+        name.startsWith('bg/') ||
+        name.startsWith('assets/'),
+    )
     .filter((name) => !name.endsWith('.test.tsx') && !name.endsWith('.test.js'))
     .map((name) => ({ name, data: readFileSync(join(dir, name)) }))
 

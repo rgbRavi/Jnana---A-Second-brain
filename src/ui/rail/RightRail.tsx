@@ -10,7 +10,7 @@
 // composer full). Mirrors the FileExplorer second-sidebar + persisted-store pattern.
 
 import { useCallback, useEffect, useState, useSyncExternalStore, type ComponentType } from 'react'
-import { Link2, PanelRightClose, Plug, SlidersHorizontal, Sparkles, Table } from 'lucide-react'
+import { ChevronsRight, Link2, PanelRightClose, Plug, SlidersHorizontal, Sparkles, Table } from 'lucide-react'
 import {
   getRailPanelsVersion,
   listRailPanels,
@@ -31,6 +31,7 @@ import { FocusedScopePanel } from './FocusedScopePanel'
 import { NoteToolsPanel } from './NoteToolsPanel'
 import { LinksPanel } from './LinksPanel'
 import { useActiveNote } from '../../lib/activeNote'
+import { toast } from '../../lib/toast'
 import styles from './RightRail.module.css'
 
 // ── Which panel is open (persisted module store; '' = collapsed to icon strip) ──
@@ -66,6 +67,58 @@ function useOpenPanel(): string {
 /** Force a rail panel open by id (e.g. the composer opening the Focused scope panel). */
 export function openRailPanel(id: string): void {
   setOpenPanel(id)
+  // Opening a panel by name has to win over a hidden rail, or the caller's
+  // request silently does nothing.
+  setRailHidden(false)
+}
+
+// ── Whether the rail exists at all (persisted) ──
+//
+// Collapsing the body leaves the icon strip, which is right for the built-in
+// panels: they come and go with what you're doing (a focused table, an open
+// note), so the strip is only there when something is on it. A plugin panel has
+// no such condition — it is available always — so without this the strip became
+// permanent chrome the moment a plugin registered one, with no way out.
+const HIDDEN_KEY = 'jnana.rightrail.hidden.v1'
+let railHidden = (() => {
+  try {
+    return localStorage.getItem(HIDDEN_KEY) === '1'
+  } catch {
+    return false
+  }
+})()
+const hiddenListeners = new Set<() => void>()
+
+/** Hide or restore the whole rail. Exported so the command palette can undo it —
+ *  a control that hides itself must leave a way back. */
+export function setRailHidden(hidden: boolean): void {
+  if (hidden === railHidden) return
+  railHidden = hidden
+  try {
+    localStorage.setItem(HIDDEN_KEY, hidden ? '1' : '0')
+  } catch {
+    /* storage unavailable */
+  }
+  hiddenListeners.forEach((l) => l())
+}
+
+export function toggleRailHidden(): void {
+  setRailHidden(!railHidden)
+}
+
+export function isRailHidden(): boolean {
+  return railHidden
+}
+
+function useRailHidden(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      hiddenListeners.add(l)
+      return () => hiddenListeners.delete(l)
+    },
+    () => railHidden,
+    () => railHidden,
+  )
 }
 
 // ── Panel width (persisted; drag the left edge to resize) ──
@@ -136,6 +189,7 @@ export function RightRail() {
   const panels = useRailPanels()
   const openPanelId = useOpenPanel()
   const width = useRailWidth()
+  const hidden = useRailHidden()
   const [avail, setAvail] = useState<Record<string, boolean>>({})
 
   // Pointer-drag the left edge to resize (the rail is pinned to the right, so
@@ -159,7 +213,9 @@ export function RightRail() {
 
   const probes = panels.map((p) => <RailProbe key={p.id} panel={p} onChange={reportAvail} />)
   const available = panels.filter((p) => avail[p.id])
-  if (available.length === 0) return <>{probes}</>
+  // Probes keep running while hidden: they're what tells the rail whether there
+  // would be anything to show when it comes back.
+  if (hidden || available.length === 0) return <>{probes}</>
 
   const open = available.find((p) => p.id === openPanelId) ?? null
   const Body: ComponentType | null = open ? open.Component : null
@@ -167,7 +223,7 @@ export function RightRail() {
   return (
     <>
       {probes}
-      <div className={styles.rail}>
+      <div className={styles.rail} data-rail="">
         {open && Body && (
           <div className={styles.body} style={{ width }}>
             <div className={styles.resizeGrip} onPointerDown={onGripDown} title="Drag to resize" role="separator" aria-orientation="vertical" />
@@ -183,6 +239,20 @@ export function RightRail() {
           </div>
         )}
         <div className={styles.strip}>
+          <button
+            className={styles.iconBtn}
+            title="Hide the right rail (bring it back from the command palette)"
+            aria-label="Hide the right rail"
+            onClick={() => {
+              setRailHidden(true)
+              // Hiding removes the only control that was on screen, so say where
+              // it went rather than letting it feel like a disappearance.
+              toast('Right rail hidden — bring it back from the command palette.')
+            }}
+          >
+            <ChevronsRight size={16} />
+          </button>
+          <span className={styles.stripDivider} aria-hidden="true" />
           {available.map((p) => (
             <button
               key={p.id}

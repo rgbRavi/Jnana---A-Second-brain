@@ -2,16 +2,13 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useRef, useState, useEffect } from 'react'
+import { assetUrl } from '../core/notes'
 
 interface Props {
   filename: string
   alt?: string
   className?: string
   lazy?: boolean
-}
-
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
 }
 
 export function AsyncImage({ filename, alt, className, lazy = true }: Props) {

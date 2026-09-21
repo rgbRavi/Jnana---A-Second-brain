@@ -61,9 +61,21 @@ const settings = new Map<string, PluginSettingsDefinition>()
 let version = 0
 const listeners = new Set<() => void>()
 
+// Notifications are coalesced to one per microtask. The *store* updates
+// synchronously (a caller that registers then reads sees its own write), but
+// subscribers — the rail, the backdrop, the Settings panes — are told once per
+// batch. Without this, a plugin redeclaring a panel in a loop re-renders the app
+// once per call, which is a stutter no rate limit can fully hide.
+let pending = false
+
 function changed(): void {
   version += 1
-  listeners.forEach((l) => l())
+  if (pending) return
+  pending = true
+  queueMicrotask(() => {
+    pending = false
+    listeners.forEach((l) => l())
+  })
 }
 
 export function subscribeContributions(listener: () => void): () => void {

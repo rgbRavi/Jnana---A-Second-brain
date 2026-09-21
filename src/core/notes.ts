@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import type { Note, NoteProgress } from '../types'
 import { eventBus } from '../lib/eventBus'
 
@@ -139,9 +139,18 @@ export async function getAssetDataUrl(filename: string, mime: string): Promise<s
   })
 }
 
-export async function getAssetUrl(filename: string): Promise<string> {
-  const absPath = await invoke<string>('get_asset_path', { filename })
-  return convertFileSrc(absPath)
+/**
+ * URL for a stored asset, served by the app's own `jnana-asset` scheme handler
+ * (registered in `main.rs`).
+ *
+ * This exact origin is the one the WebView's CSP allows — see `img-src` /
+ * `media-src` in tauri.conf.json, pinned by assetUrl.test.ts. Tauri's
+ * `convertFileSrc` is **not** interchangeable here: it builds an `asset.localhost`
+ * URL, which the policy does not list, so the browser refuses the request and the
+ * image simply never appears. Nothing throws, so a wrong URL here fails silently.
+ */
+export function assetUrl(filename: string): string {
+  return `http://jnana-asset.localhost/${encodeURIComponent(filename)}`
 }
 
 export function createNote(title: string = 'Untitled'): Note {

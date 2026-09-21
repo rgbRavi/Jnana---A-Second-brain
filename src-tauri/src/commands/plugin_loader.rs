@@ -1047,6 +1047,82 @@ pub fn plugin_read_asset(plugin_id: String, filename: String) -> Result<String, 
     Ok(STANDARD.encode(bytes))
 }
 
+/// A backdrop image a plugin ships is capped well below the package limit: it is
+/// decoded and held for as long as it is on screen, and a fixed full-window layer
+/// repaints with everything behind it.
+const MAX_PLUGIN_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+
+/// Image types a plugin backdrop may use, with the mime the data URI declares.
+/// SVG is absent on purpose: it is a document that can carry script and external
+/// references, and a background needs none of that.
+const IMAGE_MIMES: [(&str, &str); 6] = [
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
+    ("jpeg", "image/jpeg"),
+    ("webp", "image/webp"),
+    ("avif", "image/avif"),
+    ("gif", "image/gif"),
+];
+
+/// Read an image out of a plugin's **own** installed folder and return it as a
+/// `data:` URI.
+///
+/// No permission gates this: a plugin is only reading a file it shipped itself,
+/// which it could equally have inlined in its bundle. What is enforced is where
+/// it may read from (inside its own directory — `safe_relative` plus a
+/// canonicalized containment check, so a symlink can't lead out), what it may
+/// read (the image types above), and how much (8 MB).
+///
+/// A `data:` URI rather than a URL because the WebView's CSP allows `img-src
+/// data:` and no remote scheme at all — the point being that a backdrop must
+/// never become an outbound request.
+#[command]
+pub fn plugin_read_file(plugin_id: String, path: String) -> Result<String, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    if !valid_id(&plugin_id) {
+        return Err("Invalid plugin id.".into());
+    }
+    if !safe_relative(&path) {
+        return Err("A plugin may only read files inside its own folder.".into());
+    }
+    let ext = Path::new(&path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let mime = IMAGE_MIMES
+        .iter()
+        .find(|(e, _)| *e == ext)
+        .map(|(_, m)| *m)
+        .ok_or_else(|| format!("{} is not an image type a backdrop can use.", path))?;
+
+    let dir = install_dir_for(&plugin_id);
+    let target = dir.join(path.replace('\\', "/"));
+    // `safe_relative` rejects the obvious escapes; canonicalizing catches the rest
+    // (a symlink inside the package pointing anywhere else on disk).
+    let real = target
+        .canonicalize()
+        .map_err(|_| "That file is not in the plugin's folder.".to_string())?;
+    let root = dir
+        .canonicalize()
+        .map_err(|_| "That plugin is not installed.".to_string())?;
+    if !real.starts_with(&root) {
+        return Err("That file is not in the plugin's folder.".into());
+    }
+
+    let size = fs::metadata(&real).map_err(|e| e.to_string())?.len();
+    if size > MAX_PLUGIN_IMAGE_BYTES {
+        return Err(format!(
+            "A backdrop image may not exceed {} MB.",
+            MAX_PLUGIN_IMAGE_BYTES / (1024 * 1024)
+        ));
+    }
+
+    let bytes = fs::read(&real).map_err(|e| format!("Failed to read {}: {}", path, e))?;
+    Ok(format!("data:{};base64,{}", mime, STANDARD.encode(bytes)))
+}
+
 // ─── Remote catalog (Phase 2) ───────────────────────────
 
 /// One plugin as listed in a community catalog index.

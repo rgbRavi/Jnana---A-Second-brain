@@ -410,6 +410,7 @@ fn main() {
             preview_plugin_download,
             plugin_fetch,
             plugin_read_asset,
+            plugin_read_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

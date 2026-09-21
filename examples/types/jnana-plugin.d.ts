@@ -163,18 +163,33 @@ declare namespace Jnana {
     }
   }
 
-  /** An animated backdrop behind the app, drawn by Jnana from your parameters.
-   *  Omit `colors` to follow the active theme — then it re-themes for free. */
+  /** A backdrop behind the app, drawn by Jnana from your parameters. Omit
+   *  `colors` to follow the active theme — then it re-themes for free.
+   *
+   *  A user's own wallpaper (Settings → Appearance) takes precedence: if one is
+   *  set, yours waits until they remove it. */
   interface PluginBackground {
-    kind: 'gradient' | 'aurora'
-    /** 2–4 CSS colours (hex or rgb()/hsl()). */
+    kind: 'gradient' | 'aurora' | 'image'
+    /** 2–4 CSS colours (hex or rgb()/hsl()). Gradient and aurora only. */
     colors?: string[]
-    /** Degrees, 0–360 (default 135). */
+    /** Degrees, 0–360 (default 135). Gradient only. */
     angle?: number
-    /** Seconds per drift cycle, 4–240 (default 40). */
+    /** Seconds per drift cycle, 4–240 (default 40). Gradient and aurora only. */
     speed?: number
     /** 0–1 (default 1). */
     opacity?: number
+    /** `image` only — a path inside **your own plugin folder**, e.g. `bg/dusk.jpg`
+     *  (png, jpg, webp, avif, gif; 8 MB max). There is no URL form: a remote
+     *  image would be an outbound request on every paint, and the WebView's CSP
+     *  blocks it. Ship the file in your package. */
+    file?: string
+    /** `image` only: how it fills the window (default `cover`). */
+    fit?: 'cover' | 'contain' | 'tile'
+    /** `image` only: 0–1 blend toward the theme's background. Defaults to 0.4,
+     *  because text over an undimmed photo is a contrast problem. */
+    dim?: number
+    /** `image` only: blur radius in px, 0–40. */
+    blur?: number
   }
 
   /** A fenced code language you render, e.g. `lang: 'weather'` for ```weather.

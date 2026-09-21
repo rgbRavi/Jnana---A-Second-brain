@@ -3,7 +3,7 @@
 
 import { eventBus } from '../../lib/eventBus'
 import { pluginLog } from '../../lib/pluginLog'
-import { recordPluginActivity } from '../../lib/pluginActivity'
+import { recordPluginActivity, type PluginActivityKind } from '../../lib/pluginActivity'
 
 // Rate limiting for everything a plugin asks the host to do.
 //
@@ -64,6 +64,30 @@ function refuse(pluginId: string, b: Budget, why: string): Error {
     eventBus.emit('plugin:runaway', { pluginId, reason: why })
   }
   return new Error(`Rate limit: ${why}`)
+}
+
+/**
+ * Charge one **synchronous** call against the plugin's budget. Returns false when
+ * it is over, having taken a strike (and tripped `plugin:runaway` at the limit)
+ * exactly like the async path.
+ *
+ * Registering UI is synchronous and returns nothing, so it cannot use `guard` —
+ * but it is not free: every `registerBlockPanel` / `setBackground` / `registerTheme`
+ * sanitizes its input and notifies every subscriber, so a loop of them re-renders
+ * the app as fast as the plugin can call. That is the same wedge `guard` exists to
+ * stop, and it arrives through a door `guard` could not see. The caller drops the
+ * registration on false rather than throwing, because half of these come from a
+ * worker message where there is nobody to throw to.
+ */
+export function chargePluginCall(pluginId: string, kind: PluginActivityKind = 'ui'): boolean {
+  const b = budgetFor(pluginId)
+  if (b.tokens < 1) {
+    refuse(pluginId, b, `more than ${CALLS_PER_SECOND} calls per second`)
+    return false
+  }
+  b.tokens -= 1
+  recordPluginActivity(pluginId, kind)
+  return true
 }
 
 /**

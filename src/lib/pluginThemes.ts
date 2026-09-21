@@ -32,8 +32,19 @@ export interface PluginTheme {
 /** An animated backdrop behind the app shell. */
 export interface PluginBackground {
   /** `gradient` drifts a soft multi-stop gradient; `aurora` adds slow colour
-   *  blobs over it. Anything else is ignored. */
-  kind: 'gradient' | 'aurora'
+   *  blobs over it; `image` shows a picture **shipped inside your package**.
+   *  Anything else is ignored. */
+  kind: 'gradient' | 'aurora' | 'image'
+  /** `image` only: a path inside your own plugin folder, e.g. `bg/dusk.jpg`.
+   *  There is no URL form on purpose — a remote image would make every paint an
+   *  outbound request, and the WebView's CSP blocks it anyway. */
+  file?: string
+  /** `image` only: how it fills the window (default `cover`). */
+  fit?: 'cover' | 'contain' | 'tile'
+  /** `image` only: 0–1 blend toward the theme's background, for text contrast. */
+  dim?: number
+  /** `image` only: blur radius in px, 0–40. */
+  blur?: number
   /** 2–4 CSS colours. Omit to follow the active theme (bg, surface-2, accent),
    *  which is usually what you want — it re-themes for free. */
   colors?: string[]
@@ -54,6 +65,29 @@ export interface StoredPluginTheme extends PluginTheme {
 
 export interface StoredPluginBackground extends PluginBackground {
   pluginId: string
+  /** `image` only: the resolved `data:` URI, filled in by the host after it has
+   *  read the file out of the plugin's folder. Absent until then, so the layer
+   *  renders nothing rather than flashing an empty box. */
+  src?: string
+}
+
+/** Image types a plugin backdrop may use. SVG is excluded deliberately: it is a
+ *  document format that can carry script and external references, and nothing
+ *  here needs it. */
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif']
+
+/**
+ * A path inside the plugin's own folder, and nothing else. Same rules as the
+ * loader's `safe_relative` (Rust re-checks it — this is the early, legible
+ * refusal, not the boundary).
+ */
+export function isSafePluginFile(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const v = value.trim()
+  if (!v || v.length > 256) return false
+  if (v.includes('..') || v.startsWith('/') || v.startsWith('\\') || v.includes(':')) return false
+  const ext = v.split('.').pop()?.toLowerCase() ?? ''
+  return IMAGE_EXTENSIONS.includes(ext)
 }
 
 // ── Value grammars ───────────────────────────────────────────────────────────
@@ -182,10 +216,26 @@ export function sanitizeTheme(pluginId: string, input: unknown): StoredPluginThe
 export function sanitizeBackground(pluginId: string, input: unknown): StoredPluginBackground | null {
   if (!input || typeof input !== 'object') return null
   const b = input as Partial<PluginBackground>
-  if (b.kind !== 'gradient' && b.kind !== 'aurora') return null
-  const colors = Array.isArray(b.colors) ? b.colors.filter(isSafeColor).slice(0, 4) : []
+  if (b.kind !== 'gradient' && b.kind !== 'aurora' && b.kind !== 'image') return null
   const clamp = (n: unknown, lo: number, hi: number, fallback: number) =>
     typeof n === 'number' && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback
+
+  if (b.kind === 'image') {
+    if (!isSafePluginFile(b.file)) return null
+    return {
+      pluginId,
+      kind: 'image',
+      file: b.file.trim(),
+      fit: b.fit === 'contain' || b.fit === 'tile' ? b.fit : 'cover',
+      // A photo behind a text app is a contrast problem before it is a style
+      // choice, so dim defaults to a real amount rather than none.
+      dim: clamp(b.dim, 0, 1, 0.4),
+      blur: clamp(b.blur, 0, 40, 0),
+      opacity: clamp(b.opacity, 0, 1, 1),
+    }
+  }
+
+  const colors = Array.isArray(b.colors) ? b.colors.filter(isSafeColor).slice(0, 4) : []
   return {
     pluginId,
     kind: b.kind,
@@ -220,9 +270,21 @@ let background: StoredPluginBackground | null = null
 let version = 0
 const listeners = new Set<() => void>()
 
+// Notifications are coalesced to one per microtask. The *store* updates
+// synchronously (a caller that registers then reads sees its own write), but
+// subscribers — the rail, the backdrop, the Settings panes — are told once per
+// batch. Without this, a plugin redeclaring a panel in a loop re-renders the app
+// once per call, which is a stutter no rate limit can fully hide.
+let pending = false
+
 function changed(): void {
   version += 1
-  listeners.forEach((l) => l())
+  if (pending) return
+  pending = true
+  queueMicrotask(() => {
+    pending = false
+    listeners.forEach((l) => l())
+  })
 }
 
 export function subscribePluginThemes(listener: () => void): () => void {
@@ -269,6 +331,15 @@ export function setPluginBackground(pluginId: string, input: unknown): boolean {
 
 export function getPluginBackground(): StoredPluginBackground | null {
   return background
+}
+
+/** Attach the resolved image data the host read out of the plugin's folder. The
+ *  id and file are re-checked because the read is async — the background may have
+ *  been replaced or cleared while it was in flight. */
+export function setPluginBackgroundSrc(pluginId: string, file: string, src: string): void {
+  if (!background || background.pluginId !== pluginId || background.file !== file) return
+  background = { ...background, src }
+  changed()
 }
 
 /** Drop everything a plugin contributed (called on unregister). */

@@ -133,6 +133,12 @@ function patch(obj: Partial<Pick<Theme, 'density' | 'readingScale'>>): void {
 
 /** A look preference layered on any palette — toggling it doesn't turn a preset
  *  into "Custom", and switching presets keeps it (see pickPreset/reset). */
+/** Set or clear the user's background image. `null` removes it, which also lets
+ *  a plugin's backdrop show again (the wallpaper takes precedence while set). */
+function setWallpaper(w: Theme['wallpaper']): void {
+  commit({ ...theme, wallpaper: w ?? null })
+}
+
 function setGlassEffects(on: boolean): void {
   commit({ ...theme, glassEffects: on })
 }
@@ -209,6 +215,7 @@ export interface UseThemeApi {
   setFont: (role: keyof Theme['fonts'], id: string) => void
   setRadius: (v: number) => void
   setGlassEffects: (on: boolean) => void
+  setWallpaper: (w: Theme['wallpaper']) => void
   patch: (obj: Partial<Pick<Theme, 'density' | 'readingScale'>>) => void
   pickPreset: (id: string) => void
   importTheme: (obj: Partial<Theme>) => void
@@ -234,6 +241,7 @@ export function useTheme(): UseThemeApi {
     setFont,
     setRadius,
     setGlassEffects,
+    setWallpaper,
     patch,
     pickPreset,
     importTheme,

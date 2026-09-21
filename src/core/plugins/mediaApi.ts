@@ -51,8 +51,17 @@ export function makePluginMediaApi(pluginId: string): PluginMediaApi {
 
     read(filename: string): Promise<Uint8Array> {
       return guard(pluginId, 'reads', async () => {
-        const b64 = await invoke<string>('plugin_read_asset', { pluginId, filename })
-        return decodeBase64(b64)
+        try {
+          const b64 = await invoke<string>('plugin_read_asset', { pluginId, filename })
+          return decodeBase64(b64)
+        } catch (err) {
+          // Rust refuses a read that was never granted, is too large, or names a
+          // file outside the assets dir. Rejecting the plugin's promise is not
+          // enough on its own: if the plugin swallows it, a revoked permission
+          // looks exactly like a plugin that chose not to read.
+          pluginLog('warn', `Refused to read "${filename}": ${err instanceof Error ? err.message : String(err)}`, pluginId)
+          throw err
+        }
       })
     },
 
