@@ -1,0 +1,11 @@
+{
+  "id": "com.jnana.ink-portal",
+  "name": "Ink Portal",
+  "version": "1.0.0",
+  "description": "Switching views from the sidebar splashes a drop of ink that washes across the page as the new view appears.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": ["motion"]
+}
