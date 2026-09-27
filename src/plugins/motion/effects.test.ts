@@ -60,7 +60,35 @@ describe('fold to bin', () => {
     big.getBoundingClientRect = () =>
       ({ width: 400, height: 300, top: 0, left: 0, right: 400, bottom: 300, x: 0, y: 0, toJSON: () => {} }) as DOMRect
     foldToBin(createMotionApi(PID), 'n1')
-    expect(layers()[0].textContent).toBe('big')
+    const text = layers()[0].textContent ?? ''
+    expect(text).toContain('big')
+    expect(text).not.toContain('small')
+  })
+
+  it('folds in half, then throws a paper ball', () => {
+    document.body.innerHTML =
+      '<div data-anchor="note" data-anchor-key="n1">A</div><button data-anchor="trash"></button>'
+    foldToBin(createMotionApi(PID), 'n1')
+    const layer = layers()[0]
+    const ball = layer.querySelector('[data-ball]')
+    expect(ball).not.toBeNull()
+    // The flap is animated around the midline; the ball is animated twice (appear, throw).
+    const rotateX = animateSpy.mock.calls.find(([frames]) =>
+      (frames as Keyframe[]).some((f) => String(f.transform).startsWith('rotateX')),
+    )
+    expect(rotateX).toBeDefined()
+    expect(animateSpy.mock.contexts.filter((el) => el === ball)).toHaveLength(2)
+  })
+
+  it('keeps one transform shape per animation, so nothing matrix-spins', () => {
+    document.body.innerHTML =
+      '<div data-anchor="note" data-anchor-key="n1">A</div><button data-anchor="trash"></button>'
+    foldToBin(createMotionApi(PID), 'n1')
+    const shape = (t: unknown) => String(t).replace(/\([^)]*\)/g, '()')
+    for (const [frames] of animateSpy.mock.calls) {
+      const shapes = new Set((frames as Keyframe[]).filter((f) => f.transform).map((f) => shape(f.transform)))
+      expect(shapes.size).toBeLessThanOrEqual(1)
+    }
   })
 })
 

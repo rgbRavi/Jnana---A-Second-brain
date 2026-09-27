@@ -26,8 +26,42 @@ function largest(els: HTMLElement[]): HTMLElement | null {
   return best
 }
 
-/** Note crinkles, folds into a ball and is thrown into the bin (or, when the
- *  Trash button isn't on screen, the sidebar Notes link). */
+/** Crease lines, drawn over the paper as it scrunches and on the ball. */
+function creases(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg')
+  svg.setAttribute('viewBox', '0 0 100 100')
+  svg.setAttribute('preserveAspectRatio', 'none')
+  Object.assign(svg.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', opacity: '0' })
+  for (const d of [
+    'M8 38 L33 28 L55 46 L78 30 L96 40',
+    'M4 72 L30 56 L52 76 L74 58 L95 68',
+    'M38 4 L46 32 L36 58 L50 96',
+    'M66 6 L60 38 L74 62 L66 94',
+  ]) {
+    const line = document.createElementNS(SVG_NS, 'path')
+    line.setAttribute('d', d)
+    line.setAttribute('fill', 'none')
+    line.setAttribute('stroke-width', '1.5')
+    line.setAttribute('vector-effect', 'non-scaling-stroke')
+    line.style.stroke = 'var(--text-3)'
+    svg.appendChild(line)
+  }
+  return svg
+}
+
+// Jagged outline of a crumpled paper ball.
+const BALL_OUTLINE =
+  'polygon(50% 0%, 63% 9%, 80% 6%, 88% 22%, 100% 38%, 93% 55%, 99% 72%, 84% 84%, 70% 100%, ' +
+  '52% 92%, 34% 99%, 20% 86%, 4% 76%, 9% 58%, 0% 40%, 10% 24%, 22% 8%, 36% 11%)'
+
+/**
+ * Note folds in half, scrunches up and is thrown into the bin (or, when the
+ * Trash button isn't on screen, the sidebar Notes link) as a paper ball.
+ *
+ * Every keyframe list below keeps one transform-function shape per element.
+ * Mixing shapes (`perspective() rotateX()` → `scale() rotate()`) makes the
+ * browser interpolate matrices, which reads as a spin-and-shrink, not a fold.
+ */
 export function foldToBin(motion: MotionApi, noteId: string): void {
   const source = largest(motion.anchors('note', noteId))
   if (!source) return
@@ -36,30 +70,123 @@ export function foldToBin(motion: MotionApi, noteId: string): void {
   const from = source.getBoundingClientRect()
   const to = target.getBoundingClientRect()
   const paper = motion.clone(source)
-  if (!paper) return
-  paper.style.transformOrigin = 'center'
-  paper.style.overflow = 'hidden'
+  const layer = paper?.parentElement
+  if (!paper || !layer) return
+  const w = from.width
+  const h = from.height
 
-  const crinkle: Keyframe[] = [
-    { transform: 'none', offset: 0 },
-    { transform: 'perspective(600px) rotateX(35deg) scale(0.9, 0.7) skewX(-6deg)', offset: 0.15 },
-    { transform: 'perspective(600px) rotateX(-20deg) rotateY(25deg) scale(0.6, 0.5) skewY(8deg)', offset: 0.3 },
-    { transform: 'scale(0.25) rotate(40deg)', borderRadius: '50%', offset: 0.45 },
-  ]
-  const path = arcPoints(from, to, 6, 120).slice(1)
-  const fly: Keyframe[] = path.map((p, i) => {
-    const t = (i + 1) / path.length
-    return {
-      transform: `translate(${p.x}px, ${p.y}px) scale(${0.25 - 0.17 * t}) rotate(${40 + 320 * t}deg)`,
-      borderRadius: '50%',
-      opacity: t === 1 ? 0 : 1,
-      offset: 0.45 + 0.55 * t,
-    }
+  // Stage holds the paper in 3D; the paper itself becomes the top half.
+  const stage = document.createElement('div')
+  Object.assign(stage.style, {
+    position: 'absolute',
+    left: `${from.left}px`,
+    top: `${from.top}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+    perspective: '900px',
+    transformStyle: 'preserve-3d',
+    transformOrigin: 'center 25%',
   })
-  motion.animate(paper, [...crinkle, ...fly], { duration: 1000, easing: 'ease-in', fill: 'forwards' })
+  Object.assign(paper.style, { left: '0', top: '0', clipPath: 'inset(0 0 50% 0)' })
+
+  // Bottom half: a two-sided flap hinged on the midline — note on the front,
+  // plain paper on the back, so folding it up shows the back of the page.
+  const flap = document.createElement('div')
+  Object.assign(flap.style, {
+    position: 'absolute',
+    left: '0',
+    top: `${h / 2}px`,
+    width: `${w}px`,
+    height: `${h / 2}px`,
+    transformOrigin: 'top center',
+    transformStyle: 'preserve-3d',
+  })
+  const front = paper.cloneNode(true) as HTMLElement
+  Object.assign(front.style, { top: `${-h / 2}px`, clipPath: 'inset(50% 0 0 0)', backfaceVisibility: 'hidden' })
+  const back = document.createElement('div')
+  Object.assign(back.style, {
+    position: 'absolute',
+    inset: '0',
+    background: 'linear-gradient(to top, color-mix(in srgb, var(--surface-2) 70%, var(--bg)), var(--surface-2))',
+    transform: 'rotateX(180deg)',
+    backfaceVisibility: 'hidden',
+  })
+  flap.append(front, back)
+
+  // Creases appear on the folded half as it scrunches.
+  const folded = document.createElement('div')
+  Object.assign(folded.style, { position: 'absolute', left: '0', top: '0', width: `${w}px`, height: `${h / 2}px` })
+  const foldCreases = creases()
+  folded.appendChild(foldCreases)
+
+  stage.append(paper, flap, folded)
+  layer.appendChild(stage)
+
+  // The paper ball that gets thrown, centred on the folded half.
+  const size = Math.round(Math.min(64, Math.max(28, Math.min(w, h) * 0.3)))
+  const ballBox = { left: from.left + w / 2 - size / 2, top: from.top + h / 4 - size / 2, width: size, height: size }
+  const ball = document.createElement('div')
+  ball.dataset.ball = ''
+  Object.assign(ball.style, {
+    position: 'absolute',
+    left: `${ballBox.left}px`,
+    top: `${ballBox.top}px`,
+    width: `${size}px`,
+    height: `${size}px`,
+    clipPath: BALL_OUTLINE,
+    background:
+      'radial-gradient(circle at 35% 30%, var(--surface-3), var(--surface-2) 55%, ' +
+      'color-mix(in srgb, var(--surface-2) 60%, var(--bg)))',
+    opacity: '0',
+  })
+  const ballCreases = creases()
+  ballCreases.style.opacity = '0.8'
+  ball.appendChild(ballCreases)
+  layer.appendChild(ball)
+
+  // 1) fold the bottom half up over the top (0–380ms)
+  motion.animate(flap, [{ transform: 'rotateX(0deg)' }, { transform: 'rotateX(180deg)' }], {
+    duration: 380,
+    easing: 'cubic-bezier(0.45, 0, 0.2, 1)',
+    fill: 'forwards',
+  })
+  // 2) scrunch: uneven squeezes with small wobbles, then hand over to the ball (360–880ms)
+  motion.animate(
+    stage,
+    [
+      { transform: 'scale(1, 1) rotate(0deg)', opacity: 1 },
+      { transform: 'scale(0.82, 0.9) rotate(-3deg)', opacity: 1, offset: 0.3 },
+      { transform: 'scale(0.62, 0.56) rotate(4deg)', opacity: 1, offset: 0.55 },
+      { transform: 'scale(0.44, 0.47) rotate(-2deg)', opacity: 1, offset: 0.8 },
+      { transform: 'scale(0.32, 0.34) rotate(5deg)', opacity: 0 },
+    ],
+    { duration: 520, delay: 360, easing: 'ease-in', fill: 'forwards' },
+  )
+  motion.animate(foldCreases, [{ opacity: 0 }, { opacity: 0.8 }], { duration: 300, delay: 420, fill: 'forwards' })
+  motion.animate(
+    ball,
+    [
+      { transform: 'translate(0px, 0px) scale(0.7) rotate(0deg)', opacity: 0 },
+      { transform: 'translate(0px, 0px) scale(1) rotate(-8deg)', opacity: 1 },
+    ],
+    { duration: 160, delay: 760, easing: 'ease-out', fill: 'forwards' },
+  )
+  // 3) throw it in an arc, a thrown ball's worth of spin (920–1440ms)
+  const arc = arcPoints(ballBox, to, 8, 110)
+  motion.animate(
+    ball,
+    arc.map((p, i) => {
+      const t = i / (arc.length - 1)
+      return {
+        transform: `translate(${p.x}px, ${p.y}px) scale(${1 - 0.5 * t}) rotate(${-8 + 160 * t}deg)`,
+        opacity: t === 1 ? 0 : 1,
+      }
+    }),
+    { duration: 520, delay: 920, easing: 'ease-in', fill: 'forwards' },
+  )
   motion.animate(target, [{ transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }], {
     duration: 260,
-    delay: 900,
+    delay: 1380,
   })
 }
 

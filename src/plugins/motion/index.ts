@@ -25,16 +25,16 @@ export const motionPlugin: Plugin = {
       onChange: (values) => void (on = values),
     })
     // Bulk delete fires one `note:trashing` per note, back to back, and each
-    // fold charges the motion budget several times (anchor, anchor, clone,
-    // animate...) — deleting a few dozen notes at once would otherwise trip
-    // the runaway limit and get this plugin auto-disabled. A local-timestamp
-    // throttle (no API call, so a skipped fold costs nothing) keeps the real
-    // call rate well under budget without needing a queue.
+    // fold charges the motion budget ~10 times (anchors, clone, six animates)
+    // — deleting a few dozen notes at once would otherwise trip the runaway
+    // limit and get this plugin auto-disabled. A local-timestamp throttle (no
+    // API call, so a skipped fold costs nothing) caps it at 4 folds/s ≈ 40
+    // calls/s, under the 50/s budget, without needing a queue.
     let lastFoldAt = 0
     ctx.bus.on<{ id?: string }>('note:trashing', (p) => {
       if (!p?.id || on.foldToBin !== true) return
       const now = Date.now()
-      if (now - lastFoldAt < 150) return
+      if (now - lastFoldAt < 250) return
       lastFoldAt = now
       foldToBin(motion, p.id)
     })
