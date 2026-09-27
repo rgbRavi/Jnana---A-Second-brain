@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { showConfirmDialog } from '../../../lib/dialog'
+import { showConfirmDialog, showChoiceDialog } from '../../../lib/dialog'
+import { createBackup } from '../../../core/data'
+import { toast } from '../../../lib/toast'
 import type { PluginManifestPreview } from '../../../core/plugins/loader'
 
 /** Human labels for known permission ids (falls back to the raw id). */
@@ -18,6 +20,37 @@ function permissionLine(permission: string, hosts: string[]): string {
   const label = PERMISSION_LABELS[permission] ?? permission
   if (permission !== 'network') return `  • ${label}`
   return hosts.length ? `  • ${label}: ${hosts.join(', ')}` : `  • ${label} (no hosts declared)`
+}
+
+/**
+ * Second step for a plugin that asks for `motion`. It is the one permission whose
+ * failure mode is "the app itself misbehaves", so it gets its own sentence and a
+ * backup offer instead of a line in a list. A failed backup installs nothing —
+ * the user chose to be covered first.
+ */
+async function confirmMotionRisk(name: string): Promise<boolean> {
+  const choice = await showChoiceDialog({
+    title: `${name} can animate anything in Jnana`,
+    message:
+      'Animation plugins reach into the live interface. A buggy one can make Jnana glitch, stutter or freeze. ' +
+      'Your notes are only at risk if it also asks to read and modify them.\n\n' +
+      'If Jnana ever fails to start cleanly, animation plugins switch off on the next launch, and ' +
+      'Ctrl/⌘+Alt+M stops every animation at once. A backup first is still a good idea.',
+    options: [
+      { value: 'backup', label: 'Back up, then install', primary: true },
+      { value: 'install', label: 'Install without a backup' },
+    ],
+  })
+  if (choice === 'backup') {
+    try {
+      const path = await createBackup()
+      toast.success(`Backup saved to ${path}`)
+    } catch (err) {
+      toast.error('Backup failed, so nothing was installed: ' + String(err))
+      return false
+    }
+  }
+  return choice !== null
 }
 
 /**
@@ -59,7 +92,7 @@ export async function confirmPluginInstall(manifest: PluginManifestPreview): Pro
         : '\n\nThis is a theme: it changes how Jnana looks, and asks for nothing else.'
   const source = manifest.homepage ? `\n\nSource: ${manifest.homepage}` : ''
 
-  return showConfirmDialog({
+  const ok = await showConfirmDialog({
     title: `Install ${manifest.name}?`,
     message:
       `${manifest.name} v${manifest.version}${manifest.author ? ` by ${manifest.author}` : ''}. ` +
@@ -67,4 +100,6 @@ export async function confirmPluginInstall(manifest: PluginManifestPreview): Pro
     confirmLabel: 'Install',
     danger: !sandboxed,
   })
+  if (!ok) return false
+  return perms.includes('motion') ? confirmMotionRisk(manifest.name) : true
 }
