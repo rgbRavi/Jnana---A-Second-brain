@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (c) 2026 Jnana Project
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { createMotionApi, __resetMotionForTests } from '../../lib/motion/runtime'
+import { resetPluginBudget } from '../../core/plugins/guard'
+import { foldToBin, letterToNotes } from './effects'
+
+const PID = 'jnana.motion.test'
+let animateSpy: ReturnType<typeof vi.fn>
+
+beforeEach(() => {
+  animateSpy = vi.fn(() => ({ cancel: vi.fn(), finished: new Promise(() => {}) }))
+  Element.prototype.animate = animateSpy as unknown as Element['animate']
+})
+afterEach(() => {
+  __resetMotionForTests()
+  resetPluginBudget(PID)
+  document.body.innerHTML = ''
+})
+
+const layers = () => document.querySelectorAll(`[data-motion-layer="${PID}"]`)
+
+describe('fold to bin', () => {
+  it('animates a copy, never the real card, and nudges the bin', () => {
+    document.body.innerHTML =
+      '<div data-anchor="note" data-anchor-key="n1">A</div><button data-anchor="trash"></button>'
+    const card = document.querySelector('[data-anchor="note"]')
+    const bin = document.querySelector('[data-anchor="trash"]')
+    foldToBin(createMotionApi(PID), 'n1')
+    const targets = animateSpy.mock.contexts
+    expect(targets).not.toContain(card)
+    expect(targets).toContain(bin)
+    expect(layers()).toHaveLength(1)
+  })
+
+  it('falls back to the sidebar Notes link when no bin is on screen', () => {
+    document.body.innerHTML =
+      '<div data-anchor="note" data-anchor-key="n1">A</div><a data-anchor="sidebar.notes"></a>'
+    foldToBin(createMotionApi(PID), 'n1')
+    expect(animateSpy.mock.contexts).toContain(document.querySelector('[data-anchor="sidebar.notes"]'))
+  })
+
+  it('skips when no target at all, or the note is not on screen', () => {
+    document.body.innerHTML = '<div data-anchor="note" data-anchor-key="n1">A</div>'
+    foldToBin(createMotionApi(PID), 'n1')
+    foldToBin(createMotionApi(PID), 'missing')
+    expect(animateSpy).not.toHaveBeenCalled()
+    expect(layers()).toHaveLength(0)
+  })
+})
+
+describe('letter to Notes', () => {
+  it('draws an envelope and an arrow toward the sidebar', () => {
+    document.body.innerHTML = '<div data-anchor="composer">draft</div><a data-anchor="sidebar.notes"></a>'
+    letterToNotes(createMotionApi(PID))
+    const layer = layers()[0]
+    expect(layer.querySelector('svg path')).not.toBeNull()
+    expect(layer.querySelector('[data-letter]')).not.toBeNull()
+    expect(animateSpy.mock.contexts).toContain(document.querySelector('[data-anchor="sidebar.notes"]'))
+  })
+
+  it('skips when the composer or the sidebar is missing', () => {
+    document.body.innerHTML = '<div data-anchor="composer">draft</div>'
+    letterToNotes(createMotionApi(PID))
+    expect(layers()).toHaveLength(0)
+  })
+})

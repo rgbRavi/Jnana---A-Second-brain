@@ -9,10 +9,11 @@ import { flashcardsPlugin } from './flashcards'
 import { pomodoroPlugin } from './pomodoro'
 import { canvasPlugin } from './canvas'
 import { quizPlugin } from './quiz'
+import { motionPlugin } from './motion'
 
 /** Every first-party plugin bundled into the app (registered or not). The manager
  *  lists these so a disabled plugin still appears (and can be re-enabled). */
-export const BUILTIN_PLUGINS: Plugin[] = [flashcardsPlugin, pomodoroPlugin, canvasPlugin, quizPlugin]
+export const BUILTIN_PLUGINS: Plugin[] = [flashcardsPlugin, pomodoroPlugin, canvasPlugin, quizPlugin, motionPlugin]
 
 /**
  * Register all enabled first-party plugins. Called once at boot from `main.tsx`.
