@@ -123,6 +123,7 @@ function AppInner() {
     }, [])
     // Remember the current route for next launch.
     useEffect(() => {
+        eventBus.emit('route:changed', { path: pathname })
         try {
             if (pathname !== "/settings") localStorage.setItem(LAST_ROUTE_KEY, pathname)
         } catch {
@@ -213,7 +214,7 @@ function AppInner() {
             <AppBackdrop />
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
-            <main className={AppStyles.mainContent}>
+            <main data-anchor="main" className={AppStyles.mainContent}>
                 {!inSettings && <OnboardingNudge />}
                 <Suspense fallback={null}>
                     <Outlet />

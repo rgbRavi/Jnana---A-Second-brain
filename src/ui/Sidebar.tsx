@@ -64,7 +64,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className={`${SidebarStyles.sidebar}${collapsed ? " " + SidebarStyles.collapsed : ""}`}>
+    <aside data-anchor="sidebar" className={`${SidebarStyles.sidebar}${collapsed ? " " + SidebarStyles.collapsed : ""}`}>
       <div className={SidebarStyles.sidebarLogo}>
         <div className={SidebarStyles.logoRow}>
           <span className={SidebarStyles.logoBrand}>
@@ -108,9 +108,10 @@ export function Sidebar() {
         </button>
 
         <div className={SidebarStyles.wsNavRow}>
-          <NavLink 
-            to="/notes" 
-            className={() => itemClass(pathname === "/notes" && subView === "gallery")} 
+          <NavLink
+            to="/notes"
+            data-anchor="sidebar.notes"
+            className={() => itemClass(pathname === "/notes" && subView === "gallery")}
             onClick={() => setNotesSubView("gallery")}
             title={collapsed ? "Notes" : undefined}
           >

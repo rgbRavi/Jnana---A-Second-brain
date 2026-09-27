@@ -233,6 +233,8 @@ function NoteItemImpl({
 
   return (
     <div
+      data-anchor="note"
+      data-anchor-key={note.id}
       className={`${Styles.noteCard} ${Styles[variant]} ${selected ? Styles.noteCardSelected : ''}`}
       onClick={(e) => {
         if (isEditing) return

@@ -491,6 +491,8 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
     <div
       key={note.id}
       data-note-row={note.id}
+      data-anchor="note"
+      data-anchor-key={note.id}
       className={`${styles.row} ${styles.noteRow} ${flashId === note.id ? styles.revealFlash : ''}`}
       style={{ paddingLeft: 8 + depth * 12 }}
       onPointerDown={(e) => startDrag('note', note.id, note.title || 'Untitled', e)}

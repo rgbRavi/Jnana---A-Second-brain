@@ -118,6 +118,8 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trash
       }}
     >
       <div
+        data-anchor="note"
+        data-anchor-key={note.id}
         className={`${NoteModalStyles.noteModalContainer}${expanded ? ' ' + NoteModalStyles.expanded : ''}`}
         style={expanded ? { left: `var(${sidebarCollapsed ? '--sidebar-collapsed-width' : '--sidebar-width'})` } : undefined}
       >

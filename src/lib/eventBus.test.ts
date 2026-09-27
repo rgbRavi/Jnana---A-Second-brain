@@ -43,3 +43,18 @@ describe('PluginBus', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 })
+
+describe('motion events', () => {
+  it('plugins can hear but never fake the before-events', () => {
+    const bus = new EventBus()
+    const heard: unknown[] = []
+    bus.on('note:trashing', (p) => heard.push(p))
+    const pluginBus = new PluginBus(bus)
+    pluginBus.emit('note:trashing', { id: 'x' })
+    pluginBus.emit('composer:saving', { noteId: 'x' })
+    pluginBus.emit('route:changed', { path: '/x' })
+    expect(heard).toEqual([])
+    bus.emit('note:trashing', { id: 'real' })
+    expect(heard).toEqual([{ id: 'real' }])
+  })
+})

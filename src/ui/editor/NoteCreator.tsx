@@ -152,6 +152,8 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
 
   const handleSave = async () => {
     if (!content.trim() && !title.trim()) return
+    // Composer still shows the draft here — the letter-to-sidebar effect copies it.
+    eventBus.emit('composer:saving', { noteId: pendingNoteId.current })
     setSaving(true)
     const saved = await onCreate(title, content, pendingNoteId.current, tags)
     await flushPendingMedia(saved.id)
@@ -211,7 +213,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       </button>
 
       {/* Expanded / fullscreen panel */}
-      <div className={Styles.panel} aria-label="Note composer" onKeyDown={handleKeyDown} inert={!open}>
+      <div className={Styles.panel} data-anchor="composer" aria-label="Note composer" onKeyDown={handleKeyDown} inert={!open}>
         <div className={Styles.header}>
           <button
             type="button"

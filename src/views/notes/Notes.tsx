@@ -267,6 +267,7 @@ function Notes() {
         extraActions={
           <>
             <button
+              data-anchor="trash"
               className={`${NoteStyles.workingBtn} ${NoteStyles.iconOnlyBtn}`}
               onClick={() => navigate('/trash')}
               title="Open Trash"

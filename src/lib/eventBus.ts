@@ -47,6 +47,9 @@ const PLUGIN_BLOCKED_EVENTS = new Set([
   'note:saved', 'note:opened', 'note:deleted',
   'link:created', 'link:removed',
   'annotation:created', 'annotation:updated', 'annotation:deleted',
+  // Motion before-events: a plugin faking one would only fire animations, but
+  // the app's own moments should mean the app did something.
+  'note:trashing', 'composer:saving', 'route:changed',
 ])
 
 /**

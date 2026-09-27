@@ -211,6 +211,9 @@ export function useNotes() {
       })
       if (!ok) return false
     }
+    // Before the optimistic removal: the card is still on screen, so a motion
+    // plugin can copy it. Synchronous — nothing here waits for an animation.
+    eventBus.emit('note:trashing', { id })
     // Optimistic — remove immediately
     setNotes((prev) => prev.filter((n) => n.id !== id))
     await trashNote(id)
