@@ -312,7 +312,7 @@ declare namespace Jnana {
   }
 
   /** Stable targets. Add-only: Jnana never renames or removes one. `note` takes a note id as key. */
-  type MotionAnchor = 'sidebar' | 'sidebar.notes' | 'main' | 'composer' | 'trash' | 'note'
+  type MotionAnchor = 'sidebar' | 'sidebar.notes' | 'main' | 'composer' | 'composer.pill' | 'trash' | 'note'
 
   /**
    * `ctx.motion` — needs the `motion` permission, main-thread runtime only.

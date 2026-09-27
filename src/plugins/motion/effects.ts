@@ -190,10 +190,24 @@ export function foldToBin(motion: MotionApi, noteId: string): void {
   })
 }
 
-/** Composer folds into a letter, an arrow draws toward the sidebar Notes link,
- *  and the letter rides it there. */
+/** Longest CSS transition on `el`, in ms (0 when none or unmeasurable). */
+export function transitionMs(el: Element | null): number {
+  if (!el) return 0
+  const longest = Math.max(
+    0,
+    ...getComputedStyle(el)
+      .transitionDuration.split(',')
+      .map((d) => parseFloat(d) * (d.trim().endsWith('ms') ? 1 : 1000))
+      .filter(Number.isFinite),
+  )
+  return Math.min(longest, 2000)
+}
+
+/** Once the composer has tucked back into its pill, the pill folds into a
+ *  letter, an arrow draws toward the sidebar Notes link, and the letter rides
+ *  it there. */
 export function letterToNotes(motion: MotionApi): void {
-  const source = motion.anchor('composer')
+  const source = motion.anchor('composer.pill') ?? motion.anchor('composer')
   const target = motion.anchor('sidebar.notes')
   if (!source || !target) return
   const from = source.getBoundingClientRect()

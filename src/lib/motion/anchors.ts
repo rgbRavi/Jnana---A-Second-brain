@@ -11,6 +11,7 @@ export const MOTION_ANCHORS = {
   'sidebar.notes': 'The sidebar "Notes" link.',
   main: 'The main content area, right of the sidebar.',
   composer: 'The note composer panel ("That\'s my note").',
+  'composer.pill': 'The collapsed "Click to take a note" pill the composer tucks into.',
   trash: 'The "Open Trash" button in the Notes toolbar (Notes gallery only).',
   note: 'A note on screen — gallery card, folder-tree row or open peek. Key = note id.',
 } as const

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getViewState } from '../../hooks/useViewState'
+import { getDialog } from '../../lib/dialog'
 import { useNotesContext } from '../../context/NotesContext'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import { DEFAULT_VAULT_ID } from '../../types'
@@ -62,6 +63,17 @@ function Settings() {
   }, [notes, config.enabled, refreshStaleness])
 
   const goBack = () => navigate(getViewState<string>('settings.returnTo') ?? '/')
+
+  // Esc = Back. Skipped when something inside already claimed the key (a menu or
+  // select calls preventDefault) or a dialog is open — its own Esc closes it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || getDialog()) return
+      navigate(getViewState<string>('settings.returnTo') ?? '/')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
 
   return (
     <div className={styles.settings}>

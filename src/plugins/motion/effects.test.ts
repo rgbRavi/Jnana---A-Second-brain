@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createMotionApi, __resetMotionForTests } from '../../lib/motion/runtime'
 import { resetPluginBudget } from '../../core/plugins/guard'
-import { foldToBin, letterToNotes } from './effects'
+import { foldToBin, letterToNotes, transitionMs } from './effects'
 
 const PID = 'jnana.motion.test'
 let animateSpy: ReturnType<typeof vi.fn>
@@ -100,6 +100,23 @@ describe('letter to Notes', () => {
     expect(layer.querySelector('svg path')).not.toBeNull()
     expect(layer.querySelector('[data-letter]')).not.toBeNull()
     expect(animateSpy.mock.contexts).toContain(document.querySelector('[data-anchor="sidebar.notes"]'))
+  })
+
+  it('starts from the pill once the composer has tucked away', () => {
+    document.body.innerHTML =
+      '<div data-anchor="composer">draft</div><button data-anchor="composer.pill">pill</button>' +
+      '<a data-anchor="sidebar.notes"></a>'
+    letterToNotes(createMotionApi(PID))
+    expect(layers()[0].textContent).toContain('pill')
+    expect(layers()[0].textContent).not.toContain('draft')
+  })
+
+  it('measures the longest transition, in ms', () => {
+    const el = document.createElement('div')
+    el.style.transitionDuration = '0.42s, 220ms, 0s'
+    document.body.appendChild(el)
+    expect(transitionMs(el)).toBeCloseTo(420)
+    expect(transitionMs(null)).toBe(0)
   })
 
   it('skips when the composer or the sidebar is missing', () => {

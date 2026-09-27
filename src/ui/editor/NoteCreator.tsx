@@ -155,6 +155,8 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     // Composer still shows the draft here — the letter-to-sidebar effect copies it.
     eventBus.emit('composer:saving', { noteId: pendingNoteId.current })
     setSaving(true)
+    // Tuck the editor back into its pill straight away; the save finishes behind it.
+    setState('collapsed')
     const saved = await onCreate(title, content, pendingNoteId.current, tags)
     await flushPendingMedia(saved.id)
     await onUpdate(saved.id, saved.title, saved.content, tags)
@@ -170,7 +172,6 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
     resetPendingMedia()
     setDraftKey((k) => k + 1)
     setSaving(false)
-    editorRef.current?.focus()
   }
 
   const handleCancel = () => setState((s) => (s === 'fullscreen' ? 'expanded' : 'collapsed'))
@@ -201,6 +202,7 @@ export function NoteCreator({ onCreate, onUpdate }: Props) {
       <button
         type="button"
         className={Styles.pill}
+        data-anchor="composer.pill"
         style={pillStyle}
         onClick={() => setState('expanded')}
         aria-label="Take a note"

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { Plugin } from '../../types'
-import { foldToBin, letterToNotes } from './effects'
+import { foldToBin, letterToNotes, transitionMs } from './effects'
 
 /**
  * First-party motion effects, built on the public `ctx.motion` API so they double
@@ -20,7 +20,7 @@ export const motionPlugin: Plugin = {
     ctx.ui.registerSettings({
       fields: [
         { key: 'foldToBin', label: 'Crumple into the bin', hint: 'A deleted note folds up and flies to Trash.', type: 'toggle', default: false },
-        { key: 'letterToNotes', label: 'Send as a letter', hint: '"That\'s my note" folds the composer into a letter bound for Notes.', type: 'toggle', default: false },
+        { key: 'letterToNotes', label: 'Send as a letter', hint: '"That\'s my note" tucks the composer into its pill and sends the note off as a letter to Notes.', type: 'toggle', default: false },
       ],
       onChange: (values) => void (on = values),
     })
@@ -38,8 +38,12 @@ export const motionPlugin: Plugin = {
       lastFoldAt = now
       foldToBin(motion, p.id)
     })
+    // Saving tucks the composer back into its pill; start the letter from the pill
+    // once that collapse has played (the panel's own transition length, so it
+    // tracks the theme's motion speed).
     ctx.bus.on('composer:saving', () => {
-      if (on.letterToNotes === true) letterToNotes(motion)
+      if (on.letterToNotes !== true) return
+      window.setTimeout(() => letterToNotes(motion), transitionMs(motion.anchor('composer')))
     })
     // Stored choices arrive after the listeners are up; until then both stay off.
     // A failed read (storage unavailable) must not reject unhandled at boot — leave
