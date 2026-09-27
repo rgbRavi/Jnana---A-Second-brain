@@ -243,7 +243,7 @@ export const STEP_ART: Partial<Record<StepId, ReactNode>> = {
   capture: Capture,
   links: Links,
   organize: Organize,
-  'study-kit': StudyKit,
+  'study-kit': StudyKit,  
   'research-kit': ResearchKit,
   ai: Ai,
   import: Import,
