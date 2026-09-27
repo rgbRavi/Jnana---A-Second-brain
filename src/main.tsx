@@ -12,6 +12,8 @@ import { registerBuiltinRailPanels } from "./ui/rail/RightRail";
 import "./core/plugins/hostBridge"; // side-effect: expose host React for loaded plugins
 import { loadAllInstalledPlugins } from "./core/plugins/loader";
 import { installPluginHotkeys } from "./lib/pluginHotkeys";
+import { beginMotionBoot } from "./lib/motion/safeMode";
+import { installMotionPanic } from "./lib/motion/runtime";
 import type { Theme } from "./types";
 import "./main.css"
 
@@ -40,12 +42,17 @@ applyBootTheme()
 registerBuiltinPlugins()
 // Register built-in right-rail tool panels (Table tools, …).
 registerBuiltinRailPanels()
+// Keep score of this launch *before* installed plugins load, so a motion plugin
+// that froze the last one is skipped this time (lib/motion/safeMode.ts).
+beginMotionBoot()
 // Then load enabled third-party plugins from disk (async — they register shortly
 // after mount; note-type views re-resolve reactively when they do).
 void loadAllInstalledPlugins()
 // Listen for plugin command shortcuts. One listener for every plugin command,
 // resolved at press time, so a plugin loading later is bound without re-wiring.
 installPluginHotkeys()
+// Ctrl/⌘+Alt+M — stop every plugin animation until restart.
+installMotionPanic()
 
 if (!window.location.hash || window.location.hash === "#" || window.location.hash === "#/") {
   window.location.replace(`${window.location.pathname}#/jnana`);

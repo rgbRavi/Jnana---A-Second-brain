@@ -9,6 +9,7 @@ import { isPluginEnabled, setPluginEnabledState } from '../../lib/pluginEnabled'
 import { rewritePluginImports } from './hostBridge'
 import { spawnPluginWorker } from './workerHost'
 import { policyRefusal } from '../../lib/pluginPolicy'
+import { isMotionSafeMode, reportMotionPluginSkipped } from '../../lib/motion/safeMode'
 
 /**
  * A previewed package: its manifest plus the one-shot `consentToken` that
@@ -124,6 +125,11 @@ export async function loadInstalledPlugin(info: InstalledPlugin): Promise<boolea
   const refusal = policyRefusal(info)
   if (refusal) {
     pluginLog('warn', refusal, info.id)
+    return false
+  }
+  if (info.granted.includes('motion') && isMotionSafeMode()) {
+    pluginLog('warn', 'Skipped this session: Jnana did not close cleanly last time', info.id)
+    reportMotionPluginSkipped()
     return false
   }
   if (info.runtime === 'worker') return loadWorkerPlugin(info)
