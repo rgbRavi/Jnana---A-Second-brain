@@ -1,0 +1,11 @@
+{
+  "id": "com.jnana.sample-motion",
+  "name": "Confetti on Save",
+  "version": "1.0.0",
+  "description": "Reference motion plugin: confetti when a note is captured, a press on the Notes link, a nudge when idle.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": ["motion"]
+}
