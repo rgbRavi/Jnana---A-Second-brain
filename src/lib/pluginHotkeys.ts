@@ -40,6 +40,8 @@ const RESERVED: Record<string, string> = {
   'mod+x': 'cut',
   'mod+a': 'select all',
   'mod+d': 'duplicating a selection',
+  // lib/motion/runtime.ts — stops every plugin animation (installMotionPanic)
+  'mod+alt+m': 'stopping every animation',
 }
 
 /**
