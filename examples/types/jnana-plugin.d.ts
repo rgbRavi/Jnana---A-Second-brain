@@ -318,7 +318,9 @@ declare namespace Jnana {
    * `ctx.motion` — needs the `motion` permission, main-thread runtime only.
    * Every call costs one unit of your 50/s budget. All methods no-op (null / no-op
    * unsubscribe) under reduced motion, after Ctrl/⌘+Alt+M, or once your handlers
-   * have thrown 5 times. Everything you create is removed when your plugin unloads.
+   * have thrown 5 times (only your `listen`/`every`/`idle` handlers count — the host
+   * catches those; `ctx.bus.on` handler errors are swallowed by PluginBus itself and
+   * don't count here). Everything you create is removed when your plugin unloads.
    * Triggers: `ctx.bus.on(...)` for app events (incl. `note:trashing`,
    * `composer:saving`, `route:changed`), `listen` for DOM events, `every`/`idle` for background.
    */

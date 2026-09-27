@@ -525,72 +525,83 @@ class PluginRegistry {
     const contribRailPanels: string[] = []
     const contribBlockPanels: string[] = []
     const contribFences: string[] = []
-    plugin.init?.({
-      pluginId: plugin.id,
-      bus,
-      storage: makePluginStorage(plugin.id),
-      notes: canReadNotes ? makePluginNotesApi(plugin.id) : undefined,
-      net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
-      media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
-      motion: canAnimate ? createMotionApi(plugin.id) : undefined,
-      registerNoteType: (def) => {
-        if (!chargePluginCall(plugin.id)) return
-        registerNoteType(def)
-        registeredKinds.push(def.id)
-      },
-      ui: {
-        registerWidget: (w) => {
+    // A synchronous throw here (e.g. after init already started `every`/`overlay`)
+    // must not leave those running forever — the plugin never makes it into
+    // `this.plugins` below, so `unregister` would never run to tear them down.
+    // Dispose what it made, then rethrow (callers like the loader already catch
+    // and log).
+    try {
+      plugin.init?.({
+        pluginId: plugin.id,
+        bus,
+        storage: makePluginStorage(plugin.id),
+        notes: canReadNotes ? makePluginNotesApi(plugin.id) : undefined,
+        net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
+        media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
+        motion: canAnimate ? createMotionApi(plugin.id) : undefined,
+        registerNoteType: (def) => {
           if (!chargePluginCall(plugin.id)) return
-          registerWidget(w)
-          contribWidgets.push(w.id)
+          registerNoteType(def)
+          registeredKinds.push(def.id)
         },
-        registerCommand: (c) => {
-          if (!chargePluginCall(plugin.id)) return
-          registerCommand(c)
-          contribCommands.push(c.id)
+        ui: {
+          registerWidget: (w) => {
+            if (!chargePluginCall(plugin.id)) return
+            registerWidget(w)
+            contribWidgets.push(w.id)
+          },
+          registerCommand: (c) => {
+            if (!chargePluginCall(plugin.id)) return
+            registerCommand(c)
+            contribCommands.push(c.id)
+          },
+          registerSettings: (definition) => {
+            if (!chargePluginCall(plugin.id)) return
+            registerSettings(plugin.id, definition)
+          },
+          registerRailPanel: (panel) => {
+            if (!chargePluginCall(plugin.id)) return
+            // The rail's icon strip is Lucide icons; a plugin bundle has no access
+            // to them (only react is shimmed), so every plugin panel wears the plug.
+            registerRailPanel({
+              id: panel.id,
+              title: panel.title,
+              icon: Plug,
+              order: 200,
+              Component: panel.Component,
+            })
+            contribRailPanels.push(panel.id)
+          },
+          registerBlockPanel: (panel) => {
+            if (!chargePluginCall(plugin.id)) return
+            registerBlockPanel(plugin.id, panel)
+            if (!contribBlockPanels.includes(panel.id)) contribBlockPanels.push(panel.id)
+          },
+          registerTheme: (theme) => {
+            if (!chargePluginCall(plugin.id)) return
+            if (!registerPluginTheme(plugin.id, theme)) {
+              pluginLog('warn', 'Theme refused — every token was missing or unparseable', plugin.id)
+            }
+          },
+          setBackground: (background) => {
+            if (!chargePluginCall(plugin.id)) return
+            applyPluginBackground(plugin.id, background)
+          },
+          registerFence: (fence) => {
+            if (!chargePluginCall(plugin.id)) return
+            if (!registerFence(plugin.id, fence)) {
+              pluginLog('warn', `Another plugin already renders \`\`\`${fence.lang}`, plugin.id)
+              return
+            }
+            if (!contribFences.includes(fence.lang)) contribFences.push(fence.lang)
+          },
         },
-        registerSettings: (definition) => {
-          if (!chargePluginCall(plugin.id)) return
-          registerSettings(plugin.id, definition)
-        },
-        registerRailPanel: (panel) => {
-          if (!chargePluginCall(plugin.id)) return
-          // The rail's icon strip is Lucide icons; a plugin bundle has no access
-          // to them (only react is shimmed), so every plugin panel wears the plug.
-          registerRailPanel({
-            id: panel.id,
-            title: panel.title,
-            icon: Plug,
-            order: 200,
-            Component: panel.Component,
-          })
-          contribRailPanels.push(panel.id)
-        },
-        registerBlockPanel: (panel) => {
-          if (!chargePluginCall(plugin.id)) return
-          registerBlockPanel(plugin.id, panel)
-          if (!contribBlockPanels.includes(panel.id)) contribBlockPanels.push(panel.id)
-        },
-        registerTheme: (theme) => {
-          if (!chargePluginCall(plugin.id)) return
-          if (!registerPluginTheme(plugin.id, theme)) {
-            pluginLog('warn', 'Theme refused — every token was missing or unparseable', plugin.id)
-          }
-        },
-        setBackground: (background) => {
-          if (!chargePluginCall(plugin.id)) return
-          applyPluginBackground(plugin.id, background)
-        },
-        registerFence: (fence) => {
-          if (!chargePluginCall(plugin.id)) return
-          if (!registerFence(plugin.id, fence)) {
-            pluginLog('warn', `Another plugin already renders \`\`\`${fence.lang}`, plugin.id)
-            return
-          }
-          if (!contribFences.includes(fence.lang)) contribFences.push(fence.lang)
-        },
-      },
-    })
+      })
+    } catch (err) {
+      disposeMotion(plugin.id)
+      bus.dispose()
+      throw err
+    }
     this.buses.set(plugin.id, bus)
     this.pluginNoteTypes.set(plugin.id, registeredKinds)
     this.pluginContribs.set(plugin.id, {

@@ -48,6 +48,20 @@ describe('fold to bin', () => {
     expect(animateSpy).not.toHaveBeenCalled()
     expect(layers()).toHaveLength(0)
   })
+
+  it('crumples the larger of two on-screen anchors for the same note', () => {
+    document.body.innerHTML =
+      '<div data-anchor="note" data-anchor-key="n1">small</div>' +
+      '<div data-anchor="note" data-anchor-key="n1">big</div>' +
+      '<button data-anchor="trash"></button>'
+    const [small, big] = Array.from(document.querySelectorAll('[data-anchor="note"]')) as HTMLElement[]
+    small.getBoundingClientRect = () =>
+      ({ width: 10, height: 10, top: 0, left: 0, right: 10, bottom: 10, x: 0, y: 0, toJSON: () => {} }) as DOMRect
+    big.getBoundingClientRect = () =>
+      ({ width: 400, height: 300, top: 0, left: 0, right: 400, bottom: 300, x: 0, y: 0, toJSON: () => {} }) as DOMRect
+    foldToBin(createMotionApi(PID), 'n1')
+    expect(layers()[0].textContent).toBe('big')
+  })
 })
 
 describe('letter to Notes', () => {

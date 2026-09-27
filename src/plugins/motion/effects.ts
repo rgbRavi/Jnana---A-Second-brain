@@ -9,12 +9,30 @@ import { arcPoints } from './paths'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
+/** The note is on screen more than once (gallery card + folder-tree row, or
+ *  card + open peek) — pick the one that's actually the eye-catching one.
+ *  Ties or all-zero-area (nothing on screen) fall back to the first. */
+function largest(els: HTMLElement[]): HTMLElement | null {
+  let best: HTMLElement | null = null
+  let bestArea = -1
+  for (const el of els) {
+    const r = el.getBoundingClientRect()
+    const area = r.width * r.height
+    if (area > bestArea) {
+      best = el
+      bestArea = area
+    }
+  }
+  return best
+}
+
 /** Note crinkles, folds into a ball and is thrown into the bin (or, when the
  *  Trash button isn't on screen, the sidebar Notes link). */
 export function foldToBin(motion: MotionApi, noteId: string): void {
-  const source = motion.anchor('note', noteId)
+  const source = largest(motion.anchors('note', noteId))
+  if (!source) return
   const target = motion.anchor('trash') ?? motion.anchor('sidebar.notes')
-  if (!source || !target) return
+  if (!target) return
   const from = source.getBoundingClientRect()
   const to = target.getBoundingClientRect()
   const paper = motion.clone(source)

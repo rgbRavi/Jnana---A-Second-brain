@@ -9,6 +9,7 @@ import {
   createMotionApi,
   disposeMotion,
   panicMotion,
+  installMotionPanic,
   __resetMotionForTests,
   MAX_ANIMATION_MS,
   MAX_CLONES,
@@ -133,5 +134,29 @@ describe('motion runtime', () => {
     const m = createMotionApi(PID)
     expect(m.anchor('trash')).toBeNull()
     expect(m.anchors('nope')).toEqual([])
+  })
+
+  it('panic chord ignores AltGr (ctrl+alt+M is also AltGr on Windows German-style layouts)', () => {
+    installMotionPanic()
+    const m = createMotionApi(PID)
+
+    const altGr = new KeyboardEvent('keydown', { code: 'KeyM', ctrlKey: true, altKey: true, cancelable: true })
+    Object.defineProperty(altGr, 'getModifierState', { value: () => true })
+    window.dispatchEvent(altGr)
+    expect(m.reduced()).toBe(false)
+
+    const chord = new KeyboardEvent('keydown', { code: 'KeyM', ctrlKey: true, altKey: true, cancelable: true })
+    Object.defineProperty(chord, 'getModifierState', { value: () => false })
+    window.dispatchEvent(chord)
+    expect(m.reduced()).toBe(true)
+  })
+
+  it('clamps every/idle delay so Infinity cannot collapse to ~0ms via WebIDL long conversion', () => {
+    vi.useFakeTimers()
+    const m = createMotionApi(PID)
+    const tick = vi.fn()
+    m.every(Infinity, tick)
+    vi.advanceTimersByTime(1000)
+    expect(tick).not.toHaveBeenCalled()
   })
 })

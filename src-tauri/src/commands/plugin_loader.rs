@@ -237,8 +237,9 @@ fn read_installed(dir: &Path) -> Result<InstalledPlugin, String> {
 // ─── Install consent ────────────────────────────────────
 
 /// Permissions the app knows how to present. Anything else a manifest declares is
-/// dropped rather than silently granted (only `notes` is actually enforced — see
-/// `pluginRegistry`).
+/// dropped rather than silently granted. `notes`, `media`, `network` and `motion`
+/// are all enforced — each gates its own context field in
+/// `pluginRegistry._registerInlinePlugin` on the frontend.
 const KNOWN_PERMISSIONS: [&str; 4] = ["notes", "network", "media", "motion"];
 
 /// A consent token is good for ten minutes and exactly one install.

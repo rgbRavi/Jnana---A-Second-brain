@@ -14,6 +14,7 @@ Load it: Settings → Plugins → Developer → Load Local Plugin → this folde
   wreck, `animate(el, keyframes, options)` for everything (Web Animations API).
 - Limits: 10s per animation, 8 live clones, 50 calls/s, `every` ≥ 250ms. Real UI always
   springs back when an animation ends.
-- You get switched off when: your handlers throw 5 times, the user presses Ctrl/⌘+Alt+M,
-  reduce-motion is on, or Jnana didn't close cleanly last launch.
+- You get switched off when: your `listen`/`every`/`idle` handlers have thrown 5 times
+  (a `ctx.bus.on` handler error doesn't count — PluginBus swallows those itself), the
+  user presses Ctrl/⌘+Alt+M, reduce-motion is on, or Jnana didn't close cleanly last launch.
 - Colours: use theme tokens (`var(--accent)`, `var(--surface-2)`, …) so every theme works.

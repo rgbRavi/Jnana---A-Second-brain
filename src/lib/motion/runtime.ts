@@ -84,6 +84,11 @@ const live = (s: Scope) => !s.dead && !panicked && !motionReduced()
 const clampMs = (v: number | undefined) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(v, MAX_ANIMATION_MS)) : 0
 
+// `setInterval`/`setTimeout` convert their delay via WebIDL `long` — `Infinity`
+// and anything >= 2**31 wrap to 0, firing every ~4ms and bypassing MIN_EVERY_MS.
+// Clamp into the safe int32 range instead of trusting the platform to.
+const clampEveryMs = (ms: number) => Math.min(Math.max(MIN_EVERY_MS, Number(ms) || 0), 2 ** 31 - 1)
+
 function stop(s: Scope): void {
   s.dead = true
   s.animations.forEach((a) => a.cancel())
@@ -136,7 +141,16 @@ function newLayer(s: Scope): HTMLElement {
 }
 
 function inOwnLayer(s: Scope, el: Element): boolean {
-  for (const layer of s.layers) if (layer.contains(el)) return true
+  for (const layer of s.layers) {
+    // A layer the plugin removed itself (`layer.remove()`, as the sample
+    // teaches) never fires our own cleanup — prune it here instead of leaking
+    // it in `s.layers` forever.
+    if (!layer.isConnected) {
+      s.layers.delete(layer)
+      continue
+    }
+    if (layer.contains(el)) return true
+  }
   return false
 }
 
@@ -171,6 +185,10 @@ export function installMotionPanic(): void {
   window.addEventListener(
     'keydown',
     (e) => {
+      // AltGr arrives on Windows as ctrlKey+altKey too (it's how µ, €, etc. get
+      // typed on German-style layouts) — getModifierState('AltGraph') tells the
+      // two apart; mod+alt+m without it is the real panic chord.
+      if (e.getModifierState?.('AltGraph')) return
       if ((e.ctrlKey || e.metaKey) && e.altKey && e.code === 'KeyM') {
         e.preventDefault()
         panicMotion()
@@ -202,7 +220,9 @@ export function createMotionApi(pluginId: string): MotionApi {
     overlay: () => (charge() ? newLayer(s) : null),
 
     clone: (target) => {
-      if (!charge() || !target?.isConnected || s.clones >= MAX_CLONES) return null
+      // Check the free conditions before charging — a clone we're going to
+      // refuse anyway shouldn't cost the plugin a budget call.
+      if (!target?.isConnected || s.clones >= MAX_CLONES || !charge()) return null
       const r = target.getBoundingClientRect()
       const copy = target.cloneNode(true) as HTMLElement
       copy.querySelectorAll('iframe,video,audio,script,object,embed').forEach((n) => n.remove())
@@ -273,13 +293,13 @@ export function createMotionApi(pluginId: string): MotionApi {
 
     every: (ms, fn) => {
       if (!charge()) return () => {}
-      const id = setInterval(() => run(s, fn), Math.max(MIN_EVERY_MS, ms || 0))
+      const id = setInterval(() => run(s, fn), clampEveryMs(ms))
       return track(s, () => clearInterval(id))
     },
 
     idle: (ms, fn) => {
       if (!charge()) return () => {}
-      const wait = Math.max(MIN_EVERY_MS, ms || 0)
+      const wait = clampEveryMs(ms)
       const fire = () => run(s, fn)
       let timer = setTimeout(fire, wait)
       const poke = () => {
