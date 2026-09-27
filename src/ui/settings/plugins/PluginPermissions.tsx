@@ -17,6 +17,7 @@ const LABELS: Record<string, string> = {
   notes: 'Read and modify notes',
   media: 'Read and add attachments',
   network: 'Contact the internet',
+  motion: 'Animate the app',
 }
 
 /**

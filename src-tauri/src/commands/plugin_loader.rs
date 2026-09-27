@@ -239,7 +239,7 @@ fn read_installed(dir: &Path) -> Result<InstalledPlugin, String> {
 /// Permissions the app knows how to present. Anything else a manifest declares is
 /// dropped rather than silently granted (only `notes` is actually enforced — see
 /// `pluginRegistry`).
-const KNOWN_PERMISSIONS: [&str; 3] = ["notes", "network", "media"];
+const KNOWN_PERMISSIONS: [&str; 4] = ["notes", "network", "media", "motion"];
 
 /// A consent token is good for ten minutes and exactly one install.
 const CONSENT_TTL_MS: i64 = 10 * 60 * 1000;
@@ -1279,13 +1279,13 @@ mod tests {
     /// permissions, and cannot be reused or invented.
     #[test]
     fn consent_token_is_one_shot_and_carries_declared_permissions() {
-        let m = manifest_with("acme", &["notes", "camera"]);
+        let m = manifest_with("acme", &["notes", "camera", "motion"]);
         let token = issue_consent(&m, ConsentSource::Folder(PathBuf::from("/tmp/acme")), false);
 
         let c = take_consent(&token).expect("fresh token should be accepted");
         assert_eq!(c.plugin_id, "acme");
         // "camera" is not a permission this build knows — it is dropped, not granted.
-        assert_eq!(c.permissions, vec!["notes".to_string()]);
+        assert_eq!(c.permissions, vec!["notes".to_string(), "motion".to_string()]);
 
         assert!(take_consent(&token).is_err(), "a token must not be reusable");
         assert!(take_consent("made-up-token").is_err());

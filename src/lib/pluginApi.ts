@@ -9,6 +9,7 @@ import type { PluginBackground, PluginTheme } from './pluginThemes'
 import type { PluginBus } from './eventBus'
 import type { NoteTypeDefinition } from './noteTypes'
 import type { PluginWidget, PluginCommand } from './pluginContributions'
+import type { MotionApi } from './motion/runtime'
 
 /** One row in a plugin's settings pane. */
 export interface PluginSettingField {
@@ -209,6 +210,11 @@ export interface PluginContext {
   net?: PluginNetApi
   /** Note attachments. Present only when the `media` permission was granted. */
   media?: PluginMediaApi
+  /** Animate anything in the app: anchors, overlays, clones, DOM/idle/interval
+   *  triggers. Present only with the `motion` permission (always for trusted
+   *  first-party plugins); never in the worker runtime — it has no DOM. Everything
+   *  made through it is torn down when the plugin unloads. */
+  motion?: MotionApi
   /** Register a custom note type (custom view + editor over a note). */
   registerNoteType: (def: NoteTypeDefinition) => void
   /** Contribute UI (widgets, commands). */

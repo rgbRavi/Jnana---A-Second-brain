@@ -9,6 +9,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   notes: 'Read and modify your notes',
   media: 'Read and add attachments (images, PDFs, audio)',
   network: 'Contact the internet',
+  motion: 'Animate anything in Jnana — a buggy one can make the app glitch or freeze',
 }
 
 /** `network` is only ever as wide as the hosts the manifest names, so the prompt

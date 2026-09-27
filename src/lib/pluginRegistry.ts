@@ -37,6 +37,7 @@ import { makePluginStorage } from '../core/plugins/storage'
 import { makePluginNotesApi } from '../core/plugins/notesApi'
 import { makePluginNet } from '../core/plugins/net'
 import { makePluginMediaApi } from '../core/plugins/mediaApi'
+import { createMotionApi, disposeMotion } from './motion/runtime'
 import {
   DESTROY_GRACE_MS,
   HEARTBEAT_MS,
@@ -181,6 +182,7 @@ class PluginRegistry {
     }
     unregisterSettings(id)
     clearPluginAppearance(id)
+    disposeMotion(id)
     resetPluginBudget(id)
     clearPluginActivity(id)
     pluginLog('info', 'Unloaded', id)
@@ -515,6 +517,9 @@ class PluginRegistry {
     // through core/ directly, and a loaded plugin needs the user to have said yes
     // to `media` specifically — `notes` does not carry it.
     const canUseMedia = trusted || granted.has('media')
+    // Motion reaches into the live UI, so it is its own grant — `notes` doesn't
+    // imply it, and a built-in gets it because it ships with the app.
+    const canAnimate = trusted || granted.has('motion')
     const contribWidgets: string[] = []
     const contribCommands: string[] = []
     const contribRailPanels: string[] = []
@@ -527,6 +532,7 @@ class PluginRegistry {
       notes: canReadNotes ? makePluginNotesApi(plugin.id) : undefined,
       net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
       media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
+      motion: canAnimate ? createMotionApi(plugin.id) : undefined,
       registerNoteType: (def) => {
         if (!chargePluginCall(plugin.id)) return
         registerNoteType(def)

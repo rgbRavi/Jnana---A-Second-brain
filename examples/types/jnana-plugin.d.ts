@@ -300,6 +300,43 @@ declare namespace Jnana {
     setBackground(background: PluginBackground | null): void
   }
 
+  interface MotionAnimateOptions {
+    /** ms, capped at 10000 */
+    duration: number
+    delay?: number
+    easing?: string
+    /** duration × iterations is capped at 10s; Infinity counts as 1 */
+    iterations?: number
+    /** Only honoured inside your own overlay/clone layers — real UI always springs back. */
+    fill?: FillMode
+  }
+
+  /** Stable targets. Add-only: Jnana never renames or removes one. `note` takes a note id as key. */
+  type MotionAnchor = 'sidebar' | 'sidebar.notes' | 'main' | 'composer' | 'trash' | 'note'
+
+  /**
+   * `ctx.motion` — needs the `motion` permission, main-thread runtime only.
+   * Every call costs one unit of your 50/s budget. All methods no-op (null / no-op
+   * unsubscribe) under reduced motion, after Ctrl/⌘+Alt+M, or once your handlers
+   * have thrown 5 times. Everything you create is removed when your plugin unloads.
+   * Triggers: `ctx.bus.on(...)` for app events (incl. `note:trashing`,
+   * `composer:saving`, `route:changed`), `listen` for DOM events, `every`/`idle` for background.
+   */
+  interface PluginMotionApi {
+    readonly version: number
+    reduced(): boolean
+    anchor(name: MotionAnchor | string, key?: string): HTMLElement | null
+    anchors(name: MotionAnchor | string, key?: string): HTMLElement[]
+    overlay(): HTMLElement | null
+    /** Copy in its own layer (`clone.parentElement`), removed after 10s. Max 8 live. */
+    clone(target: Element): HTMLElement | null
+    animate(target: Element, keyframes: Keyframe[] | PropertyIndexedKeyframes, options: MotionAnimateOptions): Animation | null
+    listen(anchor: MotionAnchor | string, type: string, handler: (el: HTMLElement, event: Event) => void): () => void
+    /** min 250ms */
+    every(ms: number, fn: () => void): () => void
+    idle(ms: number, fn: () => void): () => void
+  }
+
   /** What your `init(ctx)` receives. */
   interface PluginContext {
     /** Your own id — the scope of your storage. */
@@ -312,6 +349,8 @@ declare namespace Jnana {
     media?: PluginMediaApi
     /** Present only with the `network` permission. */
     net?: PluginNetApi
+    /** Present only with the `motion` permission, main-thread runtime only. */
+    motion?: PluginMotionApi
     /** Main-thread runtime only — throws in a worker plugin. */
     registerNoteType(def: NoteTypeDefinition): void
     ui: PluginUiApi
