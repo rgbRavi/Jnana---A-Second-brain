@@ -223,7 +223,7 @@ export function RightRail() {
   return (
     <>
       {probes}
-      <div className={styles.rail} data-rail="">
+      <div className={styles.rail} data-rail="" data-anchor="rail">
         {open && Body && (
           <div className={styles.body} style={{ width }}>
             <div className={styles.resizeGrip} onPointerDown={onGripDown} title="Drag to resize" role="separator" aria-orientation="vertical" />

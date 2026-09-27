@@ -5,9 +5,13 @@ Load it: Settings → Plugins → Developer → Load Local Plugin → this folde
 ## The motion API in one screen
 
 - Permission: `"permissions": ["motion"]`. Main-thread runtime only (no `"runtime": "worker"`).
-- Triggers: `ctx.bus.on(event)` for any app event (`note:saved`, `note:trashing`,
-  `composer:saving`, `route:changed`, …), `ctx.motion.listen(anchor, domEvent, fn)`,
-  `ctx.motion.every(ms, fn)`, `ctx.motion.idle(ms, fn)`.
+- Triggers: `ctx.motion.on(moment, fn)` for app moments (`note:trashing`, `note:created`,
+  `note:restored`, `note:favourited`, `note:tagged`, `note:moved`, `quiz:completed`,
+  `composer:saving`, `route:changed`, … — list in `src/lib/motion/moments.ts`),
+  `ctx.motion.listen(anchor, domEvent, fn)`, `ctx.motion.every(ms, fn)`, `ctx.motion.idle(ms, fn)`.
+- Conflicts: one plugin plays per moment. The user picks in Settings → Appearance → Motion;
+  otherwise a third-party plugin beats a built-in. `ctx.bus.on` still works but isn't
+  arbitrated — use `motion.on` for anything you animate.
 - Targets: `ctx.motion.anchor(name, key?)` — names in `src/lib/motion/anchors.ts`.
   Never select by class name; those are hashed and change every release.
 - Drawing: `overlay()` for a free layer above the app, `clone(el)` for a copy you can

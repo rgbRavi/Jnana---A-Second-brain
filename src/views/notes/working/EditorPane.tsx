@@ -226,6 +226,8 @@ export function EditorPane({ noteId }: { noteId: string }) {
 
   return (
     <div
+      data-anchor="editor"
+      data-anchor-key={noteId}
       className={Styles.pane}
       onPointerDownCapture={() => publishRef.current()}
       onFocusCapture={() => publishRef.current()}

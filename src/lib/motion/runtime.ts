@@ -10,9 +10,18 @@
 import { chargePluginCall } from '../../core/plugins/guard'
 import { pluginLog } from '../pluginLog'
 import { toast } from '../toast'
+import { eventBus } from '../eventBus'
 import { anchorSelector, findAnchor, findAnchors } from './anchors'
+import {
+  getMomentOwner,
+  isUnresolvedConflict,
+  momentLabel,
+  momentsChanged,
+  pickOwner,
+  type Claimant,
+} from './moments'
 
-export const MOTION_API_VERSION = 1
+export const MOTION_API_VERSION = 2
 export const MAX_ANIMATION_MS = 10_000
 export const MIN_EVERY_MS = 250
 export const MAX_CLONES = 8
@@ -51,6 +60,10 @@ export interface MotionApi {
   every(ms: number, fn: () => void): () => void
   /** Fires once after `ms` without pointer/keyboard input; re-arms on input. */
   idle(ms: number, fn: () => void): () => void
+  /** Claim an app moment (an event name, e.g. `note:trashing`). Only one claimant
+   *  plays per moment — the user's pick, else third-party over built-in. Returns
+   *  an unclaim. Prefer this over `ctx.bus.on` for anything you animate. (v2) */
+  on<T = unknown>(moment: string, handler: (payload: T) => void): () => void
 }
 
 interface Scope {
@@ -65,6 +78,61 @@ interface Scope {
 
 const scopes = new Map<string, Scope>()
 let panicked = false
+
+interface Claim extends Claimant {
+  scope: Scope
+  handler: (payload: unknown) => void
+}
+// Per moment: who claimed it, plus the one bus subscription that dispatches to
+// the winner. Winner is re-picked per event, so a Settings change applies at once.
+const claims = new Map<string, Claim[]>()
+const dispatchers = new Map<string, () => void>()
+const warnedConflicts = new Set<string>()
+let claimSnapshot: { moment: string; claimants: Claimant[] }[] = []
+
+function claimsUpdated(): void {
+  claimSnapshot = [...claims].map(([moment, list]) => ({
+    moment,
+    claimants: list.map(({ pluginId, builtin }) => ({ pluginId, builtin })),
+  }))
+  momentsChanged()
+}
+
+/** Every claimed moment and its claimants — for the Settings picker. Stable
+ *  reference between changes (useSyncExternalStore-safe). */
+export function getMomentClaims(): { moment: string; claimants: Claimant[] }[] {
+  return claimSnapshot
+}
+
+function addClaim(moment: string, claim: Claim): void {
+  const list = [...(claims.get(moment) ?? []).filter((c) => c.pluginId !== claim.pluginId), claim]
+  claims.set(moment, list)
+  if (!dispatchers.has(moment)) {
+    const dispatch = (payload: unknown) => {
+      const current = claims.get(moment) ?? []
+      const winner = current.find((c) => c.pluginId === pickOwner(current, getMomentOwner(moment)))
+      if (winner) run(winner.scope, () => winner.handler(payload))
+    }
+    eventBus.on(moment, dispatch)
+    dispatchers.set(moment, () => eventBus.off(moment, dispatch))
+  }
+  if (!warnedConflicts.has(moment) && isUnresolvedConflict(list, getMomentOwner(moment))) {
+    warnedConflicts.add(moment)
+    toast.info(`Two plugins animate “${momentLabel(moment)}”. Pick one in Settings → Appearance → Motion.`)
+  }
+  claimsUpdated()
+}
+
+function removeClaim(moment: string, pluginId: string): void {
+  const list = (claims.get(moment) ?? []).filter((c) => c.pluginId !== pluginId)
+  if (list.length) claims.set(moment, list)
+  else {
+    claims.delete(moment)
+    dispatchers.get(moment)?.()
+    dispatchers.delete(moment)
+  }
+  claimsUpdated()
+}
 
 export function motionReduced(): boolean {
   try {
@@ -198,8 +266,9 @@ export function installMotionPanic(): void {
   )
 }
 
-export function createMotionApi(pluginId: string): MotionApi {
+export function createMotionApi(pluginId: string, opts?: { builtin?: boolean }): MotionApi {
   disposeMotion(pluginId)
+  const builtin = opts?.builtin === true
   const s: Scope = {
     pluginId,
     animations: new Set(),
@@ -211,6 +280,10 @@ export function createMotionApi(pluginId: string): MotionApi {
   }
   scopes.set(pluginId, s)
   const charge = () => live(s) && chargePluginCall(pluginId)
+  // Registering a trigger isn't motion, so reduced motion doesn't refuse it —
+  // otherwise a plugin loaded while reduce-motion was on would stay inert after
+  // the user turned it off. Its handlers still go quiet through `run`.
+  const register = () => !s.dead && !panicked && chargePluginCall(pluginId)
 
   return {
     version: MOTION_API_VERSION,
@@ -282,7 +355,7 @@ export function createMotionApi(pluginId: string): MotionApi {
 
     listen: (anchor, type, handler) => {
       const sel = anchorSelector(anchor)
-      if (!sel || !charge()) return () => {}
+      if (!sel || !register()) return () => {}
       const onEvent = (e: Event) => {
         const hit = e.target instanceof Element ? e.target.closest<HTMLElement>(sel) : null
         if (hit) run(s, () => handler(hit, e))
@@ -292,13 +365,13 @@ export function createMotionApi(pluginId: string): MotionApi {
     },
 
     every: (ms, fn) => {
-      if (!charge()) return () => {}
+      if (!register()) return () => {}
       const id = setInterval(() => run(s, fn), clampEveryMs(ms))
       return track(s, () => clearInterval(id))
     },
 
     idle: (ms, fn) => {
-      if (!charge()) return () => {}
+      if (!register()) return () => {}
       const wait = clampEveryMs(ms)
       const fire = () => run(s, fn)
       let timer = setTimeout(fire, wait)
@@ -313,6 +386,12 @@ export function createMotionApi(pluginId: string): MotionApi {
         inputs.forEach((t) => window.removeEventListener(t, poke))
       })
     },
+
+    on: (moment, handler) => {
+      if (typeof moment !== 'string' || !moment || !register()) return () => {}
+      addClaim(moment, { pluginId, builtin, scope: s, handler: handler as (payload: unknown) => void })
+      return track(s, () => removeClaim(moment, pluginId))
+    },
   }
 }
 
@@ -320,4 +399,5 @@ export function __resetMotionForTests(): void {
   scopes.forEach(stop)
   scopes.clear()
   panicked = false
+  warnedConflicts.clear()
 }

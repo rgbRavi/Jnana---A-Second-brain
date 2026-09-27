@@ -1189,7 +1189,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }
 
   return (
-    <div ref={containerRef} onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div ref={containerRef} data-anchor="graph" onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {scopedNodes.length === 0 && (

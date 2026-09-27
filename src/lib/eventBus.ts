@@ -11,6 +11,10 @@
 // `composer:saving { noteId }`, and `route:changed { path }` — plugins can
 // listen to these but never emit them; `route:changed` also fires on the
 // initial route mount (twice under StrictMode in dev), not only on navigation.
+// Also plugin-listen-only: `note:created { id }`, `note:restored { id }`,
+// `note:favourited { noteId, on }`, `note:tagged { id, tags }` (user tags),
+// `quiz:completed { total, max }` (once, when the last question gets a mark).
+// The labelled set motion plugins can claim lives in lib/motion/moments.ts.
 type Handler<T = unknown> = (payload: T) => void
 
 export class EventBus {
@@ -54,6 +58,7 @@ const PLUGIN_BLOCKED_EVENTS = new Set([
   // Motion before-events: a plugin faking one would only fire animations, but
   // the app's own moments should mean the app did something.
   'note:trashing', 'composer:saving', 'route:changed',
+  'note:created', 'note:restored', 'note:favourited', 'note:tagged', 'quiz:completed',
 ])
 
 /**

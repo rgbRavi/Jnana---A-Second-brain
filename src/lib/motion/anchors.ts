@@ -14,6 +14,11 @@ export const MOTION_ANCHORS = {
   'composer.pill': 'The collapsed "Click to take a note" pill the composer tucks into.',
   trash: 'The "Open Trash" button in the Notes toolbar (Notes gallery only).',
   note: 'A note on screen — gallery card, folder-tree row or open peek. Key = note id.',
+  'notes.list': 'The scrolling list of note cards in the Notes gallery.',
+  editor: 'A Working Notes editor pane. Key = the note id open in it.',
+  folder: 'A folder row in the explorer. Key = folder id.',
+  graph: 'The graph view canvas.',
+  rail: 'The right-hand tool rail.',
 } as const
 
 export type MotionAnchor = keyof typeof MOTION_ANCHORS

@@ -15,6 +15,8 @@ import {
   MAX_CLONES,
 } from './runtime'
 import { resetPluginBudget } from '../../core/plugins/guard'
+import { eventBus } from '../eventBus'
+import { setMomentOwner, __resetMomentsForTests } from './moments'
 
 const PID = 'test.motion'
 
@@ -158,5 +160,65 @@ describe('motion runtime', () => {
     m.every(Infinity, tick)
     vi.advanceTimersByTime(1000)
     expect(tick).not.toHaveBeenCalled()
+  })
+  it('registers triggers even while reduced motion is on, so turning it off later works', () => {
+    vi.useFakeTimers()
+    document.documentElement.style.setProperty('--motion-scale', '0')
+    const m = createMotionApi(PID)
+    const tick = vi.fn()
+    m.every(300, tick)
+    vi.advanceTimersByTime(300)
+    expect(tick).not.toHaveBeenCalled()
+    document.documentElement.style.removeProperty('--motion-scale')
+    vi.advanceTimersByTime(300)
+    expect(tick).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('moment claims', () => {
+  afterEach(() => {
+    __resetMomentsForTests()
+    for (const id of ['jnana.motion', 'com.alpha', 'com.zeta']) resetPluginBudget(id)
+  })
+
+  it('plays only one claimant per moment: third-party over built-in', () => {
+    const built = vi.fn()
+    const third = vi.fn()
+    createMotionApi('jnana.motion', { builtin: true }).on('test:moment', built)
+    createMotionApi('com.zeta').on('test:moment', third)
+    eventBus.emit('test:moment', { id: 1 })
+    expect(third).toHaveBeenCalledWith({ id: 1 })
+    expect(built).not.toHaveBeenCalled()
+  })
+
+  it("the user's pick applies at once, and 'none' silences the moment", () => {
+    const built = vi.fn()
+    const third = vi.fn()
+    createMotionApi('jnana.motion', { builtin: true }).on('test:moment', built)
+    createMotionApi('com.zeta').on('test:moment', third)
+    setMomentOwner('test:moment', 'jnana.motion')
+    eventBus.emit('test:moment', null)
+    expect(built).toHaveBeenCalledTimes(1)
+    setMomentOwner('test:moment', 'none')
+    eventBus.emit('test:moment', null)
+    expect(built).toHaveBeenCalledTimes(1)
+    expect(third).not.toHaveBeenCalled()
+  })
+
+  it('a winner that unloads hands the moment to the next claimant', () => {
+    const built = vi.fn()
+    createMotionApi('jnana.motion', { builtin: true }).on('test:moment', built)
+    createMotionApi('com.zeta').on('test:moment', vi.fn())
+    disposeMotion('com.zeta')
+    eventBus.emit('test:moment', null)
+    expect(built).toHaveBeenCalledTimes(1)
+  })
+
+  it('unclaiming the last claimant stops listening to the event', () => {
+    const handler = vi.fn()
+    const off = createMotionApi('com.alpha').on('test:moment', handler)
+    off()
+    eventBus.emit('test:moment', null)
+    expect(handler).not.toHaveBeenCalled()
   })
 })

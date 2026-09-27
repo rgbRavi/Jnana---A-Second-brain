@@ -538,7 +538,7 @@ class PluginRegistry {
         notes: canReadNotes ? makePluginNotesApi(plugin.id) : undefined,
         net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
         media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
-        motion: canAnimate ? createMotionApi(plugin.id) : undefined,
+        motion: canAnimate ? createMotionApi(plugin.id, { builtin: trusted }) : undefined,
         registerNoteType: (def) => {
           if (!chargePluginCall(plugin.id)) return
           registerNoteType(def)

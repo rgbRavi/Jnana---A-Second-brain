@@ -28,10 +28,10 @@ describe('sample motion plugin', () => {
   })
 
   it('wires one trigger of each kind', () => {
-    const motion = { listen: vi.fn(), idle: vi.fn(), anchor: vi.fn(() => null), overlay: vi.fn(), animate: vi.fn() }
+    const motion = { on: vi.fn(), listen: vi.fn(), idle: vi.fn(), anchor: vi.fn(() => null), overlay: vi.fn(), animate: vi.fn() }
     const bus = { on: vi.fn(), emit: vi.fn() }
     plugin.init({ pluginId: plugin.id, bus, motion })
-    expect(bus.on).toHaveBeenCalledWith('composer:saving', expect.any(Function))
+    expect(motion.on).toHaveBeenCalledWith('composer:saving', expect.any(Function))
     expect(motion.listen).toHaveBeenCalledWith('sidebar.notes', 'click', expect.any(Function))
     expect(motion.idle).toHaveBeenCalled()
   })

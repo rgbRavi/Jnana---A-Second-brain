@@ -24,8 +24,10 @@ export default {
       lastClick = { x: event.clientX, y: event.clientY, at: Date.now() }
     })
 
-    // route:changed also fires on first mount — no recent click, so nothing plays.
-    ctx.bus.on('route:changed', () => {
+    // Claimed with motion.on: if another plugin animates view switches too, only
+    // one plays. route:changed also fires on first mount — no recent click, so
+    // nothing plays.
+    motion.on('route:changed', () => {
       const click = lastClick
       lastClick = null
       if (!click || Date.now() - click.at > CLICK_TO_ROUTE_MS) return

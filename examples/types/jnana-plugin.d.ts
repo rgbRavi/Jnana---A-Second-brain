@@ -312,7 +312,9 @@ declare namespace Jnana {
   }
 
   /** Stable targets. Add-only: Jnana never renames or removes one. `note` takes a note id as key. */
-  type MotionAnchor = 'sidebar' | 'sidebar.notes' | 'main' | 'composer' | 'composer.pill' | 'trash' | 'note'
+  type MotionAnchor =
+    | 'sidebar' | 'sidebar.notes' | 'main' | 'composer' | 'composer.pill' | 'trash'
+    | 'note' | 'notes.list' | 'editor' | 'folder' | 'graph' | 'rail'
 
   /**
    * `ctx.motion` — needs the `motion` permission, main-thread runtime only.
@@ -337,6 +339,15 @@ declare namespace Jnana {
     /** min 250ms */
     every(ms: number, fn: () => void): () => void
     idle(ms: number, fn: () => void): () => void
+    /**
+     * Claim an app moment — an event such as `note:trashing`, `note:created`,
+     * `note:restored`, `note:favourited`, `note:tagged`, `note:moved`,
+     * `quiz:completed`, `composer:saving`, `route:changed` (list: lib/motion/moments.ts).
+     * Only ONE claimant plays per moment: the user's pick in Settings → Appearance →
+     * Motion, else a third-party plugin over a built-in, else plugin-id order.
+     * Use this, not `ctx.bus.on`, for anything you animate. Returns an unclaim. (v2)
+     */
+    on<T = unknown>(moment: string, handler: (payload: T) => void): () => void
   }
 
   /** What your `init(ctx)` receives. */

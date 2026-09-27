@@ -34,7 +34,7 @@ describe('ctx.motion', () => {
 
     const granted = capture('m.granted')
     pluginRegistry.register(granted.plugin, { grantedPermissions: ['motion'] })
-    expect(granted.ctx()?.motion?.version).toBe(1)
+    expect(granted.ctx()?.motion?.version).toBe(2)
   })
 
   it('unregister removes everything the plugin drew', () => {

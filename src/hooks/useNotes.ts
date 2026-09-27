@@ -166,6 +166,7 @@ export function useNotes() {
     const autoTags = await inferTags(note)
     const noteWithTags = { ...note, tags: [...autoTags, ...userTags] }
     await saveNote(noteWithTags)
+    eventBus.emit('note:created', { id: noteWithTags.id })
 
     return noteWithTags
   }, [])
@@ -232,7 +233,10 @@ export function useNotes() {
       saved = { ...existing, tags: [...autoTags, ...userTags], updatedAt: Date.now() }
       return prev.map((n) => (n.id === id ? saved! : n))
     })
-    if (saved) await saveNote(saved)
+    if (saved) {
+      await saveNote(saved)
+      eventBus.emit('note:tagged', { id, tags: userTags })
+    }
   }, [])
 
   // Memoized so NotesContext's value only changes identity when one of these

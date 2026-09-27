@@ -287,7 +287,7 @@ function Notes() {
       />
       {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
 
-      <div className={NoteStyles.notesScroll}>
+      <div className={NoteStyles.notesScroll} data-anchor="notes.list">
         {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
         {!loading && error && <p className={NoteStyles.noteEmpty}>{error}</p>}
         {!loading && !error && notes.length === 0 && (

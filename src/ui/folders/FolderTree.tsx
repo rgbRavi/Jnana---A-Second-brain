@@ -454,6 +454,8 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
     return (
       <div key={node.id}>
         <div
+          data-anchor="folder"
+          data-anchor-key={node.id}
           className={`${styles.row} ${styles.folderRow} ${drag?.over === node.id ? styles.dropTarget : ''}`}
           style={{ paddingLeft: 8 + depth * 12 }}
           data-folder-drop={node.id}

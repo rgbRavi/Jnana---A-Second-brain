@@ -12,8 +12,9 @@ export default {
     const motion = ctx.motion
     if (!motion) return // `motion` not granted, or running sandboxed (no DOM)
 
-    // App event — every ctx.bus event is a trigger.
-    ctx.bus.on('composer:saving', () => burst(motion, motion.anchor('composer')))
+    // App moment — claimed with motion.on, so if another plugin (or the built-in
+    // letter effect) animates saving too, only one plays and the user picks which.
+    motion.on('composer:saving', () => burst(motion, motion.anchor('composer')))
 
     // DOM event inside an anchor.
     motion.listen('sidebar.notes', 'click', (el) => {

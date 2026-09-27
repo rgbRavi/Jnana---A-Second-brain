@@ -22,8 +22,9 @@ function harness() {
     overlay: vi.fn(() => document.body.appendChild(document.createElement('div'))),
     animate: vi.fn(),
     listen: vi.fn((_a, _t, fn) => void (onClick = fn)),
+    on: (e, fn) => void (handlers[e] = fn),
   }
-  const bus = { on: (e, fn) => void (handlers[e] = fn), emit: vi.fn() }
+  const bus = { on: vi.fn(), emit: vi.fn() }
   plugin.init({ pluginId: plugin.id, bus, motion })
   return {
     motion,

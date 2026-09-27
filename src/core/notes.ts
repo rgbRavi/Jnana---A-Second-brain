@@ -56,7 +56,9 @@ export async function convertNoteKind(id: string, kind: string | null, content: 
 
 /** Restore a trashed note; returns the full note so callers can re-surface it. */
 export async function restoreNote(id: string): Promise<Note> {
-  return invoke<Note>('restore_note', { id })
+  const note = await invoke<Note>('restore_note', { id })
+  eventBus.emit('note:restored', { id })
+  return note
 }
 
 /** Trashed notes in one vault (Trash is vault-scoped, like the rest of the app). */
@@ -188,11 +190,13 @@ export async function getFavouriteNoteIds(): Promise<string[]> {
 }
 
 export async function addFavourite(noteId: string): Promise<void> {
-  return invoke<void>('add_favourite', { noteId })
+  await invoke<void>('add_favourite', { noteId })
+  eventBus.emit('note:favourited', { noteId, on: true })
 }
 
 export async function removeFavourite(noteId: string): Promise<void> {
-  return invoke<void>('remove_favourite', { noteId })
+  await invoke<void>('remove_favourite', { noteId })
+  eventBus.emit('note:favourited', { noteId, on: false })
 }
 
 /** Persist how far through a note the user has read (0..1). */
