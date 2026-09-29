@@ -235,7 +235,7 @@ export function Sidebar() {
             title={collapsed ? a.label : `${a.label} — ${a.pluginName}`}
           >
             <span className={SidebarStyles.navIcon} aria-hidden="true">{a.icon}</span>
-            <span className={SidebarStyles.label}>{a.label}</span>
+            <span className={`${SidebarStyles.label} ${SidebarStyles.pluginLabel}`}>{a.label}</span>
           </button>
         ))}
       </nav>

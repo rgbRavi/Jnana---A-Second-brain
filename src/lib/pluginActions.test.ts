@@ -7,6 +7,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve(nul
 
 import { pluginRegistry } from './pluginRegistry'
 import { toast } from './toast'
+import { getPluginLog } from './pluginLog'
 import {
   sanitizeAction,
   registerPluginAction,
@@ -44,6 +45,13 @@ describe('plugin actions', () => {
   it('keeps at most MAX_ACTIONS_PER_SLOT per plugin per slot', () => {
     for (let i = 0; i < 10; i++) registerPluginAction('p.one', 'One', action({ id: `a${i}`, slot: 'sidebar' }))
     expect(listPluginActions('sidebar')).toHaveLength(MAX_ACTIONS_PER_SLOT)
+    expect(getPluginLog().some((e) => e.pluginId === 'p.one' && e.level === 'warn' && e.message.includes('at most'))).toBe(true)
+  })
+
+  it('never cuts an emoji in half when trimming a label or icon', () => {
+    const clipped = sanitizeAction({ id: 'a', slot: 'sidebar', label: 'x'.repeat(39) + '😀😀', icon: '❤️‍🔥🔥🔥' })
+    expect(clipped?.label).toBe('x'.repeat(39) + '😀')
+    expect(clipped?.icon).toBe('❤️‍🔥🔥')
   })
 
   it('replaces on re-register, keys by plugin + id, orders by plugin id', () => {
@@ -60,8 +68,12 @@ describe('plugin actions', () => {
     runPluginAction(stored, { noteId: 'n1' })
     expect(run).toHaveBeenCalledWith({ noteId: 'n1' })
 
+    const error = vi.spyOn(toast, 'error')
     registerPluginAction('p.one', 'One', action({ run: () => { throw new Error('boom') } }))
     expect(() => runPluginAction(listPluginActions('note.menu')[0], {})).not.toThrow()
+    expect(error).toHaveBeenCalledWith("One: that didn't work.")
+    expect(getPluginLog().some((e) => e.pluginId === 'p.one' && e.level === 'error' && e.message.includes('boom'))).toBe(true)
+    error.mockRestore()
   })
 
   it('reports an async run that rejects, like a sync throw', async () => {

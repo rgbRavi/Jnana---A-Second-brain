@@ -17,6 +17,13 @@ const MAX_ICON = 2
 const DEFAULT_ICON = '🔌'
 const SAFE_ID = /^[\w.:-]{1,64}$/
 
+// Cut by grapheme so a trim never splits an emoji or a ZWJ sequence in half.
+const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null
+function clip(text: string, max: number): string {
+  const parts = graphemes ? Array.from(graphemes.segment(text), (s) => s.segment) : Array.from(text)
+  return parts.slice(0, max).join('')
+}
+
 export interface PluginActionTarget {
   noteId?: string
 }
@@ -73,8 +80,8 @@ export function sanitizeAction(
   if (typeof id !== 'string' || !SAFE_ID.test(id)) return null
   if (typeof slot !== 'string' || !ACTION_SLOTS.includes(slot as PluginActionSlot)) return null
   if (typeof label !== 'string' || !label.trim()) return null
-  const glyph = typeof icon === 'string' && icon.trim() ? Array.from(icon.trim()).slice(0, MAX_ICON).join('') : DEFAULT_ICON
-  return { id, slot: slot as PluginActionSlot, label: label.trim().slice(0, MAX_LABEL), icon: glyph }
+  const glyph = typeof icon === 'string' && icon.trim() ? clip(icon.trim(), MAX_ICON) : DEFAULT_ICON
+  return { id, slot: slot as PluginActionSlot, label: clip(label.trim(), MAX_LABEL), icon: glyph }
 }
 
 /** Store (or replace) a plugin's action. False when refused — invalid, or the
@@ -113,14 +120,21 @@ export function listPluginActions(slot: PluginActionSlot): StoredAction[] {
     .sort((a, b) => a.pluginId.localeCompare(b.pluginId))
 }
 
+export function findPluginAction(pluginId: string, id: string): StoredAction | undefined {
+  return actions.get(key(pluginId, id))
+}
+
+/** Console line + toast for a failed action — shared by both runtimes. */
+export function reportActionFailure(action: StoredAction, message: string): void {
+  pluginLog('error', `Action "${action.label}" failed: ${message.slice(0, 500)}`, action.pluginId)
+  toast.error(`${action.pluginName}: that didn't work.`)
+}
+
 /** Click handler. A stale item (plugin unloaded since the menu opened) does
  *  nothing; a throwing one is reported, never rethrown into the menu. */
 export function runPluginAction(action: StoredAction, target: PluginActionTarget): void {
-  if (actions.get(key(action.pluginId, action.id)) !== action) return
-  const fail = (err: unknown) => {
-    pluginLog('error', `Action "${action.label}" failed: ${err instanceof Error ? err.message : String(err)}`, action.pluginId)
-    toast.error(`${action.pluginName}: that didn't work.`)
-  }
+  if (findPluginAction(action.pluginId, action.id) !== action) return
+  const fail = (err: unknown) => reportActionFailure(action, err instanceof Error ? err.message : String(err))
   try {
     // An async run's rejection is reported the same as a sync throw.
     void Promise.resolve(action.run(target)).catch(fail)

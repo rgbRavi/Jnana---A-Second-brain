@@ -38,7 +38,13 @@ import { makePluginNotesApi } from '../core/plugins/notesApi'
 import { makePluginNet } from '../core/plugins/net'
 import { makePluginMediaApi } from '../core/plugins/mediaApi'
 import { createMotionApi, disposeMotion } from './motion/runtime'
-import { registerPluginAction, unregisterPluginActions, type PluginActionSlot } from './pluginActions'
+import {
+  findPluginAction,
+  registerPluginAction,
+  reportActionFailure,
+  unregisterPluginActions,
+  type PluginActionSlot,
+} from './pluginActions'
 import {
   DESTROY_GRACE_MS,
   HEARTBEAT_MS,
@@ -358,6 +364,12 @@ class PluginRegistry {
             onAction: (actionId) => worker.postMessage({ k: 'action', panelId: m.id, actionId }),
           })
           if (!panelIds.includes(m.id)) panelIds.push(m.id)
+          return
+        }
+        case 'actionFailed': {
+          // Only for an action this worker registered, so it can't toast at will.
+          const failed = findPluginAction(meta.id, m.actionId)
+          if (failed) reportActionFailure(failed, String(m.message))
           return
         }
         case 'uiAction': {

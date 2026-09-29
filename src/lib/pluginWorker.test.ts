@@ -14,6 +14,7 @@ import { getPluginBackground, listPluginThemes } from './pluginThemes'
 import { HEARTBEAT_MS, HEARTBEAT_MISSES, RENDER_TIMEOUT_MS } from './pluginWorkerProtocol'
 import { isPluginEnabled, setPluginEnabledState } from './pluginEnabled'
 import { listPluginActions, runPluginAction } from './pluginActions'
+import { toast } from './toast'
 import type { HostToWorker, WorkerLike, WorkerToHost } from './pluginWorkerProtocol'
 
 vi.mock('../core/plugins/storage', () => ({
@@ -375,5 +376,18 @@ describe('worker plugin runtime', () => {
 
     pluginRegistry.unregister('com.test.worker')
     expect(listPluginActions('note.menu').some((a) => a.pluginId === 'com.test.worker')).toBe(false)
+    const sentBefore = w.sent.length
+    runPluginAction(item!, { noteId: 'n1' })
+    expect(w.sent).toHaveLength(sentBefore)
+  })
+
+  it('toasts when a worker action fails', () => {
+    const error = vi.spyOn(toast, 'error')
+    const w = new FakeWorker()
+    pluginRegistry.registerWorker(meta(), w)
+    w.say({ k: 'uiAction', id: 'count', slot: 'note.menu', label: 'Word count' })
+    w.say({ k: 'actionFailed', actionId: 'count', message: 'boom' })
+    expect(error).toHaveBeenCalledWith("Test Worker: that didn't work.")
+    error.mockRestore()
   })
 })

@@ -294,10 +294,15 @@
   padding-right: 1.9rem;
 }
 
-.openWsLink .label {
+.openWsLink .label,
+.pluginLabel {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pluginLabel {
+  min-width: 0;
 }
 
 .openWsClose {
@@ -343,6 +348,9 @@
 .navIcon {
   display: flex;
   align-items: center;
+  justify-content: center;
+  /* Same slot as the 18px svgs, so a plugin's emoji/2-char glyph keeps labels aligned. */
+  min-width: 18px;
   flex-shrink: 0;
   color: currentColor;
 }

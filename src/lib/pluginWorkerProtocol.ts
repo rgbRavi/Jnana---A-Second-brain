@@ -24,6 +24,8 @@ export type WorkerToHost =
   | { k: 'command'; id: string; label: string; icon?: string; hint?: string; hotkey?: string }
   /** Put a button / menu item into one of Jnana's UI slots (see lib/pluginActions.ts). */
   | { k: 'uiAction'; id: string; slot: string; label: string; icon?: string }
+  /** An action's `run` threw or rejected — the host logs it and toasts. */
+  | { k: 'actionFailed'; actionId: string; message: string }
   /** Declare (or replace) a right-rail panel as data — a worker can't render, so
    *  it describes the panel and the host draws it. */
   | { k: 'panel'; id: string; title: string; blocks: unknown }

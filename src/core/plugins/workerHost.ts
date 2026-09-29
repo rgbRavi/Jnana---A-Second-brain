@@ -192,7 +192,11 @@ self.onmessage = (e) => {
   } else if (m.k === 'runAction') {
     // Promise-wrapped so an async run's rejection is reported like a sync throw.
     const run = actions.get(m.actionId);
-    if (run) Promise.resolve().then(() => run(m.target || {})).catch(report);
+    if (run) {
+      Promise.resolve()
+        .then(() => run(m.target || {}))
+        .catch((err) => say({ k: 'actionFailed', actionId: m.actionId, message: message(err) }));
+    }
   } else if (m.k === 'render') {
     const render = fences.get(m.lang);
     Promise.resolve()
