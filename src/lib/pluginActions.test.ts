@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve(null)) }))
 
 import { pluginRegistry } from './pluginRegistry'
+import { toast } from './toast'
 import {
   sanitizeAction,
   registerPluginAction,
@@ -63,6 +64,14 @@ describe('plugin actions', () => {
     expect(() => runPluginAction(listPluginActions('note.menu')[0], {})).not.toThrow()
   })
 
+  it('reports an async run that rejects, like a sync throw', async () => {
+    const error = vi.spyOn(toast, 'error')
+    registerPluginAction('p.one', 'One', action({ run: async () => { throw new Error('later') } }))
+    runPluginAction(listPluginActions('note.menu')[0], {})
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith("One: that didn't work."))
+    error.mockRestore()
+  })
+
   it('a stale item from an unloaded plugin does nothing', () => {
     const run = vi.fn()
     registerPluginAction('p.one', 'One', action({ run }))
@@ -83,5 +92,23 @@ describe('ctx.ui.registerAction (main thread)', () => {
     expect(listPluginActions('sidebar').map((a) => a.pluginName)).toContain('Main')
     pluginRegistry.unregister('p.main')
     expect(listPluginActions('sidebar').some((a) => a.pluginId === 'p.main')).toBe(false)
+  })
+
+  it('drops its actions when init throws after registering one', () => {
+    expect(() =>
+      pluginRegistry.register(
+        {
+          id: 'p.broken',
+          name: 'Broken',
+          version: '1',
+          init: (ctx) => {
+            ctx.ui.registerAction({ id: 'x', slot: 'sidebar', label: 'Orphan', run: () => {} })
+            throw new Error('init failed')
+          },
+        },
+        { grantedPermissions: [] },
+      ),
+    ).toThrow('init failed')
+    expect(listPluginActions('sidebar').some((a) => a.pluginId === 'p.broken')).toBe(false)
   })
 })

@@ -616,6 +616,8 @@ class PluginRegistry {
       })
     } catch (err) {
       disposeMotion(plugin.id)
+      // Never registered, so `unregister` can't reach these later.
+      unregisterPluginActions(plugin.id)
       bus.dispose()
       throw err
     }

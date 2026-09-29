@@ -117,10 +117,14 @@ export function listPluginActions(slot: PluginActionSlot): StoredAction[] {
  *  nothing; a throwing one is reported, never rethrown into the menu. */
 export function runPluginAction(action: StoredAction, target: PluginActionTarget): void {
   if (actions.get(key(action.pluginId, action.id)) !== action) return
-  try {
-    action.run(target)
-  } catch (err) {
+  const fail = (err: unknown) => {
     pluginLog('error', `Action "${action.label}" failed: ${err instanceof Error ? err.message : String(err)}`, action.pluginId)
     toast.error(`${action.pluginName}: that didn't work.`)
+  }
+  try {
+    // An async run's rejection is reported the same as a sync throw.
+    void Promise.resolve(action.run(target)).catch(fail)
+  } catch (err) {
+    fail(err)
   }
 }

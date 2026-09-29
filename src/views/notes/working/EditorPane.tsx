@@ -19,7 +19,7 @@ import { MoreVertical, BookOpen, PenLine, Star, Download, LayoutDashboard, Trash
 import { setActiveNote, clearActiveNote, mayPublishActiveNote } from '../../../lib/activeNote'
 import { useLinkRename } from '../../../hooks/useLinkRename'
 import { usePluginActions } from '../../../hooks/usePluginActions'
-import { runPluginAction } from '../../../lib/pluginActions'
+import { runPluginAction, type StoredAction } from '../../../lib/pluginActions'
 import Styles from './EditorPane.module.css'
 
 const AUTOSAVE_MS = 800
@@ -228,6 +228,14 @@ export function EditorPane({ noteId }: { noteId: string }) {
       toolToken,
     )
 
+  // A plugin acts on what's on screen: save pending edits first, or it reads
+  // stale content and the pending autosave overwrites whatever it writes.
+  const runAfterSave = async (a: StoredAction) => {
+    window.clearTimeout(saveTimer.current)
+    await flushSave()
+    runPluginAction(a, { noteId })
+  }
+
   return (
     <div
       data-anchor="editor"
@@ -257,7 +265,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
             <button
               key={`${a.pluginId}:${a.id}`}
               className={Styles.iconBtn}
-              onClick={() => runPluginAction(a, { noteId })}
+              onClick={() => void runAfterSave(a)}
               aria-label={a.label}
               title={`${a.label} — ${a.pluginName}`}
             >
@@ -359,7 +367,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(false)
-                      runPluginAction(a, { noteId })
+                      void runAfterSave(a)
                     }}
                   >
                     <span aria-hidden="true">{a.icon}</span>
