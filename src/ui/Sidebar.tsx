@@ -6,6 +6,8 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"
 import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPrefs"
 import { useWorkspaces } from "../hooks/useWorkspaces"
+import { usePluginActions } from "../hooks/usePluginActions"
+import { runPluginAction } from "../lib/pluginActions"
 import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import { ContextMenu } from "./ContextMenu"
@@ -32,6 +34,7 @@ const itemClass =
 export function Sidebar() {
   const { jobs } = useTranscription()
   const { collapsed } = useSidebarPrefs()
+  const sidebarActions = usePluginActions("sidebar")
   // Open workspaces are cross-vault shortcuts — resolve them against ALL
   // workspaces (not just the active vault's) so they never vanish when you
   // switch vaults; clicking one switches the active vault to match.
@@ -223,6 +226,18 @@ export function Sidebar() {
           <span className={SidebarStyles.navIcon}>{ICONS.ai}</span>
           <span className={SidebarStyles.label}>AI</span>
         </NavLink>
+        {sidebarActions.map((a) => (
+          <button
+            key={`${a.pluginId}:${a.id}`}
+            type="button"
+            className={itemClass(false)}
+            onClick={() => runPluginAction(a, {})}
+            title={collapsed ? a.label : `${a.label} — ${a.pluginName}`}
+          >
+            <span className={SidebarStyles.navIcon} aria-hidden="true">{a.icon}</span>
+            <span className={SidebarStyles.label}>{a.label}</span>
+          </button>
+        ))}
       </nav>
 
       <div className={SidebarStyles.sidebarBottom}>

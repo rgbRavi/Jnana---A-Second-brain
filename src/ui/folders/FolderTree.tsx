@@ -27,6 +27,7 @@ import { toast } from '../../lib/toast'
 import { showChoiceDialog } from '../../lib/dialog'
 import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { pluginNoteMenuItems } from '../pluginNoteMenu'
 import { DEFAULT_VAULT_ID, type Folder, type Note } from '../../types'
 import { CANVAS_NOTE_KIND } from '../../plugins/canvas'
 import { EMPTY_CANVAS_CONTENT } from '../../plugins/canvas/canvasNote'
@@ -350,6 +351,7 @@ export function FolderTree({ vaultId }: { vaultId: string }) {
         label: 'Remove from folder',
         onClick: () => void setNoteFolder(note.id, null, vaultId).catch(() => {}),
       },
+      ...pluginNoteMenuItems(note.id),
       { label: 'Delete note', danger: true, separator: true, onClick: () => void remove(note.id) },
     ],
     [openNote, beginEdit, remove, vaultId],

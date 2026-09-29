@@ -18,6 +18,8 @@ import { useFavourites } from '../../../hooks/useFavourites'
 import { MoreVertical, BookOpen, PenLine, Star, Download, LayoutDashboard, Trash2 } from 'lucide-react'
 import { setActiveNote, clearActiveNote, mayPublishActiveNote } from '../../../lib/activeNote'
 import { useLinkRename } from '../../../hooks/useLinkRename'
+import { usePluginActions } from '../../../hooks/usePluginActions'
+import { runPluginAction } from '../../../lib/pluginActions'
 import Styles from './EditorPane.module.css'
 
 const AUTOSAVE_MS = 800
@@ -55,6 +57,8 @@ export function EditorPane({ noteId }: { noteId: string }) {
   const [status, setStatus] = useState<'saved' | 'dirty' | 'saving'>('saved')
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const toolbarActions = usePluginActions('editor.toolbar')
+  const menuActions = usePluginActions('note.menu')
 
   const { addToFavourites, removeFromFavourites, fetchFavourites } = useFavourites()
   const [isFavourite, setIsFavourite] = useState(false)
@@ -249,6 +253,17 @@ export function EditorPane({ noteId }: { noteId: string }) {
         />
         <div className={Styles.headerActions}>
           {isRecording && <span className={Styles.recording}>● recording…</span>}
+          {toolbarActions.map((a) => (
+            <button
+              key={`${a.pluginId}:${a.id}`}
+              className={Styles.iconBtn}
+              onClick={() => runPluginAction(a, { noteId })}
+              aria-label={a.label}
+              title={`${a.label} — ${a.pluginName}`}
+            >
+              <span aria-hidden="true">{a.icon}</span>
+            </button>
+          ))}
           <span
             className={Styles.status}
             data-state={status}
@@ -337,6 +352,20 @@ export function EditorPane({ noteId }: { noteId: string }) {
                     Convert to canvas
                   </button>
                 )}
+                {menuActions.map((a) => (
+                  <button
+                    key={`${a.pluginId}:${a.id}`}
+                    className={Styles.dropdownItem}
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      runPluginAction(a, { noteId })
+                    }}
+                  >
+                    <span aria-hidden="true">{a.icon}</span>
+                    {a.label}
+                  </button>
+                ))}
                 <button
                   className={`${Styles.dropdownItem} ${Styles.dropdownItemDanger}`}
                   role="menuitem"

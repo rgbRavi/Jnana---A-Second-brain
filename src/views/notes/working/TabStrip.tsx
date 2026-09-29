@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { ArrowLeft, Plus, PanelRight, PanelBottom, X } from 'lucide-react'
 import { useNotesContext } from '../../../context/NotesContext'
 import { ContextMenu } from '../../../ui/ContextMenu'
+import { pluginNoteMenuItems } from '../../../ui/pluginNoteMenu'
 import type { GroupNode } from './layout'
 import {
   setWorkingActiveTab,
@@ -214,6 +215,7 @@ export function TabStrip({
               separator: true,
               onClick: () => eventBus.emit('explorer:reveal', { noteId: tabMenu.noteId }),
             },
+            ...pluginNoteMenuItems(tabMenu.noteId),
           ]}
           onClose={() => setTabMenu(null)}
         />
