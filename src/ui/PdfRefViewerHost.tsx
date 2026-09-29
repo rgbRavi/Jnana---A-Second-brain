@@ -11,7 +11,8 @@ import MdStyles from './editor/MarkdownLite.module.css'
 interface OpenReq { filename: string; noteId: string; page: number; x: number; y: number }
 
 /** Global listener: a DocRefChip's `pdf:open` opens the referenced PDF in a
- *  fullscreen overlay, jumps to the page and pulses the point. Mounted once. */
+ *  fullscreen overlay, jumps to the page and pulses the point (skipped when
+ *  x < 0). Mounted once. */
 export function PdfRefViewerHost() {
   const [req, setReq] = useState<OpenReq | null>(null)
   const setPage = useRef<((p: number) => void) | null>(null)
@@ -27,7 +28,8 @@ export function PdfRefViewerHost() {
     if (!req) return
     // Give the viewer a tick to register its setters + render the page.
     const t = setTimeout(() => {
-      if (reveal.current) reveal.current(req.page, req.x, req.y)
+      // A negative point means "just open to the page" (no pulse), e.g. from the rail.
+      if (reveal.current && req.x >= 0) reveal.current(req.page, req.x, req.y)
       else setPage.current?.(req.page)
     }, 150)
     return () => clearTimeout(t)

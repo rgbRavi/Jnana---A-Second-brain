@@ -5,6 +5,8 @@
 // No CM6/React deps so they're unit-testable and reusable by the editor
 // (autocomplete), the graph (pseudo-nodes), and the wikilink widget.
 
+import { DEFAULT_VAULT_ID } from '../../types'
+
 /** Minimal note shape the wikilink helpers need (any Note satisfies this). */
 export interface TitledNote {
   id: string
@@ -21,10 +23,28 @@ export function extractWikilinkTitles(content: string): string[] {
   return [...content.matchAll(/\[\[(.*?)\]\]/g)].map((m) => m[1].trim()).filter(Boolean)
 }
 
-/** Resolve a `[[title]]` to an existing note (case-insensitive), or undefined. */
-export function resolveNoteByTitle<T extends TitledNote>(title: string, notes: T[]): T | undefined {
+/** Resolve a `[[title]]` to an existing note (case-insensitive), or undefined.
+ *  Pass `vaultId` to match only notes in that vault — links never cross vaults
+ *  (the Rust `sync_links` resolves the same way). */
+export function resolveNoteByTitle<T extends TitledNote & { vaultId?: string | null }>(
+  title: string,
+  notes: T[],
+  vaultId?: string,
+): T | undefined {
   const key = normalizeTitle(title)
-  return notes.find((n) => normalizeTitle(n.title) === key)
+  return notes.find(
+    (n) => normalizeTitle(n.title) === key && (vaultId === undefined || (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId),
+  )
+}
+
+/** Rewrite every `[[from]]` (case/whitespace-insensitive) to `[[to]]` — the
+ *  "update links" step of a note rename. Returns the input unchanged if none. */
+export function renameWikilinks(content: string, from: string, to: string): string {
+  const key = normalizeTitle(from)
+  if (!key) return content
+  return content.replace(/\[\[(.*?)\]\]/g, (whole, inner: string) =>
+    normalizeTitle(inner) === key ? `[[${to.trim()}]]` : whole,
+  )
 }
 
 /** Stable graph-node id for an unresolved (pseudo) wikilink target. */

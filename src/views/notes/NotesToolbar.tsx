@@ -2,9 +2,16 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, Pencil, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, Pencil, Search, X } from 'lucide-react'
 import { openComposer } from '../../ui/editor/NoteCreator'
-import { useNotesViewPrefs, setNotesViewPrefs, activeFilterCount, NOTES_PREFS_KEY } from './useNotesViewPrefs'
+import { SettingSelect } from '../../ui/settings/SettingControls'
+import {
+  useNotesViewPrefs,
+  setNotesViewPrefs,
+  resetNotesFilter,
+  activeFilterCount,
+  NOTES_PREFS_KEY,
+} from './useNotesViewPrefs'
 import type { DisplayMode, SortBy } from './filterNotes'
 import Styles from './NotesToolbar.module.css'
 
@@ -23,25 +30,7 @@ const MODES: [DisplayMode, string][] = [
   ['grid', 'Grid'],
 ]
 
-/** Lucide icon per display mode (stroke + size come from CSS `.modeBtn svg`). */
-const MODE_ICON: Record<DisplayMode, ReactNode> = {
-  card: (
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
-  ),
-  comfortable: (
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M21 9H3" /><path d="M21 15H3" /></svg>
-  ),
-  compact: (
-    <svg viewBox="0 0 24 24"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>
-  ),
-  grid: (
-    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 12h18" /><path d="M12 3v18" /></svg>
-  ),
-}
-
 interface Props {
-  count: number
-  total: number
   search: string
   onSearch: (v: string) => void
   filtersOpen: boolean
@@ -57,8 +46,6 @@ interface Props {
 }
 
 export function NotesToolbar({
-  count,
-  total,
   search,
   onSearch,
   filtersOpen,
@@ -85,27 +72,36 @@ export function NotesToolbar({
         />
       </div>
 
-      <button
-        className={`${Styles.toolBtn} ${filtersOpen ? Styles.toolBtnActive : ''}`}
-        onClick={onToggleFilters}
-        aria-expanded={filtersOpen}
-      >
-        Filters{activeCount > 0 ? ` · ${activeCount}` : ''}
-      </button>
+      <div className={Styles.filterGroupBtns}>
+        <button
+          className={`${Styles.toolBtn} ${filtersOpen ? Styles.toolBtnActive : ''}`}
+          onClick={onToggleFilters}
+          aria-expanded={filtersOpen}
+        >
+          Filters{activeCount > 0 ? ` · ${activeCount}` : ''}
+        </button>
+        {/* Only worth showing when there's something to clear. */}
+        {activeCount > 0 && (
+          <button
+            className={Styles.toolBtn}
+            onClick={() => resetNotesFilter(prefsKey)}
+            title="Clear filters"
+            aria-label="Clear filters"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
 
       <div className={Styles.sort}>
-        <select
-          className={Styles.select}
-          value={prefs.sortBy}
-          onChange={(e) => setNotesViewPrefs(prefsKey, { sortBy: e.target.value as SortBy })}
-          aria-label="Sort by"
-        >
-          {SORT_OPTIONS.map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
-            </option>
-          ))}
-        </select>
+        <div className={Styles.selectWrap}>
+          <SettingSelect
+            value={prefs.sortBy}
+            onChange={(v) => setNotesViewPrefs(prefsKey, { sortBy: v as SortBy })}
+            options={SORT_OPTIONS.map(([value, label]) => ({ value, label }))}
+            ariaLabel="Sort by"
+          />
+        </div>
         <button
           className={Styles.toolBtn}
           onClick={() => setNotesViewPrefs(prefsKey, { sortOrder: prefs.sortOrder === 'asc' ? 'desc' : 'asc' })}
@@ -116,25 +112,14 @@ export function NotesToolbar({
         </button>
       </div>
 
-      <div className={Styles.modes} role="group" aria-label="Display mode">
-        {MODES.map(([m, label]) => (
-          <button
-            key={m}
-            className={`${Styles.modeBtn} ${prefs.displayMode === m ? Styles.modeBtnActive : ''}`}
-            onClick={() => setNotesViewPrefs(prefsKey, { displayMode: m })}
-            title={label}
-            aria-label={label}
-            aria-pressed={prefs.displayMode === m}
-          >
-            {MODE_ICON[m]}
-            <span className={Styles.modeLabel}>{label}</span>
-          </button>
-        ))}
+      <div className={Styles.selectWrap}>
+        <SettingSelect
+          value={prefs.displayMode}
+          onChange={(v) => setNotesViewPrefs(prefsKey, { displayMode: v as DisplayMode })}
+          options={MODES.map(([value, label]) => ({ value, label }))}
+          ariaLabel="Display mode"
+        />
       </div>
-
-      <span className={Styles.count}>
-        {count === total ? `${total}` : `${count} / ${total}`} note{total !== 1 ? 's' : ''}
-      </span>
 
       {extraActions}
 

@@ -12,8 +12,10 @@ export function isAutoTag(tag: string): boolean {
     return AUTO_TAG_PREFIXES.some((p) => tag.startsWith(p))
 }
 
-async function getAttachedMediaTypes(noteID: string): Promise<Set<string>> {
-    const types = await getMediaTypes(noteID);
+async function getAttachedMediaTypes(noteID: string, content: string): Promise<Set<string>> {
+    // Checked against the note in hand, not the stored copy: inferTags runs
+    // before the save, so the DB still holds the pre-edit text.
+    const types = await getMediaTypes(noteID, content);
     return new Set(types);
 }
 
@@ -22,7 +24,7 @@ export async function inferTags(note: Note): Promise<string[]> {
     const content = note.content;
 
     // ── Media-based tags (from DB) ────────────────────────────────
-    const mediaTypes = await getAttachedMediaTypes(note.id);
+    const mediaTypes = await getAttachedMediaTypes(note.id, content);
 
     if (mediaTypes.size > 0)               tags.push('has:media');
     if (mediaTypes.has('image'))           tags.push('has:image');

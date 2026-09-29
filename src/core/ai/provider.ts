@@ -39,7 +39,8 @@ export interface EmbeddingProvider {
 
 /** Generates a chat completion for a prompt. */
 export interface ChatProvider {
-  complete(prompt: string, opts?: { system?: string; temperature?: number }): Promise<string>
+  /** `images`: data URLs attached to the prompt — only send them to a vision model. */
+  complete(prompt: string, opts?: { system?: string; temperature?: number; images?: string[] }): Promise<string>
 }
 
 // ── Embedding adapters ──
@@ -71,36 +72,27 @@ function ollamaEmbed(model: string): EmbeddingProvider {
   }
 }
 
-// ── Chat adapters ──
+// ── Chat adapter ──
 
-function openAiChat(model: string): ChatProvider {
+/**
+ * One-shot completion, streamed. Grounded generators wait on the whole reply,
+ * but a non-streaming request sits silent while a thinking model reasons — and
+ * gateways (e.g. aicredits.in) kill an idle request at ~30s with a bare 500.
+ * Streaming keeps bytes flowing, same as the chat that already works.
+ */
+function streamingChat(provider: AiProviderKind, model: string): ChatProvider {
   return {
-    async complete(prompt, opts) {
-      const messages = [
-        ...(opts?.system ? [{ role: 'system', content: opts.system }] : []),
-        { role: 'user', content: prompt },
+    complete(prompt, opts) {
+      const messages: ChatTurn[] = [
+        ...(opts?.system ? [{ role: 'system' as const, content: opts.system }] : []),
+        { role: 'user', content: prompt, images: opts?.images?.length ? opts.images : undefined },
       ]
-      const data = await aiPostJson<{ choices: { message: { content: string } }[] }>(
-        'chat',
-        '/chat/completions',
-        { model, messages, temperature: opts?.temperature ?? 0.2 },
+      return streamRoute(
+        { target: 'chat', provider, model },
+        messages,
+        { temperature: opts?.temperature ?? 0.2 },
+        () => {},
       )
-      return data.choices[0]?.message?.content ?? ''
-    },
-  }
-}
-
-function ollamaChat(model: string): ChatProvider {
-  return {
-    async complete(prompt, opts) {
-      const data = await aiPostJson<{ response: string }>('chat', '/api/generate', {
-        model,
-        prompt,
-        system: opts?.system,
-        stream: false,
-        options: { temperature: opts?.temperature ?? 0.2 },
-      })
-      return data.response ?? ''
     },
   }
 }
@@ -120,7 +112,7 @@ function providerEmbed(kind: AiProviderKind, model: string): EmbeddingProvider {
 }
 
 function providerChat(kind: AiProviderKind, model: string): ChatProvider {
-  return kind === 'openai' ? openAiChat(model) : ollamaChat(model)
+  return streamingChat(kind, model)
 }
 
 // ── Streaming multi-turn chat (the "AI Chat" mode) ──────────────────────────
@@ -250,6 +242,16 @@ export async function streamChat(
     provider: config.chatProvider,
     model: config.chatModel,
   }
+  return streamRoute(route, messages, opts, onToken)
+}
+
+/** `streamChat` against an explicit endpoint/model — no config lookup. */
+function streamRoute(
+  route: StreamRoute,
+  messages: ChatTurn[],
+  opts: StreamChatOpts,
+  onToken: (delta: string) => void,
+): Promise<string> {
   const kind = route.provider
   const { path, body } = buildChatRequest(route.provider, route.model, messages, opts)
   const requestId =

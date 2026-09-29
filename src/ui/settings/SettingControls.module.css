@@ -213,3 +213,5 @@
 .slider:focus-visible .sliderThumb {
   box-shadow: var(--shadow-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
 }
+
+.switch:disabled { opacity: 0.55; cursor: default; }

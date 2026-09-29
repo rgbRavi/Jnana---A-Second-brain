@@ -428,7 +428,7 @@ export interface AnalysisResult {
 export type AnalyzeInput =
   | { mode: 'topic'; query: string }
   | { mode: 'window'; since: number; until: number; label: string }
-  | { mode: 'note'; noteId: string }
+  | { mode: 'note'; noteIds: string[] }
 
 /**
  * The provider abstraction the rest of the AI layer codes against.
@@ -448,14 +448,11 @@ export interface Plugin {
   id: string
   name: string
   version: string
-  /** Set to true and provide workerUrl to run the plugin in an isolated Web Worker thread */
-  worker?: boolean
-  /** Required when worker: true. Use: new URL('./myPlugin.worker.ts', import.meta.url) */
-  workerUrl?: URL
-  /** Called once at load with a sandboxed context (event bus + scoped storage +
-   *  scoped notes API + `registerNoteType`) for inline (non-worker) plugins. */
-  init?: (ctx: import('../lib/pluginApi').PluginContext) => void
-  /** Called before the plugin is unregistered (inline plugins only) */
+  /** Called once at load with a context (event bus + scoped storage + scoped notes
+   *  API + `registerNoteType` + `ui`). A worker plugin gets the same shape across
+   *  postMessage, minus the rendering hooks — see `core/plugins/workerHost.ts`. */
+  init?: (ctx: import('../lib/pluginApi').PluginContext) => void | Promise<void>
+  /** Called before the plugin is unregistered. */
   destroy?: () => void
 }
 
@@ -500,6 +497,24 @@ export interface ThemeFonts {
 }
 
 /**
+ * A user-chosen background image. The file is **copied into the app's assets
+ * directory** when picked, so the wallpaper survives the original being moved or
+ * deleted, and it is served over `jnana-asset://` — never a remote URL, which
+ * would make every paint an outbound request.
+ */
+export interface ThemeWallpaper {
+  /** Filename in the assets dir (what `import_file` returned). */
+  asset: string
+  /** How the image fills the window. */
+  fit?: 'cover' | 'contain' | 'tile'
+  /** 0–1. Blend toward the theme's `--bg`; this is what keeps text readable
+   *  over a busy photo, so it defaults to a real amount rather than 0. */
+  dim?: number
+  /** Blur radius in px (0–40). Also a readability control. */
+  blur?: number
+}
+
+/**
  * The canonical theme object — built-in presets, saved custom themes, and the
  * active theme all share this shape. `presetId` is cleared (null) the moment
  * any token is hand-edited, so the UI can tell "this preset" from "custom".
@@ -512,6 +527,12 @@ export interface Theme {
   fonts: ThemeFonts
   density: ThemeDensity
   readingScale: number
+  /** Opt-in frosted-glass surfaces + accent gradient backdrop (AI view). Absent
+   *  on older themes and every preset — i.e. off by default. */
+  glassEffects?: boolean
+  /** A background image the user picked. Absent on every preset. When set it
+   *  takes precedence over a plugin's backdrop — the user's own choice wins. */
+  wallpaper?: ThemeWallpaper | null
 }
 
 /** A saved theme row (built-in preset or user-saved custom theme). */

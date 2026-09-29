@@ -21,6 +21,11 @@ import {
   setActiveGroup,
   setSplitSizes,
   reconcile,
+  splitBeside,
+  openNoteAt,
+  groupOf,
+  closeOtherTabs,
+  type SplitSide,
   type WorkingLayout,
 } from './layout'
 import { getActiveVaultId, setActiveVaultId, useActiveVaultId } from '../../../hooks/useVaults'
@@ -166,6 +171,31 @@ export function closeWorkingTab(noteId: string, groupId?: string) {
 
 export function splitWorkingGroup(groupId: string, dir: 'row' | 'col', moveNoteId?: string) {
   commitLayout(splitGroup(getWorkingLayout(), groupId, dir, moveNoteId))
+}
+
+/** Put a note in a new pane on `side` of `anchorGroupId` — by default the pane
+ *  last worked in (the active group). A note that isn't open yet (an explorer
+ *  drop / menu) is opened into the anchor first, then split out of it. */
+export function splitWorkingBeside(noteId: string, side: SplitSide, anchorGroupId?: string) {
+  let layout = getWorkingLayout()
+  const anchor = anchorGroupId ?? layout.activeGroup
+  if (!layout.root || !anchor) {
+    commitLayout(openNote(layout, noteId))
+  } else {
+    if (!groupOf(layout.root, noteId)) layout = openNoteAt(layout, noteId, anchor, Number.MAX_SAFE_INTEGER)
+    commitLayout(splitBeside(layout, anchor, side, noteId))
+  }
+  setNotesSubView('working')
+}
+
+/** Open (or move) a note into a specific pane at a tab index — explorer drops. */
+export function openNoteInWorkingAt(noteId: string, groupId: string, index: number) {
+  commitLayout(openNoteAt(getWorkingLayout(), noteId, groupId, index))
+  setNotesSubView('working')
+}
+
+export function closeOtherWorkingTabs(groupId: string, keepNoteId: string) {
+  commitLayout(closeOtherTabs(getWorkingLayout(), groupId, keepNoteId))
 }
 
 export function closeWorkingGroup(groupId: string) {

@@ -4,6 +4,8 @@
 import type { ComponentType } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import type { Note } from '../types'
+import { renameWikilinks } from '../core/markdown/wikilinks'
+import { extractNoteMedia, type NoteMedia } from '../core/markdown/noteMedia'
 
 /** Props a note-type's read-mode View receives. */
 export interface NoteViewProps {
@@ -43,6 +45,17 @@ export interface NoteTypeDefinition {
   toExportMarkdown?: (note: Note) => string
   /** Initial `content` for a freshly-created note of this kind. */
   newContent?: () => string
+  /** Markdown-ish text carrying this note's outbound `[[wikilinks]]` (link sync,
+   *  graph, backlinks). `titleOf` resolves a note id to its title, for types that
+   *  reference notes by id. Absent = the type has no links (its raw JSON content
+   *  is never scanned — e.g. `[[x,y]]` point arrays would mis-parse as links). */
+  toLinkText?: (note: Pick<Note, 'content'>, titleOf: (id: string) => string | undefined) => string
+  /** Return `content` with `[[from]]` links rewritten to `[[to]]` (a note rename's
+   *  "update links"); return it unchanged when nothing matched. Absent = no
+   *  rewritable links. */
+  renameLinks?: (content: string, from: string, to: string) => string
+  /** Media this note uses, for the Links panel's "Attached media". Absent = none. */
+  toMedia?: (note: Pick<Note, 'content'>) => NoteMedia[]
 }
 
 const registry = new Map<string, NoteTypeDefinition>()
@@ -99,4 +112,29 @@ export function listNoteTypes(): NoteTypeDefinition[] {
  *  if any, else the raw content (correct for plain markdown notes). */
 export function noteSearchText(note: Note): string {
   return getNoteType(note)?.toSearchText?.(note) ?? note.content
+}
+
+/** The text to scan for a note's outbound `[[wikilinks]]`: raw content for a
+ *  plain note, the type's `toLinkText` for a typed note, else nothing. A `kind`
+ *  whose plugin isn't loaded also yields nothing (its content is opaque). */
+export function noteLinkText(
+  note: Pick<Note, 'content' | 'kind'>,
+  titleOf: (id: string) => string | undefined,
+): string {
+  if (!note.kind) return note.content
+  return getNoteType(note)?.toLinkText?.(note, titleOf) ?? ''
+}
+
+/** `note.content` with `[[from]]` rewritten to `[[to]]` — markdown for a plain
+ *  note, the type's `renameLinks` for a typed one (unchanged if it has none). */
+export function noteRenameLinks(note: Pick<Note, 'content' | 'kind'>, from: string, to: string): string {
+  if (!note.kind) return renameWikilinks(note.content, from, to)
+  return getNoteType(note)?.renameLinks?.(note.content, from, to) ?? note.content
+}
+
+/** Media a note uses: markdown embeds for a plain note, the type's `toMedia`
+ *  for a typed one (none if it has no such hook). */
+export function noteMedia(note: Pick<Note, 'content' | 'kind'>): NoteMedia[] {
+  if (!note.kind) return extractNoteMedia(note.content)
+  return getNoteType(note)?.toMedia?.(note) ?? []
 }

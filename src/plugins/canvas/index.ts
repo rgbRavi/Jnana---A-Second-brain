@@ -8,7 +8,7 @@
 
 import { Frame } from 'lucide-react'
 import type { Plugin } from '../../types'
-import { EMPTY_CANVAS_CONTENT, canvasToSearchText, canvasToExportMarkdown } from './canvasNote'
+import { EMPTY_CANVAS_CONTENT, canvasToSearchText, canvasToExportMarkdown, canvasToLinkText, canvasRenameLinks, canvasToMedia } from './canvasNote'
 import { CanvasNoteEditor } from './CanvasNoteEditor'
 import { CanvasNoteView } from './CanvasNoteView'
 
@@ -31,6 +31,9 @@ export const canvasPlugin: Plugin = {
       newContent: () => EMPTY_CANVAS_CONTENT,
       toSearchText: (note) => canvasToSearchText(note.content),
       toExportMarkdown: (note) => canvasToExportMarkdown(note.content),
+      toLinkText: (note, titleOf) => canvasToLinkText(note.content, titleOf),
+      renameLinks: (content, from, to) => canvasRenameLinks(content, from, to),
+      toMedia: (note) => canvasToMedia(note.content),
     })
   },
 }

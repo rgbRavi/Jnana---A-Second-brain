@@ -104,6 +104,39 @@
   --space-2xl: calc(32px * var(--density));
 }
 
+/* Optional glass effects (Theme Studio → Design → "Glass & gradient effects").
+   applyVars stamps data-glass on <html>. Components read these instead of
+   hardcoding either look, so one switch flips every surface — inline styles
+   included. Off (default) = solid, calm surfaces. */
+:root {
+  --fx-view-bg: var(--bg);
+  --fx-blur: none;
+  --fx-blur-strong: none;
+  --fx-alpha-glass: 100%;  /* composer, "start chat" */
+  --fx-alpha-soft: 100%;   /* reply bubble, project cards */
+  --fx-alpha-light: 100%;  /* buttons, pills, panels */
+  --fx-glow: none;
+  --fx-composer-radius: var(--radius-xl);
+  --fx-composer-border: var(--border-strong);
+  --fx-composer-shadow: var(--shadow-sm);
+}
+:root[data-glass='on'] {
+  --fx-view-bg:
+    radial-gradient(circle at 15% 50%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 50%),
+    radial-gradient(circle at 85% 30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 50%),
+    radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+    var(--bg);
+  --fx-blur: blur(8px);
+  --fx-blur-strong: blur(24px) saturate(150%);
+  --fx-alpha-glass: 35%;
+  --fx-alpha-soft: 70%;
+  --fx-alpha-light: 90%;
+  --fx-glow: 0 0 10px color-mix(in srgb, var(--accent) 20%, transparent);
+  --fx-composer-radius: 28px;
+  --fx-composer-border: color-mix(in srgb, var(--text-1) 12%, transparent);
+  --fx-composer-shadow: 0 12px 36px rgba(0, 0, 0, 0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent);
+}
+
 /* Light-based themes flip the elevation wash to dark-on-light and lighten the
    scrim; applyVars stamps data-base on <html>. resolveVars also sets these
    inline per theme, but the attribute rules keep them correct at boot. */

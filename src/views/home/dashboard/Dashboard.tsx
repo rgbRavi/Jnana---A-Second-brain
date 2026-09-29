@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { RotateCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { Note } from '../../../types'
 import { useNotesContext } from '../../../context/NotesContext'
 import { setViewState } from '../../../hooks/useViewState'
 import { eventBus } from '../../../lib/eventBus'
+import { setGraphSpotlight } from '../../../lib/graphSpotlight'
+import { toast, updateToast } from '../../../lib/toast'
+import { indexNotes, loadAiConfig } from '../../../core/ai'
+import { setNotesSubView } from '../../notes/working/useWorkingLayout'
+import { NOTES_PREFS_KEY, setNotesFilter } from '../../notes/useNotesViewPrefs'
 import { NoteModal } from '../../../ui/NoteModal'
 import styles from './Dashboard.module.css'
 import { useDashboardData } from './useDashboardData'
@@ -34,6 +40,8 @@ export function Dashboard() {
   const navigate = useNavigate()
   const { update, updateTags } = useNotesContext()
   const [openNote, setOpenNote] = useState<Note | null>(null)
+  // One indexing pass at a time — the tile stays clickable while it runs.
+  const indexingRef = useRef(false)
   const [customizing, setCustomizing] = useState(false)
 
   const actions: DashboardActions = {
@@ -42,6 +50,64 @@ export function Dashboard() {
       setOpenNote(n)
     },
     goto: (path) => navigate(path),
+    showUntagged: () => {
+      // Replace the status filter outright — arriving from the tile should show
+      // exactly the untagged notes, not intersect with whatever was set before.
+      setNotesFilter(NOTES_PREFS_KEY, { status: ['untagged'] })
+      // /notes remembers whichever sub-view was last open, so ask for the
+      // gallery explicitly — the filtered list lives there, not on the desk.
+      setNotesSubView('gallery')
+      navigate('/notes')
+    },
+    indexStale: () => {
+      void (async () => {
+        if (indexingRef.current) return
+        const pending = data.staleNotes
+        if (pending.length === 0) {
+          toast.info('Everything in this vault is already indexed.')
+          return
+        }
+        const config = await loadAiConfig().catch(() => null)
+        if (!config?.enabled) {
+          toast.info('Turn on AI in Settings → AI Providers to index your notes.')
+          return
+        }
+        indexingRef.current = true
+        const id = toast.progress(`Indexing ${pending.length} note${pending.length === 1 ? '' : 's'}…`)
+        try {
+          const { indexed, failed, firstError } = await indexNotes(pending, config, (done, total) =>
+            updateToast(id, { progress: done / total, message: `Indexing ${done} of ${total}…` }),
+          )
+          // Embedding calls fail per note (bad model, provider down), so report
+          // what actually landed rather than assuming the batch worked.
+          updateToast(id, {
+            message:
+              failed === 0
+                ? `Indexed ${indexed} note${indexed === 1 ? '' : 's'}.`
+                : indexed === 0
+                  ? `Indexing failed: ${firstError ?? 'check your embedding provider'}`
+                  : `Indexed ${indexed}, ${failed} failed: ${firstError ?? 'see the log'}`,
+            variant: failed === 0 ? 'success' : 'error',
+            progress: 1,
+            duration: failed === 0 ? 3000 : 8000,
+          })
+        } catch (err) {
+          console.error('[dashboard] indexing failed:', err)
+          updateToast(id, { message: 'Indexing failed — check your AI settings.', variant: 'error', duration: 5000 })
+        } finally {
+          indexingRef.current = false
+          data.refresh()
+        }
+      })()
+    },
+    showOrphans: () => {
+      setGraphSpotlight('orphans')
+      navigate('/graph')
+    },
+    showSuggestedLinks: () => {
+      setGraphSpotlight('suggested')
+      navigate('/graph')
+    },
     newNote: () => setViewState('notes.composer.state', 'expanded'),
     recordAudio: () => {
       setViewState('notes.composer.state', 'expanded')
@@ -82,8 +148,6 @@ export function Dashboard() {
         icon={def.icon}
         collapsed={prefs.isCollapsed(id)}
         onToggleCollapse={() => prefs.toggleCollapsed(id)}
-        onHide={() => prefs.toggleHidden(id)}
-        onRefresh={def.refreshable ? data.refresh : undefined}
       >
         <Component data={data} actions={actions} />
       </DashboardCard>
@@ -98,12 +162,14 @@ export function Dashboard() {
           <p className={styles.dashSubtitle}>Your knowledge command center</p>
         </div>
         <div className={styles.dashboardActions}>
+          <button type="button" className={styles.iconBtn} title="Refresh" aria-label="Refresh" onClick={data.refresh}>
+            <RotateCw size={16} aria-hidden="true" />
+          </button>
           <LayoutSwitcher />
-          <button type="button" className={styles.customizeBtn} aria-label="Customize" onClick={() => setCustomizing(true)}>
+          <button type="button" className={styles.iconBtn} title="Customize" aria-label="Customize" onClick={() => setCustomizing(true)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M14 17H5" /><path d="M19 7h-9" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" />
             </svg>
-            <span className={styles.customizeLbl} aria-hidden="true">Customize</span>
           </button>
         </div>
       </header>

@@ -61,13 +61,16 @@ fn cosine(a: &[f32], b: &[f32]) -> f32 {
     dot / (na.sqrt() * nb.sqrt())
 }
 
-/// Persist the embeddings for a note, replacing any previous set atomically.
+/// Persist a slice of a note's embeddings. The first slice replaces any previous
+/// set; later slices append (see `replace_embeddings_for_note`).
 #[command]
 pub fn save_note_embeddings(
     state: State<'_, DbState>,
     note_id: String,
     model: String,
     chunks: Vec<ChunkInput>,
+    // None/true replaces the note's rows; false appends a later slice of the pass.
+    replace: Option<bool>,
 ) -> Result<(), String> {
     let mut conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
     let created_at = now_ms();
@@ -84,7 +87,7 @@ pub fn save_note_embeddings(
         })
         .collect();
 
-    queries::replace_embeddings_for_note(&mut conn, &note_id, &rows)
+    queries::replace_embeddings_for_note(&mut conn, &note_id, &rows, replace.unwrap_or(true))
         .map_err(|e| format!("Failed to save embeddings: {}", e))
 }
 

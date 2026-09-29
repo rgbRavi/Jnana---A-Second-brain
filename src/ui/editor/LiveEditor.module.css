@@ -3,6 +3,15 @@
   width: 100%;
 }
 
+/* Dragging files over this editor. Outline rather than a border so the drop
+   affordance can't reflow the text underneath it. */
+.host.dropActive {
+  outline: 2px dashed var(--border-strong);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
 .host :global(.cm-editor) {
   font-family: var(--font-body);
   font-size: 0.9rem;

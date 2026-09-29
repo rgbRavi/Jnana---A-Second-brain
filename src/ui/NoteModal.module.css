@@ -293,6 +293,16 @@
   color: var(--text-1);
 }
 
+/* Destructive action — reads as such before it's clicked. */
+.noteModalDropdownDanger {
+  color: var(--danger);
+}
+
+.noteModalDropdownDanger:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+
 .noteModalEditMode {
   display: flex;
   flex-direction: column;

@@ -81,6 +81,17 @@ describe('filterNotes', () => {
       expect(applyFilters(notes, filter({ status: ['orphan'] }), '', noFavs, counts).map((n) => n.id)).toEqual(['c'])
     })
 
+    it('treats a note as untagged only when it carries no tags at all', () => {
+      const tagged = [
+        note({ id: 'bare', tags: [] }),
+        note({ id: 'auto-only', tags: ['has:image'] }),
+        note({ id: 'user', tags: ['physics'] }),
+      ]
+      expect(applyFilters(tagged, filter({ status: ['untagged'] }), '', noFavs, noLinks).map((n) => n.id)).toEqual([
+        'bare',
+      ])
+    })
+
     it('filters by size bucket', () => {
       const sized = [
         note({ id: 'short', content: words(10) }),

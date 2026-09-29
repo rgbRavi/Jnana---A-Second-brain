@@ -136,8 +136,6 @@ export function WorkspaceNotes({ workspaceId, onNewNote }: Props) {
   return (
     <div className={NoteStyles.notesContainer}>
       <NotesToolbar
-        count={visible.length}
-        total={scopedNotes.length}
         search={search}
         onSearch={setSearch}
         filtersOpen={filtersOpen}
@@ -170,6 +168,14 @@ export function WorkspaceNotes({ workspaceId, onNewNote }: Props) {
           <p className={NoteStyles.noteEmpty}>No notes match your filters.</p>
         )}
 
+        {/* The empty states above already say there's nothing — don't add "0 notes". */}
+        {visible.length > 0 && (
+          <p className={NoteStyles.listCount}>
+            {visible.length === scopedNotes.length
+              ? `${scopedNotes.length} note${scopedNotes.length === 1 ? '' : 's'}`
+              : `${visible.length} of ${scopedNotes.length} notes`}
+          </p>
+        )}
         <div className={`${NoteStyles.list} ${NoteStyles[prefs.displayMode]}`}>
           {visible.map((note) => (
             <NoteItem

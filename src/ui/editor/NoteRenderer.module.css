@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+ * Copyright (c) 2026 Jnana Project */
+
+/* Shown instead of a typed note's raw serialization when the plugin that owns its
+ * `kind` isn't loaded (disabled, uninstalled, or failed to load). */
+.missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.missingHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.missingHint {
+  margin: 0;
+  font-size: 0.9em;
+}
+
+.kind {
+  font-family: var(--font-mono);
+}
+
+.raw {
+  margin-top: var(--space-2xs);
+  font-size: 0.85em;
+}
+
+.raw summary {
+  cursor: pointer;
+  color: var(--text-3);
+}
+
+.raw pre {
+  max-height: 40vh;
+  overflow: auto;
+  margin: var(--space-2xs) 0 0;
+  padding: var(--space-xs);
+  border-radius: var(--radius-md);
+  background: var(--surface-3);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.convert {
+  align-self: flex-start;
+  margin-top: var(--space-2xs);
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+
+.convert:hover { background: var(--surface-hover); border-color: var(--border-strong); }

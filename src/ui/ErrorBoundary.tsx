@@ -3,6 +3,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { log } from '../lib/logger'
+import { markMotionBootFailed } from '../lib/motion/safeMode'
 
 interface Props {
   children: ReactNode
@@ -28,6 +29,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     log.error('Uncaught render error', error, info.componentStack ?? '')
+    markMotionBootFailed()
   }
 
   private reset = () => this.setState({ error: null })
@@ -84,7 +86,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               padding: '0.5rem 1rem',
               cursor: 'pointer',
               background: 'var(--accent)',
-              color: 'var(--accent-contrast, #fff)',
+              color: 'var(--on-accent)',
               border: 'none',
               borderRadius: 'var(--radius-sm, 6px)',
             }}

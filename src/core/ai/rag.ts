@@ -3,10 +3,16 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import type { AiConfig, IndexStats, IndexTime, Note, RetrievalHit } from '../../types'
-import { chunkNote } from './chunk'
+import { chunkNote, hasEmbeddableText } from './chunk'
 import { getEmbeddingProvider } from './provider'
 import { log } from '../../lib/logger'
 import { getAttachmentText } from '../attachmentText'
+
+/**
+ * Chunks per `save_note_embeddings` call. Sized so one payload stays around a
+ * megabyte even for a 3072-dimension model, well clear of the IPC limit.
+ */
+const EMBED_SAVE_BATCH = 16
 
 /**
  * Embed a note's chunks and persist them to the local vector store.
@@ -38,12 +44,27 @@ export async function indexNote(note: Note, config: AiConfig): Promise<number> {
     vector: vectors[i] ?? [],
   }))
 
-  await invoke('save_note_embeddings', {
-    noteId: note.id,
-    model: config.embeddingModel,
-    chunks: payload,
-  })
-
+  // Tauri encodes command arguments as JSON, so every float crosses as ~20
+  // characters of text: a long PDF note (hundreds of chunks × a 2048-dim model)
+  // would build a single payload of tens of MB. Slice it instead — the first
+  // call replaces the note's old vectors, the rest append — so peak memory and
+  // message size stay bounded however long the note is.
+  try {
+    for (let i = 0; i < payload.length; i += EMBED_SAVE_BATCH) {
+      await invoke('save_note_embeddings', {
+        noteId: note.id,
+        model: config.embeddingModel,
+        chunks: payload.slice(i, i + EMBED_SAVE_BATCH),
+        replace: i === 0,
+      })
+    }
+  } catch (err) {
+    // Slices aren't one transaction any more, so a failure partway through would
+    // leave half a note indexed while its index timestamp says it's current —
+    // silently degrading retrieval. Clear it so the note stays stale and retries.
+    await removeNoteFromIndex(note.id).catch(() => {})
+    throw err
+  }
   return payload.length
 }
 
@@ -134,7 +155,7 @@ export async function getIndexTimes(): Promise<IndexTime[]> {
 export function staleNotes(notes: Note[], indexTimes: IndexTime[]): Note[] {
   const indexedAt = new Map(indexTimes.map((t) => [t.noteId, t.indexedAt]))
   return notes.filter((n) => {
-    if (chunkNote(n).length === 0) return false // nothing to embed
+    if (!hasEmbeddableText(n)) return false // nothing to embed
     const at = indexedAt.get(n.id)
     return at === undefined || (n.updatedAt ?? 0) > at
   })
@@ -149,6 +170,14 @@ export async function transcribeAudio(filename: string): Promise<string> {
   return invoke<string>('transcribe_audio', { filename })
 }
 
+/** What a batch pass actually managed to do. */
+export interface IndexBatchResult {
+  indexed: number
+  failed: number
+  /** The first failure's message — usually the same provider error for all. */
+  firstError?: string
+}
+
 /**
  * (Re)index a batch of notes — used for the initial backfill or after a
  * provider/model change. Embeds notes sequentially to stay within provider
@@ -158,14 +187,21 @@ export async function indexNotes(
   notes: Note[],
   config: AiConfig,
   onProgress?: (done: number, total: number) => void,
-): Promise<void> {
+): Promise<IndexBatchResult> {
   let done = 0
+  const result: IndexBatchResult = { indexed: 0, failed: 0 }
   for (const note of notes) {
     try {
       await indexNote(note, config)
+      result.indexed++
     } catch (err) {
+      // Keep going — one unembeddable note shouldn't stop the batch — but
+      // report it, so a caller can't announce a success that didn't happen.
       log.error(`[rag] failed to index note ${note.id}`, err)
+      result.failed++
+      result.firstError ??= err instanceof Error ? err.message : String(err)
     }
     onProgress?.(++done, notes.length)
   }
+  return result
 }

@@ -10,6 +10,7 @@ import { AsyncAudio } from '../../../ui/AsyncAudio'
 import { WebEmbed } from '../../../ui/WebEmbed'
 import { PdfViewer } from '../../../ui/media/PdfViewer'
 import { preview } from '../../home/dashboard/format'
+import { CanvasWikilinkText } from './CanvasWikilinkText'
 import styles from './canvas.module.css'
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
   note?: Note
   onOpenNote?: (note: Note) => void
   onChangeText?: (id: string, text: string) => void
+  /** Follow a `[[title]]` clicked in a text card (open it, or create if missing). */
+  onOpenWikilink?: (title: string) => void
 }
 
 const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
@@ -43,7 +46,7 @@ function MediaBody({ node }: { node: CanvasNode }) {
   return <div className={styles.mediaWrap}><AsyncImage filename={file} alt="" /></div>
 }
 
-function CanvasNodeViewInner({ node, selected, scale, note, onOpenNote, onChangeText }: Props) {
+function CanvasNodeViewInner({ node, selected, scale, note, onOpenNote, onChangeText, onOpenWikilink }: Props) {
   const [editing, setEditing] = useState(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
   const isNote = node.type === 'note'
@@ -103,15 +106,22 @@ function CanvasNodeViewInner({ node, selected, scale, note, onOpenNote, onChange
       )}
 
       <div className={styles.nodeBody}>
-        {isText && (
+        {/* At rest a text card renders its [[wikilinks]] as clickable links; the
+            textarea takes over while editing (double-click). */}
+        {isText && !editing && (
+          <div className={`${styles.nodeText} ${styles.nodeTextView}`}>
+            {node.text
+              ? <CanvasWikilinkText text={node.text} onOpen={(title) => onOpenWikilink?.(title)} />
+              : <span className={styles.nodeTextPlaceholder}>Double-click to edit…</span>}
+          </div>
+        )}
+        {isText && editing && (
           <textarea
             ref={textRef}
             className={styles.nodeText}
             data-nodrag={editing ? true : undefined}
             value={node.text ?? ''}
             placeholder="Double-click to edit…"
-            readOnly={!editing}
-            style={{ pointerEvents: editing ? 'auto' : 'none', cursor: editing ? 'text' : 'inherit' }}
             onChange={(e) => onChangeText?.(node.id, e.target.value)}
             onBlur={() => setEditing(false)}
             onKeyDown={onTextKeyDown}

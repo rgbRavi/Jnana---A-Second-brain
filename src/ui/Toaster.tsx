@@ -24,7 +24,17 @@ export function Toaster() {
             <span className={styles.icon} aria-hidden="true">
               {ICON[t.variant]}
             </span>
-            <span className={styles.message}>{t.message}</span>
+            <span className={styles.message}>
+              {t.message}
+              {t.action && (
+                <>
+                  {' '}
+                  <button className={styles.actionLink} onClick={t.action.onClick}>
+                    {t.action.label}
+                  </button>
+                </>
+              )}
+            </span>
             <button className={styles.close} onClick={() => dismissToast(t.id)} aria-label="Dismiss notification">
               ×
             </button>

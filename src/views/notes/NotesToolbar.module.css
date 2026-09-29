@@ -43,6 +43,9 @@
 }
 
 .toolBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-2);
@@ -66,6 +69,14 @@
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
+/* Filters and its clear button sit together as one control. */
+.filterGroupBtns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
 .sort {
   display: flex;
   align-items: center;
@@ -73,91 +84,15 @@
   flex-shrink: 0;
 }
 
-.select {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-1);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem var(--space-sm);
-  font-size: 0.82rem;
-  font-family: var(--font-body);
-  cursor: pointer;
-  outline: none;
-}
-
-.select:focus {
-  border-color: var(--accent);
-}
-
-.modes {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+/* SettingSelect fills its container, so the toolbar gives it a width instead of
+   letting it stretch across the row. */
+.selectWrap {
+  width: 8.5rem;
   flex-shrink: 0;
 }
 
-.modeBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-3);
-  padding: 0.35rem var(--space-sm);
-  line-height: 1;
-  cursor: pointer;
-  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
-}
-
-.modeBtn:hover {
-  color: var(--text-1);
-  background: var(--surface-hover-strong);
-}
-
-.modeBtnActive {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.modeBtn svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* The selected mode names itself (baked from the accepted Labels=Active knob). */
-.modeLabel {
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  white-space: nowrap;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.modeBtnActive .modeLabel {
-  max-width: 7rem;
-  opacity: 1;
-}
-
-.count {
-  font-size: 0.72rem;
-  font-family: var(--font-mono);
-  color: var(--text-3);
-  margin-left: auto;
-  white-space: nowrap;
-}
-
 .newBtn {
+  margin-left: auto;
   background: var(--accent);
   color: var(--on-accent);
   border: none;

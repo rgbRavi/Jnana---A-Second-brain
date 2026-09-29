@@ -3,6 +3,8 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { toast } from '../lib/toast'
 import type { Note } from '../types'
 import { getNoteType } from '../lib/noteTypes'
 import { TABLE_BLOCK, parseCsv, tableToGfm, parseTableMeta } from './table'
@@ -116,11 +118,52 @@ function buildFiles(notes: Note[]): { files: ExportFile[]; assets: string[] } {
  * referenced assets into `<folder>/assets/`. Returns the number of files
  * written, or `null` if the user cancelled the folder picker.
  */
-export async function exportNotes(notes: Note[]): Promise<number | null> {
-  if (notes.length === 0) return 0
+export interface ExportResult {
+  /** Files written (notes plus their assets). */
+  count: number
+  /** Folder the user picked — for "show me where it went". */
+  dir: string
+  /**
+   * What to reveal in the file manager: the first note written, so the folder
+   * opens with it selected. Falls back to the folder itself.
+   */
+  revealPath: string
+}
+
+export async function exportNotes(notes: Note[]): Promise<ExportResult | null> {
+  if (notes.length === 0) return { count: 0, dir: '', revealPath: '' }
   const dir = await open({ directory: true, multiple: false, title: 'Choose an export folder' })
   if (!dir || typeof dir !== 'string') return null // cancelled
 
   const { files, assets } = buildFiles(notes)
-  return invoke<number>('export_notes', { dir, files, assets })
+  const count = await invoke<number>('export_notes', { dir, files, assets })
+  // Mirrors the guard in the Rust command, which skips names it won't write.
+  const written = files.find((f) => f.name && !/[\\/]/.test(f.name) && !f.name.includes('..'))
+  const sep = dir.includes('\\') ? '\\' : '/'
+  return { count, dir, revealPath: written ? `${dir}${sep}${written.name}` : dir }
+}
+
+/**
+ * The one success notification for an export, so every caller reports it the
+ * same way: a count plus a link that opens the folder in the OS file manager.
+ * Pass the result of `exportNotes`; a cancelled export (null) says nothing.
+ */
+export function toastExported(result: ExportResult | null): void {
+  if (!result || result.count === 0) return
+  toast.success(
+    `${result.count} file${result.count === 1 ? '' : 's'} downloaded`,
+    5000,
+    {
+      label: 'here',
+      onClick: () => {
+        // revealItemInDir, not openPath: opening an arbitrary path is scope-gated
+        // (and the scope is empty by design — it would let any path be launched),
+        // while revealing just shows the file in the OS file manager.
+        revealItemInDir(result.revealPath).catch((err) => {
+          console.error('[export] could not reveal export folder', err)
+          toast.error('Could not open that folder.')
+        })
+      },
+    },
+  )
 }

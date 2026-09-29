@@ -59,7 +59,14 @@ export function LayoutSwitcher() {
 
   return (
     <div className={styles.layoutSwitch} ref={wrapRef}>
-      <button type="button" className={styles.layoutBtn} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
+      <button
+        type="button"
+        className={styles.layoutBtn}
+        title="Widget Presets"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
         <span className={styles.layoutBtnLabel}>{active?.name ?? 'Layout'}</span>
         <ChevronDown size={14} aria-hidden="true" />
       </button>

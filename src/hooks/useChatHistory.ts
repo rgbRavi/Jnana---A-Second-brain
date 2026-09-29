@@ -6,8 +6,30 @@ import { useCallback, useEffect, useRef } from 'react'
 import { eventBus } from '../lib/eventBus'
 import { getConversation, saveConversation } from '../core/chat'
 import { useViewState, getViewState } from './useViewState'
-import { useActiveVaultId } from './useVaults'
+import { useActiveVaultId, getActiveVaultId } from './useVaults'
 import type { StoredConversation } from '../types'
+
+/** Start a fresh chat (optionally inside a project) or open a saved one. */
+export type ChatAction = { type: 'new'; projectId?: string } | { type: 'load'; id: string }
+
+const mountedModes = new Map<string, number>()
+const pendingActions = new Map<string, ChatAction>()
+
+/**
+ * Run a new/load action on the chat for `mode` — immediately if that chat is
+ * mounted, otherwise as soon as it mounts. Callers outside the chat (the
+ * history drawer or Projects view while Projects is showing) switch the AI view
+ * to chat in the same tick; an eventBus emit then would reach no listener,
+ * because the chat's listeners register in an effect after it mounts.
+ */
+export function requestChatAction(mode: string, action: ChatAction): void {
+  if ((mountedModes.get(mode) ?? 0) > 0) {
+    if (action.type === 'new') eventBus.emit('ai:newChat', { mode, projectId: action.projectId })
+    else eventBus.emit('ai:loadConversation', { mode, id: action.id })
+  } else {
+    pendingActions.set(mode, action)
+  }
+}
 
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
@@ -27,7 +49,8 @@ const newId = () =>
 export function useChatHistory(
   mode: string,
   onLoad: (conv: StoredConversation) => void,
-  onNew: () => void,
+  /** `projectId`: start the fresh chat inside this project (else project-less). */
+  onNew: (opts?: { projectId?: string }) => void,
   /**
    * Called synchronously right before the active id (and thread) switches to
    * the incoming conversation — the caller's chance to flush any debounced
@@ -53,11 +76,11 @@ export function useChatHistory(
   flushRef.current = flushPending
 
   useEffect(() => {
-    const handleNew = (p: { mode: string }) => {
+    const handleNew = (p: { mode: string; projectId?: string }) => {
       if (p.mode !== mode) return
       flushRef.current?.()
       setActiveId(newId())
-      onNewRef.current()
+      onNewRef.current({ projectId: p.projectId })
     }
     const handleLoad = (p: { mode: string; id: string }) => {
       if (p.mode !== mode) return
@@ -71,16 +94,34 @@ export function useChatHistory(
     }
     eventBus.on('ai:newChat', handleNew)
     eventBus.on('ai:loadConversation', handleLoad)
+    mountedModes.set(mode, (mountedModes.get(mode) ?? 0) + 1)
+    // An action requested while this chat wasn't mounted (see requestChatAction).
+    const pending = pendingActions.get(mode)
+    if (pending) {
+      pendingActions.delete(mode)
+      if (pending.type === 'new') handleNew({ mode, projectId: pending.projectId })
+      else handleLoad({ mode, id: pending.id })
+    }
     return () => {
       eventBus.off('ai:newChat', handleNew)
       eventBus.off('ai:loadConversation', handleLoad)
+      mountedModes.set(mode, (mountedModes.get(mode) ?? 1) - 1)
     }
   }, [mode, setActiveId])
 
   const persist = useCallback(
-    async (messages: unknown, scope: unknown, title: string, projectId?: string | null, ruleIds?: string[]) => {
+    async (
+      messages: unknown,
+      scope: unknown,
+      title: string,
+      projectId?: string | null,
+      ruleIds?: string[],
+      /** Save to this conversation instead of the active one — a reply that
+       *  finishes after the user switched chats or vaults. */
+      target?: { id: string; vaultId: string },
+    ) => {
       // Read the current id from the store in case it changed mid-request.
-      const id = getViewState<string>(convKey) ?? activeId
+      const id = target?.id ?? getViewState<string>(convKey) ?? activeId
       const now = Date.now()
       const conv: StoredConversation = {
         id,
@@ -89,7 +130,7 @@ export function useChatHistory(
         messages: JSON.stringify(messages ?? []),
         scope: scope == null ? null : JSON.stringify(scope),
         projectId: projectId ?? null,
-        vaultId: activeVaultId,
+        vaultId: target?.vaultId ?? activeVaultId,
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
         ruleIds: ruleIds ?? [],
@@ -104,5 +145,11 @@ export function useChatHistory(
     [mode, activeId, convKey, activeVaultId],
   )
 
-  return { activeId, setActiveId, persist }
+  /** The active conversation id right now (live store read, safe in async code). */
+  const getActiveId = useCallback(
+    () => getViewState<string>(`ai.conv.${mode}.${getActiveVaultId()}`) ?? '',
+    [mode],
+  )
+
+  return { activeId, setActiveId, persist, getActiveId }
 }

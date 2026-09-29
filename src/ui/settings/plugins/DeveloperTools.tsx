@@ -4,11 +4,11 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { FilePlus2, FolderInput, Package, RotateCw, ScrollText, Trash } from 'lucide-react'
-import { reloadBuiltinPlugins } from '../../../plugins'
+import { reloadAllPlugins } from '../../../plugins'
 import { scaffoldPlugin } from '../../../core/plugins/manager'
 import {
   readLocalManifest,
-  installLocalPlugin,
+  installPlugin,
   loadInstalledPlugin,
   packagePlugin,
 } from '../../../core/plugins/loader'
@@ -57,9 +57,8 @@ export function DeveloperTools() {
     if (typeof dir !== 'string') return
     try {
       const manifest = await readLocalManifest(dir)
-      const granted = await confirmPluginInstall(manifest)
-      if (!granted) return
-      const info = await installLocalPlugin(dir, granted)
+      if (!(await confirmPluginInstall(manifest))) return
+      const info = await installPlugin(manifest.consentToken)
       const ok = await loadInstalledPlugin(info)
       toast.success(ok ? `Loaded ${info.name}.` : `Installed ${info.name}, but it failed to load (see console below).`)
       setPluginSubview('installed')
@@ -93,8 +92,8 @@ export function DeveloperTools() {
     }
   }
 
-  const reload = () => {
-    reloadBuiltinPlugins()
+  const reload = async () => {
+    await reloadAllPlugins()
     toast.success('Plugins reloaded.')
   }
 
@@ -119,10 +118,10 @@ export function DeveloperTools() {
           <small>Install an unpacked plugin folder</small>
         </button>
 
-        <button className={Styles.tool} onClick={reload}>
+        <button className={Styles.tool} onClick={() => void reload()}>
           <RotateCw size={16} />
           <span>Reload</span>
-          <small>Re-register all plugins</small>
+          <small>Re-register built-in and installed plugins</small>
         </button>
 
         <button className={Styles.tool} onClick={viewLogs}>

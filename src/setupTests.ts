@@ -37,3 +37,19 @@ class MockResizeObserver {
   disconnect = () => {}
 }
 vi.stubGlobal('ResizeObserver', MockResizeObserver)
+
+// Every LiveEditor mount subscribes to Tauri's window-level file-drop events;
+// jsdom has no Tauri runtime. A test that needs to drive a drop overrides this
+// with its own capturing mock.
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({ onDragDropEvent: () => Promise.resolve(() => {}) }),
+}))
+
+// jsdom does no layout, so a Range has no client rects — CM6's posAtCoords
+// (used to place the caret where a file was dropped) walks them. Empty lists
+// are enough; nothing here asserts on geometry.
+if (!Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () =>
+    Object.assign([] as unknown[], { item: () => null }) as unknown as DOMRectList
+  Range.prototype.getBoundingClientRect = () => new DOMRect()
+}

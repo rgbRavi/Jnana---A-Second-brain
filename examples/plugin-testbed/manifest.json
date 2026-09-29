@@ -1,0 +1,12 @@
+{
+  "id": "com.jnana.testbed",
+  "name": "Plugin Testbed",
+  "version": "1.0.0",
+  "description": "Exercises every plugin surface at once: attachments, rail panels (React + blocks), fenced-block rendering and command hotkeys.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "runtime": "main",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": ["notes", "media"]
+}

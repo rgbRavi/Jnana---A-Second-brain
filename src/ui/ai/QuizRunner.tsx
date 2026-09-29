@@ -12,6 +12,7 @@
 import { useId, useRef, useState } from 'react'
 import type { AiConfig, QuizAttempt, QuizQuestion, QuizSettings } from '../../types'
 import { gradeDescriptive, recomputeTotals, scoreObjective, type DescriptiveItem } from '../../core/ai/quizGrade'
+import { eventBus } from '../../lib/eventBus'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -34,6 +35,8 @@ const textOf = (attempt: QuizAttempt, i: number): string => {
   return typeof r === 'string' ? r : ''
 }
 
+const isComplete = (a: QuizAttempt) => a.marks.length > 0 && a.marks.every((m) => m !== null)
+
 export function QuizRunner({ attempt, settings, config, reason, onChange, onIndexNow, onSave }: Props) {
   const [grading, setGrading] = useState(false)
   const [gradingIndex, setGradingIndex] = useState<number | null>(null)
@@ -47,8 +50,12 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
   attemptRef.current = attempt
 
   const commitAttempt = (next: QuizAttempt) => {
+    const wasComplete = isComplete(attemptRef.current)
     attemptRef.current = next
     onChange(next)
+    // The one moment every question has a mark — announced once, as it happens
+    // (a finished quiz reopened later doesn't re-announce).
+    if (!wasComplete && isComplete(next)) eventBus.emit('quiz:completed', { total: next.total, max: next.max })
   }
 
   if (attempt.questions.length === 0) {

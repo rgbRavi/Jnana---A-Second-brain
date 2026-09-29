@@ -117,6 +117,11 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
 - **Audio** — import or **record from your mic**, with a clean player
 - **Images** — upload + embed, with a lightbox
 - **YouTube** — privacy-enhanced (`youtube-nocookie`) embeds
+- **Paste or drop anything in** — a screenshot, or a video/audio/PDF/document copied *or dragged* from
+  your file manager, lands straight in the editor at the point you dropped it: media becomes an embed,
+  and a Word file or spreadsheet gets the same *convert to PDF / extract text / link externally* (or
+  *insert as a table*) choice you'd get from the import button. Drop several at once and they import
+  in order
 - **Web pages** — `![webpage](url)` embeds a link-preview card (title/description/image/favicon,
   fetched + cached on the Rust side) with a best-effort in-app **Live view**
 - **Timestamps** — clickable `[V0::HH:MM:SS]` (video) and `[A0::HH:MM:SS]` (audio) markers that
@@ -171,6 +176,18 @@ through Rust to only the host you configured.
   selected — is configurable in **Settings → Advanced AI generation**, and all the AI-powered options
   fall back safely to the cheap defaults when no AI is set up
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
+- **One chat, grounding on demand** — a normal streaming chat, plus **Analyze / Ask / Quiz** over a
+  topic, a time range, or any set of notes you tick. A line above the composer always says what Send
+  will do; starters on an empty chat set up a quiz on this week's notes, a question over your notes, or
+  an analysis of your last saved note
+- **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
+  Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
+  notes send the passages that best match your question or topic
+- **Sees your images** — with a vision-capable model, images in your notes and pages of scanned PDFs
+  are sent too; attach images to a chat by picking, pasting or dragging them in (and tell Jnana a model
+  accepts images if it doesn't recognise it)
+- **Keeps going in the background** — switch chats or views mid-reply and the answer still lands, with
+  a notification; **Retry** keeps every answer as a version you can flip between
 
 ### Export
 - Export a single note or **all notes** to Markdown; each file carries YAML frontmatter (title, tags,
@@ -190,20 +207,34 @@ through Rust to only the host you configured.
 - **Derived accent** (hover/active/soft/softer), a corner-radius slider, and a live **WCAG contrast
   guardrail** (AA/AAA/AA Large/Fail) over the 5 critical text/surface pairs
 - Persisted to SQLite (with a localStorage mirror so the right theme applies before first paint —
-  no flash of default); density/motion/reading-scale controls are wired but not yet consumed by any
-  CSS, ahead of a follow-up pass
+  no flash of default); density, motion, reading scale and fonts apply app-wide
+- Optional **Glass & gradient effects** (Design tab) — frosted translucent surfaces and a soft accent
+  gradient behind the AI view; off by default for a calm, solid look
 
 ### Plugins
 - **A real plugin system** — plugins can add **custom note types** (their own view + editor over a
   note, e.g. the built-in **Flashcard deck** with spaced repetition), **UI widgets** (e.g. the
-  built-in **Pomodoro** timer in a floating tray), and **command-palette commands**
+  built-in **Pomodoro** timer in a floating tray), **command-palette commands** with a keyboard
+  shortcut you can rebind, **right-rail panels**, and renderers for **fenced code blocks** (a
+  ```` ```weather ```` block becomes whatever the plugin makes of it)
+- **A real sandbox** — a plugin can declare `"runtime": "worker"` and run in a Web Worker with no
+  DOM, no file access and no network of its own: every capability is answered by Jnana, and one it
+  wasn't granted is refused rather than quietly missing. These carry a **Sandboxed** badge, and you
+  can tell Jnana to run nothing else
+- **Your own wallpaper** (Settings → Appearance) — pick any image; it is copied into Jnana so
+  moving the original can't break it, with dim and blur controls so text stays readable over it
+- **Themes are plugins too** — a plugin can declare `"type": "theme"`, ship colour schemes and an
+  animated backdrop, and ask for no permissions at all. They are grouped and badged as themes in
+  Settings, and a "theme" that also wants your notes gets that pointed out before you install it
+- **Permissions you can take back** — `notes`, `media` (a note's attachments) and `network`
+  (host-allowlisted) are granted at install and revocable per plugin afterwards, with a visible
+  trail of what each plugin has actually read, written and requested
 - **Plugin manager** (Settings → Plugins) — enable/disable, per-plugin storage + "clear data", a live
   Plugin Console, and developer tools (scaffold a new plugin, package, load a local folder, reload)
 - **Install from anywhere** — a local `.zip`, an unpacked folder, or a **curated community catalog**
   ([JnanaApp/JnanaPlugins](https://github.com/JnanaApp/JnanaPlugins)); installs show a **permission
-  consent** prompt and updates surface newer catalog versions
-- **First-party by default, third-party by choice** — bundled plugins ship with the app; third-party
-  plugins run as trusted code after you approve them
+  consent** prompt, catalog packages are checksum- and manifest-checked before you are asked, and
+  updates surface newer catalog versions
 
 ---
 
@@ -211,6 +242,8 @@ through Rust to only the host you configured.
 
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
+- **Web search in AI chat** — search through your own connection (self-hosted SearXNG, or a Brave /
+  Tavily key) and answer with cited, clickable sources; opt-in
 - **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
   highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
 - **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and

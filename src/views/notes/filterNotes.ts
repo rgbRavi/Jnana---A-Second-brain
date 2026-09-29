@@ -24,6 +24,7 @@ export type StatusFilter =
   | 'webpages'
   | 'linked'
   | 'orphan'
+  | 'untagged'
 
 export interface NotesFilter {
   datePreset: DatePreset
@@ -148,6 +149,11 @@ export function applyFilters(
       }
       if (s === 'orphan') {
         if ((linkCounts.get(n.id) ?? 0) !== 0) return false
+        continue
+      }
+      // Untagged = no tags whatsoever, auto-tags included.
+      if (s === 'untagged') {
+        if (n.tags.length > 0) return false
         continue
       }
       const tag = STATUS_TAG[s]

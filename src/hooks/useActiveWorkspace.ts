@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 // Active-workspace preferences: which workspace is "current" (drives quick-note
-// capture + AI scope) and which workspaces are pinned in the sidebar. Persisted
+// capture + AI scope) and which workspaces are open in the sidebar. Persisted
 // module store (localStorage + useSyncExternalStore), same pattern as
 // useSidebarPrefs.
 
@@ -10,20 +10,29 @@ import { useSyncExternalStore } from 'react'
 
 export interface ActiveWorkspaceState {
   activeWorkspaceId: string | null
-  pinnedWorkspaceIds: string[]
   /** Workspaces the user has opened this session/run — shown in the sidebar's
    *  collapsible "Open workspaces" section until explicitly closed (×). */
   openWorkspaceIds: string[]
 }
 
 const STORAGE_KEY = 'jnana.workspace.active'
-const DEFAULTS: ActiveWorkspaceState = { activeWorkspaceId: null, pinnedWorkspaceIds: [], openWorkspaceIds: [] }
+const DEFAULTS: ActiveWorkspaceState = { activeWorkspaceId: null, openWorkspaceIds: [] }
 
 function load(): ActiveWorkspaceState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULTS
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<ActiveWorkspaceState>) }
+    // Workspace pinning was removed: fold any formerly pinned workspaces into
+    // the open list so they stay in the sidebar (closable like any other).
+    const { pinnedWorkspaceIds = [], ...saved } = JSON.parse(raw) as Partial<ActiveWorkspaceState> & {
+      pinnedWorkspaceIds?: string[]
+    }
+    const open = saved.openWorkspaceIds ?? []
+    return {
+      ...DEFAULTS,
+      ...saved,
+      openWorkspaceIds: [...open, ...pinnedWorkspaceIds.filter((id) => !open.includes(id))],
+    }
   } catch {
     return DEFAULTS
   }
@@ -45,16 +54,6 @@ function commit(next: ActiveWorkspaceState) {
 export function setActiveWorkspace(id: string | null): void {
   if (id === state.activeWorkspaceId) return
   commit({ ...state, activeWorkspaceId: id })
-}
-
-export function togglePinnedWorkspace(id: string): void {
-  const has = state.pinnedWorkspaceIds.includes(id)
-  commit({
-    ...state,
-    pinnedWorkspaceIds: has
-      ? state.pinnedWorkspaceIds.filter((x) => x !== id)
-      : [...state.pinnedWorkspaceIds, id],
-  })
 }
 
 /** Add a workspace to the "open" list (no-op if already there). Called on visit. */

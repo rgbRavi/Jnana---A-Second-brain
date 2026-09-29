@@ -4,11 +4,30 @@
 use crate::db::{assets_dir, is_within_assets, safe_asset_file};
 use std::fs;
 use std::path::PathBuf;
+use tauri::ipc::{InvokeBody, Request};
 use tauri_plugin_opener::OpenerExt;
 use uuid::Uuid;
 
+/// Store raw bytes (a clipboard paste, a canvas drawing) as an asset.
+///
+/// Takes a raw `Request` body rather than `bytes: Vec<u8>` because the default
+/// IPC encoding is JSON: a `Vec<u8>` argument arrives as an array of numbers,
+/// which the frontend must build with `Array.from()` and serialize element by
+/// element. That is fine for a screenshot and pathological for a video — tens
+/// of millions of array entries, hundreds of megabytes of JSON text, and a
+/// frozen webview. The raw body is the bytes themselves. The extension rides
+/// along in a header since the body is no longer a JSON object.
 #[tauri::command]
-pub fn save_asset(bytes: Vec<u8>, extension: String) -> Result<String, String> {
+pub fn save_asset(request: Request<'_>) -> Result<String, String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("save_asset expects a raw byte body".to_string());
+    };
+    let extension = request
+        .headers()
+        .get("x-extension")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
     let dir = assets_dir();
     fs::create_dir_all(&dir)
         .map_err(|e| format!("Failed to create assets directory: {}", e))?;
@@ -24,6 +43,40 @@ pub fn save_asset(bytes: Vec<u8>, extension: String) -> Result<String, String> {
         .map_err(|e| format!("Failed to write asset: {}", e))?;
 
     Ok(filename)
+}
+
+/// Write raw bytes to a fresh temp directory and return the full path.
+///
+/// Staging area for a pasted document. The document import pipeline is
+/// path-based throughout — LibreOffice conversion, pandoc extraction, the
+/// spreadsheet reader, and `external://` chips all take a path — so a paste
+/// gets one and then follows exactly the same code path as a file picked from
+/// the dialog. Not written into the assets dir: most branches copy the file
+/// into assets themselves, and a staged copy there would be an orphan.
+#[tauri::command]
+pub fn save_temp_file(request: Request<'_>) -> Result<String, String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("save_temp_file expects a raw byte body".to_string());
+    };
+    // Same alphanumeric-only treatment as save_asset: the extension is
+    // interpolated into a filename, and this one comes off the clipboard.
+    let ext: String = request
+        .headers()
+        .get("x-extension")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect();
+
+    let dir = std::env::temp_dir().join(format!("jnana-paste-{}", Uuid::new_v4()));
+    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    let name = if ext.is_empty() { "document".to_string() } else { format!("document.{}", ext) };
+    let path = dir.join(name);
+    fs::write(&path, bytes).map_err(|e| format!("Failed to write temp file: {}", e))?;
+
+    path.to_str().map(str::to_string).ok_or_else(|| "Invalid temp path".to_string())
 }
 
 /// Copy a user-picked file (from a native file dialog) into the assets dir and

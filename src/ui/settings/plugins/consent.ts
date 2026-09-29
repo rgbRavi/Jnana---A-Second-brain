@@ -1,38 +1,105 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { showConfirmDialog } from '../../../lib/dialog'
+import { showConfirmDialog, showChoiceDialog } from '../../../lib/dialog'
+import { createBackup } from '../../../core/data'
+import { toast } from '../../../lib/toast'
 import type { PluginManifestPreview } from '../../../core/plugins/loader'
 
 /** Human labels for known permission ids (falls back to the raw id). */
 const PERMISSION_LABELS: Record<string, string> = {
   notes: 'Read and modify your notes',
-  network: 'Access the network',
+  media: 'Read and add attachments (images, PDFs, audio)',
+  network: 'Contact the internet',
+  motion: 'Animate anything in Jnana — a buggy one can make the app glitch or freeze',
+}
+
+/** `network` is only ever as wide as the hosts the manifest names, so the prompt
+ *  shows them next to the permission instead of leaving "the network" abstract. */
+function permissionLine(permission: string, hosts: string[]): string {
+  const label = PERMISSION_LABELS[permission] ?? permission
+  if (permission !== 'network') return `  • ${label}`
+  return hosts.length ? `  • ${label}: ${hosts.join(', ')}` : `  • ${label} (no hosts declared)`
 }
 
 /**
- * Install-consent prompt. Loading a plugin runs third-party code with the host's
- * privileges, so this is the trust gate: it lists the requested permissions and
- * requires an explicit, destructive-styled confirmation. Phase 1 grants the full
- * requested set (all-or-nothing); returns the granted permissions or `null` if the
- * user declined.
+ * Second step for a plugin that asks for `motion`. It is the one permission whose
+ * failure mode is "the app itself misbehaves", so it gets its own sentence and a
+ * backup offer instead of a line in a list. A failed backup installs nothing —
+ * the user chose to be covered first.
  */
-export async function confirmPluginInstall(
-  manifest: PluginManifestPreview,
-): Promise<string[] | null> {
+async function confirmMotionRisk(name: string): Promise<boolean> {
+  const choice = await showChoiceDialog({
+    title: `${name} can animate anything in Jnana`,
+    message:
+      'Animation plugins reach into the live interface. A buggy one can make Jnana glitch, stutter or freeze. ' +
+      'Your notes are only at risk if it also asks to read and modify them.\n\n' +
+      'If Jnana ever fails to start cleanly, animation plugins switch off on the next launch, and ' +
+      'Ctrl/⌘+Alt+M stops every animation at once. A backup first is still a good idea.',
+    options: [
+      { value: 'backup', label: 'Back up, then install', primary: true },
+      { value: 'install', label: 'Install without a backup' },
+    ],
+  })
+  if (choice === 'backup') {
+    try {
+      const path = await createBackup()
+      toast.success(`Backup saved to ${path}`)
+    } catch (err) {
+      toast.error('Backup failed, so nothing was installed: ' + String(err))
+      return false
+    }
+  }
+  return choice !== null
+}
+
+/**
+ * Install-consent prompt — the trust gate before third-party code is loaded.
+ *
+ * The copy deliberately does **not** promise that the listed permissions confine
+ * the plugin: there is no sandbox, so a plugin runs on the main thread with the
+ * app's own access. The list is what the package *declares*, recorded at install
+ * (and, for `notes`, what gates its `ctx.notes` API) — not a boundary. Saying so
+ * plainly beats a prompt that reads like a permission wall.
+ *
+ * Resolves `true` when the user accepts; the grant itself is derived Rust-side
+ * from the previewed package, never passed from here.
+ */
+export async function confirmPluginInstall(manifest: PluginManifestPreview): Promise<boolean> {
   const perms = manifest.permissions ?? []
+  const sandboxed = manifest.runtime === 'worker'
   const permLines = perms.length
-    ? 'Requested permissions:\n' + perms.map((p) => `  • ${PERMISSION_LABELS[p] ?? p}`).join('\n')
-    : 'No special permissions requested.'
+    ? 'It asks to:\n' + perms.map((p) => permissionLine(p, manifest.hosts ?? [])).join('\n')
+    : 'It asks for no special capabilities.'
+
+  // The two runtimes deserve genuinely different warnings: one is a boundary, the
+  // other is a trust decision. Saying "sandboxed" about the main thread would be a
+  // lie, and warning about full access for a worker would be scaremongering.
+  const trust = sandboxed
+    ? `It runs in Jnana's plugin sandbox: no direct access to your notes, files or the internet — ` +
+      `only what it asks for below, answered by Jnana.`
+    : `It runs as part of Jnana, with the same access to your notes, files and settings as the app ` +
+      `itself. Jnana can't sandbox this kind of plugin, so only install ones you trust.`
+  // A package that calls itself a theme has no business reading notes or reaching
+  // the internet. `type` is only a label, so it cannot *stop* that — but the
+  // person approving the install should have the mismatch pointed out rather than
+  // having to spot it in a permission list they were about to skim.
+  const typeNote =
+    manifest.type !== 'theme'
+      ? ''
+      : perms.length
+        ? `\n\nIt is listed as a theme, but also asks for ${perms.join(' and ')} — a theme does not need that. Install it only if you know why.`
+        : '\n\nThis is a theme: it changes how Jnana looks, and asks for nothing else.'
+  const source = manifest.homepage ? `\n\nSource: ${manifest.homepage}` : ''
 
   const ok = await showConfirmDialog({
     title: `Install ${manifest.name}?`,
     message:
-      `This runs third-party code inside Jnana with the same access as the app. ` +
-      `Only install plugins from sources you trust.\n\n${permLines}`,
+      `${manifest.name} v${manifest.version}${manifest.author ? ` by ${manifest.author}` : ''}. ` +
+      `${trust}\n\n${permLines}${typeNote}${source}`,
     confirmLabel: 'Install',
-    danger: true,
+    danger: !sandboxed,
   })
-
-  return ok ? perms : null
+  if (!ok) return false
+  return perms.includes('motion') ? confirmMotionRisk(manifest.name) : true
 }

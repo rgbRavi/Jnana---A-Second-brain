@@ -138,8 +138,8 @@ export function pillStyle(active: boolean): React.CSSProperties {
     gap: '5px',
     background: active
       ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
-      : 'color-mix(in srgb, var(--surface-2) 90%, transparent)',
-    backdropFilter: 'blur(8px)',
+      : 'color-mix(in srgb, var(--surface-2) var(--fx-alpha-light), transparent)',
+    backdropFilter: 'var(--fx-blur)',
     color: active ? 'var(--accent)' : 'var(--text-2)',
     border: '1px solid ' + (active ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'color-mix(in srgb, var(--border) 80%, transparent)'),
     borderRadius: '999px',
@@ -148,6 +148,6 @@ export function pillStyle(active: boolean): React.CSSProperties {
     fontFamily: 'var(--font-body)',
     cursor: 'pointer',
     transition: 'all var(--dur-base) var(--motion-ease)',
-    boxShadow: active ? '0 0 10px color-mix(in srgb, var(--accent) 20%, transparent)' : 'var(--shadow-sm)',
+    boxShadow: active ? 'var(--fx-glow)' : 'none',
   }
 }

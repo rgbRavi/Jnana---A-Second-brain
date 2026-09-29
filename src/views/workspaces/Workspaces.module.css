@@ -265,26 +265,16 @@
   color: var(--text-1);
 }
 
-.topBar {
-  display: flex;
+/* Back arrow leading the header, vertically centred on the 1.75rem icon. */
+.headerBack {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2xs);
+  margin-top: 0.3rem;
 }
 
-.closeLink {
-  background: transparent;
-  border: none;
-  color: var(--text-2);
-  font-size: 0.8rem;
-  cursor: pointer;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-sm);
-  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
-}
-
-.closeLink:hover {
+/* The header's close ×: neutral like its neighbours, danger on hover. */
+.iconBtnClose:hover {
   color: var(--danger);
-  background: rgba(var(--wash-rgb), 0.05);
 }
 
 .tabs {
@@ -678,4 +668,16 @@
   padding: 0;
   font: inherit;
   text-decoration: underline;
+}
+
+/* File-explorer drag hovering this workspace (FolderTree sets data-drop-active). */
+.page[data-drop-active] {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.collChip[data-drop-active] {
+  color: var(--text-1);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }

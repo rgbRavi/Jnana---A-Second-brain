@@ -2,7 +2,10 @@
 // Copyright (c) 2026 Jnana Project
 
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import type { RecentMedia } from '../types'
+import type { NoteMedia } from './markdown/noteMedia'
+import { eventBus } from '../lib/eventBus'
 
 /**
  * Copy a media file into the assets directory.
@@ -49,10 +52,37 @@ export async function registerMediaRef(
 
 /**
  * Resolve an asset filename (UUID.ext) to its absolute OS path inside the assets dir.
- * Use this when you need to open the file in an external app via the Tauri opener plugin.
  */
 export async function getAssetPath(filename: string): Promise<string> {
   return invoke<string>('get_asset_path', { filename })
+}
+
+/**
+ * Open an app-managed asset in the OS default application. Goes through the
+ * `open_asset` command rather than the opener plugin's `openPath`: that one is
+ * scope-checked against an allow-list that's empty by design (widening it would
+ * let the WebView launch *any* path), while `open_asset` refuses anything
+ * outside the assets dir.
+ */
+export async function openAssetFile(filename: string): Promise<void> {
+  await invoke('open_asset', { path: await getAssetPath(filename) })
+}
+
+/**
+ * Open one of a note's embedded media (see core/markdown/noteMedia.ts). A PDF
+ * opens in the in-app viewer (keeps its markup); other assets and document
+ * chips open in the OS default app via `open_asset`, which only opens files
+ * inside the assets dir; web embeds open in the browser.
+ */
+export async function openNoteMedia(media: NoteMedia, noteId: string): Promise<void> {
+  if (media.kind === 'pdf' && media.source === 'asset') {
+    eventBus.emit('pdf:open', { filename: media.target, noteId, page: 1, x: -1, y: -1 })
+  } else if (media.source === 'url') {
+    await openUrl(media.target)
+  } else {
+    if (media.source === 'asset') await openAssetFile(media.target)
+    else await invoke('open_asset', { path: media.target })
+  }
 }
 
 /**
@@ -63,9 +93,13 @@ export async function getMediaRefs(noteId: string): Promise<string[]> {
 
 }
 
-export async function getMediaTypes(noteId: string): Promise<string[]> {
-  return invoke<string[]>('get_media_types', { noteId })
-
+/**
+ * Media kinds a note still embeds. Pass `content` when re-tagging a note whose
+ * edit hasn't been saved yet — otherwise the check runs against the stored text
+ * and reports media the user just deleted.
+ */
+export async function getMediaTypes(noteId: string, content?: string): Promise<string[]> {
+  return invoke<string[]>('get_media_types', { noteId, content: content ?? null })
 }
 
 /** Most-recently imported media across the whole vault (for the dashboard). */

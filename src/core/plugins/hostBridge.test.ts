@@ -32,4 +32,23 @@ describe('rewritePluginImports', () => {
     // An unrelated string literal that merely contains the word react is preserved.
     expect(out).toContain('"react is a library"')
   })
+
+  it('leaves quoted "react" alone outside import position', () => {
+    // Minified bundles carry bare "react" string literals (error messages, feature
+    // checks); rewriting those to a blob URL corrupts the plugin.
+    const code = [
+      `import React from 'react';`,
+      `const pkg = "react";`,
+      `if (name === 'react') report('react');`,
+      `const lazy = await import("react");`,
+    ].join('\n')
+
+    const out = rewritePluginImports(code)
+
+    expect(out).toContain('const pkg = "react";')
+    expect(out).toContain(`if (name === 'react') report('react');`)
+    // Both real import positions were rewritten.
+    expect(out).toMatch(/import React from "blob:mock-\d+";/)
+    expect(out).toMatch(/await import\("blob:mock-\d+"\)/)
+  })
 })

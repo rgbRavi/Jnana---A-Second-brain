@@ -1,8 +1,8 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **Next up:** auto-backup; further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **AI view reliability + UX pass shipped (2026-09-17)** — grounded requests stream (fixes 30s gateway 500s), replies keep running across chat/view switches, retry keeps answer versions, keyboard-reachable message menus, explicit mutually-exclusive modes with a mode line, markdown replies, a user-set note-context token budget with semantic passage selection, PDF text + images/scanned PDFs sent to vision models, image paste/drop in chat, multi-note quiz scope, and an opt-in glass theme effect (see [PLAN.md](PLAN.md)). **Next up:** auto-backup; **web search for AI chat** (planned in PLAN.md); further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
 
-Last updated: 2026-07-29
+Last updated: 2026-09-17
 
 ---
 
@@ -14,7 +14,7 @@ connect through wikilinks and a graph view, with **keyword search (MiniSearch) a
 search mode** over the local vector store — both of which also search **text extracted from PDF
 attachments** — plus auto/user tags and favourites. **Workspaces** organize notes into named groups (notes stay global, many-to-many) — each
 with a scoped Dashboard, Notes, Graph, **Canvas** (a freeform spatial board), Insights, and
-Collections. A global **Ctrl/⌘-K command palette** ties navigation together. The AI layer is a local
+Collections. A global **Ctrl/⌘-` command palette** ties navigation together. The AI layer is a local
 vector store in SQLite (embeddings per note chunk) with pluggable providers (OpenAI-compatible or
 local Ollama), a Thread/Day analyzer, tag/link suggestions, graded quizzes, an agent loop, and an
 optional per-workspace retrieval scope. **Theme Studio** (Settings → Appearance) gives token-level
@@ -160,25 +160,48 @@ Events in active use:
 
 ### Plugin system
 
-A full plugin system ships. Plugins get a sandboxed `PluginContext` (`bus`, scoped `storage`,
-gated `notes`, `registerNoteType`, `ui`) and can contribute **note types**, **UI widgets**, and
-**commands**. Trust model: trusted main-thread render + install-time permission consent (no sandbox).
+A full plugin system ships, on **two runtimes**. `"runtime": "worker"` runs a plugin in a Web
+Worker where every capability is answered by the host and an ungranted one is *refused* — a real
+boundary. The default main-thread runtime is a trust decision instead: install-time consent bounds
+what is recorded and shown, not what the code can reach.
 
 What exists now:
-- Registry + capability-gated context; inline (main-thread) and Web Worker modes
+- Registry + capability-gated context (`bus`, scoped `storage`, gated `notes` / `media` / `net`,
+  `registerNoteType`, `ui`); both runtimes
 - **Custom note types** — a typed note is still a `Note` (data in `content`, `notes.kind` column);
   read/edit choke-point (`NoteRenderer`) falls back to markdown; registry is reactive
-- **UI widgets + commands** — floating widget tray (`PluginWidgetHost`) + command-palette entries
-- **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id)
+- **UI widgets + commands** — floating widget tray (`PluginWidgetHost`) + command-palette entries,
+  with user-rebindable **keyboard shortcuts** (`lib/pluginHotkeys.ts`)
+- **Right-rail panels + fenced-block renderers** — React for main-thread plugins, or declared as
+  **blocks** (`lib/pluginBlocks.ts`) so a sandboxed plugin can own them too
+- **Attachments** — the `media` permission, separate from `notes`: list a note's media, read bytes
+  (capped at 25 MB, checked in Rust), write a new asset
+- **Themes + backdrops** — `registerTheme` / `setBackground` (`lib/pluginThemes.ts`): a plugin ships
+  colour schemes and an animated backdrop as **validated token data**, never CSS. Themes are offered
+  in Settings → Appearance and *copied* into the user's theme when picked, so uninstalling changes
+  nothing they are looking at. Sandbox-safe
+- **Plugin types** — a manifest declares `"type": "theme"` or `"utility"`. A label, not a capability
+  gate: it groups and badges the Installed list (filter + sections + sort by name or install date)
+  and lets the consent prompt flag a "theme" that also wants notes or the network
+- **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id, 5 MB cap)
 - **Loader** — install from a local `.zip`, an unpacked folder, or a curated remote **catalog**;
   built ESM entry loaded via a Blob URL with `react` rewritten to host shims
+- **Consent + revocation** — preview → one-shot Rust-minted token → install; per-permission revoke
+  afterwards; a "sandboxed plugins only" policy enforced at load
+- **Runtime safety** — every API call rate-limited and counted (`guard`), workers heartbeat-watched,
+  every plugin surface inside its own error boundary
 - **Plugin manager** (Settings → Plugins) — Installed / Browse / Updates / Developer, with
   enable/disable, uninstall, storage clear, a Plugin Console, and scaffold/package/load-local/reload
 - **Built-ins**: Flashcard deck (note type + SM-2), Pomodoro (widget + commands)
-- **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with install-time permission consent
+- **Reference plugins** in `examples/`: `sample-plugin` (main thread, note type), `sample-worker-plugin`
+  (sandboxed: command, block panel, fence), `sample-theme` (a theme plugin — no permissions, no build
+  step) and `plugin-testbed` (a manual harness claiming every surface at once)
+- **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with checksum + manifest agreement checked
+  before the consent prompt
 
-Still deferred (hardening): granular per-permission grants, download signature verification, an
-optional sandbox for untrusted plugins, and editor/markdown extension points.
+Still deferred: download **signature** verification (the catalog's `sha256` is not a signature),
+rendered fenced blocks in **edit mode** (read mode only today), and a full route/tab extension
+point.
 
 ### State ownership
 
@@ -539,7 +562,7 @@ Notes:
       (single disclosure toggle; open rows have a hover × / in-view "✕ Close" that returns to All
       Workspaces; active tab persists per-workspace), quick-note capture into the active workspace,
       add-to-workspace from All Notes
-- [x] **Command palette** (Ctrl/⌘-K) — minisearch over notes + workspaces + a command registry
+- [x] **Command palette** (Ctrl/⌘-`) — minisearch over notes + workspaces + a command registry
 - [x] **Workspace AI/search scope** — point RAG retrieval (AI view) and Search at one workspace
 - [x] **Canvas** — hand-rolled pointer-event board (pan/zoom, drag/resize), text/note/media/web
       nodes, edges with optional "Link in graph" (inserts one `[[wikilink]]`), freehand ink
@@ -591,10 +614,29 @@ Notes:
 - [x] Reasoning shown per step (`AgentSteps` renders the model's narration above each tool chip)
 - [x] Apply-all composes `[[wikilinks]]` into the note and saves once, so AI-applied links
       surface as graph edges (fixes a link-sync race from the old create-then-update path)
-- [x] Message actions — ↻ retry under each prompt; right-click menu: edit & retry, fork from here,
-      delete-from-here, delete message
+- [x] Message actions — ↻ retry under the newest prompt (keeps every answer as a ‹ n / N › version);
+      "⋯" button or right-click: copy, edit & retry, fork from here, delete-from-here, delete message
 - [ ] MCP client — Jnana's agent uses external MCP servers (Phase B)
 - [ ] MCP server — expose Jnana to Claude Desktop / other agents (Phase C)
+
+### AI view — reliability & UX pass (2026-09-17)
+- [x] Grounded one-shots (Analyze / Ask / Quiz / suggestions / grading) stream via `ai_chat_stream`
+- [x] Retry / Edit re-run a Focused action; failed Focused turns clean up and stay out of chat history
+- [x] Per-conversation in-flight threads: chat saved on send, no abort on switch, toast when a reply
+      lands elsewhere
+- [x] Retry answer versions (`freeThread.ts`, tested); retry only on the newest prompt
+- [x] Shared `ContextMenu` keyboard support; visible "⋯" message actions; Copy message
+- [x] Focused ⟂ Agent exclusivity, Deep research gating, mode line above the composer
+- [x] Empty-state starters (week quiz / ask notes / analyze last saved note)
+- [x] Markdown-rendered assistant replies
+- [x] Quiz: custom count, redesigned rail settings, multi-select note scope + Clear all
+- [x] Vault-scoped note pickers (chat attach, Focused scope, project knowledge)
+- [x] Note-context token budget (default 32k) with fair allocation, embedding-ranked passages or even
+      spread, PDF text, scaled note cap (`noteContext.ts`, tested)
+- [x] Vision: note images + scanned-PDF pages to vision models; chat image attach via picker / paste /
+      drop; per-model vision override
+- [x] Themed confirms, token colours, dead components removed; opt-in "Glass & gradient effects" theme
+      toggle (`--fx-*` tokens)
 
 ### View state persistence
 - [x] `useViewState` hook (module-store-backed `useState`) survives view switches

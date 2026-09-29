@@ -20,12 +20,17 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { commonmarkLanguage, markdown } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
 import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager'
-import type { Note } from '../../types'
+import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import { getActiveVaultId } from '../../hooks/useVaults'
 import { applyColor, applyFormat, applyHighlight, escapeMarkdownText, moveMediaBlock, rearrangeMedia, type FormatKind, type MediaPlacement } from '../../core/markdown/format'
 import { COLOR_PALETTE } from '../../core/markdown/colors'
 import { lezerJnana } from '../../core/markdown/lezerJnana'
 import { getMediaLayout, type MediaLayout } from '../../core/mediaLayout'
 import type { ComposerToolbarProps } from '../../hooks/useComposer'
+import type { AttachmentKind } from '../../hooks/useNoteAttachments'
+import { DOCUMENT_EXTENSIONS, extensionOf } from '../../core/media/classify'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { showPromptDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
@@ -38,6 +43,26 @@ import { detectSlashContext, filterSlashCommands, type SlashCommand } from '../.
 import { detectWikilinkContext } from '../../core/markdown/wikilinks'
 import { liveDecorations, tableDecorationsField, forceRebuildMediaLayout, forceRebuildTables, type LiveContext } from './LiveEditor.decorations'
 import styles from './LiveEditor.module.css'
+
+/**
+ * Clipboard MIME type -> the kind we store a pasted file as, or null to leave
+ * the paste to CM6. Only these four have a bytes-only import path; a document
+ * needs an on-disk path (LibreOffice/pandoc conversion, `external://` chips),
+ * which the clipboard doesn't give us.
+ */
+function pasteKind(type: string): AttachmentKind | null {
+  if (type.startsWith('image/')) return 'image'
+  if (type.startsWith('video/')) return 'video'
+  if (type.startsWith('audio/')) return 'audio'
+  if (type === 'application/pdf') return 'pdf'
+  return null
+}
+
+/** A pasted file the document importer can handle (DOCX, spreadsheet, …).
+ *  Matched on the file *name*, not the MIME type: a file copied in the OS file
+ *  manager often arrives as `application/octet-stream` or with no type at all,
+ *  and the importer branches on the extension anyway. */
+const isImportableDocument = (file: File) => DOCUMENT_EXTENSIONS.includes(extensionOf(file.name))
 
 /** Open-menu state for the `/` command popup. `from` is the `/`'s doc offset. */
 interface SlashState {
@@ -88,7 +113,7 @@ interface Props {
   /** Powers the right-click menu's Import submenu — wired by the parent as a
    *  second `useComposer` instance whose inserts route to the click position
    *  instead of appending. Omitted hides that submenu. */
-  importHandlers?: Pick<ComposerToolbarProps, 'onImageUpload' | 'onVideoUpload' | 'onAudioUpload' | 'onDocumentUpload'>
+  importHandlers?: Pick<ComposerToolbarProps, 'onImageUpload' | 'onFileUpload' | 'onVideoUpload' | 'onAudioUpload' | 'onDocumentUpload' | 'onDocumentPaste' | 'onDroppedPath'>
 }
 
 /** Find the document offset of the `![alt](url)` token whose media_key
@@ -337,6 +362,73 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     viewRef.current?.dispatch({ effects: forceRebuildMediaLayout.of() })
   }, [mediaLayout])
 
+  // ── Drag-and-drop from the OS ───────────────────────────────────────────
+  // Tauri intercepts file drops at the window level, so there is no DOM drop
+  // event to listen for (the same reason every in-app drag here is hand-rolled
+  // with pointer events). The payload carries window-relative *physical* pixels
+  // and real filesystem paths — which is better than a paste: no bytes cross
+  // the webview, and the document importer is path-based already.
+  //
+  // Every mounted LiveEditor subscribes, so each one hit-tests the point
+  // against itself and only the editor actually under the pointer reacts.
+  const [dropActive, setDropActive] = useState(false)
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+    let cancelled = false
+
+    // elementFromPoint, not a bounding-rect check: it respects stacking, so a
+    // NoteModal overlay can't let the editor buried underneath claim the drop.
+    const pointInEditor = (position: { x: number; y: number }) => {
+      const view = viewRef.current
+      if (!view) return null
+      const dpr = window.devicePixelRatio || 1
+      const x = position.x / dpr
+      const y = position.y / dpr
+      const el = document.elementFromPoint(x, y)
+      return el && view.dom.contains(el) ? { x, y } : null
+    }
+
+    void getCurrentWebview()
+      .onDragDropEvent(async (event) => {
+        const payload = event.payload
+        if (payload.type === 'leave') {
+          setDropActive(false)
+          return
+        }
+        const point = pointInEditor(payload.position)
+        if (payload.type !== 'drop') {
+          // enter / over — the only states that should show the affordance.
+          setDropActive(point != null)
+          return
+        }
+        // A drop ends the drag and Tauri sends no 'leave' after it, so clear
+        // the highlight here — and before the awaits below, or a failed import
+        // (or one waiting on a choice dialog) leaves the editor tinted.
+        setDropActive(false)
+        if (!point) return
+
+        const view = viewRef.current
+        const drop = importHandlersRef.current?.onDroppedPath
+        if (!view || !drop) return
+        // Land the files where they were dropped, not wherever the caret was.
+        const pos = view.posAtCoords(point)
+        if (pos != null) view.dispatch({ selection: { anchor: pos } })
+        view.focus()
+        // Sequential: each import may open a choice dialog, and inserts must
+        // keep the dropped order.
+        for (const path of payload.paths) await drop(path)
+      })
+      .then((fn) => {
+        if (cancelled) fn()
+        else unlisten = fn
+      })
+
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
   // Toggling the tables setting isn't a doc/selection change, so nudge the
   // table StateField to recompute (widget ⇄ raw fence) on the current note.
   useEffect(() => {
@@ -387,7 +479,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     const onKey = (e: KeyboardEvent) => {
       const s = wlRef.current
       if (!s) return
-      const items = buildWikilinkItems(s.query, contextRef.current.notes)
+      const items = buildWikilinkItems(s.query, pickerNotes())
       if (items.length === 0) return
       switch (e.key) {
         case 'ArrowDown':
@@ -455,8 +547,12 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   const insertAtCursor = (md: string) => {
     const view = viewRef.current
     if (!view) return
-    const { from, to } = view.state.selection.main
-    view.dispatch({ changes: { from, to, insert: md }, selection: { anchor: from + md.length } })
+    // `replaceSelection` rather than a hand-computed `anchor: from + md.length`:
+    // CM6 normalizes line endings when text enters the document, so a string
+    // carrying CRLF (pandoc's extracted text, anything off the Windows
+    // clipboard) is *shorter* inside the document than in JS, and the arithmetic
+    // put the cursor past the end — "Selection points outside of document".
+    view.dispatch(view.state.replaceSelection(md))
     view.focus()
   }
 
@@ -589,6 +685,15 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
   // Same real-document-text model as the slash menu: `[[` and the query are
   // literal text, so this is pure inspection. `contextRef.current.notes` gives
   // the always-fresh note list without adding it to any closure deps.
+  // The picker only offers notes from this note's vault (the active vault for a
+  // not-yet-saved draft, which is where `create` will put it) — vaults are
+  // separate worlds app-wide. Rendering/resolving existing links is unchanged.
+  const pickerNotes = (): Note[] => {
+    const { notes: all, noteId: id } = contextRef.current
+    const vault = all.find((n) => n.id === id)?.vaultId ?? getActiveVaultId()
+    return all.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vault)
+  }
+
   const updateWikilink = (state: EditorState, head: number, docChanged: boolean) => {
     const view = viewRef.current
     const sel = state.selection.main
@@ -598,7 +703,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     }
     const ctx = detectWikilinkContext(state.doc.toString(), head)
     const coords = ctx ? view.coordsAtPos(ctx.contentStart) : null
-    if (!ctx || !coords || buildWikilinkItems(ctx.query, contextRef.current.notes).length === 0) {
+    if (!ctx || !coords || buildWikilinkItems(ctx.query, pickerNotes()).length === 0) {
       setWl((prev) => (prev ? null : prev))
       return
     }
@@ -606,7 +711,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
     // insert) — never spontaneously when the caret merely lands inside an
     // existing `[[Foo]]`. Once open, keep tracking so navigating out closes it.
     if (!docChanged && !wlRef.current) return
-    const len = buildWikilinkItems(ctx.query, contextRef.current.notes).length
+    const len = buildWikilinkItems(ctx.query, pickerNotes()).length
     setWl((prev) => ({
       contentStart: ctx.contentStart,
       query: ctx.query,
@@ -737,21 +842,36 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
             return false
           },
           paste(event) {
-            // Pasting a screenshot is the same gesture as the toolbar's image
-            // import, so the editor owns it. This used to hang off an optional
-            // `onPaste` prop that only NoteCreator passed — which is why paste
-            // silently did nothing in Working Notes and the inline note editor.
-            // Every mount site already passes `importHandlers`.
-            const upload = importHandlersRef.current?.onImageUpload
-            if (!upload) return false
+            // Pasting a screenshot or a file copied in the OS file manager is
+            // the same gesture as the toolbar's import, so the editor owns it.
+            // This used to hang off an optional `onPaste` prop that only
+            // NoteCreator passed — which is why paste silently did nothing in
+            // Working Notes and the inline note editor. Every mount site
+            // already passes `importHandlers`.
+            const handlers = importHandlersRef.current
+            if (!handlers) return false
+            // `kind === 'file'` is what separates the real file from the
+            // text/plain fallback the clipboard carries alongside it.
             const file = Array.from(event.clipboardData?.items ?? [])
-              .find((item) => item.type.startsWith('image/'))
+              .find((item) => item.kind === 'file')
               ?.getAsFile()
             if (!file) return false
-            event.preventDefault()
-            void upload(file)
+
+            // Media goes straight in as an embed; a document first asks how to
+            // import it (convert / extract text / link), exactly as the
+            // toolbar's document button does.
+            const kind = pasteKind(file.type)
+            if (kind) {
+              event.preventDefault()
+              void handlers.onFileUpload(file, kind)
+            } else if (isImportableDocument(file)) {
+              event.preventDefault()
+              void handlers.onDocumentPaste(file)
+            } else {
+              return false
+            }
             // Handled — stops CM6 inserting the clipboard's text/plain fallback
-            // (on Windows, the file's path) alongside the image.
+            // (on Windows, the file's path) alongside the embed.
             return true
           },
           contextmenu(event, view) {
@@ -805,7 +925,10 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
 
   return (
     <>
-      <div ref={hostRef} className={`${styles.host} ${className ?? ''}`} />
+      <div
+        ref={hostRef}
+        className={`${styles.host} ${dropActive ? styles.dropActive : ''} ${className ?? ''}`}
+      />
       {dropBar && (
         <div
           className={styles.dropBar}
@@ -835,7 +958,7 @@ export const LiveEditor = forwardRef<LiveEditorHandle, Props>(function LiveEdito
       )}
       {wl && (
         <WikilinkMenu
-          items={buildWikilinkItems(wl.query, notes)}
+          items={buildWikilinkItems(wl.query, pickerNotes())}
           activeIndex={wl.index}
           coords={wl.coords}
           onPick={(item) => completeWikilink(item)}

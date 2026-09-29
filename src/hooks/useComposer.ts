@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { useDocumentUpload } from './useDocumentUpload'
+import { classifyFile } from '../core/media/classify'
 import { useNoteAttachments } from './useNoteAttachments'
 
 type PendingMediaType = 'video' | 'pdf' | 'image' | 'audio'
@@ -27,7 +28,7 @@ export function useComposer({ noteId, appendMarkdown, focusTextarea, onRegisterP
   const [uploading, setUploading] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
 
-  const { handleDocumentUpload } = useDocumentUpload({
+  const { handleDocumentUpload, handleDocumentPaste, handleDocumentPath } = useDocumentUpload({
     noteId,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => {
@@ -38,7 +39,7 @@ export function useComposer({ noteId, appendMarkdown, focusTextarea, onRegisterP
     onRegisterPendingMedia,
   })
 
-  const { handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
+  const { handleFileUpload, handlePathUpload, handleImageUpload, handleVideoUpload, handleAudioUpload, handleAudioBlob } = useNoteAttachments({
     noteId,
     onUploadStart: () => setUploading(true),
     onUploadFinish: () => setUploading(false),
@@ -47,15 +48,34 @@ export function useComposer({ noteId, appendMarkdown, focusTextarea, onRegisterP
     onRegisterPendingMedia,
   })
 
+  /**
+   * A file dropped onto the editor. Only a path is available, which suits every
+   * importer here — media is copied in by Rust, and the document pipeline is
+   * path-based anyway, so a drop needs none of the byte-staging a paste does.
+   * Unrecognized files are ignored rather than inserted as a path.
+   */
+  const handleDroppedPath = async (path: string) => {
+    const kind = classifyFile(path)
+    if (!kind) return
+    if (kind === 'document') await handleDocumentPath(path)
+    else await handlePathUpload(path, kind)
+  }
+
   /** Props for `<ComposerToolbar>` — spread these and add `disabled` (with the caller's saving state). */
   const toolbarProps = {
     onInsertMarkdown: appendMarkdown,
     onImageUpload: handleImageUpload,
+    // Bytes path, used by the editor's clipboard paste (the toolbar buttons
+    // below open a native dialog and import by path instead).
+    onFileUpload: handleFileUpload,
     onVideoUpload: () => void handleVideoUpload(),
     onAudioUpload: () => void handleAudioUpload(),
     onRecordAudio: (blob: Blob) => void handleAudioBlob(blob),
     onRecordingChange: setIsRecording,
     onDocumentUpload: handleDocumentUpload,
+    // Same importer, reached from a clipboard paste instead of the dialog.
+    onDocumentPaste: handleDocumentPaste,
+    onDroppedPath: handleDroppedPath,
   }
 
   return { uploading, isRecording, toolbarProps }

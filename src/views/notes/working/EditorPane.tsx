@@ -6,18 +6,20 @@ import type { Note } from '../../../types'
 import { useNotesContext } from '../../../context/NotesContext'
 import { useComposer } from '../../../hooks/useComposer'
 import { isAutoTag } from '../../../core/tags'
-import { setNoteProgress } from '../../../core/notes'
-import { exportNotes } from '../../../core/export'
+import { setNoteProgress, convertNoteKind } from '../../../core/notes'
+import { CANVAS_NOTE_KIND } from '../../../plugins/canvas'
+import { EMPTY_CANVAS_CONTENT } from '../../../plugins/canvas/canvasNote'
+import { exportNotes, toastExported } from '../../../core/export'
 import { toast } from '../../../lib/toast'
 import { NoteView, NoteTypeEditor } from '../../../ui/editor/NoteRenderer'
 import { getNoteType } from '../../../lib/noteTypes'
 import { LiveEditor, type LiveEditorHandle } from '../../../ui/editor/LiveEditor'
-import { TagEditor } from '../../../ui/TagEditor'
-import { ComposerToolbar } from '../../../ui/editor/ComposerToolbar'
-import { FormatToolbar } from '../../../ui/editor/FormatToolbar'
 import { useFavourites } from '../../../hooks/useFavourites'
-import { MoreVertical, BookOpen, PenLine, Star, Download } from 'lucide-react'
-import { ComposerSuggestions } from '../../../ui/ai/ComposerSuggestions'
+import { MoreVertical, BookOpen, PenLine, Star, Download, LayoutDashboard, Trash2 } from 'lucide-react'
+import { setActiveNote, clearActiveNote, mayPublishActiveNote } from '../../../lib/activeNote'
+import { useLinkRename } from '../../../hooks/useLinkRename'
+import { usePluginActions } from '../../../hooks/usePluginActions'
+import { runPluginAction, type StoredAction } from '../../../lib/pluginActions'
 import Styles from './EditorPane.module.css'
 
 const AUTOSAVE_MS = 800
@@ -37,8 +39,16 @@ function sameUserTags(a: string[], b: string[]): boolean {
  * mounts an EditorPane, so N open tabs never means N live CM6 editors.
  */
 export function EditorPane({ noteId }: { noteId: string }) {
-  const { notes, update } = useNotesContext()
+  const { notes, update, remove } = useNotesContext()
+  // Set once "Delete note" is confirmed — stops any later autosave/unmount flush.
+  const deletedRef = useRef(false)
   const note = notes.find((n) => n.id === noteId)
+  // What this pane last wrote (or seeded) — tells our own saves apart from
+  // changes made to the note elsewhere.
+  const lastSavedRef = useRef({ title: note?.title ?? '', content: note?.content ?? '' })
+  // Title when the title field gained focus — the rename's "from" on blur.
+  const titleAtFocusRef = useRef('')
+  const offerLinkRename = useLinkRename()
 
   const [mode, setMode] = useState<'edit' | 'read'>('edit')
   const [title, setTitle] = useState(note?.title ?? '')
@@ -47,6 +57,8 @@ export function EditorPane({ noteId }: { noteId: string }) {
   const [status, setStatus] = useState<'saved' | 'dirty' | 'saving'>('saved')
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const toolbarActions = usePluginActions('editor.toolbar')
+  const menuActions = usePluginActions('note.menu')
 
   const { addToFavourites, removeFromFavourites, fetchFavourites } = useFavourites()
   const [isFavourite, setIsFavourite] = useState(false)
@@ -99,7 +111,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
 
   const flushSave = useCallback(async () => {
     const n = notes.find((x) => x.id === noteId)
-    if (!n) return
+    if (!n || deletedRef.current) return
     const { title: t, content: c, tags: tg } = draftRef.current
     if (t === n.title && c === (n.content || '') && sameUserTags(tg, n.tags)) {
       setStatus('saved')
@@ -108,6 +120,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
     setStatus('saving')
     try {
       await update(noteId, t.trim(), c.trim(), tg.filter((x) => !isAutoTag(x)))
+      lastSavedRef.current = { title: t.trim(), content: c.trim() }
       setStatus('saved')
     } catch (err) {
       console.error('Autosave failed:', err)
@@ -126,10 +139,24 @@ export function EditorPane({ noteId }: { noteId: string }) {
     setContent(note.content || '')
     setTags(note.tags)
     seededFor.current = noteId
+    lastSavedRef.current = { title: note.title, content: note.content || '' }
     setStatus('saved')
     maxProgressRef.current = 0
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId])
+
+  // Adopt changes made to this note from *elsewhere* (e.g. a rename elsewhere
+  // rewriting its [[links]]) while the draft has no unsaved edits — otherwise
+  // the next autosave would write the stale draft back over them. Our own saves
+  // match `lastSavedRef`, so they never trigger this.
+  useEffect(() => {
+    if (!note || seededFor.current !== noteId || status !== 'saved') return
+    const last = lastSavedRef.current
+    if (note.content !== last.content) setContent(note.content || '')
+    if (note.title !== last.title) setTitle(note.title)
+    lastSavedRef.current = { title: note.title, content: note.content || '' }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.content, note?.title, status])
 
   // Debounced autosave on any draft change.
   useEffect(() => {
@@ -156,6 +183,16 @@ export function EditorPane({ noteId }: { noteId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId])
 
+  // Publish this pane's tools to the right rail. The last pane pressed/focused
+  // owns the rail (see the pane's capture handlers); otherwise re-publish every
+  // render so the rail tracks live draft state.
+  const toolToken = useRef({}).current
+  const publishRef = useRef<() => void>(() => {})
+  useEffect(() => {
+    if (mayPublishActiveNote(toolToken)) publishRef.current()
+  })
+  useEffect(() => () => clearActiveNote(toolToken), [toolToken])
+
   const handleBodyScroll = () => {
     const el = bodyRef.current
     if (!el) return
@@ -168,21 +205,73 @@ export function EditorPane({ noteId }: { noteId: string }) {
     return <div className={Styles.missing}>This note is no longer available.</div>
   }
 
-  const currentUserTags = tags.filter((t) => !isAutoTag(t))
   const preview: Note = { ...note, title, content, tags }
   const noteType = getNoteType(note)
 
+  publishRef.current = () =>
+    setActiveNote(
+      {
+        note: preview,
+        allNotes: notes,
+        setUserTags: (userTags) => setTags((prev) => [...prev.filter(isAutoTag), ...userTags]),
+        addTag: (tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag])),
+        addLink: (linkTitle) => {
+          const wl = `[[${linkTitle}]]`
+          setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
+        },
+        typed: !!noteType,
+        editing: mode === 'edit' && !noteType,
+        editorRef,
+        toolbarProps,
+        uploading,
+      },
+      toolToken,
+    )
+
+  // A plugin acts on what's on screen: save pending edits first, or it reads
+  // stale content and the pending autosave overwrites whatever it writes.
+  const runAfterSave = async (a: StoredAction) => {
+    window.clearTimeout(saveTimer.current)
+    await flushSave()
+    runPluginAction(a, { noteId })
+  }
+
   return (
-    <div className={Styles.pane}>
+    <div
+      data-anchor="editor"
+      data-anchor-key={noteId}
+      className={Styles.pane}
+      onPointerDownCapture={() => publishRef.current()}
+      onFocusCapture={() => publishRef.current()}
+    >
       <div className={Styles.header}>
         <input
           className={Styles.titleInput}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onFocus={() => {
+            titleAtFocusRef.current = title
+          }}
+          onBlur={() => void offerLinkRename(noteId, titleAtFocusRef.current, title)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+          }}
           placeholder="Title (optional)"
           spellCheck={false}
         />
         <div className={Styles.headerActions}>
+          {isRecording && <span className={Styles.recording}>● recording…</span>}
+          {toolbarActions.map((a) => (
+            <button
+              key={`${a.pluginId}:${a.id}`}
+              className={Styles.iconBtn}
+              onClick={() => void runAfterSave(a)}
+              aria-label={a.label}
+              title={`${a.label} — ${a.pluginName}`}
+            >
+              <span aria-hidden="true">{a.icon}</span>
+            </button>
+          ))}
           <span
             className={Styles.status}
             data-state={status}
@@ -237,8 +326,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
                   onClick={async () => {
                     setMenuOpen(false)
                     try {
-                      const n = await exportNotes([{ ...note, title, content }])
-                      if (n) toast.success('Exported note as Markdown.')
+                      toastExported(await exportNotes([{ ...note, title, content }]))
                     } catch (err) {
                       toast.error('Export failed: ' + String(err))
                     }
@@ -247,55 +335,93 @@ export function EditorPane({ noteId }: { noteId: string }) {
                   <Download size={16} />
                   Download / Export
                 </button>
+                {/* Only a blank plain note can become a canvas — nothing to lose. */}
+                {!noteType && content.trim() === '' && (
+                  <button
+                    className={Styles.dropdownItem}
+                    role="menuitem"
+                    onClick={async () => {
+                      setMenuOpen(false)
+                      window.clearTimeout(saveTimer.current)
+                      try {
+                        await flushSave()
+                        if (await convertNoteKind(noteId, CANVAS_NOTE_KIND, EMPTY_CANVAS_CONTENT)) {
+                          setContent(EMPTY_CANVAS_CONTENT)
+                          if (!title.trim()) setTitle('Canvas')
+                        } else {
+                          toast.error('Only a blank note can be converted to a canvas.')
+                        }
+                      } catch (err) {
+                        toast.error('Convert failed: ' + String(err))
+                      }
+                    }}
+                  >
+                    <LayoutDashboard size={16} />
+                    Convert to canvas
+                  </button>
+                )}
+                {menuActions.map((a) => (
+                  <button
+                    key={`${a.pluginId}:${a.id}`}
+                    className={Styles.dropdownItem}
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      void runAfterSave(a)
+                    }}
+                  >
+                    <span aria-hidden="true">{a.icon}</span>
+                    {a.label}
+                  </button>
+                ))}
+                <button
+                  className={`${Styles.dropdownItem} ${Styles.dropdownItemDanger}`}
+                  role="menuitem"
+                  onClick={async () => {
+                    setMenuOpen(false)
+                    window.clearTimeout(saveTimer.current)
+                    // Save pending edits first so a restore from Trash has them;
+                    // then block every later save — the tab unmounts once the note
+                    // leaves the list, and its flush must not resurrect it.
+                    await flushSave()
+                    deletedRef.current = true
+                    try {
+                      if (!(await remove(noteId))) deletedRef.current = false
+                    } catch (err) {
+                      deletedRef.current = false
+                      toast.error('Delete failed: ' + String(err))
+                    }
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Delete note
+                </button>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      <TagEditor
-        tags={tags}
-        onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
-      />
-      {/* AI suggestions read note content as prose — skip for typed (JSON) notes. */}
-      {!noteType && (
-        <ComposerSuggestions
-          note={preview}
-          allNotes={notes}
-          currentTags={currentUserTags}
-          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-          onAddLink={(linkTitle) => {
-            const wl = `[[${linkTitle}]]`
-            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
-          }}
-        />
-      )}
-
+      {/* Tags, AI suggestions, media + formatting live in the right rail's
+          "Note tools" panel (NoteToolsPanel), fed through lib/activeNote. */}
       {mode === 'edit' ? (
         noteType ? (
           <div className={Styles.typedFill}>
             <NoteTypeEditor note={note} value={content} onChange={setContent} />
           </div>
         ) : (
-          <>
-            <LiveEditor
-              ref={editorRef}
-              className={Styles.editor}
-              placeholder="Note content..."
-              value={content}
-              onChange={setContent}
-              onSubmit={() => void flushSave()}
-              notes={notes}
-              noteId={note.id}
-              allowNavigate
-              importHandlers={toolbarProps}
-            />
-            <div className={Styles.toolbar}>
-              <ComposerToolbar {...toolbarProps} disabled={uploading} />
-              <FormatToolbar editorRef={editorRef} disabled={uploading} />
-              {isRecording && <span className={Styles.recording}>● recording…</span>}
-            </div>
-          </>
+          <LiveEditor
+            ref={editorRef}
+            className={Styles.editor}
+            placeholder="Note content..."
+            value={content}
+            onChange={setContent}
+            onSubmit={() => void flushSave()}
+            notes={notes}
+            noteId={note.id}
+            allowNavigate
+            importHandlers={toolbarProps}
+          />
         )
       ) : (
         <div className={Styles.readBody} ref={bodyRef} onScroll={handleBodyScroll}>

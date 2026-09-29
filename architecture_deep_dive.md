@@ -662,6 +662,33 @@ flowchart TD
 
 ---
 
+## AI Chat & Grounded Context
+
+```mermaid
+flowchart TD
+    Send["Composer Send"] --> Mode{"Mode (mode line)"}
+    Mode -->|"Focused: Analyze / Ask / Quiz"| Resolve["resolveContextNotes\n(topic / time / notes)"]
+    Mode -->|Agent| Agent["runAgent\n(chatWithTools)"]
+    Mode -->|"Chat / Deep research"| Stream["streamChat"]
+    Resolve --> Ctx["buildNoteContext\n(token budget)"]
+    Ctx -->|fits| Whole["whole notes + PDF text"]
+    Ctx -->|over budget| Pass["passages: embedding-ranked\nor even spread"]
+    Ctx -->|vision model| Img["note images +\nscanned PDF pages"]
+    Whole & Pass & Img --> Complete["provider.complete()\n(streams via ai_chat_stream)"]
+    Stream & Complete & Agent --> Thread["inflight thread\n(per conversation)"]
+    Thread -->|active chat| View["ai.free.messages"]
+    Thread -->|finished| Save["save_conversation\n+ toast if elsewhere"]
+```
+
+- **Every model call streams** through the Rust `ai_chat_stream` command (SSE/NDJSON over a Tauri
+  `Channel`); one-shot helpers join the stream. Non-streaming `ai_request` is kept for embeddings and
+  tool-calling turns.
+- **Grounded context** ([noteContext.ts](src/core/ai/noteContext.ts)): notes are cut with the same
+  `chunkNote` splitter as the embedding index, so passage *i* matches stored vector *i*; a user token
+  budget (Settings → Advanced AI generation) decides whole-vs-excerpt, and images reserve part of it.
+- **Threads are per conversation**: a module-level in-flight map outlives the view, so switching chats
+  or routes never aborts a reply; retries keep answer versions on the reply message.
+
 ## File Layout
 
 ```

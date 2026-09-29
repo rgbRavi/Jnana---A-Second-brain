@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
-  Bot, Brain, FileText, Image as ImageIcon, Microscope, MoreHorizontal, Music,
+  Bot, Brain, FileText, Image as ImageIcon, MessageSquare, Microscope, MoreHorizontal, Music,
   NotebookPen, Paperclip, Puzzle, Palette, Plus, ScrollText, SlidersHorizontal,
   Sparkles, Square, Wrench, X,
 } from 'lucide-react'
@@ -39,8 +40,17 @@ interface Props {
   onDeepResearchChange: (v: boolean) => void
   agent: boolean
   onAgentChange: (v: boolean) => void
-  /** Model supports vision — used only for the attach hint. */
+  /** Images will be sent to the chat model (name guess or the user's answer). */
   vision: boolean
+  /** What the model name alone suggests — shown as the switch's hint. */
+  visionDetected: boolean
+  onVisionChange: (on: boolean) => void
+  /** Chat model id, for the vision switch's wording. */
+  model: string
+  /** Files pasted into the message box (e.g. a screenshot). */
+  onPasteFiles: (files: File[]) => void
+  /** Files dropped onto the composer from the OS. */
+  onDropPaths: (paths: string[]) => void
   // Capabilities: styles + skills (presets) and rules.
   stylePresets: AiPreset[]
   skillPresets: AiPreset[]
@@ -55,6 +65,9 @@ interface Props {
   // Focused (grounded) mode: arm an action over a note scope; the shared Send runs it.
   focus: FocusState
   onFocus: (updater: (f: FocusState) => FocusState) => void
+  /** Active project, if any — named in the mode line. */
+  projectName?: string
+  inputRef?: React.Ref<HTMLTextAreaElement>
   disabled?: boolean
 }
 
@@ -71,9 +84,12 @@ const chipStyle: React.CSSProperties = { ...pillStyle(false), cursor: 'default' 
 // ─── Attach menu ────────────────────────────────────────────────────────────
 
 function AttachContent({
-  vision, notes, onAttach, onAddNote, close,
+  vision, visionDetected, onVisionChange, model, notes, onAttach, onAddNote, close,
 }: {
   vision: boolean
+  visionDetected: boolean
+  onVisionChange: (on: boolean) => void
+  model: string
   notes: Note[]
   onAttach: () => void
   onAddNote: (n: Note) => void
@@ -115,8 +131,20 @@ function AttachContent({
       <MenuRow
         icon={<Paperclip size={15} />}
         label="Files & media"
-        hint={vision ? 'Documents, images or audio' : 'Documents or audio (no vision)'}
+        hint={vision ? 'Documents, images or audio — or paste / drop them' : 'Documents or audio — or paste / drop them'}
         onClick={() => { onAttach(); close() }}
+      />
+      <MenuRow
+        icon={<ImageIcon size={15} />}
+        label="Send images to this model"
+        hint={
+          visionDetected
+            ? `${model || 'This model'} looks image-capable`
+            : `Turn on if ${model || 'this model'} accepts images`
+        }
+        active={vision}
+        trailing={<span style={{ color: vision ? 'var(--accent)' : 'var(--text-3)' }}>{vision ? 'On' : 'Off'}</span>}
+        onClick={() => onVisionChange(!vision)}
       />
     </>
   )
@@ -203,7 +231,11 @@ function MoreContent(props: {
   think: boolean; onThinkChange: (v: boolean) => void; canThink: boolean
   deepResearch: boolean; onDeepResearchChange: (v: boolean) => void
   agent: boolean; onAgentChange: (v: boolean) => void
+  /** The armed Focused action, if any — it takes over Send. */
+  focusAction: FocusState['action']
 }) {
+  // Deep research shapes a plain chat reply; Agent and Focused runs don't use it.
+  const drBlockedBy = props.focusAction ? ACTION_VERB[props.focusAction] : props.agent ? 'Agent' : null
   const onOff = (v: boolean) => <span style={{ color: v ? 'var(--accent)' : 'var(--text-3)' }}>{v ? 'On' : 'Off'}</span>
   return (
     <>
@@ -217,14 +249,15 @@ function MoreContent(props: {
       />
       <MenuRow
         icon={<Microscope size={15} />} label="Deep research"
-        hint="Thorough, source-grounded answers"
-        active={props.deepResearch}
+        hint={drBlockedBy ? `Not used while ${drBlockedBy} is on` : 'Thorough, source-grounded answers'}
+        disabled={!!drBlockedBy}
+        active={!drBlockedBy && props.deepResearch}
         trailing={onOff(props.deepResearch)}
         onClick={() => props.onDeepResearchChange(!props.deepResearch)}
       />
       <MenuRow
         icon={<Bot size={15} />} label="Agent"
-        hint="Search, read & propose note edits"
+        hint={props.focusAction ? `Turns off ${ACTION_VERB[props.focusAction]}` : 'Search, read & propose note edits'}
         active={props.agent}
         trailing={onOff(props.agent)}
         onClick={() => props.onAgentChange(!props.agent)}
@@ -267,8 +300,51 @@ export function ChatComposer({
   onRuleIds,
   focus,
   onFocus,
+  projectName,
+  inputRef,
   disabled,
+  visionDetected,
+  onVisionChange,
+  model,
+  onPasteFiles,
+  onDropPaths,
 }: Props) {
+  // OS file drops arrive at the window, not as DOM events (Tauri), so hit-test
+  // the drop point against the composer — same pattern as LiveEditor.
+  const boxRef = useRef<HTMLDivElement>(null)
+  const onDropRef = useRef(onDropPaths)
+  onDropRef.current = onDropPaths
+  const [dropActive, setDropActive] = useState(false)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    const inBox = (p: { x: number; y: number }) => {
+      const dpr = window.devicePixelRatio || 1
+      const el = document.elementFromPoint(p.x / dpr, p.y / dpr)
+      return !!el && !!boxRef.current?.contains(el)
+    }
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const payload = event.payload
+        if (payload.type === 'leave') return setDropActive(false)
+        const hit = inBox(payload.position)
+        if (payload.type !== 'drop') return setDropActive(hit)
+        setDropActive(false)
+        if (hit && payload.paths.length) onDropRef.current(payload.paths)
+      })
+      .then((fn) => {
+        if (cancelled) fn()
+        else unlisten = fn
+      })
+      .catch(() => {
+        /* no webview (tests / browser dev) — paste and the picker still work */
+      })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [])
+
   // Analyze/Quiz run on the scope alone (no text needed); Ask + normal chat need input.
   const runsWithoutText = focus.action === 'analyze' || focus.action === 'quiz'
   const canSend = !busy && (runsWithoutText || value.trim() !== '' || attachments.length > 0)
@@ -329,40 +405,28 @@ export function ChatComposer({
         </div>
       )}
 
-      {/* Armed focused-mode chip — the next Send runs this grounded action. */}
-      {focus.action && (
-        <div style={{ display: 'flex', margin: '0 0.5rem' }}>
-          <span style={{ ...pillStyle(true), gap: '6px' }}>
-            <Sparkles size={13} />
-            {ACTION_VERB[focus.action]} · {scopeLabel(focus)}
-            <button
-              onClick={() => { onFocus((f) => ({ ...f, action: null })); closeFocusPanel() }}
-              title="Turn off focused mode"
-              aria-label="Turn off focused mode"
-              style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'inline-flex' }}
-            >
-              <X size={13} />
-            </button>
-          </span>
-        </div>
-      )}
+      <ModeLine
+        focus={focus}
+        agent={agent}
+        deepResearch={deepResearch}
+        projectName={projectName}
+        presetsOn={styleActive || skillCount > 0}
+        rulesOn={ruleIds.length > 0}
+        onFocusOff={() => { onFocus((f) => ({ ...f, action: null })); closeFocusPanel() }}
+        onAgentOff={() => onAgentChange(false)}
+        onDeepResearchOff={() => onDeepResearchChange(false)}
+      />
 
-      <div
-        style={{
-          border: '1px solid color-mix(in srgb, var(--text-1) 12%, transparent)',
-          borderRadius: '28px',
-          background: 'color-mix(in srgb, var(--surface) 35%, transparent)',
-          backdropFilter: 'blur(24px) saturate(150%)',
-          boxShadow: '0 12px 36px rgba(0,0,0,0.3), inset 0 1px 1px color-mix(in srgb, var(--text-1) 15%, transparent)',
-          padding: '0.85rem 1.25rem 0.75rem',
-          margin: '0 0.5rem 0.5rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.6rem',
-          transition: 'box-shadow 0.2s',
-        }}
-      >
+      <div ref={boxRef} className={`${styles.composerBox} ${dropActive ? styles.composerBoxDrop : ''}`}>
         <textarea
+          ref={inputRef}
+          aria-label="Message"
+          onPaste={(e) => {
+            const files = Array.from(e.clipboardData.files)
+            if (files.length === 0) return // plain text paste — leave it alone
+            e.preventDefault()
+            onPasteFiles(files)
+          }}
           rows={2}
           placeholder="Message the assistant…  (Enter to send, Shift+Enter for newline)"
           value={value}
@@ -392,7 +456,16 @@ export function ChatComposer({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
           <ComposerMenu icon={<Paperclip size={14} />} label="Attach" badge={attachments.length || undefined} active={attachments.length > 0}>
             {(close) => (
-              <AttachContent vision={vision} notes={notes} onAttach={onAttach} onAddNote={onAddNote} close={close} />
+              <AttachContent
+                vision={vision}
+                visionDetected={visionDetected}
+                onVisionChange={onVisionChange}
+                model={model}
+                notes={notes}
+                onAttach={onAttach}
+                onAddNote={onAddNote}
+                close={close}
+              />
             )}
           </ComposerMenu>
 
@@ -419,6 +492,7 @@ export function ChatComposer({
                 think={think} onThinkChange={onThinkChange} canThink={canThink}
                 deepResearch={deepResearch} onDeepResearchChange={onDeepResearchChange}
                 agent={agent} onAgentChange={onAgentChange}
+                focusAction={focus.action}
               />
             )}
           </ComposerMenu>
@@ -431,7 +505,7 @@ export function ChatComposer({
 
           <div style={{ marginLeft: 'auto' }}>
             {busy ? (
-              <button className={styles.btn} onClick={onStop} title="Stop generating">
+              <button className={`${styles.btn} ${styles.stopBtn}`} onClick={onStop} title="Stop generating">
                 <Square size={13} /> Stop
               </button>
             ) : (
@@ -442,6 +516,82 @@ export function ChatComposer({
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Mode line ───────────────────────────────────────────────────────────────
+
+/** "a", "a and b", "a, b and c". */
+const joinList = (items: string[]) =>
+  items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+
+/**
+ * One line above the composer that states what Send will do, and what it will
+ * ignore. Precedence mirrors FreeChat.send: a Focused action, then Agent, then
+ * Deep research, then plain chat.
+ */
+function ModeLine(props: {
+  focus: FocusState
+  agent: boolean
+  deepResearch: boolean
+  projectName?: string
+  presetsOn: boolean
+  rulesOn: boolean
+  onFocusOff: () => void
+  onAgentOff: () => void
+  onDeepResearchOff: () => void
+}) {
+  const { focus, projectName, presetsOn, rulesOn } = props
+  let icon: React.ReactNode
+  let label: string
+  let detail: string
+  let grounded = false
+  let off: { label: string; run: () => void } | null = null
+  const ignored: string[] = []
+
+  if (focus.action) {
+    icon = <Sparkles size={14} />
+    label = `${ACTION_VERB[focus.action]} · ${scopeLabel(focus)}`
+    grounded = true
+    if (projectName) ignored.push('project instructions')
+    if (presetsOn) ignored.push('styles & skills')
+    if (rulesOn) ignored.push('rules')
+    detail = ignored.length ? `Uses only your notes — ${joinList(ignored)} don't apply` : 'Uses only the notes in scope'
+    off = { label: `Turn off ${ACTION_VERB[focus.action]}`, run: props.onFocusOff }
+  } else if (props.agent) {
+    icon = <Bot size={14} />
+    label = 'Agent'
+    grounded = true
+    if (projectName) ignored.push('project instructions')
+    if (presetsOn) ignored.push('styles & skills')
+    detail = ignored.length
+      ? `Proposes note edits for you to approve — ${joinList(ignored)} don't apply`
+      : 'Searches your notes and proposes edits for you to approve'
+    off = { label: 'Turn off Agent', run: props.onAgentOff }
+  } else if (props.deepResearch) {
+    icon = <Microscope size={14} />
+    label = 'Deep research'
+    detail = projectName ? `Slower, more thorough · ${projectName} instructions on` : 'Slower, more thorough answers'
+    off = { label: 'Turn off Deep research', run: props.onDeepResearchOff }
+  } else {
+    icon = <MessageSquare size={14} />
+    label = 'Chat'
+    detail = projectName
+      ? `${projectName} instructions on · won't search your notes`
+      : "Won't search your notes — use Focused to ground a reply in them"
+  }
+
+  return (
+    <div className={`${styles.modeLine} ${grounded ? styles.modeLineOn : ''}`} aria-live="polite">
+      <span className={styles.modeLineIcon} aria-hidden>{icon}</span>
+      <span className={styles.modeLineLabel}>{label}</span>
+      <span className={styles.modeLineDetail} title={detail}>{detail}</span>
+      {off && (
+        <button type="button" className={styles.modeLineOff} onClick={off.run} title={off.label} aria-label={off.label}>
+          <X size={13} />
+        </button>
+      )}
     </div>
   )
 }

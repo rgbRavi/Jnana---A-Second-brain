@@ -45,13 +45,21 @@ function shimUrls(): { reactUrl: string; jsxUrl: string } {
 
 /**
  * Rewrite a plugin bundle's bare React import specifiers to the host shim Blob
- * URLs. Matches only exactly-quoted specifiers (so `react-dom` / `my-react` are
- * untouched); jsx-runtime is handled before `react` since its specifier is longer.
+ * URLs.
+ *
+ * Only specifiers in *import position* are touched — after `from`, after a bare
+ * `import`, or inside `import(...)`. Matching every quoted `"react"` anywhere (the
+ * old behaviour) also rewrote ordinary string literals, which minified bundles
+ * carry routinely (error messages, feature checks), corrupting them silently.
+ * `react-dom` / `preact` stay untouched because the closing quote must follow the
+ * specifier exactly.
  */
+const IMPORT_SPECIFIER =
+  /(\bfrom\s*|\bimport\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)(["'])(react(?:\/jsx-runtime|\/jsx-dev-runtime)?)\2/g
+
 export function rewritePluginImports(code: string): string {
   const { reactUrl, jsxUrl } = shimUrls()
-  return code
-    .replace(/(["'])react\/jsx-dev-runtime\1/g, JSON.stringify(jsxUrl))
-    .replace(/(["'])react\/jsx-runtime\1/g, JSON.stringify(jsxUrl))
-    .replace(/(["'])react\1/g, JSON.stringify(reactUrl))
+  return code.replace(IMPORT_SPECIFIER, (_m, lead: string, _q: string, spec: string) =>
+    lead + JSON.stringify(spec === 'react' ? reactUrl : jsxUrl),
+  )
 }

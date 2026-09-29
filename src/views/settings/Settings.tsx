@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getViewState } from '../../hooks/useViewState'
+import { getDialog } from '../../lib/dialog'
 import { useNotesContext } from '../../context/NotesContext'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import { DEFAULT_VAULT_ID } from '../../types'
@@ -14,6 +15,7 @@ import { AdvancedAiPanel } from '../../ui/settings/AdvancedAiPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { GeneralSettingsPanel } from '../../ui/settings/GeneralSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
+import { DashboardSettingsPanel } from '../../ui/settings/DashboardSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
 import { DeveloperPanel } from '../../ui/settings/DeveloperPanel'
@@ -26,6 +28,7 @@ import styles from './Settings.module.css'
 const SECTIONS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'composer', label: 'Composer' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'ai', label: 'AI Providers' },
   { id: 'advanced-ai', label: 'Advanced AI generation' },
@@ -61,6 +64,17 @@ function Settings() {
 
   const goBack = () => navigate(getViewState<string>('settings.returnTo') ?? '/')
 
+  // Esc = Back. Skipped when something inside already claimed the key (a menu or
+  // select calls preventDefault) or a dialog is open — its own Esc closes it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || getDialog()) return
+      navigate(getViewState<string>('settings.returnTo') ?? '/')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navigate])
+
   return (
     <div className={styles.settings}>
       <header className={styles.header}>
@@ -87,6 +101,7 @@ function Settings() {
         <div className={styles.content}>
           {tab === 'general' && <GeneralSettingsPanel />}
           {tab === 'composer' && <ComposerSettingsPanel />}
+          {tab === 'dashboard' && <DashboardSettingsPanel />}
           {tab === 'appearance' && <AppearancePanel />}
           {tab === 'ai' && (
             <AiSettingsPanel

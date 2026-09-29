@@ -1,0 +1,12 @@
+{
+  "id": "com.jnana.sample-actions",
+  "name": "Note Helpers",
+  "version": "1.0.0",
+  "description": "Reference for plugin actions: a word count in the note menu, a reading-time button in the editor, and a random-note entry in the sidebar. Sandboxed.",
+  "author": "Jnana Project",
+  "main": "src/index.js",
+  "minAppVersion": "0.1.0",
+  "runtime": "worker",
+  "homepage": "https://github.com/rgbRavi/Jnana---A-Second-brain",
+  "permissions": ["notes"]
+}

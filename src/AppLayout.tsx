@@ -17,6 +17,7 @@ import { DialogHost } from "./ui/DialogHost";
 import { CommandPalette } from "./ui/CommandPalette";
 import { PdfRefViewerHost } from "./ui/PdfRefViewerHost";
 import { PluginWidgetHost } from "./ui/PluginWidgetHost";
+import { AppBackdrop } from "./ui/AppBackdrop"
 import { Tooltip } from "./ui/Tooltip";
 import { NoteCreator } from "./ui/editor/NoteCreator";
 import { ThemeStudioOverlay } from "./ui/settings/appearance/ThemeStudioOverlay";
@@ -102,8 +103,27 @@ function AppInner() {
         markLaunch()
         if (decideGate(getOnboardingState()) === 'wizard') openOnboarding()
     }, [])
+    // A worker plugin has no DOM and no toast module of its own, so `toast:*` on
+    // the bus is its only way to say anything to the user. Main-thread plugins can
+    // use it too; the payload is plain text, never markup.
+    useEffect(() => {
+        const show = (variant: 'info' | 'success' | 'error') => (payload: unknown) => {
+            const text = typeof payload === 'string' ? payload : String((payload as { message?: string })?.message ?? '')
+            if (text.trim()) toast[variant](text.slice(0, 300))
+        }
+        const handlers = {
+            'toast:info': show('info'),
+            'toast:success': show('success'),
+            'toast:error': show('error'),
+        }
+        for (const [event, handler] of Object.entries(handlers)) eventBus.on(event, handler)
+        return () => {
+            for (const [event, handler] of Object.entries(handlers)) eventBus.off(event, handler)
+        }
+    }, [])
     // Remember the current route for next launch.
     useEffect(() => {
+        eventBus.emit('route:changed', { path: pathname })
         try {
             if (pathname !== "/settings") localStorage.setItem(LAST_ROUTE_KEY, pathname)
         } catch {
@@ -188,9 +208,13 @@ function AppInner() {
     const inSettings = pathname === "/settings"
     return (
         <div className={AppStyles.appShell}>
+            {/* First child, so the backdrop (the user's wallpaper, or a plugin's)
+                paints over the body background and under every surface — it can
+                never sit on top of the UI. */}
+            <AppBackdrop />
             {!inSettings && <Sidebar />}
             {!inSettings && <FileExplorer />}
-            <main className={AppStyles.mainContent}>
+            <main data-anchor="main" className={AppStyles.mainContent}>
                 {!inSettings && <OnboardingNudge />}
                 <Suspense fallback={null}>
                     <Outlet />

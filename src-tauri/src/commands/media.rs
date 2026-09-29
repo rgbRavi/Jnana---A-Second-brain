@@ -267,8 +267,9 @@ pub fn get_media_refs(
 pub fn get_media_types(
     state: State<'_, DbState>,
     note_id: String,
+    content: Option<String>,
 ) -> Result<Vec<String>, String> {
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
-    crate::db::queries::fetch_media_types(&conn, &note_id)
+    crate::db::queries::fetch_media_types(&conn, &note_id, content.as_deref())
         .map_err(|e| format!("Failed to fetch media refs: {}", e))
 }

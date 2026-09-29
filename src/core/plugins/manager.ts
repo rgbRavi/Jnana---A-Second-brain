@@ -21,6 +21,22 @@ export async function clearPluginStorage(pluginId: string): Promise<void> {
   await invoke<void>('plugin_kv_clear', { pluginId })
 }
 
+/** One plugin id holding stored data (whether or not it is still installed). */
+export interface PluginStorageOwner extends PluginStorageUsage {
+  pluginId: string
+}
+
+/**
+ * Every plugin id with rows in `plugin_kv`. Callers diff this against the plugins
+ * that actually exist to find **orphaned** data — a plugin removed before the
+ * uninstall prompt offered to take its data along leaves rows nothing in the UI
+ * can otherwise reach, and they ride every backup.
+ */
+export async function pluginStorageOwners(): Promise<PluginStorageOwner[]> {
+  const rows = await invoke<[string, number, number][]>('plugin_kv_owners')
+  return rows.map(([pluginId, keys, bytes]) => ({ pluginId, keys, bytes }))
+}
+
 /** Scaffold a plugin project into `dir/<id>/`; returns the created path. */
 export async function scaffoldPlugin(dir: string, id: string, name: string): Promise<string> {
   return invoke<string>('scaffold_plugin', { dir, id, name })

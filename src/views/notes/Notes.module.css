@@ -17,6 +17,78 @@
   contain: layout paint;
 }
 
+/* Sits above the first card, aligned to its left edge — the toolbar used to
+   carry this, where it competed with the action buttons. */
+.listCount {
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+/* The hint fades in only while nothing is selected — once you know the gesture
+   it's noise, and it disappears the moment you use it. */
+.listHint {
+  margin-left: 0.6rem;
+  opacity: 0.65;
+}
+
+/* Replaces the count line while notes are selected, so the grid doesn't shift.
+   Sticks to the top of the scroller: selecting happens wherever you are in a
+   long list, and the actions have to be reachable from there. */
+.selectionBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* Negative margins + padding let the opaque strip span the scroller's gutter,
+     so cards scroll under it rather than beside it. */
+  margin: -1.25rem calc(var(--space-2xl) * -1) 0.6rem;
+  padding: 0.6rem var(--space-2xl);
+  min-height: 1.4rem;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.selectionCount {
+  margin-right: 0.3rem;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-1);
+}
+
+.selectionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.76rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+}
+
+.selectionBtn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
+.selectionBtnDanger {
+  color: var(--danger);
+}
+
+.selectionBtnDanger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* ── Display-mode layouts (combined with .list) ── */
 .list,
 .card {
@@ -54,6 +126,9 @@
 
 /* Secondary toolbar action (e.g. workspace "Add notes"). */
 .addBtn, .workingBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-1);
@@ -68,4 +143,42 @@
 
 .addBtn:hover, .workingBtn:hover {
   border-color: var(--accent);
+}
+
+/* Icon-only variant — square, so it doesn't sit wider than its glyph. The
+   label lives in title=, which the global Tooltip picks up. */
+.iconOnlyBtn {
+  justify-content: center;
+  width: 34px;
+  padding: 0.45rem 0;
+}
+
+/* "New canvas" is a create action like "New note", so it carries the same
+   weight — a filled pill — in its own hue, so the two don't read as one
+   button. Tinted rather than solid: --star is a fixed light amber in every
+   theme, and white-on-amber would fail contrast. */
+.canvasBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: color-mix(in srgb, var(--star) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--star) 55%, transparent);
+  color: var(--star);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+  flex-shrink: 0;
+}
+
+.canvasBtn:hover {
+  background: color-mix(in srgb, var(--star) 28%, transparent);
+  border-color: var(--star);
+}
+
+.canvasBtn:active {
+  transform: scale(0.97);
 }

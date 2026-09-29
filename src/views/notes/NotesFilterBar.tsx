@@ -30,6 +30,7 @@ const STATUSES: [StatusFilter, string][] = [
   ['webpages', 'Has web pages'],
   ['linked', 'Linked'],
   ['orphan', 'Orphan'],
+  ['untagged', 'Untagged'],
 ]
 
 function toggle<T>(arr: T[], v: T): T[] {

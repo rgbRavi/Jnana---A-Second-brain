@@ -23,6 +23,15 @@
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
 }
 
+/* Part of a multi-selection (Ctrl/Cmd-click). Ring rather than a fill, so the
+   card's own content keeps its contrast. */
+.noteCardSelected,
+.noteCardSelected:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-md);
+  background: var(--surface-selected);
+}
+
 .noteCardHeader {
   display: flex;
   justify-content: space-between;
@@ -117,7 +126,9 @@
 .noteCardFavOn {
   opacity: 1 !important;
   color: var(--accent) !important;
-  filter: drop-shadow(0 0 4px var(--accent-alpha));
+  /* --accent-alpha was never defined, which invalidated the whole declaration
+     and silently dropped the glow. */
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 45%, transparent));
 }
 
 /* ── Meta row (media chips · tags · updated) ─────── */

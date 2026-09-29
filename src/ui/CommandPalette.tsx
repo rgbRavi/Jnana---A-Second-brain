@@ -12,6 +12,7 @@ import { workspaceColor } from '../core/workspaces'
 import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWorkingLayout'
 import { listNoteTypes, noteSearchText, subscribeNoteTypes, getNoteTypesVersion } from '../lib/noteTypes'
 import { listCommands, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
+import { isRailHidden, toggleRailHidden } from './rail/RightRail'
 import styles from './CommandPalette.module.css'
 
 // Intuitive, non-intrusive: ⇧ + the palette-style modifier + E ("Editor desk").
@@ -139,6 +140,18 @@ export function CommandPalette() {
       { key: 'cmd:ai', icon: '🤖', label: 'Open AI Chat', run: () => goto('/ai') },
       { key: 'cmd:settings', icon: '⚙️', label: 'Open Settings', run: () => goto('/settings') },
       { key: 'cmd:trash', icon: '🗑️', label: 'Open Trash', run: () => goto('/trash') },
+      // The rail's hide button removes its own UI, so the way back has to live
+      // somewhere that is always reachable.
+      {
+        key: 'cmd:rail',
+        icon: '📐',
+        label: isRailHidden() ? 'Show the right rail' : 'Hide the right rail',
+        hint: 'Tools panel',
+        run: () => {
+          toggleRailHidden()
+          close()
+        },
+      },
       // Commands contributed by plugins via ctx.ui.registerCommand.
       ...listCommands().map((c) => ({
         key: `plugincmd:${c.id}`,

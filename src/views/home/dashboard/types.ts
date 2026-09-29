@@ -5,6 +5,8 @@
 // via react-grid-layout: each widget has a grid position+size (x,y,w,h) the user
 // can drag to move and drag any edge/corner to resize; the grid auto-compacts.
 
+import type { SuggestionSource } from '../../../core/graph/suggestedLinks'
+
 export type SectionId =
   | 'quickActions'
   | 'dailySummary'
@@ -61,9 +63,12 @@ export interface DashboardLayout {
 export interface DashboardPrefs {
   layouts: DashboardLayout[]
   activeLayoutId: string
+  /** Where "Suggested links" comes from — see core/graph/suggestedLinks. */
+  suggestSource: SuggestionSource
 }
 
 export const DEFAULT_LAYOUT_ID = 'default'
+export const DEFAULT_SUGGEST_SOURCE: SuggestionSource = 'tags'
 
 /** Sensible default heights (grid rows) per widget. */
 const DEFAULT_H: Record<SectionId, number> = {

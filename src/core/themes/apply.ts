@@ -120,6 +120,8 @@ export function applyVars(el: HTMLElement | null, theme: Theme): void {
   }
   for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v)
   el.dataset.base = theme.base
+  // main.css maps this to the --fx-* effect vars (solid when off).
+  el.dataset.glass = theme.glassEffects ? 'on' : 'off'
 }
 
 // ─── WCAG contrast ──────────────────────────────────────────────────────────

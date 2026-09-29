@@ -73,6 +73,19 @@
 
 .version { font-size: 12px; color: var(--text-3); }
 
+/* The sandboxed runtime is the one users should prefer, so it reads as a small
+   reassurance (success colour) rather than another neutral tag. */
+.sandboxTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
 .cardMeta {
   margin-top: 4px;
   font-size: 12.5px;
@@ -209,7 +222,7 @@
   flex-shrink: 0;
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .log_info span { color: var(--text-1); }
 .log_warn span { color: var(--warning); }
@@ -273,7 +286,7 @@
   color: var(--text-2);
 }
 .emptyIcon { color: var(--text-3); }
-.empty h3 { color: var(--text-1); font-size: 1.05rem; margin: 0; }
+.empty h3 { color: var(--text-1); font-size: 1.125rem; margin: 0; }
 .empty p { font-size: 0.88rem; line-height: 1.55; margin: 0; }
 .empty code {
   font-family: var(--font-mono, monospace);
@@ -288,4 +301,224 @@
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+/* A plugin's own settings, rendered by the app from the fields it declared. It
+   sits inside .cardMain, so the row's controls stay top-aligned beside it. */
+.card:has(.settingsPane) { align-items: flex-start; }
+
+.settingsPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border);
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.settingsLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-1);
+  font-size: 0.85rem;
+}
+
+.settingsControl {
+  flex-shrink: 0;
+  min-width: 160px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settingsInput {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.settingsInput:focus-visible { border-color: var(--border-strong); }
+
+/* Counters for what a plugin has actually done this session. */
+.activity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  color: var(--text-3);
+}
+
+/* Search over the installed list. */
+.searchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 8px 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.searchInput::-webkit-search-cancel-button { display: none; }
+.searchInput:focus-visible { border-color: var(--border-strong); }
+
+.searchClear {
+  position: absolute;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.searchClear:hover { background: var(--surface-hover); color: var(--text-1); }
+
+/* Per-permission switches on an installed plugin's card. Deliberately the same
+   row + switch idiom as its settings below, so it reads as something you operate
+   rather than another status badge. */
+.permissionPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border);
+}
+
+/* The "sandboxed plugins only" policy, above the list. */
+.policyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.blocked { color: var(--warning); }
+
+/* Count of available updates, on the sub-nav. */
+.navCount {
+  min-width: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.68rem;
+  line-height: 17px;
+  text-align: center;
+}
+
+/* A command's keyboard shortcut: reads as the key it is, and as a button you can
+   press to change it. */
+.chordBtn {
+  min-width: 5.5rem;
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+.chordBtn:hover { background: var(--surface-hover); border-color: var(--border-hover); }
+
+/* Installed list: type filter + sort, then one block per group. */
+.filterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.segment {
+  padding: var(--space-3xs) var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.segment:hover { background: var(--surface-hover); color: var(--text-1); }
+
+.segmentActive {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.segmentCount {
+  margin-left: var(--space-3xs);
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Sits beside the Sandboxed badge; same shape, different meaning, so it reads as
+   a sibling label rather than a second security claim. */
+.typeTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px var(--space-3xs);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

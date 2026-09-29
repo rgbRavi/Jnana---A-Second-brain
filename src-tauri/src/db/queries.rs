@@ -114,6 +114,24 @@ pub fn trash_note(conn: &Connection, id: &str, at: i64) -> Result<()> {
     Ok(())
 }
 
+/// Convert a *blank* note to another note type (e.g. a plain note → canvas),
+/// replacing its content with the type's starter content. Guarded to blank notes
+/// so a conversion can never discard writing. Returns whether a row changed.
+pub fn convert_blank_note_kind(
+    conn: &Connection,
+    id: &str,
+    kind: Option<&str>,
+    content: &str,
+    at: i64,
+) -> Result<bool> {
+    let n = conn.execute(
+        "UPDATE notes SET kind = ?2, content = ?3, updated_at = ?4
+         WHERE id = ?1 AND TRIM(content) = ''",
+        params![id, kind, content, at],
+    )?;
+    Ok(n > 0)
+}
+
 /// Restore a trashed note (clears deleted_at).
 pub fn restore_note(conn: &Connection, id: &str) -> Result<()> {
     conn.execute("UPDATE notes SET deleted_at = NULL WHERE id = ?1", params![id])?;
@@ -186,11 +204,18 @@ pub fn sync_links_for_note(
 
     let tx = conn.transaction()?;
 
-    // Resolve wikilink titles → note ids (skipping self-links).
+    // Resolve wikilink titles → note ids (skipping self-links). Only live notes in
+    // the linking note's own vault are candidates — vaults are separate worlds, so
+    // a same-titled note elsewhere (or in Trash) never becomes a link target.
     let mut target_ids: HashSet<String> = HashSet::new();
     {
-        let mut stmt = tx.prepare("SELECT id, title FROM notes")?;
-        let rows = stmt.query_map([], |row| {
+        let mut stmt = tx.prepare(
+            "SELECT id, title FROM notes
+             WHERE deleted_at IS NULL
+               AND COALESCE(vault_id, 'vault-default') =
+                   (SELECT COALESCE(vault_id, 'vault-default') FROM notes WHERE id = ?1)",
+        )?;
+        let rows = stmt.query_map(params![note_id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;
         for row in rows {
@@ -855,6 +880,36 @@ pub fn plugin_kv_list(conn: &Connection, plugin_id: &str) -> Result<Vec<(String,
     rows.collect()
 }
 
+/// Set or clear a note's `kind` (`None` makes it an ordinary markdown note).
+pub fn set_note_kind(conn: &Connection, note_id: &str, kind: Option<&str>, at: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE notes SET kind = ?2, updated_at = ?3 WHERE id = ?1",
+        params![note_id, kind, at],
+    )?;
+    Ok(())
+}
+
+/// Bytes one plugin currently occupies in `plugin_kv` (keys + values).
+pub fn plugin_kv_bytes(conn: &Connection, plugin_id: &str) -> Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(length(key) + length(value)), 0) FROM plugin_kv WHERE plugin_id = ?1",
+        params![plugin_id],
+        |row| row.get(0),
+    )
+}
+
+/// Every plugin id that has stored something, with its key count and size. Used to
+/// find rows whose plugin is no longer installed — data that would otherwise sit in
+/// the DB (and every backup) with nothing in the UI able to reach it.
+pub fn plugin_kv_owners(conn: &Connection) -> Result<Vec<(String, i64, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT plugin_id, count(*), COALESCE(SUM(length(key) + length(value)), 0)
+         FROM plugin_kv GROUP BY plugin_id ORDER BY plugin_id",
+    )?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    rows.collect()
+}
+
 /// Drop all of a plugin's stored keys (the manager's "Clear data" action).
 pub fn plugin_kv_clear(conn: &Connection, plugin_id: &str) -> Result<()> {
     conn.execute("DELETE FROM plugin_kv WHERE plugin_id = ?1", params![plugin_id])?;
@@ -989,6 +1044,9 @@ pub fn insert_media_ref(
 /// Most-recently imported media, joined to its note title. Scoped to `vault_id`
 /// when given (a media's vault is its note's vault) so the dashboard's "recent
 /// imports" follows the active vault; `None` returns across all vaults.
+/// Recently imported media still referenced by a live note. Trashed notes and
+/// refs whose embed has been deleted from the content are left out — see
+/// `fetch_media_types` for why the rows themselves aren't deleted.
 pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Result<Vec<RecentMediaRow>> {
     let map_row = |row: &rusqlite::Row| {
         Ok(RecentMediaRow {
@@ -1005,6 +1063,8 @@ pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Re
                 "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
                  FROM media_refs m JOIN notes n ON n.id = m.note_id
                  WHERE n.vault_id = ?2
+                   AND n.deleted_at IS NULL
+                   AND instr(n.content, m.path) > 0
                  ORDER BY m.created_at DESC, m.rowid DESC
                  LIMIT ?1",
             )?;
@@ -1015,6 +1075,8 @@ pub fn recent_media(conn: &Connection, limit: i64, vault_id: Option<&str>) -> Re
             let mut stmt = conn.prepare(
                 "SELECT m.path, m.media_type, m.note_id, n.title, m.created_at
                  FROM media_refs m JOIN notes n ON n.id = m.note_id
+                 WHERE n.deleted_at IS NULL
+                   AND instr(n.content, m.path) > 0
                  ORDER BY m.created_at DESC, m.rowid DESC
                  LIMIT ?1",
             )?;
@@ -1030,10 +1092,45 @@ pub fn fetch_media_refs(conn: &Connection, note_id: &str) -> Result<Vec<String>>
     rows.collect()
 }
 
-pub fn fetch_media_types(conn: &Connection, note_id: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT DISTINCT media_type FROM media_refs WHERE note_id = ?1")?;
-    let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
-    rows.collect()
+/// Media types a note still embeds. Filtered by content, not just by the
+/// media_refs rows: a row survives the embed being deleted from the note (it
+/// anchors annotations via an ON DELETE CASCADE foreign key, so removing it
+/// would take the user's annotations with it), and a stale row would keep
+/// `has:image` and friends on a note whose media is long gone.
+pub fn fetch_media_types(
+    conn: &Connection,
+    note_id: &str,
+    content: Option<&str>,
+) -> Result<Vec<String>> {
+    // `content` is the caller's live text, for the common case of re-tagging a
+    // note that hasn't been saved yet — the stored copy would still show media
+    // the user just deleted. Falls back to the stored content when absent.
+    match content {
+        Some(text) => {
+            let mut stmt =
+                conn.prepare("SELECT DISTINCT media_type, path FROM media_refs WHERE note_id = ?1")?;
+            let rows = stmt.query_map(params![note_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            let mut types: Vec<String> = Vec::new();
+            for row in rows {
+                let (media_type, path) = row?;
+                if text.contains(&path) && !types.contains(&media_type) {
+                    types.push(media_type);
+                }
+            }
+            Ok(types)
+        }
+        None => {
+            let mut stmt = conn.prepare(
+                "SELECT DISTINCT m.media_type
+                   FROM media_refs m JOIN notes n ON n.id = m.note_id
+                  WHERE m.note_id = ?1 AND instr(n.content, m.path) > 0",
+            )?;
+            let rows = stmt.query_map(params![note_id], |row| row.get(0))?;
+            rows.collect()
+        }
+    }
 }
 
 // ─── Note reading progress ──────────────────────────────
@@ -1218,13 +1315,20 @@ fn blob_to_vector(bytes: &[u8]) -> Vec<f32> {
 
 /// Replace every embedding for a note in a single transaction.
 /// Re-indexing a note deletes its stale chunks first, then inserts the new set.
+/// Write a note's embeddings. `replace` clears the note's existing rows first;
+/// pass false to append a later slice of the same pass — a long note's chunks
+/// arrive across several calls, because one JSON payload carrying every vector
+/// exceeds what the IPC layer will move in one piece.
 pub fn replace_embeddings_for_note(
     conn: &mut Connection,
     note_id: &str,
     rows: &[EmbeddingRow],
+    replace: bool,
 ) -> Result<()> {
     let tx = conn.transaction()?;
-    tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    if replace {
+        tx.execute("DELETE FROM embeddings WHERE note_id = ?1", params![note_id])?;
+    }
     for row in rows {
         let blob = vector_to_blob(&row.vector);
         tx.execute(
@@ -1462,6 +1566,49 @@ mod tests {
     }
 
     #[test]
+    fn media_refs_stop_counting_once_their_embed_is_gone() {
+        let conn = setup_db();
+        // n1 still embeds the image; n2's embed was deleted from the content but
+        // its media_refs row survives (annotations cascade off it).
+        conn.execute(
+            "INSERT INTO notes (id, title, content, tags, vault_id, deleted_at, created_at, updated_at)
+             VALUES ('n1', 'Kept',    '![image](jnana-asset://keep.png)', '[]', 'vault-default', NULL, 1, 1),
+                    ('n2', 'Removed', 'just text now',                   '[]', 'vault-default', NULL, 1, 1),
+                    ('n3', 'Trashed', '![image](jnana-asset://trash.png)','[]', 'vault-default', 9,    1, 1)",
+            [],
+        )
+        .unwrap();
+        for (id, note, path) in [
+            ("keep.png", "n1", "keep.png"),
+            ("gone.png", "n2", "gone.png"),
+            ("trash.png", "n3", "trash.png"),
+        ] {
+            conn.execute(
+                "INSERT INTO media_refs (id, note_id, media_type, path, meta, created_at)
+                 VALUES (?1, ?2, 'image', ?3, '{}', 1)",
+                params![id, note, path],
+            )
+            .unwrap();
+        }
+
+        // Auto-tags: only the note whose content still references the file.
+        assert_eq!(fetch_media_types(&conn, "n1", None).unwrap(), vec!["image"]);
+        assert!(fetch_media_types(&conn, "n2", None).unwrap().is_empty());
+
+        // With caller-supplied content (the unsaved edit), the stored text is ignored.
+        assert!(fetch_media_types(&conn, "n1", Some("embed deleted")).unwrap().is_empty());
+        assert_eq!(
+            fetch_media_types(&conn, "n2", Some("![image](jnana-asset://gone.png)")).unwrap(),
+            vec!["image"]
+        );
+
+        // Recent imports: live, still-referenced media only.
+        let recent = recent_media(&conn, 10, Some("vault-default")).unwrap();
+        let paths: Vec<String> = recent.into_iter().map(|r| r.filename).collect();
+        assert_eq!(paths, vec!["keep.png"]);
+    }
+
+    #[test]
     fn index_stats_are_scoped_to_one_vault() {
         let conn = setup_db();
         conn.execute(
@@ -1556,6 +1703,36 @@ mod tests {
     }
 
     #[test]
+    fn convert_blank_note_kind_only_touches_blank_notes() {
+        let conn = setup_db();
+        let mut note = NoteRow {
+            id: "blank".to_string(),
+            title: "".to_string(),
+            content: "  ".to_string(),
+            tags: "[]".to_string(),
+            created_at: 1,
+            updated_at: 1,
+            folder_id: None,
+            vault_id: None,
+            kind: None,
+        };
+        insert_or_update_note(&conn, &note).unwrap();
+        note.id = "written".to_string();
+        note.content = "keep me".to_string();
+        insert_or_update_note(&conn, &note).unwrap();
+
+        assert!(convert_blank_note_kind(&conn, "blank", Some("canvas"), "{}", 2).unwrap());
+        let blank = fetch_note(&conn, "blank").unwrap();
+        assert_eq!(blank.kind.as_deref(), Some("canvas"));
+        assert_eq!(blank.content, "{}");
+
+        assert!(!convert_blank_note_kind(&conn, "written", Some("canvas"), "{}", 2).unwrap());
+        let written = fetch_note(&conn, "written").unwrap();
+        assert_eq!(written.kind, None);
+        assert_eq!(written.content, "keep me");
+    }
+
+    #[test]
     fn test_sync_links_for_note() {
         let mut conn = setup_db();
         
@@ -1585,6 +1762,31 @@ mod tests {
 
         let links = fetch_links_for_note(&conn, "1").unwrap();
         assert_eq!(links, vec!["3".to_string()]);
+    }
+
+    #[test]
+    fn sync_links_resolves_only_live_notes_in_the_same_vault() {
+        let mut conn = setup_db();
+        conn.execute(
+            "INSERT INTO vaults (id, name, created_at, updated_at) VALUES ('v2', 'Second', 1, 1)",
+            [],
+        )
+        .unwrap();
+        let row = |id: &str, title: &str, vault: Option<&str>| NoteRow {
+            id: id.to_string(), title: title.to_string(), content: "".to_string(), tags: "[]".to_string(),
+            created_at: 0, updated_at: 0, folder_id: None, vault_id: vault.map(str::to_string), kind: None,
+        };
+        insert_or_update_note(&conn, &row("src", "Source", None)).unwrap();
+        insert_or_update_note(&conn, &row("other-vault", "Target", Some("v2"))).unwrap();
+        insert_or_update_note(&conn, &row("trashed", "Target", None)).unwrap();
+        trash_note(&conn, "trashed", 5).unwrap();
+
+        let (added, _) = sync_links_for_note(&mut conn, "src", &vec!["target".to_string()]).unwrap();
+        assert!(added.is_empty(), "no live same-vault note is titled Target");
+
+        insert_or_update_note(&conn, &row("same-vault", "Target", None)).unwrap();
+        let (added, _) = sync_links_for_note(&mut conn, "src", &vec!["target".to_string()]).unwrap();
+        assert_eq!(added, vec!["same-vault".to_string()]);
     }
 
     #[test]

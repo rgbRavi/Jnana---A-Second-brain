@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke, convertFileSrc } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import type { Note, NoteProgress } from '../types'
 import { eventBus } from '../lib/eventBus'
 
@@ -17,6 +17,15 @@ export async function saveNote(note: Note): Promise<Note> {
   const saved = await invoke<Note>('save_note', { note })
   eventBus.emit('note:saved', saved)
   return saved
+}
+
+/**
+ * Set or clear a note's `kind`. A plain save never touches `kind`, so this is the
+ * only way to un-type a note — used to rescue a typed note whose plugin is gone,
+ * turning it back into ordinary markdown the app can always read.
+ */
+export async function setNoteKind(noteId: string, kind: string | null): Promise<void> {
+  await invoke<void>('set_note_kind', { noteId, kind })
 }
 
 export async function deleteNote(id: string): Promise<void> {
@@ -37,9 +46,19 @@ export async function trashNote(id: string): Promise<void> {
   eventBus.emit('note:deleted', { id })
 }
 
+/** Convert a blank note to another note type (e.g. canvas) with its starter
+ *  content. Resolves `false` (and changes nothing) if the note isn't blank. */
+export async function convertNoteKind(id: string, kind: string | null, content: string): Promise<boolean> {
+  const ok = await invoke<boolean>('convert_note_kind', { id, kind, content })
+  if (ok) eventBus.emit('note:kind-changed', { noteId: id, kind, content })
+  return ok
+}
+
 /** Restore a trashed note; returns the full note so callers can re-surface it. */
 export async function restoreNote(id: string): Promise<Note> {
-  return invoke<Note>('restore_note', { id })
+  const note = await invoke<Note>('restore_note', { id })
+  eventBus.emit('note:restored', { id })
+  return note
 }
 
 /** Trashed notes in one vault (Trash is vault-scoped, like the rest of the app). */
@@ -75,8 +94,28 @@ export async function removeLink(fromId: string, toId: string): Promise<void> {
   eventBus.emit('link:removed', { fromId, toId })
 }
 
+/**
+ * Store raw bytes as an asset; returns the stored filename.
+ *
+ * Sent as a **raw IPC body**, not as a `{ bytes }` argument. Tauri encodes
+ * command arguments as JSON, so a byte array would be serialized one number at
+ * a time — `Array.from()` on a 50 MB video builds a 50-million-element JS array
+ * and hundreds of megabytes of JSON, which freezes the webview. A raw body is
+ * transferred as bytes. The extension travels in a header because the body slot
+ * is taken by the payload.
+ */
 export async function uploadAsset(bytes: Uint8Array, extension: string): Promise<string> {
-  return invoke<string>('save_asset', { bytes: Array.from(bytes), extension })
+  return invoke<string>('save_asset', bytes, { headers: { 'x-extension': extension } })
+}
+
+/**
+ * Write bytes to a temp file and return its path. Staging step for a pasted
+ * document: the document import pipeline takes paths (conversion, extraction,
+ * `external://` chips), so this lets a paste reuse it unchanged. Same raw-body
+ * transport as `uploadAsset` — see the note there.
+ */
+export async function saveTempFile(bytes: Uint8Array, extension: string): Promise<string> {
+  return invoke<string>('save_temp_file', bytes, { headers: { 'x-extension': extension } })
 }
 
 
@@ -102,9 +141,18 @@ export async function getAssetDataUrl(filename: string, mime: string): Promise<s
   })
 }
 
-export async function getAssetUrl(filename: string): Promise<string> {
-  const absPath = await invoke<string>('get_asset_path', { filename })
-  return convertFileSrc(absPath)
+/**
+ * URL for a stored asset, served by the app's own `jnana-asset` scheme handler
+ * (registered in `main.rs`).
+ *
+ * This exact origin is the one the WebView's CSP allows — see `img-src` /
+ * `media-src` in tauri.conf.json, pinned by assetUrl.test.ts. Tauri's
+ * `convertFileSrc` is **not** interchangeable here: it builds an `asset.localhost`
+ * URL, which the policy does not list, so the browser refuses the request and the
+ * image simply never appears. Nothing throws, so a wrong URL here fails silently.
+ */
+export function assetUrl(filename: string): string {
+  return `http://jnana-asset.localhost/${encodeURIComponent(filename)}`
 }
 
 export function createNote(title: string = 'Untitled'): Note {
@@ -142,11 +190,13 @@ export async function getFavouriteNoteIds(): Promise<string[]> {
 }
 
 export async function addFavourite(noteId: string): Promise<void> {
-  return invoke<void>('add_favourite', { noteId })
+  await invoke<void>('add_favourite', { noteId })
+  eventBus.emit('note:favourited', { noteId, on: true })
 }
 
 export async function removeFavourite(noteId: string): Promise<void> {
-  return invoke<void>('remove_favourite', { noteId })
+  await invoke<void>('remove_favourite', { noteId })
+  eventBus.emit('note:favourited', { noteId, on: false })
 }
 
 /** Persist how far through a note the user has read (0..1). */

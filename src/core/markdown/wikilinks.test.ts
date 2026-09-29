@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  renameWikilinks,
   detectWikilinkContext,
   extractWikilinkTitles,
   normalizeTitle,
@@ -71,5 +72,28 @@ describe('detectWikilinkContext', () => {
 
   it('returns null with no open bracket', () => {
     expect(detectWikilinkContext('plain text', 10)).toBeNull()
+  })
+})
+
+describe('resolveNoteByTitle vault scope', () => {
+  const notes = [
+    { id: 'x', title: 'Shared', vaultId: 'v2' },
+    { id: 'y', title: 'Shared', vaultId: null },
+  ]
+  it('matches only the given vault (null = default vault)', () => {
+    expect(resolveNoteByTitle('shared', notes, 'vault-default')?.id).toBe('y')
+    expect(resolveNoteByTitle('shared', notes, 'v2')?.id).toBe('x')
+    expect(resolveNoteByTitle('shared', notes, 'v3')).toBeUndefined()
+  })
+})
+
+describe('renameWikilinks', () => {
+  it('rewrites matching links case-insensitively and leaves others alone', () => {
+    expect(renameWikilinks('see [[ old title ]], [[Old Title]] and [[Other]]', 'Old title', 'New')).toBe(
+      'see [[New]], [[New]] and [[Other]]',
+    )
+  })
+  it('is a no-op for an empty source title', () => {
+    expect(renameWikilinks('[[]] [[a]]', '  ', 'b')).toBe('[[]] [[a]]')
   })
 })

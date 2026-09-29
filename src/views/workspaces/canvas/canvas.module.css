@@ -94,6 +94,37 @@
   line-height: 1.45;
 }
 
+/* Resting text card: same box as the textarea, but lets drags pass through
+   everywhere except the wikilinks. */
+.nodeTextView {
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.nodeTextPlaceholder {
+  color: var(--text-3);
+}
+
+.wikilink {
+  pointer-events: auto;
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 2px;
+}
+
+.wikilink:hover {
+  text-decoration-color: var(--accent);
+}
+
 .notePreview {
   font-size: 0.8rem;
   color: var(--text-2);
@@ -790,4 +821,13 @@
   font-size: 0.875rem;
   text-align: center;
   padding: var(--space-xl) 0;
+}
+
+/* Read-only preview text card: clamp like the plain label, but keep the
+   [[links]] clickable (the card itself stays non-interactive). */
+.staticText {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
 }

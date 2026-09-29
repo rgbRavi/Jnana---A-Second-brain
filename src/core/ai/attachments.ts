@@ -11,7 +11,8 @@
 //   audio   → transcript (existing transcription backend)
 
 import { open } from '@tauri-apps/plugin-dialog'
-import { importFile, getAssetDataUrl, getLinks } from '../notes'
+import { importFile, getLinks, uploadAsset } from '../notes'
+import { loadImageForVision } from '../media/visionImages'
 import { extractText, getAssetPath } from '../media'
 import { transcribeAudio } from './rag'
 import { isVisionModel } from './capabilities'
@@ -65,28 +66,43 @@ function kindFor(ext: string): AttachmentKind {
 }
 
 const mimeFor = (ext: string) => MIME[ext] ?? 'application/octet-stream'
+const extForMime = (mime: string) => Object.keys(MIME).find((k) => MIME[k] === mime) ?? ''
 
 /** Open the native file picker and import the chosen files into the assets dir. */
 export async function pickAttachments(): Promise<ChatAttachment[]> {
   const selected = await open({
     multiple: true,
+    // The first filter is the one the OS dialog starts on — a documents-only
+    // filter there hid every image, so lead with everything we can use.
     filters: [
-      { name: 'Documents', extensions: DOC_EXTS },
+      { name: 'Supported files', extensions: [...IMAGE_EXTS, ...DOC_EXTS, ...AUDIO_EXTS] },
       { name: 'Images', extensions: IMAGE_EXTS },
+      { name: 'Documents', extensions: DOC_EXTS },
       { name: 'Audio', extensions: AUDIO_EXTS },
       { name: 'All files', extensions: ['*'] },
     ],
   })
   if (!selected) return []
   const paths = Array.isArray(selected) ? selected : [selected]
-
   const out: ChatAttachment[] = []
-  for (const p of paths) {
-    const filename = await importFile(p)
-    const ext = extOf(p)
-    out.push({ id: filename, filename, name: baseOf(p), ext, mime: mimeFor(ext), kind: kindFor(ext) })
-  }
+  for (const p of paths) out.push(await attachmentFromPath(p))
   return out
+}
+
+/** A file on disk (picked or dropped) → copied into assets as an attachment. */
+export async function attachmentFromPath(path: string): Promise<ChatAttachment> {
+  const filename = await importFile(path)
+  const ext = extOf(path)
+  return { id: filename, filename, name: baseOf(path), ext, mime: mimeFor(ext), kind: kindFor(ext) }
+}
+
+/** A pasted file (e.g. a clipboard screenshot) → uploaded into assets as an
+ *  attachment. Bytes go over the raw IPC body (uploadAsset), never as JSON. */
+export async function attachmentFromFile(file: File): Promise<ChatAttachment> {
+  const ext = extOf(file.name) || extForMime(file.type) || 'bin'
+  const filename = await uploadAsset(new Uint8Array(await file.arrayBuffer()), ext)
+  const name = file.name && file.name !== 'image.png' ? file.name : `Pasted image.${ext}`
+  return { id: filename, filename, name, ext, mime: file.type || mimeFor(ext), kind: kindFor(ext) }
 }
 
 /** Build a note attachment, detecting whether the note has a thread (linked
@@ -130,8 +146,16 @@ export async function buildUserTurn(
   for (const a of attachments) {
     try {
       if (a.kind === 'image' && a.filename) {
-        if (vision) images.push(await getAssetDataUrl(a.filename, a.mime ?? 'image/png'))
-        else warnings.push(`"${a.name}" is an image, but ${model || 'this model'} has no vision — skipped.`)
+        if (!vision) {
+          warnings.push(
+            `"${a.name}" wasn't sent: ${model || 'this model'} isn't set to receive images. If it supports them, turn on Attach → "Send images to this model".`,
+          )
+          continue
+        }
+        // Loaded over the asset host and downscaled (not bytes-over-IPC).
+        const url = await loadImageForVision(a.filename)
+        if (url) images.push(url)
+        else warnings.push(`"${a.name}" couldn't be read as an image — skipped.`)
       } else if (a.kind === 'document' && a.filename) {
         const path = await getAssetPath(a.filename)
         const txt = (await extractText(path)).trim()

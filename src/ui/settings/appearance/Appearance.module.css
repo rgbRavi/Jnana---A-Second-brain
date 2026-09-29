@@ -613,3 +613,25 @@
   color: var(--danger);
   background: var(--surface-hover);
 }
+
+/* Wallpaper picker: the preview is the control's real feedback — a filename tells
+   you nothing about whether text will be readable over it. */
+.wallpaperPreview {
+  height: 108px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-size: cover;
+  background-position: center;
+}
+
+.wallpaperActions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.wallpaperActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+}

@@ -13,9 +13,9 @@ import {
 } from 'react'
 import { Check, Link2, Maximize2, Minimize2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
-import { openUrl, openPath } from '@tauri-apps/plugin-opener'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
-import { importMedia, getAssetPath } from '../../../core/media'
+import { importMedia, openAssetFile } from '../../../core/media'
 import { uploadAsset } from '../../../core/notes'
 import {
   newId, bringToFront, bringForward, sendBackward, sendToBack, eraseAt,
@@ -38,6 +38,9 @@ import { nodesInMarquee, rectFromPoints, nodeRect, type Rect } from './canvasSel
 import { extractFragment, cloneFragment, type CanvasFragment } from './canvasClipboard'
 import { snapDrag } from './canvasSnap'
 import { deriveWikilinkEdges } from './canvasWikilinkEdges'
+import { resolveNoteByTitle } from '../../../core/markdown/wikilinks'
+import { getActiveVaultId } from '../../../hooks/useVaults'
+import { eventBus } from '../../../lib/eventBus'
 import { renderCanvasToPng } from './canvasExport'
 import { savePngFile } from '../../../core/savePng'
 import styles from './canvas.module.css'
@@ -363,6 +366,16 @@ export function CanvasBoardCore({
   )
 
   const onChangeText = useCallback((id: string, text: string) => updateNode(id, { text }), [updateNode])
+  // A [[title]] clicked in a text card: peek the note, or create a missing one
+  // (same wikilink:create flow as the editor). Ref-read keeps the callback
+  // stable so memoized node views don't re-render on every notes change.
+  const allNotesRef = useRef(allNotes)
+  allNotesRef.current = allNotes
+  const onOpenWikilink = useCallback((title: string) => {
+    const target = resolveNoteByTitle(title, allNotesRef.current, getActiveVaultId())
+    if (target) setOpenNote(target)
+    else eventBus.emit('wikilink:create', { title })
+  }, [])
 
   // ── Multi-node ops (all undoable, one step each) ──
   const removeSelected = useCallback(() => {
@@ -623,7 +636,7 @@ export function CanvasBoardCore({
   const openNodeExternally = useCallback(async (node: CanvasNode) => {
     try {
       if (node.type === 'link' && node.url) await openUrl(node.url)
-      else if (node.type === 'media' && node.file) await openPath(await getAssetPath(node.file))
+      else if (node.type === 'media' && node.file) await openAssetFile(node.file)
     } catch (err) {
       toast.error('Could not open: ' + String(err))
     }
@@ -1012,6 +1025,7 @@ export function CanvasBoardCore({
       note={n.noteId ? noteMap.get(n.noteId) : undefined}
       onOpenNote={setOpenNote}
       onChangeText={onChangeText}
+      onOpenWikilink={onOpenWikilink}
     />
   )
 

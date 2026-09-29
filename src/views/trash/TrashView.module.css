@@ -11,7 +11,29 @@
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
+/* Sits before the title, so the row reads "← Trash". `margin-right: auto`
+   keeps "Empty Trash" pinned to the far end. */
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+}
+.backBtn:hover {
+  color: var(--text-1);
+  border-color: var(--accent);
+}
+
 .title {
+  margin-right: auto;
   font-size: 1.375rem;
   font-weight: 600;
   color: var(--text-1);
@@ -72,4 +94,57 @@
 }
 .btnDanger:hover {
   border-color: var(--danger);
+}
+
+/* Square, for the icon-only view button. */
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 0.35rem 0;
+  color: var(--text-2);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn:disabled:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+/* ── Multi-select ─────────────────────────────────────────────────────────── */
+.selectBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  padding: 0 0.8rem;
+  min-height: 32px;
+}
+
+.selectAll {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  margin-right: auto;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.rowSelected {
+  border-color: var(--accent);
+  background: var(--surface-selected);
 }
