@@ -22,6 +22,8 @@ export type WorkerToHost =
   | { k: 'rpc'; id: number; ns: string; fn: string; args: unknown[] }
   /** Contribute a command-palette entry. */
   | { k: 'command'; id: string; label: string; icon?: string; hint?: string; hotkey?: string }
+  /** Put a button / menu item into one of Jnana's UI slots (see lib/pluginActions.ts). */
+  | { k: 'uiAction'; id: string; slot: string; label: string; icon?: string }
   /** Declare (or replace) a right-rail panel as data — a worker can't render, so
    *  it describes the panel and the host draws it. */
   | { k: 'panel'; id: string; title: string; blocks: unknown }
@@ -56,6 +58,8 @@ export type HostToWorker =
   | { k: 'rpcResult'; id: number; ok: false; error: string }
   /** Run a command this worker registered. */
   | { k: 'run'; commandId: string }
+  /** The user clicked an action this worker registered. */
+  | { k: 'runAction'; actionId: string; target: { noteId?: string } }
   /** The user changed this plugin's settings. */
   | { k: 'settingsChanged'; values: Record<string, unknown> }
   /** A button in one of this plugin's block panels was pressed. */

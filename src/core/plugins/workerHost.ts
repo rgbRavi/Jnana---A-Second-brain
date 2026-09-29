@@ -21,6 +21,7 @@ const BOOTSTRAP = `
 const PLUGIN_URL = __PLUGIN_URL__;
 const subs = new Map();
 const commands = new Map();
+const actions = new Map();
 const panels = new Map();
 const fences = new Map();
 const pending = new Map();
@@ -95,6 +96,10 @@ function buildContext(pluginId, granted) {
       registerFence(fence) {
         fences.set(fence.lang, fence.render);
         say({ k: 'fence', lang: fence.lang });
+      },
+      registerAction(action) {
+        actions.set(action.id, action.run);
+        say({ k: 'uiAction', id: action.id, slot: action.slot, label: action.label, icon: action.icon });
       },
       registerTheme(theme) {
         // Tokens are validated host-side; a worker can describe a theme but not
@@ -184,6 +189,10 @@ self.onmessage = (e) => {
         report(err);
       }
     }
+  } else if (m.k === 'runAction') {
+    // Promise-wrapped so an async run's rejection is reported like a sync throw.
+    const run = actions.get(m.actionId);
+    if (run) Promise.resolve().then(() => run(m.target || {})).catch(report);
   } else if (m.k === 'render') {
     const render = fences.get(m.lang);
     Promise.resolve()

@@ -2,6 +2,10 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect, afterEach, vi } from 'vitest'
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve(null)) }))
+
+import { pluginRegistry } from './pluginRegistry'
 import {
   sanitizeAction,
   registerPluginAction,
@@ -67,5 +71,17 @@ describe('plugin actions', () => {
     expect(listPluginActions('note.menu')).toHaveLength(0)
     runPluginAction(stale, {})
     expect(run).not.toHaveBeenCalled()
+  })
+})
+
+describe('ctx.ui.registerAction (main thread)', () => {
+  it('registers under the plugin and is torn down with it', () => {
+    pluginRegistry.register(
+      { id: 'p.main', name: 'Main', version: '1', init: (ctx) => ctx.ui.registerAction({ id: 'x', slot: 'sidebar', label: 'Hello', run: () => {} }) },
+      { grantedPermissions: [] },
+    )
+    expect(listPluginActions('sidebar').map((a) => a.pluginName)).toContain('Main')
+    pluginRegistry.unregister('p.main')
+    expect(listPluginActions('sidebar').some((a) => a.pluginId === 'p.main')).toBe(false)
   })
 })

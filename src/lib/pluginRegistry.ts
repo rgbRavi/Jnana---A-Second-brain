@@ -38,6 +38,7 @@ import { makePluginNotesApi } from '../core/plugins/notesApi'
 import { makePluginNet } from '../core/plugins/net'
 import { makePluginMediaApi } from '../core/plugins/mediaApi'
 import { createMotionApi, disposeMotion } from './motion/runtime'
+import { registerPluginAction, unregisterPluginActions, type PluginActionSlot } from './pluginActions'
 import {
   DESTROY_GRACE_MS,
   HEARTBEAT_MS,
@@ -181,6 +182,7 @@ class PluginRegistry {
       this.pluginContribs.delete(id)
     }
     unregisterSettings(id)
+    unregisterPluginActions(id)
     clearPluginAppearance(id)
     disposeMotion(id)
     resetPluginBudget(id)
@@ -356,6 +358,17 @@ class PluginRegistry {
             onAction: (actionId) => worker.postMessage({ k: 'action', panelId: m.id, actionId }),
           })
           if (!panelIds.includes(m.id)) panelIds.push(m.id)
+          return
+        }
+        case 'uiAction': {
+          // Declared as data, drawn by the host; the click goes back as a message.
+          registerPluginAction(meta.id, meta.name, {
+            id: m.id,
+            slot: m.slot as PluginActionSlot,
+            label: m.label,
+            icon: m.icon,
+            run: (target) => worker.postMessage({ k: 'runAction', actionId: m.id, target }),
+          })
           return
         }
         case 'fence': {
@@ -594,6 +607,10 @@ class PluginRegistry {
               return
             }
             if (!contribFences.includes(fence.lang)) contribFences.push(fence.lang)
+          },
+          registerAction: (action) => {
+            if (!chargePluginCall(plugin.id)) return
+            registerPluginAction(plugin.id, plugin.name, action)
           },
         },
       })

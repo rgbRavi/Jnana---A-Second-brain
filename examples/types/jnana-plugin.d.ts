@@ -282,6 +282,20 @@ declare namespace Jnana {
     run: () => void
   }
 
+  /** Where a plugin action appears. */
+  type PluginActionSlot = 'note.menu' | 'editor.toolbar' | 'sidebar'
+  interface PluginAction {
+    /** Unique within your plugin. Letters, digits, . : - _ */
+    id: string
+    slot: PluginActionSlot
+    /** Menu text / button tooltip / sidebar label. Trimmed to 40 characters. */
+    label: string
+    /** Emoji or 1–2 character glyph (default 🔌). */
+    icon?: string
+    /** `noteId` is set for note.menu and editor.toolbar. */
+    run(target: { noteId?: string }): void
+  }
+
   interface PluginUiApi {
     /** Main-thread runtime only — throws in a worker plugin. */
     registerWidget(widget: PluginWidget): void
@@ -294,6 +308,8 @@ declare namespace Jnana {
     registerBlockPanel(panel: PluginBlockPanel): void
     /** Both runtimes. */
     registerFence(fence: PluginFence): void
+    /** Both runtimes. At most 3 per slot. Registering the same id again replaces it. */
+    registerAction(action: PluginAction): void
     /** Both runtimes. Refused (with a Plugin Console warning) if no token parses. */
     registerTheme(theme: PluginTheme): void
     /** Both runtimes. `null` clears it. One backdrop at a time, app-wide. */

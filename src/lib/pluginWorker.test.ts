@@ -13,6 +13,7 @@ import { listCommands, getSettingsDefinition, listBlockPanels, getFence } from '
 import { getPluginBackground, listPluginThemes } from './pluginThemes'
 import { HEARTBEAT_MS, HEARTBEAT_MISSES, RENDER_TIMEOUT_MS } from './pluginWorkerProtocol'
 import { isPluginEnabled, setPluginEnabledState } from './pluginEnabled'
+import { listPluginActions, runPluginAction } from './pluginActions'
 import type { HostToWorker, WorkerLike, WorkerToHost } from './pluginWorkerProtocol'
 
 vi.mock('../core/plugins/storage', () => ({
@@ -358,5 +359,21 @@ describe('worker plugin runtime', () => {
     const before = w.sent.length
     eventBus.emit('workspace:changed', { id: 'w2' })
     expect(w.sent).toHaveLength(before)
+  })
+
+  it('draws a worker action in its slot and routes the click back with the target', () => {
+    const w = new FakeWorker()
+    pluginRegistry.registerWorker(meta(), w)
+
+    w.say({ k: 'uiAction', id: 'count', slot: 'note.menu', label: 'Word count', icon: '🔢' })
+    const item = listPluginActions('note.menu').find((a) => a.pluginId === 'com.test.worker')
+    expect(item?.label).toBe('Word count')
+    expect(item?.pluginName).toBe('Test Worker')
+
+    runPluginAction(item!, { noteId: 'n1' })
+    expect(w.sent).toContainEqual({ k: 'runAction', actionId: 'count', target: { noteId: 'n1' } })
+
+    pluginRegistry.unregister('com.test.worker')
+    expect(listPluginActions('note.menu').some((a) => a.pluginId === 'com.test.worker')).toBe(false)
   })
 })

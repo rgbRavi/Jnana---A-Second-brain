@@ -10,6 +10,9 @@ import type { PluginBus } from './eventBus'
 import type { NoteTypeDefinition } from './noteTypes'
 import type { PluginWidget, PluginCommand } from './pluginContributions'
 import type { MotionApi } from './motion/runtime'
+import type { PluginAction } from './pluginActions'
+
+export type { PluginAction, PluginActionSlot, PluginActionTarget } from './pluginActions'
 
 /** One row in a plugin's settings pane. */
 export interface PluginSettingField {
@@ -67,6 +70,13 @@ export interface PluginUiApi {
    * same reason as `registerBlockPanel`: the plugin returns data, not DOM.
    */
   registerFence: (fence: PluginFence) => void
+  /**
+   * Put a button or menu item into Jnana's own UI: the note right-click menu
+   * (`note.menu`), the editor pane header (`editor.toolbar`) or the sidebar
+   * (`sidebar`). You describe it; Jnana draws it and calls `run` with the note
+   * it was used on. At most 3 per slot. Works on both runtimes.
+   */
+  registerAction: (action: PluginAction) => void
   /**
    * Contribute a theme. It appears in Settings → Appearance next to the built-in
    * presets, and the user picks it like any other — a plugin never changes the
