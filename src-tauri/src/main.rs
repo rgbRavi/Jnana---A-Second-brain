@@ -311,6 +311,7 @@ fn main() {
             transcribe_audio,
             import_file,
             export_notes,
+            remove_export_files,
             write_text_file,
             write_binary_file,
             export_assets,

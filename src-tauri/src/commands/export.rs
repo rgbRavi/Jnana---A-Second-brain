@@ -15,6 +15,49 @@ pub struct ExportFile {
     pub content: String,
 }
 
+/// A plain file name that stays inside the target directory.
+fn is_flat_name(name: &str) -> bool {
+    !name.is_empty() && !name.contains(['/', '\\']) && !name.contains("..")
+}
+
+/// Copy referenced assets from `src_dir` into `out`. Asset names are UUIDs and
+/// never rewritten, so one already present is skipped: a live mirror re-exports
+/// on every save and must not re-copy a video each time.
+fn copy_assets(src_dir: &Path, out: &Path, assets: &[String]) -> Result<(), String> {
+    fs::create_dir_all(out).map_err(|e| format!("Failed to create assets folder: {}", e))?;
+    for a in assets {
+        // Only copy plain filenames straight out of our managed assets dir.
+        if a.is_empty() || a.contains(['/', '\\', '%']) || a.contains("..") {
+            continue;
+        }
+        let src = src_dir.join(a);
+        let dest = out.join(a);
+        if src.exists() && !dest.exists() {
+            // Skip a missing/failed asset rather than failing the whole export.
+            let _ = fs::copy(&src, &dest);
+        }
+    }
+    Ok(())
+}
+
+fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
+    if !target.is_dir() {
+        return Err(format!("Not a directory: {}", target.display()));
+    }
+    let mut removed = 0usize;
+    for n in names {
+        if !is_flat_name(n) || !n.to_ascii_lowercase().ends_with(".md") {
+            continue;
+        }
+        match fs::remove_file(target.join(n)) {
+            Ok(()) => removed += 1,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("Failed to remove {}: {}", n, e)),
+        }
+    }
+    Ok(removed)
+}
+
 /// Write the given markdown files into `dir` and copy any referenced assets into
 /// `dir/assets/`. `dir` is a user-chosen folder (from the directory picker).
 /// File names are kept flat and asset names validated so export can't escape the
@@ -32,7 +75,7 @@ pub fn export_notes(
 
     let mut written = 0usize;
     for f in &files {
-        if f.name.is_empty() || f.name.contains(['/', '\\']) || f.name.contains("..") {
+        if !is_flat_name(&f.name) {
             continue;
         }
         fs::write(target.join(&f.name), &f.content)
@@ -41,24 +84,18 @@ pub fn export_notes(
     }
 
     if !assets.is_empty() {
-        let assets_out = target.join("assets");
-        fs::create_dir_all(&assets_out)
-            .map_err(|e| format!("Failed to create assets folder: {}", e))?;
-        let src_dir = assets_dir();
-        for a in &assets {
-            // Only copy plain filenames straight out of our managed assets dir.
-            if a.is_empty() || a.contains(['/', '\\', '%']) || a.contains("..") {
-                continue;
-            }
-            let src = src_dir.join(a);
-            if src.exists() {
-                // Skip a missing/failed asset rather than failing the whole export.
-                let _ = fs::copy(&src, assets_out.join(a));
-            }
-        }
+        copy_assets(&assets_dir(), &target.join("assets"), &assets)?;
     }
 
     Ok(written)
+}
+
+/// Delete files a live Markdown mirror previously wrote into `dir`. Only flat
+/// `.md` names: the mirror never removes anything else (assets, the user's own
+/// files), and a file that's already gone is not an error.
+#[command]
+pub fn remove_export_files(dir: String, names: Vec<String>) -> Result<usize, String> {
+    remove_md_files(Path::new(&dir), &names)
 }
 
 /// Write UTF-8 text to a user-chosen absolute path (from the native save dialog).
@@ -75,4 +112,57 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
 #[command]
 pub fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
     fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn scratch() -> PathBuf {
+        let d = std::env::temp_dir().join(format!("jnana-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A live mirror re-exports on every autosave; an asset already in the
+    /// mirror (UUID-named, never rewritten) must not be copied again.
+    #[test]
+    fn copy_assets_skips_existing_destination() {
+        let s = scratch();
+        let src = s.join("src");
+        let out = s.join("out");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&out).unwrap();
+        fs::write(src.join("a.png"), b"NEW").unwrap();
+        fs::write(out.join("a.png"), b"OLD").unwrap();
+        fs::write(src.join("b.png"), b"B").unwrap();
+
+        copy_assets(&src, &out, &["a.png".into(), "b.png".into(), "../b.png".into()]).unwrap();
+
+        assert_eq!(fs::read(out.join("a.png")).unwrap(), b"OLD");
+        assert_eq!(fs::read(out.join("b.png")).unwrap(), b"B");
+    }
+
+    /// Only flat `.md` names inside the target are removed; a missing file is fine.
+    #[test]
+    fn remove_md_files_only_removes_flat_md_names() {
+        let s = scratch();
+        let target = s.join("mirror");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("Note.md"), "x").unwrap();
+        fs::write(target.join("photo.png"), "x").unwrap();
+        fs::write(s.join("escape.md"), "x").unwrap();
+
+        let removed = remove_md_files(
+            &target,
+            &["../escape.md".into(), "photo.png".into(), "Note.md".into(), "gone.md".into()],
+        )
+        .unwrap();
+
+        assert_eq!(removed, 1);
+        assert!(!target.join("Note.md").exists());
+        assert!(target.join("photo.png").exists());
+        assert!(s.join("escape.md").exists());
+    }
 }
