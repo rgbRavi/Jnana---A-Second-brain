@@ -14,12 +14,18 @@ vi.mock('../lib/noteTypes', () => ({
     n.kind === 'deck' ? { toExportMarkdown: () => 'Q: a\nA: b' } : n.kind ? {} : undefined,
 }))
 
-import { isMirrorable, planSave, planDelete, loadIndex, saveIndex } from './mirror'
+import { invoke } from '@tauri-apps/api/core'
+import { toast } from '../lib/toast'
+import { isMirrorable, planSave, planDelete, loadIndex, saveIndex, mirrorNote, unmirrorNote, mirrorAll, MIRROR_README } from './mirror'
 
 const note = (id: string, title: string, kind: string | null = null) =>
   ({ id, title, content: 'body', tags: [], kind, createdAt: 0, updatedAt: 0 }) as unknown as Note
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  vi.mocked(invoke).mockReset().mockResolvedValue(0)
+  vi.mocked(toast.error).mockClear()
+})
 
 describe('planSave', () => {
   it('writes a new note under its title', () => {
@@ -73,5 +79,60 @@ describe('index storage', () => {
     saveIndex('D:/a', { n1: 'A.md' })
     expect(loadIndex('D:/a')).toEqual({ n1: 'A.md' })
     expect(loadIndex('D:/b')).toEqual({})
+  })
+})
+
+const calls = () => vi.mocked(invoke).mock.calls.map(([cmd, args]) => [cmd, args] as [string, Record<string, unknown>])
+
+describe('mirrorNote / unmirrorNote', () => {
+  it('writes the note, then removes its old name after a rename', async () => {
+    await mirrorNote('D:/m', note('n1', 'Old'))
+    await mirrorNote('D:/m', note('n1', 'New'))
+    const c = calls()
+    expect(c[0][0]).toBe('export_notes')
+    const first = c[0][1].files as { name: string; content: string }[]
+    expect(first[0].name).toBe('Old.md')
+    expect(first[0].content).toContain('id: "n1"')
+    expect(c[1][0]).toBe('export_notes')
+    expect(c[2]).toEqual(['remove_export_files', { dir: 'D:/m', names: ['Old.md'] }])
+    expect(loadIndex('D:/m')).toEqual({ n1: 'New.md' })
+  })
+
+  it('delete removes the file and forgets the note', async () => {
+    saveIndex('D:/m', { n1: 'A.md' })
+    await unmirrorNote('D:/m', 'n1')
+    expect(calls()).toEqual([['remove_export_files', { dir: 'D:/m', names: ['A.md'] }]])
+    expect(loadIndex('D:/m')).toEqual({})
+  })
+})
+
+describe('mirrorAll', () => {
+  it('writes every note plus the notice in one call', async () => {
+    await mirrorAll('D:/m', [note('a', 'A'), note('c', 'C', 'canvas')])
+    const [[cmd, args]] = calls()
+    expect(cmd).toBe('export_notes')
+    expect((args.files as { name: string }[]).map((f) => f.name)).toEqual([MIRROR_README, 'A.md'])
+  })
+
+  it('mirrorAll never removes a name it just wrote', async () => {
+    saveIndex('D:/m', { a: 'X.md' })
+    await mirrorAll('D:/m', [note('a', 'Y'), note('b', 'X')])
+    expect(calls().some(([cmd]) => cmd === 'remove_export_files')).toBe(false)
+    expect(loadIndex('D:/m')).toEqual({ a: 'Y.md', b: 'X.md' })
+  })
+
+  it('rejects when the folder cannot be written', async () => {
+    vi.mocked(invoke).mockRejectedValue('Not a directory: D:/gone')
+    await expect(mirrorAll('D:/gone', [note('a', 'A')])).rejects.toBe('Not a directory: D:/gone')
+  })
+})
+
+describe('failure', () => {
+  it('failure toasts once and never rejects', async () => {
+    vi.mocked(invoke).mockRejectedValue('Not a directory: D:/gone')
+    await expect(mirrorNote('D:/gone', note('a', 'A'))).resolves.toBeUndefined()
+    await expect(mirrorNote('D:/gone', note('a', 'A'))).resolves.toBeUndefined()
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(loadIndex('D:/gone')).toEqual({})
   })
 })
