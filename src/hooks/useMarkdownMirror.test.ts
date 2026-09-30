@@ -8,9 +8,10 @@ import type { Note } from '../types'
 vi.mock('../core/mirror', () => ({
   mirrorNote: vi.fn(() => Promise.resolve()),
   unmirrorNote: vi.fn(() => Promise.resolve()),
+  remirror: vi.fn(() => Promise.resolve()),
 }))
 
-import { mirrorNote, unmirrorNote } from '../core/mirror'
+import { mirrorNote, unmirrorNote, remirror } from '../core/mirror'
 import { eventBus } from '../lib/eventBus'
 import { setGeneralSettings } from './useGeneralSettings'
 import { useMarkdownMirror } from './useMarkdownMirror'
@@ -42,5 +43,26 @@ describe('useMarkdownMirror', () => {
     act(() => setGeneralSettings({ mirrorDir: null }))
     eventBus.emit('note:saved', note)
     expect(mirrorNote).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-mirrors once, debounced, after vault/folder changes', () => {
+    vi.useFakeTimers()
+    try {
+      renderHook(() => useMarkdownMirror())
+      eventBus.emit('folder:changed', { id: 'f' })
+      vi.advanceTimersByTime(1000)
+      expect(remirror).not.toHaveBeenCalled() // mirroring is off
+
+      act(() => setGeneralSettings({ mirrorDir: 'D:/m' }))
+      for (const e of ['vault:changed', 'vault:deleted', 'folder:changed', 'folder:deleted', 'folder:moved', 'note:moved']) {
+        eventBus.emit(e, { id: 'x' })
+        eventBus.emit(e, { id: 'x' })
+        vi.advanceTimersByTime(1000)
+      }
+      expect(remirror).toHaveBeenCalledTimes(6)
+      expect(remirror).toHaveBeenLastCalledWith('D:/m')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

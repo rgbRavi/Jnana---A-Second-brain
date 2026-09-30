@@ -266,7 +266,7 @@ export function ImportExportPanel() {
         <span className={styles.hint}>
           {mirrorDir
             ? `Mirroring to ${mirrorDir}. Each save updates that note's .md file; edits made in the folder are overwritten.`
-            : 'Keep a live Markdown copy of every note in a folder you choose — readable and searchable without Jnana. One-way: Jnana never reads it back.'}
+            : 'Keep a live Markdown copy of every note in a folder you choose, organised by vault and folder — readable and searchable without Jnana. One-way: Jnana never reads it back.'}
         </span>
       </section>
 
