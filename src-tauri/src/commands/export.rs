@@ -22,6 +22,30 @@ fn is_flat_name(name: &str) -> bool {
     !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', ':'])
 }
 
+/// A `/`-separated relative path (the mirror's `Vault/Folder/Note.md`) whose every
+/// segment is a flat name, so it can't leave the target directory.
+fn is_rel_path(path: &str) -> bool {
+    !path.is_empty() && path.split('/').all(is_flat_name)
+}
+
+/// Write each file under `target`, creating vault/folder subdirectories as needed.
+/// Paths that fail `is_rel_path` are skipped.
+fn write_files(target: &Path, files: &[ExportFile]) -> Result<usize, String> {
+    let mut written = 0usize;
+    for f in files {
+        if !is_rel_path(&f.name) {
+            continue;
+        }
+        let path = target.join(&f.name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create folder for {}: {}", f.name, e))?;
+        }
+        fs::write(&path, &f.content).map_err(|e| format!("Failed to write {}: {}", f.name, e))?;
+        written += 1;
+    }
+    Ok(written)
+}
+
 /// Copy referenced assets from `src_dir` into `out`. Asset names are UUIDs and
 /// never rewritten, so one already present is skipped: a live mirror re-exports
 /// on every save and must not re-copy a video each time.
@@ -48,13 +72,23 @@ fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
     }
     let mut removed = 0usize;
     for n in names {
-        if !is_flat_name(n) || !n.to_ascii_lowercase().ends_with(".md") {
+        if !is_rel_path(n) || !n.to_ascii_lowercase().ends_with(".md") {
             continue;
         }
-        match fs::remove_file(target.join(n)) {
+        let path = target.join(n);
+        match fs::remove_file(&path) {
             Ok(()) => removed += 1,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(format!("Failed to remove {}: {}", n, e)),
+        }
+        // Drop vault/folder dirs this left empty; remove_dir refuses a non-empty
+        // one, which ends the walk. Never touches `target` itself.
+        let mut dir = path.parent();
+        while let Some(d) = dir {
+            if d == target || fs::remove_dir(d).is_err() {
+                break;
+            }
+            dir = d.parent();
         }
     }
     Ok(removed)
@@ -62,8 +96,9 @@ fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
 
 /// Write the given markdown files into `dir` and copy any referenced assets into
 /// `dir/assets/`. `dir` is a user-chosen folder (from the directory picker).
-/// File names are kept flat and asset names validated so export can't escape the
-/// chosen directory or read outside the managed assets folder.
+/// File names are relative paths checked segment by segment and asset names are
+/// validated, so export can't escape the chosen directory or read outside the
+/// managed assets folder.
 #[command]
 pub async fn export_notes(
     dir: String,
@@ -75,15 +110,7 @@ pub async fn export_notes(
         return Err(format!("Not a directory: {}", dir));
     }
 
-    let mut written = 0usize;
-    for f in &files {
-        if !is_flat_name(&f.name) {
-            continue;
-        }
-        fs::write(target.join(&f.name), &f.content)
-            .map_err(|e| format!("Failed to write {}: {}", f.name, e))?;
-        written += 1;
-    }
+    let written = write_files(target, &files)?;
 
     if !assets.is_empty() {
         copy_assets(&assets_dir(), &target.join("assets"), &assets)?;
@@ -92,7 +119,7 @@ pub async fn export_notes(
     Ok(written)
 }
 
-/// Delete files a live Markdown mirror previously wrote into `dir`. Only flat
+/// Delete files a live Markdown mirror previously wrote into `dir`. Only relative
 /// `.md` names: the mirror never removes anything else (assets, the user's own
 /// files), and a file that's already gone is not an error.
 #[command]
@@ -155,6 +182,43 @@ mod tests {
         for bad in ["", ".", "..", "a/b.md", "a\\b.md", "C:x.md"] {
             assert!(!is_flat_name(bad), "{bad:?} should be rejected");
         }
+    }
+
+    /// Mirror paths are `/`-separated; every segment must be a flat name.
+    #[test]
+    fn rel_paths_validate_every_segment() {
+        assert!(is_rel_path("n.md"));
+        assert!(is_rel_path("V/F/n.md"));
+        for bad in ["", "V/", "/n.md", "V//n.md", "V/../n.md", "C:/n.md", "V\\n.md"] {
+            assert!(!is_rel_path(bad), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn export_writes_into_subdirs() {
+        let s = scratch();
+        let files = [ExportFile { name: "V/F/n.md".into(), content: "x".into() }];
+        assert_eq!(write_files(&s, &files).unwrap(), 1);
+        assert_eq!(fs::read_to_string(s.join("V").join("F").join("n.md")).unwrap(), "x");
+    }
+
+    /// Removing a note's file also removes the vault/folder dirs it leaves
+    /// empty, but never a dir that still holds something, nor the mirror root.
+    #[test]
+    fn remove_prunes_empty_dirs() {
+        let s = scratch();
+        fs::create_dir_all(s.join("V").join("F")).unwrap();
+        fs::create_dir_all(s.join("V").join("G")).unwrap();
+        fs::write(s.join("V").join("F").join("n.md"), "x").unwrap();
+        fs::write(s.join("V").join("G").join("keep.md"), "x").unwrap();
+
+        remove_md_files(&s, &["V/F/n.md".into()]).unwrap();
+        assert!(!s.join("V").join("F").exists());
+        assert!(s.join("V").join("G").join("keep.md").exists());
+
+        remove_md_files(&s, &["V/G/keep.md".into()]).unwrap();
+        assert!(!s.join("V").exists());
+        assert!(s.exists());
     }
 
     /// Only flat `.md` names inside the target are removed; a missing file is fine.
