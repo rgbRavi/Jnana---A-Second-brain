@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 use crate::db::assets_dir;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use tauri::command;
@@ -29,21 +29,35 @@ fn is_rel_path(path: &str) -> bool {
 }
 
 /// Write each file under `target`, creating vault/folder subdirectories as needed.
-/// Paths that fail `is_rel_path` are skipped.
-fn write_files(target: &Path, files: &[ExportFile]) -> Result<usize, String> {
+/// Paths that fail `is_rel_path` are skipped. One file that can't be written
+/// (a name the OS refuses, a path too long) doesn't stop the rest: it comes back
+/// in the failed list.
+fn write_files(target: &Path, files: &[ExportFile]) -> Result<(usize, Vec<String>), String> {
     let mut written = 0usize;
+    let mut failed = Vec::new();
     for f in files {
         if !is_rel_path(&f.name) {
             continue;
         }
         let path = target.join(&f.name);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create folder for {}: {}", f.name, e))?;
+        let ok = path.parent().map_or(Ok(()), fs::create_dir_all).and_then(|_| fs::write(&path, &f.content));
+        match ok {
+            Ok(()) => written += 1,
+            Err(e) => {
+                log::warn!("export: could not write {}: {}", f.name, e);
+                failed.push(f.name.clone());
+            }
         }
-        fs::write(&path, &f.content).map_err(|e| format!("Failed to write {}: {}", f.name, e))?;
-        written += 1;
     }
-    Ok(written)
+    Ok((written, failed))
+}
+
+/// What `export_notes` did: files written, and those it couldn't write.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportOutcome {
+    pub written: usize,
+    pub failed: Vec<String>,
 }
 
 /// Copy referenced assets from `src_dir` into `out`. Asset names are UUIDs and
@@ -58,7 +72,12 @@ fn copy_assets(src_dir: &Path, out: &Path, assets: &[String]) -> Result<(), Stri
         }
         let src = src_dir.join(a);
         let dest = out.join(a);
-        if src.exists() && !dest.exists() {
+        // Same size = already copied; a different size is a copy that was cut short.
+        let same = match (fs::metadata(&src), fs::metadata(&dest)) {
+            (Ok(s), Ok(d)) => s.len() == d.len(),
+            _ => false,
+        };
+        if src.exists() && !same {
             // Skip a missing/failed asset rather than failing the whole export.
             let _ = fs::copy(&src, &dest);
         }
@@ -104,19 +123,19 @@ pub async fn export_notes(
     dir: String,
     files: Vec<ExportFile>,
     assets: Vec<String>,
-) -> Result<usize, String> {
+) -> Result<ExportOutcome, String> {
     let target = Path::new(&dir);
     if !target.is_dir() {
         return Err(format!("Not a directory: {}", dir));
     }
 
-    let written = write_files(target, &files)?;
+    let (written, failed) = write_files(target, &files)?;
 
     if !assets.is_empty() {
         copy_assets(&assets_dir(), &target.join("assets"), &assets)?;
     }
 
-    Ok(written)
+    Ok(ExportOutcome { written, failed })
 }
 
 /// Delete files a live Markdown mirror previously wrote into `dir`. Only relative
@@ -173,6 +192,39 @@ mod tests {
         assert_eq!(fs::read(out.join("b.png")).unwrap(), b"B");
     }
 
+    /// A copy cut short (crash, full disk) leaves a file of the wrong size;
+    /// the next export must replace it rather than skip it forever.
+    #[test]
+    fn copy_assets_repairs_a_truncated_copy() {
+        let s = scratch();
+        let src = s.join("src");
+        let out = s.join("out");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&out).unwrap();
+        fs::write(src.join("v.mp4"), b"FULLVIDEO").unwrap();
+        fs::write(out.join("v.mp4"), b"FULL").unwrap();
+
+        copy_assets(&src, &out, &["v.mp4".into()]).unwrap();
+
+        assert_eq!(fs::read(out.join("v.mp4")).unwrap(), b"FULLVIDEO");
+    }
+
+    /// One unwritable file (here: a directory already sits at its path) must
+    /// not stop the others; it's reported back instead.
+    #[test]
+    fn write_files_reports_failures_and_keeps_going() {
+        let s = scratch();
+        fs::create_dir_all(s.join("V").join("blocked.md")).unwrap();
+        let files = [
+            ExportFile { name: "V/blocked.md".into(), content: "x".into() },
+            ExportFile { name: "V/ok.md".into(), content: "y".into() },
+        ];
+        let (written, failed) = write_files(&s, &files).unwrap();
+        assert_eq!(written, 1);
+        assert_eq!(failed, vec!["V/blocked.md".to_string()]);
+        assert_eq!(fs::read_to_string(s.join("V").join("ok.md")).unwrap(), "y");
+    }
+
     /// Titles with an ellipsis or a trailing dot are ordinary file names; only
     /// separators, drive prefixes and bare `.`/`..` could leave the folder.
     #[test]
@@ -198,7 +250,7 @@ mod tests {
     fn export_writes_into_subdirs() {
         let s = scratch();
         let files = [ExportFile { name: "V/F/n.md".into(), content: "x".into() }];
-        assert_eq!(write_files(&s, &files).unwrap(), 1);
+        assert_eq!(write_files(&s, &files).unwrap(), (1, vec![]));
         assert_eq!(fs::read_to_string(s.join("V").join("F").join("n.md")).unwrap(), "x");
     }
 
