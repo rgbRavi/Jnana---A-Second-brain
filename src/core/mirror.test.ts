@@ -5,14 +5,21 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Folder, Note, Vault } from '../types'
 import { DEFAULT_VAULT_ID } from '../types'
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve(0)) }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/plugin-opener', () => ({ revealItemInDir: vi.fn() }))
 vi.mock('../lib/toast', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-// 'deck' has a markdown projection; 'canvas' doesn't.
+// 'deck' has a fixed projection, 'board' projects its raw content (like a
+// canvas list with [[note:id]] cards), 'canvas' here has none.
 vi.mock('../lib/noteTypes', () => ({
-  getNoteType: (n: { kind?: string | null }) =>
-    n.kind === 'deck' ? { toExportMarkdown: () => 'Q: a\nA: b' } : n.kind ? {} : undefined,
+  getNoteType: (n: { kind?: string | null; content?: string }) =>
+    n.kind === 'deck'
+      ? { toExportMarkdown: () => 'Q: a\nA: b' }
+      : n.kind === 'board'
+        ? { toExportMarkdown: (x: { content: string }) => x.content }
+        : n.kind
+          ? {}
+          : undefined,
 }))
 // The vault/folder tree mirrorNote/mirrorAll load; tests edit `folders`.
 const vaults = [{ id: DEFAULT_VAULT_ID, name: 'V' }, { id: 'w', name: 'Work' }] as Vault[]
@@ -31,21 +38,36 @@ import {
 const note = (id: string, title: string, kind: string | null = null, extra: Partial<Note> = {}) =>
   ({ id, title, content: 'body', tags: [], kind, createdAt: 0, updatedAt: 0, ...extra }) as unknown as Note
 
-const folder = (id: string, name: string, parentId: string | null = null, vaultId = DEFAULT_VAULT_ID) =>
-  ({ id, name, parentId, vaultId, position: 0, createdAt: 0, updatedAt: 0 }) as Folder
+const folder = (id: string, name: string, parentId: string | null = null, vaultId = DEFAULT_VAULT_ID, createdAt = 0) =>
+  ({ id, name, parentId, vaultId, position: 0, createdAt, updatedAt: 0 }) as Folder
 
 const T = buildTree(vaults, [folder('f', 'Physics'), folder('g', 'Waves', 'f'), folder('h', 'Q3', null, 'w')])
+
+// Fake Rust: export_notes reports `failNames` it was asked to write as failed.
+let allNotes: Note[] = []
+let failNames: string[] = []
+const fakeRust = async (cmd: string, args?: unknown) => {
+  const a = args as { files?: { name: string }[] }
+  if (cmd === 'export_notes') {
+    const failed = failNames.filter((f) => a.files!.some((x) => x.name === f))
+    return { written: a.files!.length - failed.length, failed }
+  }
+  if (cmd === 'get_all_notes') return allNotes
+  return 0
+}
 
 beforeEach(() => {
   localStorage.clear()
   folders = []
-  vi.mocked(invoke).mockReset().mockResolvedValue(0)
+  allNotes = []
+  failNames = []
+  vi.mocked(invoke).mockReset().mockImplementation(fakeRust as never)
   vi.mocked(toast.error).mockClear()
 })
 
 describe('planSave', () => {
   it('writes a new note under its title', () => {
-    expect(planSave({}, note('n1', 'Title'), T)).toEqual({ index: { n1: 'V/Title.md' }, write: 'V/Title.md', remove: null })
+    expect(planSave({}, note('n1', 'Title'), T)).toEqual({ index: { n1: 'V/Title.md' }, write: 'V/Title.md', remove: null, removeFirst: false })
   })
 
   it('re-saving keeps the same file', () => {
@@ -53,7 +75,7 @@ describe('planSave', () => {
   })
 
   it('a rename removes the old file', () => {
-    expect(planSave({ n1: 'V/Old.md' }, note('n1', 'New'), T)).toEqual({ index: { n1: 'V/New.md' }, write: 'V/New.md', remove: 'V/Old.md' })
+    expect(planSave({ n1: 'V/Old.md' }, note('n1', 'New'), T)).toEqual({ index: { n1: 'V/New.md' }, write: 'V/New.md', remove: 'V/Old.md', removeFirst: false })
   })
 
   it('collision is case-insensitive', () => {
@@ -62,8 +84,8 @@ describe('planSave', () => {
     expect(plan.index).toEqual({ n2: 'V/Same.md', n1abcdefgh: 'V/same (n1abcdef).md' })
   })
 
-  it('case-only rename keeps the file', () => {
-    expect(planSave({ n1: 'V/note.md' }, note('n1', 'Note'), T)).toMatchObject({ write: 'V/Note.md', remove: null })
+  it('a case-only rename removes the old casing before writing the new one', () => {
+    expect(planSave({ n1: 'V/note.md' }, note('n1', 'Note'), T)).toMatchObject({ write: 'V/Note.md', remove: 'V/note.md', removeFirst: true })
   })
 
   it('an untitled note gets a usable name', () => {
@@ -71,7 +93,7 @@ describe('planSave', () => {
   })
 
   it('a note that became a canvas is removed', () => {
-    expect(planSave({ n1: 'V/C.md' }, note('n1', 'C', 'canvas'), T)).toEqual({ index: {}, write: null, remove: 'V/C.md' })
+    expect(planSave({ n1: 'V/C.md' }, note('n1', 'C', 'canvas'), T)).toEqual({ index: {}, write: null, remove: 'V/C.md', removeFirst: false })
   })
 
   it('nests a filed note under its vault and folder chain', () => {
@@ -84,13 +106,23 @@ describe('planSave', () => {
   })
 
   it('same title in different folders does not collide', () => {
-    const plan = planSave({ n2: 'V/Physics/Intro.md' }, note('n1', 'Intro'), T)
-    expect(plan.write).toBe('V/Intro.md')
+    expect(planSave({ n2: 'V/Physics/Intro.md' }, note('n1', 'Intro'), T).write).toBe('V/Intro.md')
   })
 
   it('moving a note to another folder removes the old path', () => {
     expect(planSave({ n1: 'V/Doppler.md' }, note('n1', 'Doppler', null, { folderId: 'f' }), T))
       .toMatchObject({ write: 'V/Physics/Doppler.md', remove: 'V/Doppler.md' })
+  })
+
+  it('sibling folders and vaults with the same name get distinct directories', () => {
+    const t = buildTree(
+      [{ id: 'v1', name: 'Work', createdAt: 1 }, { id: 'v2abcdefgh', name: 'work', createdAt: 2 }] as Vault[],
+      [folder('f1', 'Physics', null, 'v1', 1), folder('f2xxxxxxxx', 'Physics', null, 'v1', 2), folder('f3', 'Physics', null, 'v2abcdefgh', 3)],
+    )
+    expect(planSave({}, note('a', 'A', null, { vaultId: 'v2abcdefgh' }), t).write).toBe('work (v2abcdef)/A.md')
+    expect(planSave({}, note('b', 'B', null, { vaultId: 'v1', folderId: 'f1' }), t).write).toBe('Work/Physics/B.md')
+    expect(planSave({}, note('c', 'C', null, { vaultId: 'v1', folderId: 'f2xxxxxxxx' }), t).write).toBe('Work/Physics (f2xxxxxx)/C.md')
+    expect(planSave({}, note('d', 'D', null, { vaultId: 'v2abcdefgh', folderId: 'f3' }), t).write).toBe('work (v2abcdef)/Physics/D.md')
   })
 })
 
@@ -104,8 +136,8 @@ describe('isMirrorable', () => {
 
 describe('planDelete', () => {
   it('removes a known note and ignores an unknown one', () => {
-    expect(planDelete({ n1: 'A.md', n2: 'B.md' }, 'n1')).toEqual({ index: { n2: 'B.md' }, write: null, remove: 'A.md' })
-    expect(planDelete({ n2: 'B.md' }, 'n1')).toEqual({ index: { n2: 'B.md' }, write: null, remove: null })
+    expect(planDelete({ n1: 'A.md', n2: 'B.md' }, 'n1')).toEqual({ index: { n2: 'B.md' }, write: null, remove: 'A.md', removeFirst: false })
+    expect(planDelete({ n2: 'B.md' }, 'n1')).toEqual({ index: { n2: 'B.md' }, write: null, remove: null, removeFirst: false })
   })
 })
 
@@ -124,7 +156,8 @@ describe('asset links', () => {
 })
 
 const calls = () => vi.mocked(invoke).mock.calls.map(([cmd, args]) => [cmd, args] as [string, Record<string, unknown>])
-const written = (i: number) => calls()[i][1].files as { name: string; content: string }[]
+const exports = () => calls().filter(([cmd]) => cmd === 'export_notes').map(([, a]) => a.files as { name: string; content: string }[])
+const removes = () => calls().filter(([cmd]) => cmd === 'remove_export_files').map(([, a]) => a.names as string[])
 
 describe('mirrorNote / unmirrorNote', () => {
   it('writes the note, then removes its old name after a rename', async () => {
@@ -132,18 +165,52 @@ describe('mirrorNote / unmirrorNote', () => {
     await mirrorNote('D:/m', note('n1', 'New'))
     const c = calls()
     expect(c[0][0]).toBe('export_notes')
-    expect(written(0)[0].name).toBe('V/Old.md')
-    expect(written(0)[0].content).toContain('id: "n1"')
+    expect(exports()[0][0].name).toBe('V/Old.md')
+    expect(exports()[0][0].content).toContain('id: "n1"')
     expect(c[1][0]).toBe('export_notes')
     expect(c[2]).toEqual(['remove_export_files', { dir: 'D:/m', names: ['V/Old.md'] }])
     expect(loadIndex('D:/m')).toEqual({ n1: 'V/New.md' })
   })
 
+  it('a case-only rename removes the old file first', async () => {
+    saveIndex('D:/m', { n1: 'V/note.md' })
+    await mirrorNote('D:/m', note('n1', 'Note'))
+    expect(calls().map(([cmd]) => cmd)).toEqual(['remove_export_files', 'export_notes'])
+    expect(removes()[0]).toEqual(['V/note.md'])
+    expect(exports()[0][0].name).toBe('V/Note.md')
+  })
+
+  it('a file the OS refuses keeps the old copy and is retried on the next save', async () => {
+    saveIndex('D:/m', { n1: 'V/Old.md' })
+    failNames = ['V/Bad.md']
+    await mirrorNote('D:/m', note('n1', 'Bad'))
+    expect(removes()).toEqual([])
+    expect(loadIndex('D:/m')).toEqual({ n1: 'V/Old.md' })
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('V/Bad.md'))
+  })
+
   it('a nested note links assets relative to its folder', async () => {
     folders = [folder('f', 'Physics')]
     await mirrorAll('D:/m', [note('n1', 'Pic', null, { folderId: 'f', content: '![](jnana-asset://x.png)' })])
-    const file = written(0).find((f) => f.name === 'V/Physics/Pic.md')!
-    expect(file.content).toContain('(../../assets/x.png)')
+    expect(exports()[0].find((f) => f.name === 'V/Physics/Pic.md')!.content).toContain('(../../assets/x.png)')
+  })
+
+  it('a canvas links its note cards by title', async () => {
+    await mirrorNote('D:/m', note('b1', 'Alpha'))
+    await mirrorNote('D:/m', note('c', 'Board', 'board', { content: '- [[note:b1]]' }))
+    expect(exports()[1][0].content).toContain('- [[Alpha]]')
+  })
+
+  it('renaming a note rewrites the canvases that show it', async () => {
+    const board = note('c', 'Board', 'board', { content: '- [[note:b1]]' })
+    allNotes = [note('b1', 'Alpha'), board]
+    await mirrorAll('D:/m', allNotes)
+    vi.mocked(invoke).mockClear()
+    allNotes = [note('b1', 'Beta'), board]
+    await mirrorNote('D:/m', allNotes[0])
+    await vi.waitFor(() =>
+      expect(exports().flat().some((f) => f.name === 'V/Board.md' && f.content.includes('[[Beta]]'))).toBe(true),
+    )
   })
 
   it('delete removes the file and forgets the note', async () => {
@@ -157,22 +224,21 @@ describe('mirrorNote / unmirrorNote', () => {
 describe('mirrorAll', () => {
   it('writes every note plus the notice in one call', async () => {
     await mirrorAll('D:/m', [note('a', 'A'), note('c', 'C', 'canvas')])
-    const [[cmd]] = calls()
-    expect(cmd).toBe('export_notes')
-    expect(written(0).map((f) => f.name)).toEqual([MIRROR_README, 'V/A.md'])
+    expect(calls()[0][0]).toBe('export_notes')
+    expect(exports()[0].map((f) => f.name)).toEqual([MIRROR_README, 'V/A.md'])
   })
 
   it('mirrorAll never removes a name it just wrote', async () => {
     saveIndex('D:/m', { a: 'V/X.md' })
     await mirrorAll('D:/m', [note('a', 'Y'), note('b', 'X')])
-    expect(calls().some(([cmd]) => cmd === 'remove_export_files')).toBe(false)
+    expect(removes()).toEqual([])
     expect(loadIndex('D:/m')).toEqual({ a: 'V/Y.md', b: 'V/X.md' })
   })
 
   it('removes files of notes that no longer exist and frees their names', async () => {
     saveIndex('D:/m', { gone: 'V/Old.md', a: 'V/A.md' })
     await mirrorAll('D:/m', [note('a', 'A')])
-    expect(calls()[1]).toEqual(['remove_export_files', { dir: 'D:/m', names: ['V/Old.md'] }])
+    expect(removes()).toEqual([['V/Old.md']])
     expect(loadIndex('D:/m')).toEqual({ a: 'V/A.md' })
   })
 
@@ -180,8 +246,25 @@ describe('mirrorAll', () => {
     saveIndex('D:/m', { a: 'V/A.md', b: 'V/B.md' })
     folders = [folder('f', 'Renamed')]
     await mirrorAll('D:/m', [note('a', 'A'), note('b', 'B', null, { folderId: 'f' })], { rewrite: false })
-    expect(written(0).map((f) => f.name)).toEqual([MIRROR_README, 'V/Renamed/B.md'])
-    expect(calls()[1]).toEqual(['remove_export_files', { dir: 'D:/m', names: ['V/B.md'] }])
+    expect(exports()[0].map((f) => f.name)).toEqual([MIRROR_README, 'V/Renamed/B.md'])
+    expect(removes()).toEqual([['V/B.md']])
+  })
+
+  it('a folder renamed only in case moves its files before writing', async () => {
+    saveIndex('D:/m', { a: 'V/physics/A.md' })
+    folders = [folder('f', 'Physics')]
+    await mirrorAll('D:/m', [note('a', 'A', null, { folderId: 'f' })], { rewrite: false })
+    expect(calls().map(([cmd]) => cmd)).toEqual(['remove_export_files', 'export_notes'])
+    expect(removes()[0]).toEqual(['V/physics/A.md'])
+    expect(exports()[0].map((f) => f.name)).toContain('V/Physics/A.md')
+  })
+
+  it('a file the OS refuses keeps its old copy and index entry', async () => {
+    saveIndex('D:/m', { b: 'V/OldB.md' })
+    failNames = ['V/B.md']
+    await mirrorAll('D:/m', [note('a', 'A'), note('b', 'B')])
+    expect(removes()).toEqual([])
+    expect(loadIndex('D:/m')).toEqual({ a: 'V/A.md', b: 'V/OldB.md' })
   })
 
   it('rejects when the folder cannot be written', async () => {
@@ -190,7 +273,17 @@ describe('mirrorAll', () => {
   })
 })
 
-describe('failure', () => {
+describe('outage', () => {
+  it('catches up notes edited while the folder was unreachable', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce('Not a directory: D:/m')
+    await mirrorNote('D:/m', note('a', 'A'))
+    expect(loadIndex('D:/m')).toEqual({})
+    allNotes = [note('a', 'A'), note('b', 'B')]
+    await mirrorNote('D:/m', note('b', 'B'))
+    await vi.waitFor(() => expect(loadIndex('D:/m')).toEqual({ a: 'V/A.md', b: 'V/B.md' }))
+    expect(toast.error).toHaveBeenCalledTimes(1)
+  })
+
   it('failure toasts once and never rejects', async () => {
     vi.mocked(invoke).mockRejectedValue('Not a directory: D:/gone')
     await expect(mirrorNote('D:/gone', note('a', 'A'))).resolves.toBeUndefined()

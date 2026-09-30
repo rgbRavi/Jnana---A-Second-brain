@@ -48,11 +48,14 @@ export function ImportExportPanel() {
     })
     if (!ok) return
     const id = toast.progress('Mirroring notes…')
+    // Live before the first copy finishes: the mirror's queue runs saves made
+    // meanwhile after it, so nothing edited during a long copy is missed.
+    setGeneral({ mirrorDir: dir })
     try {
       await mirrorAll(dir, await getAllNotes())
-      setGeneral({ mirrorDir: dir })
       updateToast(id, { progress: 1, message: 'Notes mirrored. Saving a note now updates that folder.', variant: 'success', duration: 4000 })
     } catch (err) {
+      setGeneral({ mirrorDir: null })
       log.error('[mirror] initial mirror failed', err)
       updateToast(id, { progress: undefined, message: 'Could not write to that folder.', variant: 'error', duration: 5000 })
     }

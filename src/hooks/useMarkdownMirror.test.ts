@@ -21,10 +21,11 @@ const note = { id: 'n1', title: 'T', content: '', tags: [] } as unknown as Note
 afterEach(() => {
   cleanup()
   setGeneralSettings({ mirrorDir: null })
+  vi.clearAllMocks()
 })
 
 describe('useMarkdownMirror', () => {
-  it('mirrors saves, deletes and kind changes only while a folder is set', () => {
+  it('mirrors saves and deletes only while a folder is set', () => {
     setGeneralSettings({ mirrorDir: null })
     renderHook(() => useMarkdownMirror())
     eventBus.emit('note:saved', note)
@@ -37,12 +38,27 @@ describe('useMarkdownMirror', () => {
     eventBus.emit('note:deleted', { id: 'n1' })
     expect(unmirrorNote).toHaveBeenCalledWith('D:/m', 'n1')
 
-    eventBus.emit('note:kind-changed', { noteId: 'n1', kind: 'canvas', content: '{}' })
-    expect(unmirrorNote).toHaveBeenCalledTimes(2)
-
     act(() => setGeneralSettings({ mirrorDir: null }))
     eventBus.emit('note:saved', note)
     expect(mirrorNote).toHaveBeenCalledTimes(1)
+  })
+
+  it('converting a note to a canvas keeps its file (canvases are mirrored too)', () => {
+    renderHook(() => useMarkdownMirror())
+    act(() => setGeneralSettings({ mirrorDir: 'D:/m' }))
+    eventBus.emit('note:kind-changed', { noteId: 'n1', kind: 'canvas', content: '{}' })
+    expect(unmirrorNote).not.toHaveBeenCalled()
+  })
+
+  it('catches up once at startup when mirroring was already on', () => {
+    setGeneralSettings({ mirrorDir: 'D:/m' })
+    const { rerender } = renderHook(() => useMarkdownMirror())
+    expect(remirror).toHaveBeenCalledTimes(1)
+    expect(remirror).toHaveBeenCalledWith('D:/m')
+    // Turning it on later (Settings runs its own first mirror) doesn't repeat it.
+    act(() => setGeneralSettings({ mirrorDir: 'D:/other' }))
+    rerender()
+    expect(remirror).toHaveBeenCalledTimes(1)
   })
 
   it('re-mirrors once, debounced, after vault/folder changes', () => {

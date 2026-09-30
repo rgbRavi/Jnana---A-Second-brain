@@ -36,6 +36,28 @@ describe('ImportExportPanel mirror', () => {
     expect(getGeneralSettings().mirrorDir).toBeNull()
   })
 
+  it('mirrors saves made during a long first copy (the folder is live before it finishes)', async () => {
+    vi.mocked(showConfirmDialog).mockResolvedValue(true)
+    let dirDuringCopy: string | null = null
+    vi.mocked(mirrorAll).mockImplementationOnce(async () => {
+      dirDuringCopy = getGeneralSettings().mirrorDir
+    })
+    render(<ImportExportPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mirror to folder…' }))
+    await waitFor(() => expect(mirrorAll).toHaveBeenCalled())
+    expect(dirDuringCopy).toBe('D:/vault')
+  })
+
+  it('turns mirroring back off if the first copy fails', async () => {
+    vi.mocked(showConfirmDialog).mockResolvedValue(true)
+    vi.mocked(mirrorAll).mockRejectedValueOnce('Not a directory: D:/vault')
+    render(<ImportExportPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mirror to folder…' }))
+    await waitFor(() => expect(mirrorAll).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mirror to folder…' })).toBeTruthy())
+    expect(getGeneralSettings().mirrorDir).toBeNull()
+  })
+
   it('mirrors after the user confirms', async () => {
     vi.mocked(showConfirmDialog).mockResolvedValue(true)
     render(<ImportExportPanel />)
