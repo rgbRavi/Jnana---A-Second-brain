@@ -21,7 +21,10 @@ import {
   type DataHistory,
   type StorageStats,
 } from '../../core/data'
-import { toast } from '../../lib/toast'
+import { toast, updateToast } from '../../lib/toast'
+import { mirrorAll, pickMirrorFolder } from '../../core/mirror'
+import { getAllNotes } from '../../core/notes'
+import { useGeneralSettings } from '../../hooks/useGeneralSettings'
 import { showConfirmDialog } from '../../lib/dialog'
 import styles from './ImportExportPanel.module.css'
 
@@ -33,6 +36,21 @@ export function ImportExportPanel() {
   const [stats, setStats] = useState<StorageStats | null>(null)
   const [history, setHistory] = useState<DataHistory>(getDataHistory())
   const [busy, setBusy] = useState<string | null>(null)
+  const [{ mirrorDir }, setGeneral] = useGeneralSettings()
+
+  const startMirror = async () => {
+    const dir = await pickMirrorFolder()
+    if (!dir) return
+    const id = toast.progress('Mirroring notes…')
+    try {
+      await mirrorAll(dir, await getAllNotes())
+      setGeneral({ mirrorDir: dir })
+      updateToast(id, { progress: 1, message: 'Notes mirrored. Saving a note now updates that folder.', variant: 'success', duration: 4000 })
+    } catch (err) {
+      log.error('[mirror] initial mirror failed', err)
+      updateToast(id, { progress: undefined, message: 'Could not write to that folder.', variant: 'error', duration: 5000 })
+    }
+  }
   const [picking, setPicking] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
@@ -227,6 +245,23 @@ export function ImportExportPanel() {
             )}
           </div>
         )}
+
+        <div className={styles.actions}>
+          {mirrorDir ? (
+            <button className={styles.btn} onClick={() => setGeneral({ mirrorDir: null })} disabled={!!busy}>
+              Stop mirroring
+            </button>
+          ) : (
+            <button className={styles.btn} onClick={startMirror} disabled={!!busy}>
+              Mirror to folder…
+            </button>
+          )}
+        </div>
+        <span className={styles.hint}>
+          {mirrorDir
+            ? `Mirroring to ${mirrorDir}. Each save updates that note's .md file; edits made in the folder are overwritten.`
+            : 'Keep a live Markdown copy of every note in a folder you choose — readable and searchable without Jnana. One-way: Jnana never reads it back.'}
+        </span>
       </section>
 
       {/* ── Import ── */}
