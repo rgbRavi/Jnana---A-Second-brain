@@ -21,6 +21,8 @@ export interface GeneralOptions {
   weekStart: 'sunday' | 'monday'
   /** Days a trashed note is kept before automatic purge. 0 = keep forever. */
   trashRetentionDays: number
+  /** Folder a live Markdown copy of every note is written to (core/mirror.ts). null = off. */
+  mirrorDir: string | null
 }
 
 const STORAGE_KEY = 'jnana.general.options'
@@ -30,6 +32,7 @@ const DEFAULTS: GeneralOptions = {
   dateFormat: 'locale',
   weekStart: 'monday',
   trashRetentionDays: 30,
+  mirrorDir: null,
 }
 
 function load(): GeneralOptions {
