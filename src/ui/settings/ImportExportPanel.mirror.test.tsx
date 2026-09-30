@@ -13,6 +13,7 @@ vi.mock('../../context/NotesContext', () => ({ useNotesContext: () => ({ notes: 
 vi.mock('../../core/mirror', () => ({
   pickMirrorFolder: vi.fn(async () => 'D:/vault'),
   mirrorAll: vi.fn(async () => undefined),
+  MirrorReadError: class extends Error {},
 }))
 vi.mock('../../lib/dialog', () => ({ showConfirmDialog: vi.fn() }))
 
@@ -63,6 +64,7 @@ describe('ImportExportPanel mirror', () => {
     render(<ImportExportPanel />)
     fireEvent.click(screen.getByRole('button', { name: 'Mirror to folder…' }))
     await waitFor(() => expect(getGeneralSettings().mirrorDir).toBe('D:/vault'))
-    expect(mirrorAll).toHaveBeenCalledWith('D:/vault', null)
+    // A loader, not a snapshot: notes are read when the queued job runs.
+    expect(mirrorAll).toHaveBeenCalledWith('D:/vault', expect.any(Function))
   })
 })

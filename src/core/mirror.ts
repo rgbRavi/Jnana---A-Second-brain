@@ -59,15 +59,19 @@ const MAX_DEPTH = 32
 function segments<T extends { id: string; name: string; createdAt?: number }>(
   items: T[],
   groupOf: (item: T) => string,
+  reserved: string[] = [],
 ): Map<string, string> {
   const out = new Map<string, string>()
-  const taken = new Set<string>()
+  const key = (item: T, seg: string) => `${groupOf(item)}\u0000${seg.toLowerCase()}`
+  const taken = new Set(items.flatMap((item) => reserved.map((r) => key(item, r))))
   const ordered = [...items].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0) || a.id.localeCompare(b.id))
   for (const item of ordered) {
     const plain = safeName(item.name)
-    const key = `${groupOf(item)}\u0000${plain.toLowerCase()}`
-    out.set(item.id, taken.has(key) ? `${plain} (${item.id.slice(0, 8)})` : plain)
-    taken.add(key)
+    let seg = taken.has(key(item, plain)) ? `${plain} (${item.id.slice(0, 8)})` : plain
+    // A sibling literally named like a generated suffix already holds it.
+    while (taken.has(key(item, seg))) seg += '_'
+    out.set(item.id, seg)
+    taken.add(key(item, seg))
   }
   return out
 }
@@ -75,7 +79,8 @@ function segments<T extends { id: string; name: string; createdAt?: number }>(
 export function buildTree(vaults: Vault[], folders: Folder[]): MirrorTree {
   const folderSegs = segments(folders, (f) => `${f.vaultId}/${f.parentId ?? ''}`)
   return {
-    vaults: segments(vaults, () => ''),
+    // `assets` is the shared attachments folder at the top of the mirror.
+    vaults: segments(vaults, () => '', ['assets']),
     folders: new Map(folders.map((f) => [f.id, { seg: folderSegs.get(f.id)!, parentId: f.parentId }])),
   }
 }
@@ -94,7 +99,9 @@ function noteDirs(note: Note, tree: MirrorTree): string[] {
     chain.unshift(f.seg)
     id = f.parentId
   }
-  return [tree.vaults.get(note.vaultId ?? DEFAULT_VAULT_ID) ?? 'Vault', ...chain]
+  const vaultId = note.vaultId ?? DEFAULT_VAULT_ID
+  // An unknown vault (deleted a moment ago) gets its own directory, never a real vault's.
+  return [tree.vaults.get(vaultId) ?? `Vault (${vaultId.slice(0, 8)})`, ...chain]
 }
 
 /** `assets` reached from a file at `path` (one `../` per directory level). */
@@ -182,8 +189,21 @@ let titles: Map<string, string> | null = null
 // rewrite just the canvases that show it. Filled by mirrorAll (the hook runs
 // one at startup), kept current by each save.
 let typed: Map<string, Note> | null = null
+/** Reading notes from the app failed (not the mirror folder). */
+export class MirrorReadError extends Error {
+  constructor(cause: unknown) {
+    super(`Couldn't read notes: ${String(cause)}`)
+  }
+}
+
+function readNotes(): Promise<Note[]> {
+  return getAllNotes().catch((err) => {
+    throw new MirrorReadError(err)
+  })
+}
+
 async function titleLookup(): Promise<(id: string) => string | undefined> {
-  if (!titles) titles = new Map((await getAllNotes()).map((n) => [n.id, n.title]))
+  if (!titles) titles = new Map((await readNotes()).map((n) => [n.id, n.title]))
   const map = titles
   return (id) => map.get(id)
 }
@@ -198,11 +218,14 @@ function enqueue(job: () => Promise<void>): Promise<void> {
 }
 
 // --- Failure handling -------------------------------------------------------
-// An outage (folder missing, drive unplugged) is reported once; notes whose
-// write was lost wait in `pending`, and the first write that succeeds again
-// queues one catch-up re-mirror. A single file the OS refuses is different: the
-// folder works, so it's named in its own warning and simply retried next save.
+// An outage (folder missing, drive unplugged, notes unreadable) is reported
+// once; notes whose write was lost wait in `pending`, and the first write that
+// succeeds again queues one catch-up re-mirror. A single file the OS refuses to
+// write or delete is different: the folder works, so it's named in its own
+// warning; a refused write is retried next save, a refused delete on the next
+// full pass (`stale`).
 const pending = new Set<string>()
+const stale = new Set<string>()
 let outage = false
 const reportedFiles = new Set<string>()
 
@@ -210,8 +233,12 @@ function failed(dir: string, err: unknown, noteId?: string): void {
   if (noteId) pending.add(noteId)
   if (outage) return
   outage = true
-  log.error('[mirror] write failed', err)
-  toast.error(`Markdown mirror: ${dir} is missing or unreachable. Jnana will catch up when it's back.`)
+  log.error('[mirror] update failed', err)
+  toast.error(
+    err instanceof MirrorReadError
+      ? "Markdown mirror couldn't read your notes just now. It will catch up on the next save."
+      : `Markdown mirror: ${dir} is missing or unreachable. Jnana will catch up when it's back.`,
+  )
 }
 
 function succeeded(dir: string): void {
@@ -220,26 +247,38 @@ function succeeded(dir: string): void {
   void remirror(dir)
 }
 
-function reportUnwritable(paths: string[]): void {
-  const fresh = paths.filter((p) => !reportedFiles.has(p))
+/** Name the files the OS refused, once each, at most three per toast. */
+function reportRefused(paths: string[], what: 'write' | 'delete'): void {
+  const fresh = paths.filter((p) => !reportedFiles.has(`${what}:${p}`))
   if (fresh.length === 0) return
-  fresh.forEach((p) => reportedFiles.add(p))
-  log.warn('[mirror] could not write', fresh)
-  toast.error(`Markdown mirror couldn't write ${fresh.join(', ')}. Renaming the note usually fixes it.`)
+  fresh.forEach((p) => reportedFiles.add(`${what}:${p}`))
+  log.warn(`[mirror] could not ${what}`, fresh)
+  const list = fresh.length > 3 ? `${fresh.length} files, including ${fresh.slice(0, 3).join(', ')}` : fresh.join(', ')
+  toast.error(
+    what === 'write'
+      ? `Markdown mirror couldn't write ${list}. Renaming the note usually fixes it.`
+      : `Markdown mirror couldn't delete ${list}. Is it open in another app? Jnana will try again later.`,
+  )
 }
 
 async function exportFiles(dir: string, files: { name: string; content: string }[], assets: string[]): Promise<string[]> {
   const out = await invoke<ExportOutcome>('export_notes', { dir, files, assets })
-  if (out.failed.length) reportUnwritable(out.failed)
+  if (out.failed.length) reportRefused(out.failed, 'write')
   return out.failed
 }
 
+/** Delete mirror files; one the OS won't delete is reported and kept for a later retry. */
 async function removeFiles(dir: string, names: string[]): Promise<void> {
-  if (names.length) await invoke<number>('remove_export_files', { dir, names })
+  if (names.length === 0) return
+  const refused = await invoke<string[]>('remove_export_files', { dir, names })
+  names.forEach((n) => stale.delete(n))
+  refused.forEach((n) => stale.add(n))
+  if (refused.length) reportRefused(refused, 'delete')
 }
 
 /** Write (or rename/move) one note's file. Never rejects: failures are reported and caught up later. */
 export function mirrorNote(dir: string, note: Note): Promise<void> {
+  const prevTitle = titles?.get(note.id)
   titles?.set(note.id, note.title)
   if (note.kind) typed?.set(note.id, note)
   return enqueue(async () => {
@@ -248,14 +287,16 @@ export function mirrorNote(dir: string, note: Note): Promise<void> {
     if (plan.write) {
       const { content, assets } = exportNoteContent(note, assetDirFor(plan.write), note.kind ? await titleLookup() : undefined)
       const refused = await exportFiles(dir, [{ name: plan.write, content }], assets)
-      // Keep the old copy and index entry; the next save tries again.
+      // Keep the index entry (and the old copy, unless a case-only rename
+      // already removed it); the next save tries again.
       if (refused.length) return
     }
     if (plan.remove && !plan.removeFirst) await removeFiles(dir, [plan.remove])
     saveIndex(dir, plan.index)
     pending.delete(note.id)
     // A renamed note changes the [[Title]] its canvases show; rewrite those (queued after this job).
-    if (plan.remove && typed) {
+    const renamed = prevTitle !== undefined && prevTitle !== note.title
+    if ((plan.remove || renamed) && typed) {
       for (const t of typed.values()) if (t.id !== note.id && (t.content ?? '').includes(note.id)) void mirrorNote(dir, t)
     }
   }).then(
@@ -268,6 +309,7 @@ export function mirrorNote(dir: string, note: Note): Promise<void> {
 export function unmirrorNote(dir: string, id: string): Promise<void> {
   titles?.delete(id)
   typed?.delete(id)
+  pending.delete(id)
   return enqueue(async () => {
     const plan = planDelete(loadIndex(dir), id)
     await removeFiles(dir, plan.remove ? [plan.remove] : [])
@@ -279,14 +321,21 @@ export function unmirrorNote(dir: string, id: string): Promise<void> {
 }
 
 /**
- * Bring the whole folder in line with `notes`: new and moved notes are written,
- * old paths and deleted notes removed. `rewrite` (the default, used when
+ * Bring the whole folder in line with the notes: new and moved notes are
+ * written, old paths and deleted notes removed. `rewrite` (the default, used when
  * mirroring is turned on) also rewrites notes whose path didn't change; so are
- * notes whose write was lost in an outage. Rejects on failure so the caller can
- * report it.
+ * notes whose write was lost in an outage. Pass a loader to read the notes when
+ * the job runs, so a save queued meanwhile isn't undone by an older snapshot.
+ * Rejects on failure (including a folder that refuses every write) so the
+ * caller can report it.
  */
-export function mirrorAll(dir: string, notes: Note[], { rewrite = true } = {}): Promise<void> {
+export function mirrorAll(
+  dir: string,
+  source: Note[] | (() => Promise<Note[]>),
+  { rewrite = true } = {},
+): Promise<void> {
   return enqueue(async () => {
+    const notes = typeof source === 'function' ? await source().catch((e) => { throw e instanceof MirrorReadError ? e : new MirrorReadError(e) }) : source
     const tree = await loadTree(true)
     titles = new Map(notes.map((n) => [n.id, n.title]))
     typed = new Map(notes.filter((n) => n.kind).map((n) => [n.id, n]))
@@ -297,7 +346,8 @@ export function mirrorAll(dir: string, notes: Note[], { rewrite = true } = {}): 
     const owner = new Map<string, string>() // written path → note id
     const assets = new Set<string>()
     const removeFirst: string[] = []
-    const removeAfter: { id: string | null; path: string }[] = []
+    // Deletes that failed earlier get another go.
+    const removeAfter: { id: string | null; path: string }[] = [...stale].map((path) => ({ id: null, path }))
     // Notes deleted without a per-note event drop out here, before the loop,
     // so their names are free for the notes below.
     const live = new Set(notes.map((n) => n.id))
@@ -319,22 +369,26 @@ export function mirrorAll(dir: string, notes: Note[], { rewrite = true } = {}): 
       out.assets.forEach((a) => assets.add(a))
     }
     await removeFiles(dir, removeFirst)
-    const refused = new Set(
-      (await exportFiles(dir, files, [...assets])).map((path) => owner.get(path)).filter((id): id is string => !!id),
-    )
+    const refusedPaths = new Set(await exportFiles(dir, files, [...assets]))
+    // Not even the notice could be written: the folder is read-only, not one bad name.
+    if (refusedPaths.has(MIRROR_README)) throw new Error(`Couldn't write to ${dir}`)
+    const refused = new Set([...refusedPaths].map((path) => owner.get(path)).filter((id): id is string => !!id))
     // A refused note keeps its previous file and index entry, so the next save retries it.
     for (const id of refused) {
       if (before[id]) index = { ...index, [id]: before[id] }
       else index = planDelete(index, id).index
     }
-    // A later note in this batch may have taken a path an earlier one moved off.
-    const written = new Set(files.map((f) => f.name.toLowerCase()))
+    // A later note in this batch may have taken a path an earlier one moved off
+    // (only if that write actually landed).
+    const written = new Set(files.filter((f) => !refusedPaths.has(f.name)).map((f) => f.name.toLowerCase()))
     await removeFiles(
       dir,
       removeAfter.filter((r) => !(r.id && refused.has(r.id)) && !written.has(r.path.toLowerCase())).map((r) => r.path),
     )
     saveIndex(dir, index)
-    notes.forEach((n) => refused.has(n.id) || pending.delete(n.id))
+    // Everything lost earlier was either written now or no longer exists;
+    // refused notes are retried by their next save, not by more catch-ups.
+    pending.clear()
   }).then(() => {
     outage = false
   })
@@ -349,7 +403,7 @@ export async function remirror(dir: string): Promise<void> {
   // ponytail: plans every note per structure change; fine at thousands of notes,
   // track affected folders if this ever shows up in a profile.
   try {
-    await mirrorAll(dir, await getAllNotes(), { rewrite: false })
+    await mirrorAll(dir, readNotes, { rewrite: false })
   } catch (err) {
     failed(dir, err)
   }

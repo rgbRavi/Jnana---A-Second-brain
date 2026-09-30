@@ -85,11 +85,14 @@ fn copy_assets(src_dir: &Path, out: &Path, assets: &[String]) -> Result<(), Stri
     Ok(())
 }
 
-fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
+/// Remove each `.md` path; one that won't delete (open elsewhere, read-only)
+/// comes back in the failed list instead of stopping the rest.
+fn remove_md_files(target: &Path, names: &[String]) -> Result<(usize, Vec<String>), String> {
     if !target.is_dir() {
         return Err(format!("Not a directory: {}", target.display()));
     }
     let mut removed = 0usize;
+    let mut failed = Vec::new();
     for n in names {
         if !is_rel_path(n) || !n.to_ascii_lowercase().ends_with(".md") {
             continue;
@@ -98,7 +101,11 @@ fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
         match fs::remove_file(&path) {
             Ok(()) => removed += 1,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("Failed to remove {}: {}", n, e)),
+            Err(e) => {
+                log::warn!("export: could not remove {}: {}", n, e);
+                failed.push(n.clone());
+                continue;
+            }
         }
         // Drop vault/folder dirs this left empty; remove_dir refuses a non-empty
         // one, which ends the walk. Never touches `target` itself.
@@ -110,7 +117,7 @@ fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
             dir = d.parent();
         }
     }
-    Ok(removed)
+    Ok((removed, failed))
 }
 
 /// Write the given markdown files into `dir` and copy any referenced assets into
@@ -140,10 +147,11 @@ pub async fn export_notes(
 
 /// Delete files a live Markdown mirror previously wrote into `dir`. Only relative
 /// `.md` names: the mirror never removes anything else (assets, the user's own
-/// files), and a file that's already gone is not an error.
+/// files), and a file that's already gone is not an error. Returns the paths it
+/// couldn't delete.
 #[command]
-pub async fn remove_export_files(dir: String, names: Vec<String>) -> Result<usize, String> {
-    remove_md_files(Path::new(&dir), &names)
+pub async fn remove_export_files(dir: String, names: Vec<String>) -> Result<Vec<String>, String> {
+    remove_md_files(Path::new(&dir), &names).map(|(_, failed)| failed)
 }
 
 /// Write UTF-8 text to a user-chosen absolute path (from the native save dialog).
@@ -254,6 +262,19 @@ mod tests {
         assert_eq!(fs::read_to_string(s.join("V").join("F").join("n.md")).unwrap(), "x");
     }
 
+    /// A file that won't delete (open in another app, read-only) is reported
+    /// back; the rest of the batch still goes.
+    #[test]
+    fn remove_reports_failures_and_keeps_going() {
+        let s = scratch();
+        fs::create_dir_all(s.join("V").join("stuck.md")).unwrap();
+        fs::write(s.join("V").join("gone.md"), "x").unwrap();
+        let (removed, failed) = remove_md_files(&s, &["V/stuck.md".into(), "V/gone.md".into()]).unwrap();
+        assert_eq!(removed, 1);
+        assert_eq!(failed, vec!["V/stuck.md".to_string()]);
+        assert!(!s.join("V").join("gone.md").exists());
+    }
+
     /// Removing a note's file also removes the vault/folder dirs it leaves
     /// empty, but never a dir that still holds something, nor the mirror root.
     #[test]
@@ -283,7 +304,7 @@ mod tests {
         fs::write(target.join("photo.png"), "x").unwrap();
         fs::write(s.join("escape.md"), "x").unwrap();
 
-        let removed = remove_md_files(
+        let (removed, _) = remove_md_files(
             &target,
             &["../escape.md".into(), "photo.png".into(), "Note.md".into(), "gone.md".into()],
         )

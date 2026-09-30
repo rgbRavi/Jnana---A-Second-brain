@@ -22,7 +22,7 @@ import {
   type StorageStats,
 } from '../../core/data'
 import { toast, updateToast } from '../../lib/toast'
-import { mirrorAll, pickMirrorFolder } from '../../core/mirror'
+import { MirrorReadError, mirrorAll, pickMirrorFolder } from '../../core/mirror'
 import { getAllNotes } from '../../core/notes'
 import { useGeneralSettings } from '../../hooks/useGeneralSettings'
 import { showConfirmDialog } from '../../lib/dialog'
@@ -52,12 +52,13 @@ export function ImportExportPanel() {
     // meanwhile after it, so nothing edited during a long copy is missed.
     setGeneral({ mirrorDir: dir })
     try {
-      await mirrorAll(dir, await getAllNotes())
+      await mirrorAll(dir, getAllNotes)
       updateToast(id, { progress: 1, message: 'Notes mirrored. Saving a note now updates that folder.', variant: 'success', duration: 4000 })
     } catch (err) {
       setGeneral({ mirrorDir: null })
       log.error('[mirror] initial mirror failed', err)
-      updateToast(id, { progress: undefined, message: 'Could not write to that folder.', variant: 'error', duration: 5000 })
+      const message = err instanceof MirrorReadError ? "Couldn't read your notes. Try again in a moment." : 'Could not write to that folder.'
+      updateToast(id, { progress: undefined, message, variant: 'error', duration: 5000 })
     }
   }
   const [picking, setPicking] = useState(false)

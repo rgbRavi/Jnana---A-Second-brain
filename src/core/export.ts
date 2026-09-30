@@ -160,7 +160,9 @@ export async function exportNotes(notes: Note[]): Promise<ExportResult | null> {
   if (!dir || typeof dir !== 'string') return null // cancelled
 
   // Canvas note cards name other notes by id; only fetch titles when a typed note is exported.
-  const titles = notes.some((n) => n.kind) ? new Map((await getAllNotes()).map((n) => [n.id, n.title])) : new Map<string, string>()
+  // If titles can't be read, cards export as "(missing note)" rather than failing the export.
+  const all = notes.some((n) => n.kind) ? await getAllNotes().catch(() => []) : []
+  const titles = new Map(all.map((n) => [n.id, n.title]))
   const { files, assets } = buildFiles(notes, (id) => titles.get(id))
   const { written: count, failed } = await invoke<{ written: number; failed: string[] }>('export_notes', { dir, files, assets })
   if (failed.length) toast.error(`Couldn't write ${failed.length === 1 ? 'one file' : `${failed.length} files`}: ${failed.join(', ')}`)

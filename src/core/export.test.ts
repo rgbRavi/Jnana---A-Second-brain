@@ -138,4 +138,13 @@ describe('exportNotes', () => {
     expect(res?.count).toBe(1)
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('B.md'))
   })
+
+  it('still exports a canvas when note titles can\'t be read', async () => {
+    vi.mocked(invoke).mockImplementation((async (cmd: string) => {
+      if (cmd === 'get_all_notes') throw 'database is locked'
+      return { written: 1, failed: [] }
+    }) as never)
+    const res = await exportNotes([mk('c', 'Board', '- [[note:b1]]', 'canvas')])
+    expect(res?.count).toBe(1)
+  })
 })

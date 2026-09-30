@@ -32,7 +32,7 @@ import { toast } from '../lib/toast'
 import { toExportMarkdown } from './export'
 import {
   buildTree, isMirrorable, planSave, planDelete, loadIndex, saveIndex,
-  mirrorNote, unmirrorNote, mirrorAll, MIRROR_README,
+  mirrorNote, unmirrorNote, mirrorAll, remirror, MIRROR_README,
 } from './mirror'
 
 const note = (id: string, title: string, kind: string | null = null, extra: Partial<Note> = {}) =>
@@ -43,15 +43,18 @@ const folder = (id: string, name: string, parentId: string | null = null, vaultI
 
 const T = buildTree(vaults, [folder('f', 'Physics'), folder('g', 'Waves', 'f'), folder('h', 'Q3', null, 'w')])
 
-// Fake Rust: export_notes reports `failNames` it was asked to write as failed.
+// Fake Rust: export_notes reports `failNames` it was asked to write as failed;
+// remove_export_files reports `removeFail` names it was asked to delete.
 let allNotes: Note[] = []
 let failNames: string[] = []
+let removeFail: string[] = []
 const fakeRust = async (cmd: string, args?: unknown) => {
-  const a = args as { files?: { name: string }[] }
+  const a = args as { files?: { name: string }[]; names?: string[] }
   if (cmd === 'export_notes') {
     const failed = failNames.filter((f) => a.files!.some((x) => x.name === f))
     return { written: a.files!.length - failed.length, failed }
   }
+  if (cmd === 'remove_export_files') return removeFail.filter((f) => a.names!.includes(f))
   if (cmd === 'get_all_notes') return allNotes
   return 0
 }
@@ -61,6 +64,7 @@ beforeEach(() => {
   folders = []
   allNotes = []
   failNames = []
+  removeFail = []
   vi.mocked(invoke).mockReset().mockImplementation(fakeRust as never)
   vi.mocked(toast.error).mockClear()
 })
@@ -270,6 +274,121 @@ describe('mirrorAll', () => {
   it('rejects when the folder cannot be written', async () => {
     vi.mocked(invoke).mockRejectedValue('Not a directory: D:/gone')
     await expect(mirrorAll('D:/gone', [note('a', 'A')])).rejects.toBe('Not a directory: D:/gone')
+  })
+})
+
+describe('segment names', () => {
+  it("a generated suffix can't collide with a folder literally named like one", () => {
+    const t = buildTree(vaults, [
+      folder('aaaaaaaa1', 'X', null, DEFAULT_VAULT_ID, 1),
+      folder('bbbbbbbb2', 'x', null, DEFAULT_VAULT_ID, 2),
+      folder('cccccccc3', 'x (bbbbbbbb)', null, DEFAULT_VAULT_ID, 3),
+    ])
+    const paths = ['aaaaaaaa1', 'bbbbbbbb2', 'cccccccc3'].map((f, i) => planSave({}, note(`n${i}`, 'N', null, { folderId: f }), t).write!.toLowerCase())
+    expect(new Set(paths).size).toBe(3)
+  })
+
+  it('a vault named "assets" does not share the top-level assets folder', () => {
+    const t = buildTree([{ id: 'v9zzzzzzzz', name: 'Assets' }] as Vault[], [])
+    expect(planSave({}, note('a', 'A', null, { vaultId: 'v9zzzzzzzz' }), t).write).toBe('Assets (v9zzzzzz)/A.md')
+  })
+
+  it('a note whose vault is unknown gets its own directory', () => {
+    const t = buildTree([{ id: 'v1', name: 'Vault' }] as Vault[], [])
+    expect(planSave({}, note('a', 'A', null, { vaultId: 'ghost123456' }), t).write).toBe('Vault (ghost123)/A.md')
+  })
+})
+
+describe('reviewer findings', () => {
+  const getAllCalls = () => calls().filter(([cmd]) => cmd === 'get_all_notes').length
+
+  it('a deleted note that was waiting on a catch-up stops triggering re-mirrors', async () => {
+    vi.mocked(invoke).mockRejectedValueOnce('Not a directory: D:/m')
+    await mirrorNote('D:/m', note('x', 'X'))
+    await unmirrorNote('D:/m', 'x')
+    await vi.waitFor(() => expect(getAllCalls()).toBe(1))
+    await mirrorNote('D:/m', note('y', 'Y'))
+    await mirrorNote('D:/m', note('y', 'Y'))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(getAllCalls()).toBe(1)
+  })
+
+  it("a file that won't delete is named once and doesn't stop mirroring", async () => {
+    saveIndex('D:/m', { n1: 'V/Old.md' })
+    removeFail = ['V/Old.md']
+    await mirrorNote('D:/m', note('n1', 'New'))
+    expect(loadIndex('D:/m')).toEqual({ n1: 'V/New.md' })
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('V/Old.md'))
+    await mirrorNote('D:/m', note('n1', 'New'))
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(getAllCalls()).toBe(0)
+  })
+
+  it('a removal that failed is retried on the next full pass', async () => {
+    saveIndex('D:/m', { n1: 'V/Old2.md' })
+    removeFail = ['V/Old2.md']
+    await mirrorNote('D:/m', note('n1', 'New2'))
+    removeFail = []
+    vi.mocked(invoke).mockClear()
+    await mirrorAll('D:/m', [note('n1', 'New2')], { rewrite: false })
+    expect(removes().flat()).toContain('V/Old2.md')
+  })
+
+  it('a folder that refuses every write is an error, not a success', async () => {
+    failNames = [MIRROR_README, 'V/A.md']
+    await expect(mirrorAll('D:/m', [note('a', 'A')])).rejects.toBeTruthy()
+  })
+
+  it('names at most three refused files in the toast', async () => {
+    failNames = ['V/R1.md', 'V/R2.md', 'V/R3.md', 'V/R4.md', 'V/R5.md']
+    await mirrorAll('D:/m', ['R1', 'R2', 'R3', 'R4', 'R5'].map((t) => note(t.toLowerCase(), t)))
+    const msg = vi.mocked(toast.error).mock.calls[0][0] as string
+    expect(msg).toContain('5 files')
+    expect(msg).not.toContain('V/R5.md')
+  })
+
+  it('a re-mirror reads notes when it runs, so a rename saved meanwhile wins', async () => {
+    saveIndex('D:/m', { n1: 'V/Old.md' })
+    allNotes = [note('n1', 'Old')]
+    const p = remirror('D:/m')
+    allNotes = [note('n1', 'New')]
+    await mirrorNote('D:/m', note('n1', 'New'))
+    await p
+    expect(loadIndex('D:/m')).toEqual({ n1: 'V/New.md' })
+    expect(removes().flat()).not.toContain('V/New.md')
+  })
+
+  it('a path a refused note failed to take over is still cleaned up', async () => {
+    saveIndex('D:/m', { a: 'V/P.md' })
+    failNames = ['V/P.md']
+    await mirrorAll('D:/m', [note('a', 'Q'), note('b', 'P')])
+    expect(removes().flat()).toContain('V/P.md')
+    expect(loadIndex('D:/m')).toEqual({ a: 'V/Q.md' })
+  })
+
+  it('renaming a note whose file name stays the same still updates canvases', async () => {
+    const board = note('c', 'Board', 'board', { content: '- [[note:b1]]' })
+    allNotes = [note('b1', 'Foo?'), board]
+    await mirrorAll('D:/m', allNotes)
+    vi.mocked(invoke).mockClear()
+    await mirrorNote('D:/m', note('b1', 'Foo_'))
+    await vi.waitFor(() =>
+      expect(exports().flat().some((f) => f.name === 'V/Board.md' && f.content.includes('[[Foo_]]'))).toBe(true),
+    )
+  })
+
+  it("can't-read-notes errors aren't reported as a missing folder", async () => {
+    vi.mocked(invoke).mockImplementation((async (cmd: string, args?: unknown) => {
+      if (cmd === 'get_all_notes') throw 'database is locked'
+      return fakeRust(cmd, args)
+    }) as never)
+    await remirror('D:/m')
+    const msg = vi.mocked(toast.error).mock.calls[0][0] as string
+    expect(msg).not.toContain('missing or unreachable')
+    // The next good write catches up.
+    vi.mocked(invoke).mockImplementation(fakeRust as never)
+    await mirrorNote('D:/m', note('z', 'Z'))
   })
 })
 
