@@ -41,6 +41,12 @@ export function ImportExportPanel() {
   const startMirror = async () => {
     const dir = await pickMirrorFolder()
     if (!dir) return
+    const ok = await showConfirmDialog({
+      title: 'Mirror notes into this folder?',
+      message: `Jnana will write a .md file for every note into ${dir} and keep them updated. A file there with the same name as a note is overwritten, so an empty folder is best.`,
+      confirmLabel: 'Mirror notes',
+    })
+    if (!ok) return
     const id = toast.progress('Mirroring notes…')
     try {
       await mirrorAll(dir, await getAllNotes())

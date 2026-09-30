@@ -130,6 +130,15 @@ export function mirrorAll(dir: string, notes: Note[]): Promise<void> {
     const files = [{ name: MIRROR_README, content: README_TEXT }]
     const assets = new Set<string>()
     const removed: string[] = []
+    // Notes deleted without a per-note event (Empty Trash, vault delete) drop out
+    // here, before the loop, so their names are free for the notes below.
+    const live = new Set(notes.map((n) => n.id))
+    for (const id of Object.keys(index)) {
+      if (live.has(id)) continue
+      const plan = planDelete(index, id)
+      index = plan.index
+      if (plan.remove) removed.push(plan.remove)
+    }
     for (const n of notes) {
       const plan = planSave(index, n)
       index = plan.index

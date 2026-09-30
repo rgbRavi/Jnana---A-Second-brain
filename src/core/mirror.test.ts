@@ -121,6 +121,13 @@ describe('mirrorAll', () => {
     expect(loadIndex('D:/m')).toEqual({ a: 'Y.md', b: 'X.md' })
   })
 
+  it('removes files of notes that no longer exist and frees their names', async () => {
+    saveIndex('D:/m', { gone: 'Old.md', a: 'A.md' })
+    await mirrorAll('D:/m', [note('a', 'A')])
+    expect(calls()[1]).toEqual(['remove_export_files', { dir: 'D:/m', names: ['Old.md'] }])
+    expect(loadIndex('D:/m')).toEqual({ a: 'A.md' })
+  })
+
   it('rejects when the folder cannot be written', async () => {
     vi.mocked(invoke).mockRejectedValue('Not a directory: D:/gone')
     await expect(mirrorAll('D:/gone', [note('a', 'A')])).rejects.toBe('Not a directory: D:/gone')
