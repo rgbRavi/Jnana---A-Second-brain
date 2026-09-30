@@ -15,9 +15,11 @@ pub struct ExportFile {
     pub content: String,
 }
 
-/// A plain file name that stays inside the target directory.
+/// A plain file name that stays inside the target directory. Dots inside a name
+/// ("Wait... what.md") are fine; separators, a drive prefix (`C:x`) and bare
+/// `.`/`..` are what could escape.
 fn is_flat_name(name: &str) -> bool {
-    !name.is_empty() && !name.contains(['/', '\\']) && !name.contains("..")
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', ':'])
 }
 
 /// Copy referenced assets from `src_dir` into `out`. Asset names are UUIDs and
@@ -63,7 +65,7 @@ fn remove_md_files(target: &Path, names: &[String]) -> Result<usize, String> {
 /// File names are kept flat and asset names validated so export can't escape the
 /// chosen directory or read outside the managed assets folder.
 #[command]
-pub fn export_notes(
+pub async fn export_notes(
     dir: String,
     files: Vec<ExportFile>,
     assets: Vec<String>,
@@ -94,7 +96,7 @@ pub fn export_notes(
 /// `.md` names: the mirror never removes anything else (assets, the user's own
 /// files), and a file that's already gone is not an error.
 #[command]
-pub fn remove_export_files(dir: String, names: Vec<String>) -> Result<usize, String> {
+pub async fn remove_export_files(dir: String, names: Vec<String>) -> Result<usize, String> {
     remove_md_files(Path::new(&dir), &names)
 }
 
@@ -142,6 +144,17 @@ mod tests {
 
         assert_eq!(fs::read(out.join("a.png")).unwrap(), b"OLD");
         assert_eq!(fs::read(out.join("b.png")).unwrap(), b"B");
+    }
+
+    /// Titles with an ellipsis or a trailing dot are ordinary file names; only
+    /// separators, drive prefixes and bare `.`/`..` could leave the folder.
+    #[test]
+    fn flat_names_allow_dots_but_not_escapes() {
+        assert!(is_flat_name("Wait... what.md"));
+        assert!(is_flat_name("Chapter 1..md"));
+        for bad in ["", ".", "..", "a/b.md", "a\\b.md", "C:x.md"] {
+            assert!(!is_flat_name(bad), "{bad:?} should be rejected");
+        }
     }
 
     /// Only flat `.md` names inside the target are removed; a missing file is fine.
