@@ -84,7 +84,7 @@ export function exportNoteContent(n: Note): { content: string; assets: string[] 
 }
 
 /** Filesystem-safe base name from a note title. */
-function safeName(title: string): string {
+export function safeName(title: string): string {
   return (
     (title || 'Untitled')
       .trim()
