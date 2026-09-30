@@ -23,6 +23,14 @@ describe('canvasNote projections', () => {
     expect(md).toContain('Hello world')
     expect(md).toContain('https://ex.com')
   })
+  it('export markdown embeds media as an asset link the exporter can rewrite and copy', () => {
+    const withMedia = serializeDoc({
+      nodes: [{ id: 'm', type: 'media', x: 0, y: 0, width: 1, height: 1, file: 'a.png', mediaType: 'image' }],
+      edges: [],
+      drawings: [],
+    })
+    expect(canvasToExportMarkdown(withMedia)).toContain('![media](jnana-asset://a.png)')
+  })
   it('link text carries text-card wikilinks and placed note cards, never drawing JSON', () => {
     const linked = serializeDoc({
       nodes: [
