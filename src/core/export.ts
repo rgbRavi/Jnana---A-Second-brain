@@ -19,17 +19,17 @@ interface ExportFile {
  * filenames a note references, so an exported `.md` works in other markdown
  * tools (Obsidian, VS Code, …) with its media alongside in `assets/`.
  */
-export function toExportMarkdown(content: string): { markdown: string; assets: string[] } {
+export function toExportMarkdown(content: string, assetDir = 'assets'): { markdown: string; assets: string[] } {
   const assets = new Set<string>()
   const markdown = content
     // ```table CSV block → a portable GFM pipe table (renders in Obsidian/
     // GitHub/VS Code). Done first so the asset rewrites below never see it.
     // Column alignment carries over (GFM separator); colour/size are dropped.
     .replace(TABLE_BLOCK, (_m, info: string, csv: string) => `${tableToGfm(parseCsv(csv), parseTableMeta(info).align)}\n`)
-    // jnana-asset://FILE  →  assets/FILE
+    // jnana-asset://FILE  →  assets/FILE (`assetDir` is ../-prefixed for a nested file)
     .replace(/\(jnana-asset:\/\/([^)]+)\)/g, (_m, file: string) => {
       assets.add(file)
-      return `(assets/${file})`
+      return `(${assetDir}/${file})`
     })
     // external://<encoded absolute path>  →  assets/<basename>
     .replace(/\(external:\/\/([^)]+)\)/g, (_m, enc: string) => {
@@ -40,7 +40,7 @@ export function toExportMarkdown(content: string): { markdown: string; assets: s
         base = ''
       }
       if (base) assets.add(base)
-      return `(assets/${base})`
+      return `(${assetDir}/${base})`
     })
     // app-specific youtube embed  →  a plain clickable link
     .replace(/!\[youtube\]\((https?:\/\/[^)]+)\)/g, '[▶ YouTube]($1)')
@@ -72,13 +72,13 @@ function buildFrontmatter(n: Note): string {
 }
 
 /** Assemble one exported note: frontmatter + `# Title` + portable markdown. */
-export function exportNoteContent(n: Note): { content: string; assets: string[] } {
+export function exportNoteContent(n: Note, assetDir = 'assets'): { content: string; assets: string[] } {
   // A typed note exports via its note-type's markdown projection (e.g. a deck as a
   // Q/A list); the result still runs through the asset rewriter below. Plain notes
   // export their raw content unchanged.
   const def = getNoteType(n)
   const source = def?.toExportMarkdown ? def.toExportMarkdown(n) : (n.content || '')
-  const { markdown, assets } = toExportMarkdown(source)
+  const { markdown, assets } = toExportMarkdown(source, assetDir)
   const content = `${buildFrontmatter(n)}\n\n# ${n.title?.trim() || 'Untitled'}\n\n${markdown}\n`
   return { content, assets }
 }
