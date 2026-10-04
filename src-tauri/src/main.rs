@@ -134,6 +134,15 @@ fn mime_from_ext(ext: &str) -> &'static str {
 }
 
 fn main() {
+    // WebKitGTK's DMA-BUF renderer shows a blank white window on some Linux
+    // GPU/driver setups (notably NVIDIA, often under Wayland). Disable it unless
+    // the user set the variable themselves; it costs a little GPU speed where the
+    // renderer would have worked. Set before any thread exists.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     tauri::Builder::default()
         // Logging first so the database init/migrations below are captured. Writes
         // to stdout, a rotating file in the OS log dir, and the devtools console.

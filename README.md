@@ -296,7 +296,8 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
   On Linux, video/audio playback uses GStreamer: the `.deb` pulls in the plugins it needs and the
   AppImage bundles them; on Fedora, H.264/AAC also need `gstreamer1-libav` from RPM Fusion. macOS
   builds are unsigned for now, so Gatekeeper asks you to allow them (Settings → Privacy & Security
-  → Open Anyway).
+  → Open Anyway). YouTube may refuse to play embeds there (the app isn't served from an http
+  address); a **Watch on YouTube** link under each video opens it in your browser.
 
 ### Prerequisites
 - Node.js 18+

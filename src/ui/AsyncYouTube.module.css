@@ -17,6 +17,22 @@
   height: 100%;
 }
 
+.watchExternal {
+  display: inline-block;
+  margin-top: var(--space-2xs);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-3);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+
+.watchExternal:hover {
+  color: var(--accent);
+}
+
 .youtubePlaceholder {
   display: flex;
   align-items: center;

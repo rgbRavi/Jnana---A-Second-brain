@@ -24,7 +24,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+            # Oldest supported Ubuntu on purpose: Linux binaries only run on glibc
+            # at least as new as the build machine's, so building on 24.04 would
+            # lock out Ubuntu 22.04, Debian 12 and Mint 21 users.
+          - os: ubuntu-22.04
             artifact: jnana-linux
             # rust-toolchain `targets` + `tauri build` args (default host target).
             target: ''
@@ -53,9 +56,9 @@ jobs:
 
       # Tauri v2's Linux runtime/build dependencies. No-op on Windows/macOS.
       # Use libayatana-appindicator3-dev only — libappindicator3-dev (Tauri v1)
-      # Conflicts with it and breaks apt on ubuntu-latest.
+      # Conflicts with it and breaks apt on Ubuntu.
       - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \

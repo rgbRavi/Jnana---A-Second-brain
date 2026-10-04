@@ -20,6 +20,7 @@ import { selectRange, toggleSelected } from './selection'
 import { exportNotes, toastExported } from '../../core/export'
 import { showConfirmDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
+import { formatChord } from '../../lib/pluginHotkeys'
 import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
 import { AddToWorkspaceMenu } from '../workspaces/AddToWorkspaceMenu'
@@ -323,7 +324,7 @@ function Notes() {
               {visible.length === notes.length
                 ? `${notes.length} note${notes.length === 1 ? '' : 's'}`
                 : `${visible.length} of ${notes.length} notes`}
-              <span className={NoteStyles.listHint}>Ctrl-click to select</span>
+              <span className={NoteStyles.listHint}>{formatChord('mod')}-click to select</span>
             </p>
           )
         )}
