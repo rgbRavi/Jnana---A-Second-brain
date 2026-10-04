@@ -197,6 +197,10 @@ through Rust to only the host you configured.
   outside the note — PDF highlights, canvas, workspace membership, media layout — is **not** in the
   Markdown; use **Settings → Import / Export → "Export full vault (.zip)"** for a complete, restorable
   copy of everything.
+- **Live Markdown mirror** (Settings → Import / Export → "Mirror to folder…") — every save also updates
+  a plain `.md` copy of the note in a folder you pick, laid out as `Vault/Folder/Subfolder/Note.md`
+  (renames and moves follow along), so your notes stay readable, searchable and git-able without
+  Jnana. One-way: Jnana never reads the folder back.
 
 ### Appearance (Theme Studio)
 - **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
@@ -217,6 +221,16 @@ through Rust to only the host you configured.
   built-in **Pomodoro** timer in a floating tray), **command-palette commands** with a keyboard
   shortcut you can rebind, **right-rail panels**, and renderers for **fenced code blocks** (a
   ```` ```weather ```` block becomes whatever the plugin makes of it)
+- **Buttons where you work** — a plugin can add items to a note's right-click / ⋮ menu, the editor
+  pane header, or the end of the sidebar. Jnana draws them (a plugin never touches the page), so this
+  works for sandboxed plugins too, and an editor action saves your pending edits before it runs
+- **Motion plugins** — with the `motion` permission, a plugin can animate app moments (deleting,
+  saving, navigating) on named UI anchors. Every animation is owned by Jnana, so reduced motion, a
+  fault limit, unloading the plugin or the **`Ctrl/⌘+Alt+M`** panic chord removes it all at once; an
+  animation never delays the action itself. When two plugins want the same moment you pick the winner
+  (Appearance → Motion). Installing one offers to back up first, and a launch that didn't close
+  cleanly skips motion plugins for that session. Two built-in effects — crumple-to-bin on delete and
+  a letter flying to Notes on save — are off by default (Settings → Plugins)
 - **A real sandbox** — a plugin can declare `"runtime": "worker"` and run in a Web Worker with no
   DOM, no file access and no network of its own: every capability is answered by Jnana, and one it
   wasn't granted is refused rather than quietly missing. These carry a **Sandboxed** badge, and you
@@ -249,12 +263,12 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 - **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and
   GFM export has **shipped** ([details](TABLES.md)); still on the backlog: Tab-to-add-row, per-column
   alignment, convert-a-pasted-pipe-table, move/reorder row+column, and copy-to-clipboard
-- **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
-  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
-  markdown renderer rewrite have already landed)
+- **Polish pass** — a shared modal component (design tokens, in-app dialogs, the graph enhancements,
+  Theme Studio with its density/motion/reading-scale and font controls, and the markdown renderer
+  rewrite have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, and plugin
-  hardening (granular per-permission grants, download signature verification, an optional sandbox for
-  untrusted plugins — the plugin system itself, with install-time permission consent, already ships)
+  download signature verification (revocable per-plugin permissions and the worker sandbox already
+  ship)
 
 ---
 

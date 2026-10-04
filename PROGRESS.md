@@ -1,6 +1,6 @@
 # Jnana - Progress Log
 
-## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **AI view reliability + UX pass shipped (2026-09-17)** — grounded requests stream (fixes 30s gateway 500s), replies keep running across chat/view switches, retry keeps answer versions, keyboard-reachable message menus, explicit mutually-exclusive modes with a mode line, markdown replies, a user-set note-context token budget with semantic passage selection, PDF text + images/scanned PDFs sent to vision models, image paste/drop in chat, multi-note quiz scope, and an opt-in glass theme effect (see [PLAN.md](PLAN.md)). **Next up:** auto-backup; **web search for AI chat** (planned in PLAN.md); further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
+## Status: Phases 1–3 complete; live editor, media layout, context menu, Working Notes (tabbed/split editor) + peek modal, text colour + highlight, **tables (inline grid editor + header colour)**, and performance improvements landed; release-hardening pass done. **Settings redesign shipped** — full-bleed chrome-free Settings with a left section nav + origin-returning Back button, a new **General** tab (`useGeneralSettings`: startup view, confirm-before-delete, date format, week start), restructured About, and **theme-native form controls** (`SettingSelect`/`SettingSlider`/`SettingToggle` in [SettingControls.tsx](src/ui/settings/SettingControls.tsx)) replacing every OS-default select/slider/checkbox. **Trash / soft-delete + retention shipped** — `notes.deleted_at` (migrate_v18), soft-delete on remove, a `/trash` view (Restore / Delete forever / Empty Trash), a `trashRetentionDays` setting, and a boot-time expiry purge. Heavy routes are now **lazy-loaded** (React.lazy + Suspense) to trim the cold-start bundle. **AI search + PDF text indexing shipped** — the Search view has a **keyword/AI toggle** (AI mode runs debounced semantic retrieval over the local RAG, de-duped per note, workspace-scoped), and **PDF contents are now searchable** by both keyword and AI: pdf.js extracts a note's `![pdf]` attachment text into an `attachment_text` table (migrate_v20, schema v20) on `note:saved`, feeding both the MiniSearch keyword index and the RAG chunker. **Adaptive Rules shipped** — user-authored **Rules** (a per-vault `ai_rules` library, migrate_v21, **schema v21**) selected per **session** (`conversations.rule_ids`) and per **project** (`ai_project_rules`, inherited by the project's chats), re-injected **front + tail** in AI chat/agent to hold instruction fidelity in long threads; refresh + selection are configurable strategies under a new **Settings → Advanced AI generation** (counters, plus experimental conversation-drift, rule-violation LLM-judge, and relevance-ranked `rag-topK`), each **degrading gracefully to the cheap defaults** when no AI is configured, with a local metrics ring buffer for A/B. **AI view reliability + UX pass shipped (2026-09-17)** — grounded requests stream (fixes 30s gateway 500s), replies keep running across chat/view switches, retry keeps answer versions, keyboard-reachable message menus, explicit mutually-exclusive modes with a mode line, markdown replies, a user-set note-context token budget with semantic passage selection, PDF text + images/scanned PDFs sent to vision models, image paste/drop in chat, multi-note quiz scope, and an opt-in glass theme effect (see [PLAN.md](PLAN.md)). **Motion plugins shipped** — a `motion` permission and a recoverable `ctx.motion` runtime (anchors, before-events, caps, fault limit, `mod+alt+m` panic chord, safe mode after an unclean launch, backup-before-install), per-moment conflict handling, and two built-in effects (crumple-to-bin, letter-to-Notes; off by default). **Plugin UI actions shipped** — `ctx.ui.registerAction` on both runtimes puts plugin items into note menus, the editor pane header and the sidebar, drawn by Jnana. **Markdown mirror shipped** — an opt-in, one-way live copy of every note as `.md` in a folder the user picks (SQLite stays the source of truth). **Next up:** auto-backup; **web search for AI chat** (planned in PLAN.md); further settings features (storage maintenance, app lock, …) planned in [docs/superpowers/plans/](docs/superpowers/plans/).
 
 Last updated: 2026-09-17
 
@@ -183,6 +183,14 @@ What exists now:
 - **Plugin types** — a manifest declares `"type": "theme"` or `"utility"`. A label, not a capability
   gate: it groups and badges the Installed list (filter + sections + sort by name or install date)
   and lets the consent prompt flag a "theme" that also wants notes or the network
+- **UI actions** — `ctx.ui.registerAction` (`lib/pluginActions.ts`) adds items to `note.menu`,
+  `editor.toolbar` and `sidebar`. Declarative (validated, ≤ 3 per slot, drawn by Jnana), so sandboxed
+  plugins can use it; the editor pane saves pending edits before `run`
+- **Motion** — the `motion` permission gives main-thread plugins `ctx.motion` (`lib/motion/`):
+  animations on add-only `data-anchor` targets, owned by a runtime that unload, the `mod+alt+m` panic
+  chord, a fault limit and reduced motion can tear down. One plugin plays per app moment (user pick
+  in Appearance → Motion). Installing asks to back up first; after an unclean launch motion plugins
+  are skipped for one session
 - **Per-plugin storage** (`plugin_kv` table, opaque JSON, scoped by id, 5 MB cap)
 - **Loader** — install from a local `.zip`, an unpacked folder, or a curated remote **catalog**;
   built ESM entry loaded via a Blob URL with `react` rewritten to host shims
@@ -192,10 +200,13 @@ What exists now:
   every plugin surface inside its own error boundary
 - **Plugin manager** (Settings → Plugins) — Installed / Browse / Updates / Developer, with
   enable/disable, uninstall, storage clear, a Plugin Console, and scaffold/package/load-local/reload
-- **Built-ins**: Flashcard deck (note type + SM-2), Pomodoro (widget + commands)
+- **Built-ins**: Flashcard deck (note type + SM-2), Pomodoro (widget + commands), and motion effects
+  (crumple-to-bin, letter-to-Notes; off by default, public API only)
 - **Reference plugins** in `examples/`: `sample-plugin` (main thread, note type), `sample-worker-plugin`
   (sandboxed: command, block panel, fence), `sample-theme` (a theme plugin — no permissions, no build
-  step) and `plugin-testbed` (a manual harness claiming every surface at once)
+  step), `sample-actions-plugin` ("Note Helpers" — sandboxed UI actions), `sample-motion-plugin`
+  ("Confetti on Save") and `ink-portal-plugin` (ink wash on sidebar navigation), plus `plugin-testbed`
+  (a manual harness claiming every surface at once)
 - **Curated registry** — `JnanaApp/JnanaPlugins` catalog, with checksum + manifest agreement checked
   before the consent prompt
 
@@ -693,8 +704,8 @@ Notes:
 - [x] Persisted to SQLite (`themes`, migrate_v11) with a localStorage mirror applied synchronously
       in `main.tsx` before first paint (no flash of default); `theme:changed` event re-themes the
       graph's accent-derived node colors live
-- [ ] Density / motion / reading-scale tokens are written but not yet consumed by any CSS (controls
-      ship ahead of the wiring pass) — no font picker yet either (fonts stay DM Sans / DM Mono)
+- [x] Density / motion / reading-scale tokens drive the spacing scale, `--dur-*` durations and
+      reading font size; per-role font picker (Design tab) with installable fonts
 
 ### Plugin framework
 - [x] Plugin registry
@@ -709,14 +720,16 @@ Notes:
 - [x] Plugin management UI (Settings → Plugins: Installed / Browse / Updates / Developer)
 - [x] Built-in plugins — Flashcard deck, Pomodoro
 - [x] Curated catalog + install-time permission consent
-- [ ] Hardening — granular per-permission grants, signature verification, sandbox, editor extensions
+- [x] Hardening — revocable per-permission grants, worker sandbox + "sandboxed only" policy, `guard`
+      rate limiting, one-shot consent tokens
+- [x] UI actions (`note.menu` / `editor.toolbar` / `sidebar`) on both runtimes
+- [x] Motion plugins (`ctx.motion`, moment conflicts, safe mode, built-in effects)
+- [ ] Download signature verification; fenced renderers in edit mode
 
 ### Verification
-- [x] Unit tests: **137 passing** across 15 test files (`npm test`) — covers `eventBus`, `applyFormat`,
-      `moveMediaBlock`, `remarkJnana` (wikilinks/timestamps/media-keys), `MarkdownLite`, `LiveEditor`,
-      `mediaLayout` round-trip, and more
+- [x] Unit tests: **837 passing** across 105 test files (`npm test`, 2026-09-29)
 - [x] TypeScript: `strict` + `noUnusedLocals` + `noUnusedParameters` — `npx tsc --noEmit` clean
-- [x] Rust: `cargo test` (7 tests) + `cargo build` pass including v12 migration test
+- [x] Rust: `cargo test` (33 tests) passes, including the v21 migration test
 - [ ] End-to-end test coverage not present
 
 ---
@@ -729,6 +742,7 @@ Notes:
 - [x] Voice recording from the mic (`VoiceRecorder`; Save blocked while recording)
 - [x] Voice transcription (record → text; cloud OpenAI or local Whisper server; background jobs)
 - [x] Markdown file mirror/export (per-note + bulk, with copied assets)
+- [x] Live one-way Markdown mirror (Settings → Import / Export)
 - [ ] Video timestamp writing from the player UI
 - [ ] ffmpeg sidecar for HEVC/H.265 transcoding
 
