@@ -36,6 +36,38 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_opener::OpenerExt;
 
+/// WebKitGTK ships with getUserMedia switched off and denies every permission
+/// request it isn't told how to answer; wry configures neither, so voice notes
+/// can't reach the microphone on Linux. Turn media streams on for the app's own
+/// webview and grant microphone/camera requests only — anything else
+/// (geolocation, notifications…) keeps WebKitGTK's default deny. macOS needs no
+/// code: wry already grants capture there; Info.plist carries the usage text.
+#[cfg(target_os = "linux")]
+fn enable_linux_microphone(app: &tauri::App) {
+    use glib::prelude::ObjectExt;
+    use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequest, WebViewExt};
+
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let result = window.with_webview(|webview| {
+        let view = webview.inner();
+        if let Some(settings) = WebViewExt::settings(&view) {
+            settings.set_enable_media_stream(true);
+        }
+        view.connect_permission_request(|_, request| {
+            if request.is::<UserMediaPermissionRequest>() {
+                request.allow();
+                return true;
+            }
+            false
+        });
+    });
+    if let Err(e) = result {
+        log::warn!("could not enable microphone access: {e}");
+    }
+}
+
 /// True for the app's own WebView origins — the only legitimate callers of the
 /// `jnana-asset://` scheme. Tauri v2 uses `tauri://localhost` (macOS/Linux) and
 /// `http(s)://tauri.localhost` / `http://<scheme>.localhost` (Windows). In
@@ -169,6 +201,8 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+            #[cfg(target_os = "linux")]
+            enable_linux_microphone(app);
             Ok(())
         })
         .register_uri_scheme_protocol("jnana-asset", |_app, request| {
@@ -311,6 +345,7 @@ fn main() {
             transcribe_audio,
             import_file,
             export_notes,
+            remove_export_files,
             write_text_file,
             write_binary_file,
             export_assets,

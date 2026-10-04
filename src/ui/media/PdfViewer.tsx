@@ -14,6 +14,7 @@ import styles from './PdfViewer.module.css'
 
 // Use Vite's asset import to bundle the worker correctly for offline use
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { assetUrl } from '../../core/notes'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 type Tool = 'select' | 'highlight' | 'pen' | 'eraser' | 'text' | 'ref'
@@ -64,10 +65,6 @@ interface PdfViewerProps {
   /** Render-only: hide the markup tools + overlay interactions (e.g. on the
    *  canvas, where there is no note to scope annotations to). */
   readOnly?: boolean
-}
-
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
 }
 
 export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter, onRegisterReveal, onAppendRef, readOnly = false }: PdfViewerProps) {

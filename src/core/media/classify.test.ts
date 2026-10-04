@@ -2,7 +2,24 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect } from 'vitest'
-import { classifyFile, extensionOf, basenameOf } from './classify'
+import { classifyFile, extensionOf, basenameOf, recordingExtension } from './classify'
+
+// WebView2 records WebM/Opus; WebKit (macOS, Linux) records MP4/AAC. The saved
+// file's extension decides how it's served and how transcription reads it.
+describe('recordingExtension', () => {
+  it('names a recording after what the WebView actually produced', () => {
+    expect(recordingExtension('audio/webm;codecs=opus')).toBe('webm')
+    expect(recordingExtension('audio/mp4')).toBe('m4a')
+    expect(recordingExtension('audio/mp4;codecs=mp4a.40.2')).toBe('m4a')
+    expect(recordingExtension('audio/ogg; codecs=opus')).toBe('ogg')
+    expect(recordingExtension('audio/wav')).toBe('wav')
+  })
+
+  it('falls back to webm when the type is missing or unknown', () => {
+    expect(recordingExtension('')).toBe('webm')
+    expect(recordingExtension('audio/x-mystery')).toBe('webm')
+  })
+})
 
 describe('classifyFile', () => {
   it('routes media by extension', () => {

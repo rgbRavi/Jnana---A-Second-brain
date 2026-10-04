@@ -33,6 +33,21 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/jnana_logo.ico"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "./Entitlements.plist"
+    },
+    "linux": {
+      "deb": {
+        "depends": ["gstreamer1.0-plugins-good", "gstreamer1.0-plugins-bad", "gstreamer1.0-libav"]
+      },
+      "rpm": {
+        "depends": ["gstreamer1-plugins-good", "gstreamer1-plugins-bad-free"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
   }
 }

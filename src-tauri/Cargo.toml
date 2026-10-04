@@ -30,3 +30,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 sha2 = "0.10"
 allsorts = "0.15"
 base64 = "0.22"
+
+# Linux only: the WebKitGTK webview Tauri already uses (same versions as its own
+# dependency tree), to switch on microphone access for voice notes.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"
+glib = "0.18"

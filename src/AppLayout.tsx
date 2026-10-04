@@ -32,6 +32,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
 import { usePdfAnnotationIndex } from "./hooks/usePdfAnnotationIndex";
+import { useMarkdownMirror } from "./hooks/useMarkdownMirror";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import { decideGate } from "./core/onboarding/gate";
 import { getOnboardingState, markLaunch, openOnboarding } from "./hooks/useOnboarding";
@@ -66,6 +67,7 @@ function AppInner() {
     // then) so PDF contents are searchable in keyword + AI search.
     usePdfTextIndex()
     usePdfAnnotationIndex()
+    useMarkdownMirror()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()

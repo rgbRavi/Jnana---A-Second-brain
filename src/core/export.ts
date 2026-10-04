@@ -8,6 +8,7 @@ import { toast } from '../lib/toast'
 import type { Note } from '../types'
 import { getNoteType } from '../lib/noteTypes'
 import { TABLE_BLOCK, parseCsv, tableToGfm, parseTableMeta } from './table'
+import { getAllNotes } from './notes'
 
 interface ExportFile {
   name: string
@@ -19,17 +20,17 @@ interface ExportFile {
  * filenames a note references, so an exported `.md` works in other markdown
  * tools (Obsidian, VS Code, …) with its media alongside in `assets/`.
  */
-export function toExportMarkdown(content: string): { markdown: string; assets: string[] } {
+export function toExportMarkdown(content: string, assetDir = 'assets'): { markdown: string; assets: string[] } {
   const assets = new Set<string>()
   const markdown = content
     // ```table CSV block → a portable GFM pipe table (renders in Obsidian/
     // GitHub/VS Code). Done first so the asset rewrites below never see it.
     // Column alignment carries over (GFM separator); colour/size are dropped.
     .replace(TABLE_BLOCK, (_m, info: string, csv: string) => `${tableToGfm(parseCsv(csv), parseTableMeta(info).align)}\n`)
-    // jnana-asset://FILE  →  assets/FILE
+    // jnana-asset://FILE  →  assets/FILE (`assetDir` is ../-prefixed for a nested file)
     .replace(/\(jnana-asset:\/\/([^)]+)\)/g, (_m, file: string) => {
       assets.add(file)
-      return `(assets/${file})`
+      return `(${assetDir}/${file})`
     })
     // external://<encoded absolute path>  →  assets/<basename>
     .replace(/\(external:\/\/([^)]+)\)/g, (_m, enc: string) => {
@@ -40,7 +41,7 @@ export function toExportMarkdown(content: string): { markdown: string; assets: s
         base = ''
       }
       if (base) assets.add(base)
-      return `(assets/${base})`
+      return `(${assetDir}/${base})`
     })
     // app-specific youtube embed  →  a plain clickable link
     .replace(/!\[youtube\]\((https?:\/\/[^)]+)\)/g, '[▶ YouTube]($1)')
@@ -71,35 +72,58 @@ function buildFrontmatter(n: Note): string {
   return lines.join('\n')
 }
 
-/** Assemble one exported note: frontmatter + `# Title` + portable markdown. */
-export function exportNoteContent(n: Note): { content: string; assets: string[] } {
+/** A note card in a typed note's projection (canvas), by id. */
+const NOTE_CARD = /\[\[note:([^\]]*)\]\]/g
+
+/**
+ * Assemble one exported note: frontmatter + `# Title` + portable markdown.
+ * `titleOf` turns a canvas's `[[note:<id>]]` cards into `[[Title]]` links other
+ * markdown tools can follow.
+ */
+export function exportNoteContent(
+  n: Note,
+  assetDir = 'assets',
+  titleOf?: (id: string) => string | undefined,
+): { content: string; assets: string[] } {
   // A typed note exports via its note-type's markdown projection (e.g. a deck as a
   // Q/A list); the result still runs through the asset rewriter below. Plain notes
   // export their raw content unchanged.
   const def = getNoteType(n)
-  const source = def?.toExportMarkdown ? def.toExportMarkdown(n) : (n.content || '')
-  const { markdown, assets } = toExportMarkdown(source)
+  let source = def?.toExportMarkdown ? def.toExportMarkdown(n) : (n.content || '')
+  if (def?.toExportMarkdown && titleOf) {
+    source = source.replace(NOTE_CARD, (_m, id: string) => {
+      const title = titleOf(id)
+      return title ? `[[${title}]]` : '(missing note)'
+    })
+  }
+  const { markdown, assets } = toExportMarkdown(source, assetDir)
   const content = `${buildFrontmatter(n)}\n\n# ${n.title?.trim() || 'Untitled'}\n\n${markdown}\n`
   return { content, assets }
 }
 
-/** Filesystem-safe base name from a note title. */
-function safeName(title: string): string {
-  return (
-    (title || 'Untitled')
-      .trim()
-      .replace(/[\\/:*?"<>|]/g, '_')
-      .replace(/\s+/g, ' ')
-      .slice(0, 80) || 'Untitled'
-  )
+/** Windows device names: `CON` or `CON.anything` can't be a file there. */
+const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?=\.|$)/i
+const graphemes = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null
+/** First `max` user-perceived characters, so a cut never splits an emoji. */
+function clip(text: string, max: number): string {
+  const parts = graphemes ? Array.from(graphemes.segment(text), (s) => s.segment) : Array.from(text)
+  return parts.slice(0, max).join('')
 }
 
-function buildFiles(notes: Note[]): { files: ExportFile[]; assets: string[] } {
+/** Filesystem-safe base name from a note title (portable across Windows, macOS, Linux). */
+export function safeName(title: string): string {
+  const cleaned = clip((title || '').trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' '), 80)
+    // Windows silently drops trailing dots/spaces; strip them so the name on disk is the one we track.
+    .replace(/[. ]+$/, '')
+  return cleaned ? cleaned.replace(RESERVED, '$1_') : 'Untitled'
+}
+
+function buildFiles(notes: Note[], titleOf: (id: string) => string | undefined): { files: ExportFile[]; assets: string[] } {
   const seen = new Map<string, number>()
   const allAssets = new Set<string>()
 
   const files = notes.map((n) => {
-    const { content, assets } = exportNoteContent(n)
+    const { content, assets } = exportNoteContent(n, 'assets', titleOf)
     assets.forEach((a) => allAssets.add(a))
 
     const base = safeName(n.title)
@@ -135,10 +159,15 @@ export async function exportNotes(notes: Note[]): Promise<ExportResult | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose an export folder' })
   if (!dir || typeof dir !== 'string') return null // cancelled
 
-  const { files, assets } = buildFiles(notes)
-  const count = await invoke<number>('export_notes', { dir, files, assets })
+  // Canvas note cards name other notes by id; only fetch titles when a typed note is exported.
+  // If titles can't be read, cards export as "(missing note)" rather than failing the export.
+  const all = notes.some((n) => n.kind) ? await getAllNotes().catch(() => []) : []
+  const titles = new Map(all.map((n) => [n.id, n.title]))
+  const { files, assets } = buildFiles(notes, (id) => titles.get(id))
+  const { written: count, failed } = await invoke<{ written: number; failed: string[] }>('export_notes', { dir, files, assets })
+  if (failed.length) toast.error(`Couldn't write ${failed.length === 1 ? 'one file' : `${failed.length} files`}: ${failed.join(', ')}`)
   // Mirrors the guard in the Rust command, which skips names it won't write.
-  const written = files.find((f) => f.name && !/[\\/]/.test(f.name) && !f.name.includes('..'))
+  const written = files.find((f) => f.name && !/[\\/:]/.test(f.name) && !failed.includes(f.name))
   const sep = dir.includes('\\') ? '\\' : '/'
   return { count, dir, revealPath: written ? `${dir}${sep}${written.name}` : dir }
 }

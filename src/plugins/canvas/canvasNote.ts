@@ -76,7 +76,9 @@ export function canvasToExportMarkdown(content: string): string {
   const lines = doc.nodes.map((n) => {
     if (n.type === 'text') return `- ${n.text ?? ''}`
     if (n.type === 'link') return `- [webpage](${n.url ?? ''})`
-    if (n.type === 'media') return `- ![media](${n.file ?? ''})`
+    // `file` is a bare asset filename; the app URL lets the exporter rewrite the
+    // link (assets/…, ../ per mirror level) and copy the file alongside.
+    if (n.type === 'media') return n.file ? `- ![media](jnana-asset://${n.file})` : '- (media)'
     if (n.type === 'note') return `- [[note:${n.noteId ?? ''}]]`
     return `- (node)`
   })
