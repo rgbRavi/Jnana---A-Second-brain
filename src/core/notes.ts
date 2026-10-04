@@ -142,17 +142,30 @@ export async function getAssetDataUrl(filename: string, mime: string): Promise<s
 }
 
 /**
+ * `assetUrl` for a given WebView user agent. Tauri serves a custom scheme as
+ * `http://<scheme>.localhost/` on Windows (WebView2) but `<scheme>://localhost/`
+ * on macOS and Linux (WebKit); the Windows form simply doesn't exist there.
+ */
+export function assetUrlFor(filename: string, userAgent: string): string {
+  const name = encodeURIComponent(filename)
+  return /Windows/i.test(userAgent) ? `http://jnana-asset.localhost/${name}` : `jnana-asset://localhost/${name}`
+}
+
+const USER_AGENT = typeof navigator === 'undefined' ? '' : navigator.userAgent
+
+/**
  * URL for a stored asset, served by the app's own `jnana-asset` scheme handler
- * (registered in `main.rs`).
+ * (registered in `main.rs`), in the form this platform's WebView expects. Every
+ * image, recording, video and PDF goes through here; never build the URL by hand.
  *
- * This exact origin is the one the WebView's CSP allows — see `img-src` /
- * `media-src` in tauri.conf.json, pinned by assetUrl.test.ts. Tauri's
- * `convertFileSrc` is **not** interchangeable here: it builds an `asset.localhost`
- * URL, which the policy does not list, so the browser refuses the request and the
- * image simply never appears. Nothing throws, so a wrong URL here fails silently.
+ * Both forms are what the WebView's CSP allows — see `img-src` / `media-src` in
+ * tauri.conf.json, pinned by assetUrl.test.ts. Tauri's `convertFileSrc` (default
+ * protocol) is **not** interchangeable: it builds an `asset.localhost` URL the
+ * policy doesn't list, so the request is refused and the image never appears.
+ * Nothing throws, so a wrong URL here fails silently.
  */
 export function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${encodeURIComponent(filename)}`
+  return assetUrlFor(filename, USER_AGENT)
 }
 
 export function createNote(title: string = 'Untitled'): Note {

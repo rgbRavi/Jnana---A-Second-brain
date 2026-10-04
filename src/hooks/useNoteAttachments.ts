@@ -4,7 +4,7 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { importMedia, registerMediaRef } from '../core/media'
 import { uploadAsset } from '../core/notes'
-import { basenameOf, type MediaKind } from '../core/media/classify'
+import { basenameOf, recordingExtension, type MediaKind } from '../core/media/classify'
 import { toast } from '../lib/toast'
 
 /** A failed media_refs insert silently drops the note's has:* auto-tags — make
@@ -125,12 +125,13 @@ export function useNoteAttachments({
     pickAndUpload('video', 'Video', ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'])
 
   // Save a recording captured from the mic (a Blob, not a picked file). Mirrors
-  // handleImageUpload's bytes path — no file dialog. Recordings are webm/opus.
+  // handleImageUpload's bytes path — no file dialog. The format depends on the
+  // WebView (webm/opus on Windows, m4a/aac on macOS and Linux).
   const handleAudioBlob = async (blob: Blob) => {
     onUploadStart()
     try {
       const arrayBuffer = await blob.arrayBuffer()
-      const filename = await uploadAsset(new Uint8Array(arrayBuffer), 'webm')
+      const filename = await uploadAsset(new Uint8Array(arrayBuffer), recordingExtension(blob.type))
 
       if (onRegisterPendingMedia) {
         onRegisterPendingMedia(filename, 'audio')

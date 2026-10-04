@@ -275,10 +275,21 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
 ## Getting started
 
+### Platforms
+- **Windows 10/11** — tested.
+- **Linux** and **macOS 12+** — build in CI and carry the platform fixes (asset URLs, recording
+  format, microphone access), but haven't been run on real hardware yet; treat them as experimental.
+  On Linux, video/audio playback uses GStreamer: the `.deb` pulls in the plugins it needs and the
+  AppImage bundles them; on Fedora, H.264/AAC also need `gstreamer1-libav` from RPM Fusion. macOS
+  builds are unsigned for now, so Gatekeeper asks you to allow them (Settings → Privacy & Security
+  → Open Anyway).
+
 ### Prerequisites
 - Node.js 18+
 - Rust + Cargo
 - Microsoft C++ Build Tools (on Windows)
+- On Linux: the [Tauri v2 system packages](https://v2.tauri.app/start/prerequisites/#linux)
+  (`libwebkit2gtk-4.1-dev` and friends)
 
 Optional, per feature:
 - **LibreOffice** / **Pandoc** — document conversion & text extraction

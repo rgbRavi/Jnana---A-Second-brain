@@ -16,7 +16,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
 import { importMedia, openAssetFile } from '../../../core/media'
-import { uploadAsset } from '../../../core/notes'
+import { assetUrl, uploadAsset } from '../../../core/notes'
 import {
   newId, bringToFront, bringForward, sendBackward, sendToBack, eraseAt,
   type CanvasDoc, type CanvasEdge, type CanvasNode, type Side,
@@ -119,10 +119,6 @@ function edgePath(p1: Pt, s1: Side, p2: Pt, s2: Side): string {
   const c1 = { x: p1.x + n1.x * off, y: p1.y + n1.y * off }
   const c2 = { x: p2.x + n2.x * off, y: p2.y + n2.y * off }
   return `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${p2.x} ${p2.y}`
-}
-
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
 }
 
 function mediaTypeFromExt(name: string): string {

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useEffect, useRef } from 'react'
+import { assetUrl } from '../core/notes'
 
 interface Props {
   filename: string
@@ -9,12 +10,6 @@ interface Props {
   controls?: boolean
   preload?: 'none' | 'metadata' | 'auto'
   lazy?: boolean
-}
-
-// Build URL for our custom Rust protocol handler.
-// On Windows WebView2, custom schemes are served via http://<scheme>.localhost/
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
 }
 
 export function AsyncVideo({ filename, className, controls = true, preload = 'metadata', lazy = true }: Props) {

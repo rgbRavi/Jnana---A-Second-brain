@@ -1,3 +1,4 @@
+import { assetUrl } from '../notes'
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
@@ -10,8 +11,6 @@
 // command argument — see the "never send bytes as an argument" gotcha. Every
 // image is downscaled (longest side ≤ maxDim) and re-encoded as JPEG, which
 // bounds both the request size and the provider's per-image token cost.
-
-const assetUrl = (filename: string) => `http://jnana-asset.localhost/${filename}`
 
 /** Longest side sent to the model. ~1280px keeps text in screenshots and scans legible. */
 export const VISION_MAX_DIM = 1280

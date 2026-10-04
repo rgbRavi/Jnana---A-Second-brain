@@ -32,7 +32,8 @@ function fmtElapsed(totalSeconds: number): string {
 /**
  * Mic capture button. Click to start (requests mic permission), click again to
  * stop; the recorded clip is handed to `onRecorded` as a Blob. Uses the browser
- * MediaRecorder API (WebView2 is Chromium-based) and produces webm/opus.
+ * MediaRecorder API: webm/opus on Windows (WebView2), mp4/aac on macOS and Linux
+ * (WebKit); the saved file is named for whichever was produced.
  * Microphone permission is requested lazily on first use; denial / no-device
  * surfaces a clear message instead of failing silently.
  */
@@ -65,6 +66,12 @@ export const VoiceRecorder = forwardRef<VoiceRecorderHandle, Props>(function Voi
   useEffect(() => stopTracks, [])
 
   const start = async () => {
+    // Some WebViews expose no microphone API at all (WebKitGTK unless the host
+    // enables media streams); say so instead of failing with a TypeError.
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast.error("Recording isn't available on this system: the app's web view has no microphone support.")
+      return
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
