@@ -4,6 +4,7 @@
 import { eventBus } from '../../lib/eventBus'
 import { pluginLog } from '../../lib/pluginLog'
 import { recordPluginActivity, type PluginActivityKind } from '../../lib/pluginActivity'
+import { logEvent, isLogLevelEnabled } from '../../lib/logger'
 
 // Rate limiting for everything a plugin asks the host to do.
 //
@@ -109,8 +110,16 @@ export async function guard<T>(
   b.tokens -= 1
   b.inFlight += 1
   recordPluginActivity(pluginId, kind)
+  const t0 = performance.now()
   try {
-    return await run()
+    const result = await run()
+    if (isLogLevelEnabled('trace')) {
+      logEvent('trace', 'plugin', `API call (${kind})`, { pluginId, event: 'api', durationMs: performance.now() - t0 })
+    }
+    return result
+  } catch (err) {
+    logEvent('debug', 'plugin', `API call (${kind}) failed`, { pluginId, event: 'api-fail', durationMs: performance.now() - t0, error: err })
+    throw err
   } finally {
     b.inFlight -= 1
   }

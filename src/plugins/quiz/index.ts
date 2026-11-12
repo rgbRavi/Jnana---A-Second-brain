@@ -9,6 +9,7 @@ import { GraduationCap } from 'lucide-react'
 import type { Plugin } from '../../types'
 import { EMPTY_QUIZ_CONTENT, quizToExportMarkdown, quizToSearchText } from './quizNote'
 import { QuizNoteEditor, QuizNoteView } from './QuizNoteView'
+import { quizLog } from './log'
 
 export const QUIZ_PLUGIN_ID = 'jnana.quiz'
 
@@ -20,6 +21,7 @@ export const quizPlugin: Plugin = {
   name: 'Quiz',
   version: '1.0.0',
   init(ctx) {
+    quizLog.bind(ctx.log)
     ctx.registerNoteType({
       id: QUIZ_NOTE_KIND,
       label: 'Quiz',
@@ -30,5 +32,8 @@ export const quizPlugin: Plugin = {
       toSearchText: (note) => quizToSearchText(note.content),
       toExportMarkdown: (note) => quizToExportMarkdown(note.content),
     })
+  },
+  destroy() {
+    quizLog.bind(null)
   },
 }

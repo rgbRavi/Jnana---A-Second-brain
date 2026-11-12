@@ -6,7 +6,7 @@
 // — see commands/fonts.rs. This layer is a thin invoke wrapper; face injection and
 // the picker live in core/fonts/loadFaces.ts + hooks/useInstalledFonts.ts.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 
 export interface FontFace {
   weight: number

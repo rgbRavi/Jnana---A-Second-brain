@@ -24,7 +24,7 @@ export function OnboardingNudge() {
         <button
           type="button"
           className={styles.nudgeDismiss}
-          aria-label="Dismiss"
+          title="Dismiss" aria-label="Dismiss"
           onClick={dismissNudge}
         >
           <X size={14} />

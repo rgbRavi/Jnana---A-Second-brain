@@ -3,7 +3,7 @@
 
 // User-authored Rules: short instructions re-injected to keep long chats on
 // track. Backed by the Rust ai_rules table. Mirrors aiWorkspace.ts (presets).
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { AiRule } from '../types'
 
 const newId = () =>

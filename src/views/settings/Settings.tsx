@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import { getViewState } from '../../hooks/useViewState'
+import { getViewState, useViewState } from '../../hooks/useViewState'
 import { getDialog } from '../../lib/dialog'
 import { useNotesContext } from '../../context/NotesContext'
 import { useActiveVaultId } from '../../hooks/useVaults'
@@ -41,11 +41,13 @@ const SECTIONS: { id: SettingsTab; label: string }[] = [
 function Settings() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [tab, setTab] = useState<SettingsTab>(() => resolveSettingsTab(location.pathname))
+  // Session-sticky: reopening Settings returns to the tab you left, unless the
+  // route names one (/settings/plugins, …).
+  const [tab, setTab] = useViewState<SettingsTab>('settings.tab', resolveSettingsTab(location.pathname))
 
   useEffect(() => {
-    setTab(resolveSettingsTab(location.pathname))
-  }, [location.pathname])
+    if (location.pathname.replace(/\/+$/, '') !== '/settings') setTab(resolveSettingsTab(location.pathname))
+  }, [location.pathname, setTab])
   const { notes: allNotes } = useNotesContext()
   const { config, updateConfig, stats, indexing, stale, reindexAll, refreshStaleness } = useRag()
 

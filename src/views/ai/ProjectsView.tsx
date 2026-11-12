@@ -4,6 +4,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { FileUp, Plus, X, FolderKanban, MessageSquarePlus } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
+import { toast } from '../../lib/toast'
 import { useNotesContext } from '../../context/NotesContext'
 import { useViewState } from '../../hooks/useViewState'
 import { requestChatAction } from '../../hooks/useChatHistory'
@@ -110,7 +111,10 @@ export function ProjectsView() {
   }, [editing?.id])
 
   const persistProject = async (p: AiProject) => {
-    await saveProject({ ...p, updatedAt: Date.now() }).catch((e) => console.error(e))
+    await saveProject({ ...p, updatedAt: Date.now() }).catch((e) => {
+      console.error(e)
+      toast.error("Couldn't save the project.")
+    })
     await refreshProjects()
   }
 
@@ -128,7 +132,13 @@ export function ProjectsView() {
       danger: true,
     })
     if (!ok) return
-    await deleteProject(p.id).catch((e) => console.error(e))
+    try {
+      await deleteProject(p.id)
+    } catch (e) {
+      console.error(e)
+      toast.error(`Couldn't delete “${p.name}”.`)
+      return
+    }
     if (editing?.id === p.id) setEditing(null)
     await refreshProjects()
   }
@@ -146,7 +156,13 @@ export function ProjectsView() {
     if (!editing) return
     if (knowledge.some((k) => k.kind === 'note' && k.refId === note.id)) return
     const item = newKnowledge(editing.id, 'note', note.id, note.title?.trim() || 'Untitled')
-    await addProjectKnowledge(item).catch((e) => console.error(e))
+    try {
+      await addProjectKnowledge(item)
+    } catch (e) {
+      console.error(e)
+      toast.error("Couldn't add the note to this project.")
+      return
+    }
     setKnowledge((prev) => [...prev, item])
     setNoteQuery('')
   }
@@ -163,11 +179,18 @@ export function ProjectsView() {
       }
     } catch (e) {
       console.error(e)
+      toast.error("Couldn't add the file to this project.")
     }
   }
 
   const removeKnowledge = async (id: string) => {
-    await removeProjectKnowledge(id).catch((e) => console.error(e))
+    try {
+      await removeProjectKnowledge(id)
+    } catch (e) {
+      console.error(e)
+      toast.error("Couldn't remove the item from this project.")
+      return
+    }
     setKnowledge((prev) => prev.filter((k) => k.id !== id))
   }
 

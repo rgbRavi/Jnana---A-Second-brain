@@ -522,3 +522,4 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.log_debug span { color: var(--text-3); }

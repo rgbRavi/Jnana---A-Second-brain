@@ -21,6 +21,7 @@ import { useLinkRename } from '../../../hooks/useLinkRename'
 import { usePluginActions } from '../../../hooks/usePluginActions'
 import { runPluginAction, type StoredAction } from '../../../lib/pluginActions'
 import Styles from './EditorPane.module.css'
+import { registerCloseFlush } from '../../../core/closeGuard'
 
 const AUTOSAVE_MS = 800
 
@@ -129,6 +130,12 @@ export function EditorPane({ noteId }: { noteId: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, update])
+
+  // Window close doesn't unmount React, so the unmount flush below never runs —
+  // flush through the close guard too. Ref keeps the latest flushSave.
+  const flushRef = useRef(flushSave)
+  flushRef.current = flushSave
+  useEffect(() => registerCloseFlush(() => flushRef.current()), [])
 
   // Seed drafts when the pane switches to a different note. Deliberately keyed
   // on noteId only (not note identity) so our own autosave — which gives the

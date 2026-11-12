@@ -32,6 +32,14 @@ let settingsChanged = null;
 const say = (m) => self.postMessage(m);
 const message = (e) => (e && e.message) || String(e);
 const report = (e) => say({ k: 'log', level: 'error', message: message(e) });
+// ctx.log: data that can't be structured-cloned is sent as its string form.
+const sayLog = (level, m, d) => {
+  try {
+    say({ k: 'log', level, message: String(m), data: d });
+  } catch {
+    say({ k: 'log', level, message: String(m), data: String(d) });
+  }
+};
 
 function rpc(ns, fn, args) {
   const id = ++seq;
@@ -65,6 +73,12 @@ function buildContext(pluginId, granted) {
       set: (key, value) => rpc('storage', 'set', [key, value]),
       delete: (key) => rpc('storage', 'delete', [key]),
       list: () => rpc('storage', 'list', []),
+    },
+    log: {
+      debug: (m, d) => sayLog('debug', m, d),
+      info: (m, d) => sayLog('info', m, d),
+      warn: (m, d) => sayLog('warn', m, d),
+      error: (m, d) => sayLog('error', m, d),
     },
     registerNoteType() {
       throw renderErr('registerNoteType');

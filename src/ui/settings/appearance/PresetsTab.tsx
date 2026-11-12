@@ -164,7 +164,7 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
                 <button
                   type="button"
                   className={styles.savedDelete}
-                  aria-label={`Delete ${s.name}`}
+                  title={`Delete ${s.name}`} aria-label={`Delete ${s.name}`}
                   onClick={() => void handleDelete(s.id, s.name)}
                 >
                   ✕

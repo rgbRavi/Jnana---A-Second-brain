@@ -12,7 +12,7 @@ import { emptyAttempt } from '../../core/ai/quizGrade'
 import { getQuizSettings } from '../../hooks/useQuizSettings'
 import { loadAiConfig } from '../../core/ai/config'
 import { showConfirmDialog } from '../../lib/dialog'
-import { log } from '../../lib/logger'
+import { quizLog, warnUnreadableQuiz } from './log'
 import { useEffect, useState } from 'react'
 import { parseAttempt, serializeAttempt } from './quizNote'
 import styles from './QuizNote.module.css'
@@ -30,7 +30,7 @@ function useAiConfig(): { config: AiConfig | null; failed: boolean } {
       })
       .catch((err) => {
         if (!cancelled) {
-          log.error('Failed to load AI config', err)
+          quizLog.error('Failed to load AI config', err)
           setState({ config: null, failed: true })
         }
       })
@@ -51,7 +51,10 @@ export function QuizNoteView({ note }: NoteViewProps) {
   const attempt = parseAttempt(note.content)
   const { config, failed } = useAiConfig()
   const [practice, setPractice] = useState<QuizAttempt | null>(null)
-  if (!attempt) return <p>Not a readable quiz.</p>
+  if (!attempt) {
+    warnUnreadableQuiz(note.id, note.content)
+    return <p>Not a readable quiz.</p>
+  }
   if (attempt.questions.length === 0) return <p>Take a quiz in AI chat, then save it here.</p>
   if (failed) return <p>AI settings could not be loaded.</p>
   if (!config) return <p>Loading…</p>
@@ -77,6 +80,7 @@ export function QuizNoteView({ note }: NoteViewProps) {
           settings={settings}
           config={config}
           onChange={setPractice}
+          log={quizLog}
         />
       </>
     )
@@ -89,7 +93,10 @@ export function QuizNoteView({ note }: NoteViewProps) {
         <button
           className={styles.retakeBtn}
           title="Answer again without saving"
-          onClick={() => setPractice(emptyAttempt(attempt.questions, attempt.scopeLabel))}
+          onClick={() => {
+            quizLog.debug('Practice retake started', { noteId: note.id, questions: attempt.questions.length })
+            setPractice(emptyAttempt(attempt.questions, attempt.scopeLabel))
+          }}
         >
           Practice retake
         </button>
@@ -112,10 +119,13 @@ export function QuizNoteView({ note }: NoteViewProps) {
 }
 
 /** Edit mode: same card, with Retake, writing back through onChange. */
-export function QuizNoteEditor({ value, onChange }: NoteEditorProps) {
+export function QuizNoteEditor({ note, value, onChange }: NoteEditorProps) {
   const attempt = parseAttempt(value)
   const { config, failed } = useAiConfig()
-  if (!attempt) return <p>Not a readable quiz.</p>
+  if (!attempt) {
+    warnUnreadableQuiz(note.id, value)
+    return <p>Not a readable quiz.</p>
+  }
   if (attempt.questions.length === 0) return <p>Take a quiz in AI chat, then save it here.</p>
   if (failed) return <p>AI settings could not be loaded.</p>
   if (!config) return <p>Loading…</p>
@@ -148,6 +158,11 @@ export function QuizNoteEditor({ value, onChange }: NoteEditorProps) {
               ) {
                 return
               }
+              quizLog.info('Retake started', {
+                noteId: note.id,
+                questions: attempt.questions.length,
+                previous: graded ? `${attempt.total}/${attempt.max}` : null,
+              })
               onChange(serializeAttempt(emptyAttempt(attempt.questions, attempt.scopeLabel)))
             })()
           }}
@@ -160,6 +175,7 @@ export function QuizNoteEditor({ value, onChange }: NoteEditorProps) {
         settings={settings}
         config={config}
         onChange={(next) => onChange(serializeAttempt(next))}
+        log={quizLog}
       />
     </div>
   )

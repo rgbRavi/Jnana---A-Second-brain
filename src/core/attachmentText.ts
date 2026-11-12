@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 
 /** Persist extracted text for a note's attachment (replaces prior text for that file). */
 export async function saveAttachmentText(

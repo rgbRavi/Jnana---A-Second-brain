@@ -151,7 +151,9 @@ fn main() {
                 .targets([
                     Target::new(TargetKind::Stdout),
                     Target::new(TargetKind::LogDir { file_name: Some("jnana".into()) }),
-                    Target::new(TargetKind::Webview),
+                    // Feeds Settings → Developer → Developer Log. Records that came
+                    // *from* the webview are skipped so they don't echo back as Rust lines.
+                    Target::new(TargetKind::Webview).filter(|m| !m.target().starts_with("webview")),
                 ])
                 .level(if cfg!(debug_assertions) {
                     log::LevelFilter::Debug
@@ -159,7 +161,9 @@ fn main() {
                     log::LevelFilter::Info
                 })
                 .max_file_size(5_000_000)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                // Up to 5 × 5 MB: rotated files are kept (date-stamped) instead of
+                // the previous file being discarded the moment it filled up.
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(5))
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -172,7 +176,14 @@ fn main() {
         // Initialize the database after the logger is installed so migrations and
         // any staged restore-swap are logged. Shared with all commands via state.
         .setup(|app| {
-            log::info!("Jnana starting — v{}", env!("CARGO_PKG_VERSION"));
+            log::info!(
+                "Jnana starting — v{} ({} {}, {} build)",
+                env!("CARGO_PKG_VERSION"),
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+                if cfg!(debug_assertions) { "debug" } else { "release" }
+            );
+            let db_started = std::time::Instant::now();
             // A failed migration or corrupt database must not crash with a raw
             // panic (a WebView-less hard crash). Migrations are transactional
             // (db/schema.rs), so the on-disk schema is never half-applied and the
@@ -181,6 +192,7 @@ fn main() {
             // cleanly instead of unwinding.
             match db::init_db() {
                 Ok(conn) => {
+                    log::info!("init_db: ready in {} ms", db_started.elapsed().as_millis());
                     app.manage(Mutex::new(conn));
                 }
                 Err(e) => {

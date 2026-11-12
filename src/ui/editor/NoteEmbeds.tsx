@@ -21,7 +21,7 @@ import {
 } from 'react'
 import { ChevronDown, ChevronUp, GripHorizontal, GripVertical, Palette, Plus, Search, Trash2, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../core/ipc'
 import type { Note } from '../../types'
 import { useInView } from '../../hooks/useInView'
 import { useNotesContext } from '../../context/NotesContext'
@@ -1126,7 +1126,12 @@ export function ExternalDocLink({ name, path }: { name: string; path: string }) 
       <span className={MdStyles.noteExternalDocName}>{displayName}</span>
       <button
         className={MdStyles.noteExternalDocBtn}
-        onClick={() => invoke('open_asset', { path }).catch(console.error)}
+        onClick={() =>
+          invoke('open_asset', { path }).catch((e) => {
+            console.error(e)
+            toast.error(`Couldn't open “${displayName}” — the file may have moved.`)
+          })
+        }
       >
         Open
       </button>

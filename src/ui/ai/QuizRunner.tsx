@@ -13,6 +13,8 @@ import { useId, useRef, useState } from 'react'
 import type { AiConfig, QuizAttempt, QuizQuestion, QuizSettings } from '../../types'
 import { gradeDescriptive, recomputeTotals, scoreObjective, type DescriptiveItem } from '../../core/ai/quizGrade'
 import { eventBus } from '../../lib/eventBus'
+import { toast } from '../../lib/toast'
+import { scopedLog, type ScopedLog } from '../../lib/logger'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -23,7 +25,12 @@ interface Props {
   onChange: (next: QuizAttempt) => void
   onIndexNow?: () => void
   onSave?: (attempt: QuizAttempt) => void
+  /** Where grading failures and completions are logged — the quiz plugin passes its
+   *  `ctx.log`; AI chat uses the app's `ai` category. */
+  log?: ScopedLog
 }
+
+const QUIZ_LOG = scopedLog('ai')
 
 const pickedOf = (attempt: QuizAttempt, i: number): number[] => {
   const r = attempt.responses[i]
@@ -37,7 +44,7 @@ const textOf = (attempt: QuizAttempt, i: number): string => {
 
 const isComplete = (a: QuizAttempt) => a.marks.length > 0 && a.marks.every((m) => m !== null)
 
-export function QuizRunner({ attempt, settings, config, reason, onChange, onIndexNow, onSave }: Props) {
+export function QuizRunner({ attempt, settings, config, reason, onChange, onIndexNow, onSave, log = QUIZ_LOG }: Props) {
   const [grading, setGrading] = useState(false)
   const [gradingIndex, setGradingIndex] = useState<number | null>(null)
   const formId = useId()
@@ -55,7 +62,10 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
     onChange(next)
     // The one moment every question has a mark — announced once, as it happens
     // (a finished quiz reopened later doesn't re-announce).
-    if (!wasComplete && isComplete(next)) eventBus.emit('quiz:completed', { total: next.total, max: next.max })
+    if (!wasComplete && isComplete(next)) {
+      eventBus.emit('quiz:completed', { total: next.total, max: next.max })
+      log.info('Quiz completed', { total: next.total, max: next.max, questions: next.questions.length })
+    }
   }
 
   if (attempt.questions.length === 0) {
@@ -112,6 +122,10 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
         marks[i] = grade?.marks ?? null
         feedback[i] = grade?.feedback ?? ''
         commitAttempt(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+      } catch (err) {
+        // Was an unhandled rejection: the spinner stopped and nothing said why.
+        toast.error("Couldn't grade that answer. Check AI settings and try again.")
+        log.error('Grading failed', err)
       } finally {
         setGradingIndex(null)
       }
@@ -163,6 +177,9 @@ export function QuizRunner({ attempt, settings, config, reason, onChange, onInde
         feedback[d.index] = grades[k]?.feedback ?? ''
       })
       commitAttempt(recomputeTotals({ ...attemptRef.current, marks, feedback }))
+    } catch (err) {
+      toast.error("Couldn't grade the written answers. Check AI settings and try again.")
+      log.error('Grading failed', err)
     } finally {
       setGrading(false)
     }

@@ -92,3 +92,19 @@ describe('chargePluginCall (synchronous registrations)', () => {
     resetPluginBudget(id)
   })
 })
+
+describe('guard logging', () => {
+  it('traces each API call with the plugin id and duration, and logs failures', async () => {
+    const { setLogSettings, clearLogEntries, getLogEntries } = await import('../../lib/logger')
+    setLogSettings({ dev: 'trace' })
+    clearLogEntries()
+    await guard('log.probe', 'reads', async () => 1)
+    await expect(guard('log.probe', 'writes', async () => Promise.reject(new Error('nope')))).rejects.toThrow('nope')
+    const mine = getLogEntries().filter((e) => e.pluginId === 'log.probe')
+    expect(mine.map((e) => e.event)).toEqual(['api', 'api-fail'])
+    expect(mine[0].durationMs).toBeGreaterThanOrEqual(0)
+    expect(mine[1].error?.message).toBe('nope')
+    setLogSettings({ dev: 'off' })
+    resetPluginBudget('log.probe')
+  })
+})

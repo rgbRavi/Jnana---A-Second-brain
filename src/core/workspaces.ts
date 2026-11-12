@@ -5,7 +5,7 @@
 // Mirrors core/aiWorkspace.ts. Mutations emit `workspace:changed` so any open
 // view (sidebar, manager, workspace page) refreshes.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { eventBus } from '../lib/eventBus'
 import type { Collection, Workspace, WorkspaceNote } from '../types'
 

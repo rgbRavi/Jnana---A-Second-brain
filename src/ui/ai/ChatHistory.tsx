@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown, MessageSquare } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
+import { toast } from '../../lib/toast'
 import { eventBus } from '../../lib/eventBus'
 import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
@@ -132,7 +133,13 @@ export function ChatHistory({ mode }: { mode: string }) {
       danger: true,
     })
     if (!ok) return
-    await deleteConversation(id).catch((e) => console.error(e))
+    try {
+      await deleteConversation(id)
+    } catch (e) {
+      console.error(e)
+      toast.error("Couldn't delete the chat.")
+      return
+    }
     if (id === activeId) requestChatAction(mode, { type: 'new' }) // reset the open chat
     eventBus.emit('ai:conversationDeleted', { mode })
   }
@@ -141,7 +148,10 @@ export function ChatHistory({ mode }: { mode: string }) {
     const title = renameText.trim()
     setRenamingId(null)
     if (!title) return
-    await renameConversation(id, title, Date.now()).catch((e) => console.error(e))
+    await renameConversation(id, title, Date.now()).catch((e) => {
+      console.error(e)
+      toast.error("Couldn't rename the chat.")
+    })
     refresh()
   }
 

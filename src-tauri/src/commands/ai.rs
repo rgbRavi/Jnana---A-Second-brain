@@ -9,6 +9,35 @@ use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::{command, State};
 
+/// Mask anything in a provider's error body that looks like a credential before
+/// it is logged: some gateways echo the key back ("invalid key sk-…"). A token is
+/// a run of letters, digits and `_-~+/=` at least 20 long that mixes letters and digits —
+/// broad on purpose (it also hides long ids), since this text only feeds logs.
+pub fn redact_secrets(s: &str) -> String {
+    fn is_tok(c: char) -> bool {
+        c.is_ascii_alphanumeric() || "_-~+/=".contains(c)
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut String| {
+        let secret = run.len() >= 20
+            && run.chars().any(|c| c.is_ascii_digit())
+            && run.chars().any(|c| c.is_ascii_alphabetic());
+        out.push_str(if secret { "[redacted]" } else { run.as_str() });
+        run.clear();
+    };
+    for c in s.chars() {
+        if is_tok(c) {
+            run.push(c);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
 /// Render an error with its full source chain, so a generic reqwest message
 /// like "error sending request" surfaces the real cause (Connection refused,
 /// proxy failure, dns error, …).
@@ -316,7 +345,7 @@ pub async fn ai_request(
         log::warn!(
             "ai_request: provider returned {} — {}",
             status,
-            text.chars().take(300).collect::<String>()
+            redact_secrets(&text.chars().take(300).collect::<String>())
         );
     }
 
@@ -511,7 +540,7 @@ async fn stream_body(
         log::warn!(
             "ai_chat_stream: provider returned {} — {}",
             status.as_u16(),
-            text.chars().take(300).collect::<String>()
+            redact_secrets(&text.chars().take(300).collect::<String>())
         );
         return Err(format!(
             "AI provider returned {}: {}",
@@ -560,4 +589,17 @@ pub fn ai_chat_cancel(cancels: State<'_, StreamCancels>, request_id: String) -> 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_secrets;
+
+    #[test]
+    fn redacts_key_like_tokens_only() {
+        let out = redact_secrets("Incorrect API key provided: sk-proj-AbC123xyz987QweRty456. See docs.");
+        assert!(!out.contains("AbC123xyz987"), "{out}");
+        assert!(out.contains("Incorrect API key provided: [redacted]. See docs."), "{out}");
+        assert_eq!(redact_secrets("model gpt-4o not found (404)"), "model gpt-4o not found (404)");
+    }
 }

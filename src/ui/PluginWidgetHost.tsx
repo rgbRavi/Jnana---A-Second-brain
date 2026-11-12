@@ -7,6 +7,7 @@ import { listWidgets, subscribeContributions, getContributionsVersion } from '..
 import PluginErrorBoundary from './PluginErrorBoundary'
 import { pluginRegistry } from '../lib/pluginRegistry'
 import Styles from './PluginWidgetHost.module.css'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 /**
  * The plugin widget tray — a floating launcher (bottom-right) that reveals the
@@ -18,6 +19,7 @@ export function PluginWidgetHost() {
   const version = useSyncExternalStore(subscribeContributions, getContributionsVersion)
   const [open, setOpen] = useState(false)
   const widgets = listWidgets()
+  useEscapeKey(() => setOpen(false))
 
   if (widgets.length === 0) return null
 

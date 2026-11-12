@@ -10,6 +10,18 @@ import type { NoteMedia, NoteMediaKind } from '../../core/markdown/noteMedia'
 
 export const EMPTY_CANVAS_CONTENT = serializeDoc(EMPTY_DOC)
 
+/** True when the content is present but isn't a canvas document — `parseDoc`
+ *  would silently turn it into an empty board. Blank content is just "new". */
+export function isUnreadableCanvas(content: string): boolean {
+  if (!content.trim()) return false
+  try {
+    const d: unknown = JSON.parse(content)
+    return !d || typeof d !== 'object' || Array.isArray(d)
+  } catch {
+    return true
+  }
+}
+
 const nodeLabel = (n: CanvasNode): string => n.text?.trim() || n.url || n.file || ''
 
 /** Plain-text projection for search/RAG/preview — text nodes + urls/filenames.

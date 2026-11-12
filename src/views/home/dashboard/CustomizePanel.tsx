@@ -32,7 +32,7 @@ export function CustomizePanel({ onClose }: { onClose: () => void }) {
       <div className={styles.customizePanel} role="dialog" aria-modal="true" aria-label="Customize dashboard">
         <div className={styles.customizeHead}>
           <h2 className={styles.customizeTitle}>Customize dashboard</h2>
-          <button type="button" className={styles.cardBtn} onClick={onClose} aria-label="Close">
+          <button type="button" className={styles.cardBtn} onClick={onClose} title="Close" aria-label="Close">
             <X size={15} />
           </button>
         </div>

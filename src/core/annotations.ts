@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 // src/core/annotations.ts
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { Annotation } from '../types'
 import { eventBus } from '../lib/eventBus'
 

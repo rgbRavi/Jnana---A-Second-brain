@@ -7,7 +7,7 @@
 // and git-able without Jnana. The folder is never read back: edits made there
 // are overwritten on the next save.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { open } from '@tauri-apps/plugin-dialog'
 import { DEFAULT_VAULT_ID, type Folder, type Note, type Vault } from '../types'
 import { getNoteType } from '../lib/noteTypes'

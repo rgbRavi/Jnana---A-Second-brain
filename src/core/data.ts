@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { Note } from '../types'
 import { eventBus } from '../lib/eventBus'
@@ -43,23 +43,21 @@ export function formatBytes(bytes: number): string {
 export async function exportAssets(): Promise<number | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder for assets' })
   if (!dir || typeof dir !== 'string') return null
-  return invoke<number>('export_assets', { dir })
+  return log.span('data', 'Export assets', () => invoke<number>('export_assets', { dir }), { event: 'export', data: { dir } })
 }
 
 /** Write a full-vault backup .zip (DB + assets) into a chosen folder. Returns the path or null. */
 export async function exportFullVault(): Promise<string | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder for the vault backup' })
   if (!dir || typeof dir !== 'string') return null
-  return invoke<string>('create_backup', { destDir: dir })
+  return log.span('data', 'Export full vault', () => invoke<string>('create_backup', { destDir: dir }), { event: 'export', data: { dir } })
 }
 
 // ─── Backup / restore ─────────────────────────────────────────────────────--
 
 /** Create a backup in the app's default backups folder. Returns the file path. */
 export async function createBackup(): Promise<string> {
-  const path = await invoke<string>('create_backup', { destDir: null })
-  log.info('Backup created', path)
-  return path
+  return log.span('data', 'Create backup', () => invoke<string>('create_backup', { destDir: null }), { event: 'backup' })
 }
 
 /** Pick a backup .zip and stage it for restore (applied on next launch). */
@@ -70,8 +68,7 @@ export async function restoreBackup(): Promise<boolean> {
     filters: [{ name: 'Backup', extensions: ['zip'] }],
   })
   if (!file || typeof file !== 'string') return false
-  await invoke('restore_backup', { zipPath: file })
-  log.info('Backup staged for restore', file)
+  await log.span('data', 'Stage backup for restore', () => invoke('restore_backup', { zipPath: file }), { event: 'restore', data: { file } })
   return true
 }
 
@@ -81,9 +78,9 @@ export async function restoreBackup(): Promise<boolean> {
 export async function importMarkdownFolder(): Promise<number | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder of markdown files' })
   if (!dir || typeof dir !== 'string') return null
-  const created = await invoke<Note[]>('import_markdown_dir', { dir })
+  const created = await log.span('data', 'Import markdown folder', () => invoke<Note[]>('import_markdown_dir', { dir }), { event: 'import', data: { dir } })
   for (const n of created) eventBus.emit('note:saved', n)
-  log.info(`Imported ${created.length} note(s) from markdown folder`, dir)
+  log.info(`Imported ${created.length} note(s) from markdown folder`)
   return created.length
 }
 
@@ -152,13 +149,20 @@ export async function importFilesAsNotes(kind: 'documents' | 'media'): Promise<n
   })
   if (!selected) return null
   const paths = Array.isArray(selected) ? selected : [selected]
-  let count = 0
-  for (const path of paths) {
-    if (typeof path !== 'string') continue
-    await importOneFileAsNote(path)
-    count++
-  }
-  return count
+  return log.span(
+    'data',
+    `Import ${kind}`,
+    async () => {
+      let count = 0
+      for (const path of paths) {
+        if (typeof path !== 'string') continue
+        await importOneFileAsNote(path)
+        count++
+      }
+      return count
+    },
+    { event: 'import', data: { files: paths.length } },
+  )
 }
 
 // ─── Export / backup history (localStorage, no DB migration) ─────────────────

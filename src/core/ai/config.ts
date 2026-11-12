@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
 import type { AiConfig, AiProviderKind, TranscriptionProviderKind } from '../../types'
 
 /** Pre-Rust-storage location of the config; cleared on load. */

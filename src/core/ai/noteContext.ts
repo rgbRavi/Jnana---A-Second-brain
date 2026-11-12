@@ -23,7 +23,7 @@
 // scanned PDF (one with no text layer, so step 1 got nothing from it) — are
 // sent as images too, labelled per note so the model can tie them to the text.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
 import type { AiConfig, Note, RetrievalHit } from '../../types'
 import { getAttachmentText } from '../attachmentText'
 import { basenameOf, classifyFile } from '../media/classify'

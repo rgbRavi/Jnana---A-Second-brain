@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../core/ipc'
 import { useNotesContext } from '../../context/NotesContext'
 import { exportNotes, toastExported } from '../../core/export'
 import { log } from '../../lib/logger'

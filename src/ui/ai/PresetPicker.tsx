@@ -4,6 +4,8 @@
 import { useEffect, useState } from 'react'
 import { Palette, Pencil, Plus, Settings, Wrench, X } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
+import { toast } from '../../lib/toast'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import type { AiPreset, PresetKind } from '../../types'
 import { listPresets, savePreset, deletePreset, newPreset } from '../../core/aiWorkspace'
 import styles from './Ai.module.css'
@@ -98,6 +100,11 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
   const [kind, setKind] = useState<PresetKind>('style')
   const [items, setItems] = useState<AiPreset[]>([])
   const [editing, setEditing] = useState<AiPreset | null>(null)
+  // Esc / backdrop close the manager, but not mid-edit — that would drop the draft.
+  const dismiss = () => {
+    if (!editing) onClose()
+  }
+  useEscapeKey(dismiss)
 
   const refresh = (k: PresetKind) => {
     listPresets(k)
@@ -111,7 +118,13 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
   const save = async () => {
     if (!editing) return
     if (!editing.name.trim() || !editing.body.trim()) return
-    await savePreset({ ...editing, updatedAt: Date.now() }).catch((e) => console.error(e))
+    try {
+      await savePreset({ ...editing, updatedAt: Date.now() })
+    } catch (e) {
+      console.error(e)
+      toast.error(`Couldn't save “${editing.name}”.`)
+      return // keep the editor open so the draft isn't lost
+    }
     setEditing(null)
     refresh(kind)
     onChanged()
@@ -125,7 +138,13 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
       danger: true,
     })
     if (!ok) return
-    await deletePreset(p.id).catch((e) => console.error(e))
+    try {
+      await deletePreset(p.id)
+    } catch (e) {
+      console.error(e)
+      toast.error(`Couldn't delete “${p.name}”.`)
+      return
+    }
     refresh(kind)
     onChanged()
   }
@@ -150,7 +169,7 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
 
   return (
     <div
-      onClick={onClose}
+      onClick={dismiss}
       style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
     >
       <div
@@ -168,7 +187,7 @@ export function PresetManager({ onClose, onChanged }: { onClose: () => void; onC
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
           <strong style={{ color: 'var(--text-1)', fontSize: '0.9375rem' }}>Styles &amp; Skills</strong>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }}>
+          <button onClick={onClose} title="Close" aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', display: 'inline-flex' }}>
             <X size={17} />
           </button>
         </div>

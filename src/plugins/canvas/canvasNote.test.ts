@@ -79,3 +79,15 @@ describe('canvasNote projections', () => {
     expect(canvasToSearchText(EMPTY_CANVAS_CONTENT)).toBe('')
   })
 })
+
+describe('isUnreadableCanvas', () => {
+  it('flags content that parseDoc would silently turn into an empty board', async () => {
+    const { isUnreadableCanvas } = await import('./canvasNote')
+    expect(isUnreadableCanvas('{"nodes": [')).toBe(true)
+    expect(isUnreadableCanvas('[1,2]')).toBe(true)
+    expect(isUnreadableCanvas('null')).toBe(true)
+    expect(isUnreadableCanvas('')).toBe(false)
+    expect(isUnreadableCanvas(EMPTY_CANVAS_CONTENT)).toBe(false)
+    expect(isUnreadableCanvas(doc)).toBe(false)
+  })
+})
