@@ -41,6 +41,9 @@ export interface NoteTypeDefinition {
   /** Plain-text projection of the note for search/RAG indexing + card previews,
    *  so a JSON-content note indexes its real text instead of raw JSON. */
   toSearchText?: (note: Note) => string
+  /** True when this note must never be used as "your notes" for AI grounding or
+   *  the retrieval index (e.g. a quiz built from the web). Search is unaffected. */
+  excludeFromGrounding?: (note: Note) => boolean
   /** Markdown projection for export; falls back to the raw content when absent. */
   toExportMarkdown?: (note: Note) => string
   /** Initial `content` for a freshly-created note of this kind. */
@@ -98,6 +101,11 @@ export function unregisterNoteType(id: string): void {
  *  (or a `kind` whose plugin isn't loaded — callers fall back to markdown). */
 export function getNoteType(note: Pick<Note, 'kind'>): NoteTypeDefinition | undefined {
   return note.kind ? registry.get(note.kind) : undefined
+}
+
+/** Whether a note may ground AI answers / be embedded. */
+export function isGroundable(note: Note): boolean {
+  return !getNoteType(note)?.excludeFromGrounding?.(note)
 }
 
 export function getNoteTypeById(id: string): NoteTypeDefinition | undefined {

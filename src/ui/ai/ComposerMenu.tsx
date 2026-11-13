@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import styles from './Ai.module.css'
 
 /**
@@ -36,12 +37,20 @@ export function ComposerMenu({
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
 
-  // Close on Escape while open (pointer-outside handled by the scrim).
+  useEscapeKey(() => {
+    if (open) close()
+  })
+
+  // Close on any press outside the menu. (This used to be a full-screen `position: fixed`
+  // scrim, but the composer's `backdrop-filter` makes it the containing block for fixed
+  // children — the scrim only covered the composer, so clicks on the chat never closed it.)
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
   return (
@@ -62,12 +71,9 @@ export function ComposerMenu({
         />
       </button>
       {open && (
-        <>
-          <div className={styles.cScrim} onClick={close} onContextMenu={(e) => { e.preventDefault(); close() }} />
-          <div className={`${styles.cPop} ${alignRight ? styles.alignRight : ''}`} role="menu">
-            {children(close)}
-          </div>
-        </>
+        <div className={`${styles.cPop} ${alignRight ? styles.alignRight : ''}`} role="menu">
+          {children(close)}
+        </div>
       )}
     </div>
   )

@@ -24,6 +24,8 @@ export interface AdvancedAiSettings {
   violationModel: string
   /** Tokens of note text Analyze / Ask / Quiz may send (see noteContext.ts). */
   noteContextTokens: number
+  /** Web answers: verify citations against fetched pages, or show sources only. */
+  webCitations: 'checked' | 'sources'
 }
 
 export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
@@ -38,6 +40,7 @@ export const DEFAULT_ADVANCED_AI: AdvancedAiSettings = {
   violationEveryNTurns: 3,
   violationModel: '',
   noteContextTokens: 32_000,
+  webCitations: 'checked',
 }
 
 export interface RefreshState {

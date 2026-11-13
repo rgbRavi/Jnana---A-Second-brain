@@ -119,6 +119,7 @@ export function useChatHistory(
       /** Save to this conversation instead of the active one — a reply that
        *  finishes after the user switched chats or vaults. */
       target?: { id: string; vaultId: string },
+      systemPrompt?: string | null,
     ) => {
       // Read the current id from the store in case it changed mid-request.
       const id = target?.id ?? getViewState<string>(convKey) ?? activeId
@@ -134,6 +135,7 @@ export function useChatHistory(
         createdAt: now, // ignored on conflict; set only on first insert
         updatedAt: now,
         ruleIds: ruleIds ?? [],
+        systemPrompt: systemPrompt ?? null,
       }
       try {
         await saveConversation(conv)

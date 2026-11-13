@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { QuizQuestion, QuizSettings } from '../../types'
 import { QUIZ_SETTINGS_DEFAULTS } from '../../hooks/useQuizSettings'
-import { emptyAttempt, parseGrades, recomputeTotals, scoreObjective } from './quizGrade'
+import { emptyAttempt, parseGrades, recomputeTotals, retakeAttempt, scoreObjective, scoringOf } from './quizGrade'
 
 const settings = (patch: Partial<QuizSettings> = {}): QuizSettings => ({
   ...QUIZ_SETTINGS_DEFAULTS,
@@ -125,6 +125,37 @@ describe('attempt helpers', () => {
     const a = { ...emptyAttempt(questions, 's'), marks: [-0.25, -0.25] }
     expect(recomputeTotals(a).total).toBe(-0.5)
     expect(recomputeTotals(a).max).toBe(2)
+  })
+
+  it('recomputeTotals excludes disputed questions from total and max', () => {
+    const a = { ...emptyAttempt([mcq(1), mcq(1)], 's'), marks: [1, 0], disputed: [false, true] }
+    const t = recomputeTotals(a)
+    expect(t.total).toBe(1)
+    expect(t.max).toBe(1)
+  })
+
+  const scoring = { negativeMarking: true, negativeFraction: 0.5, mcmaRule: 'partial' as const, feedback: 'end' as const }
+
+  it('retakeAttempt keeps disputes, corrections and frozen scoring', () => {
+    const qs = [{ ...mcq(1), corrected: true }, mcq(0)]
+    const a = {
+      ...emptyAttempt(qs, 's', scoring, { origin: 'web' }),
+      responses: [[1], [0]],
+      marks: [1, 0],
+      disputed: [true, false],
+    }
+    const r = retakeAttempt(a, scoringOf(settings()))
+    expect(r.responses).toEqual([[], []])
+    expect(r.marks).toEqual([null, null])
+    expect(r.disputed).toEqual([true, false])
+    expect(r.scoring?.negativeFraction).toBe(0.5)
+    expect(r.origin).toBe('web')
+    expect(r.questions[0].corrected).toBe(true)
+  })
+
+  it('retakeAttempt falls back to the given scoring when the attempt has none', () => {
+    const r = retakeAttempt(emptyAttempt(questions, 's'), scoring)
+    expect(r.scoring).toEqual(scoring)
   })
 })
 

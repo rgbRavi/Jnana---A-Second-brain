@@ -5,7 +5,9 @@
 // the old AiChat.tsx so the merged FreeChat can build an AnalyzeInput from the
 // composer's Focused menu. No IO, no React — unit-tested in focusedScope.test.ts.
 
-import type { AnalyzeInput } from '../../types'
+import type { AnalyzeInput, QuizOrigin } from '../../types'
+import { parseLinks } from './links'
+import type { OpenQuizInput } from './quizOpen'
 
 export type ScopeKind = 'topic' | 'time' | 'note'
 export type FocusAction = 'analyze' | 'ask' | 'quiz'
@@ -25,6 +27,10 @@ export interface FocusState {
   /** yyyy-mm-dd */
   fromStr: string
   toStr: string
+  /** Quiz source; absent ⇒ 'notes'. */
+  quizOrigin?: QuizOrigin
+  /** Raw links textarea text (web quizzes). */
+  links?: string
 }
 
 export interface SelectedNote {
@@ -95,8 +101,32 @@ export function scopeKey(s: AnalyzeInput): string {
   return `time:${s.since}-${s.until}`
 }
 
+export const quizOriginOf = (f: FocusState): QuizOrigin => f.quizOrigin ?? 'notes'
+
+/** Input for a web / AI-knowledge quiz; null when not one or when incomplete. */
+export function buildOpenQuizInput(f: FocusState): OpenQuizInput | null {
+  const origin = quizOriginOf(f)
+  if (f.action !== 'quiz' || origin === 'notes') return null
+  const topic = f.topicPhrase.trim()
+  const links = origin === 'web' ? parseLinks(f.links ?? '') : []
+  if (!topic && !links.length) return null
+  return { origin, topic, links }
+}
+
+export function openScopeHint(origin: QuizOrigin): string {
+  return origin === 'web' ? 'Enter a topic or paste links to quiz on.' : 'Enter a topic to quiz on.'
+}
+
 /** Human label for the chip, card, and quiz attempt (e.g. "Topic: neural nets"). */
 export function scopeLabel(f: FocusState): string {
+  const origin = f.action === 'quiz' ? quizOriginOf(f) : 'notes'
+  if (origin !== 'notes') {
+    const topic = f.topicPhrase.trim()
+    const name = origin === 'web' ? 'Web' : 'AI knowledge'
+    if (topic) return `${name}: ${topic}`
+    const n = origin === 'web' ? parseLinks(f.links ?? '').length : 0
+    return n ? `${name}: ${n} link${n === 1 ? '' : 's'}` : name
+  }
   if (f.scopeKind === 'topic') return f.topicPhrase.trim() ? `Topic: ${f.topicPhrase.trim()}` : 'Topic'
   if (f.scopeKind === 'note') {
     const picked = selectedNotesOf(f)

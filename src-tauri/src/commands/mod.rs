@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 pub mod ai;
+pub mod ai_presets;
 pub mod ai_rules;
 pub mod ai_workspace;
 pub mod annotations;
@@ -21,4 +22,5 @@ pub mod media_layout;
 pub mod themes;
 pub mod vaults;
 pub mod web;
+pub mod web_search;
 pub mod workspaces;

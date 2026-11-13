@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect } from 'vitest'
-import { buildTimeScope, buildScope, scopeKey, scopeLabel, emptyFocus, type FocusState } from './focusedScope'
+import { buildTimeScope, buildScope, scopeKey, scopeLabel, emptyFocus, quizOriginOf, buildOpenQuizInput, openScopeHint, type FocusState } from './focusedScope'
 
 describe('buildTimeScope', () => {
   it('is order-independent (swapped dates give the same window)', () => {
@@ -80,5 +80,31 @@ describe('emptyFocus', () => {
     const f: FocusState = emptyFocus()
     expect(f.action).toBeNull()
     expect(f.scopeKind).toBe('topic')
+  })
+})
+
+describe('open quiz origins', () => {
+  const q = (o: Partial<FocusState>): FocusState => ({ ...emptyFocus(), action: 'quiz', ...o })
+  it('defaults to notes', () => expect(quizOriginOf(emptyFocus())).toBe('notes'))
+  it('web with links only', () => {
+    expect(buildOpenQuizInput(q({ quizOrigin: 'web', links: 'https://a.com/x\nnope' }))).toEqual({ origin: 'web', topic: '', links: ['https://a.com/x'] })
+  })
+  it('web with neither is null', () => expect(buildOpenQuizInput(q({ quizOrigin: 'web', links: 'junk' }))).toBeNull())
+  it('ai needs a topic', () => {
+    expect(buildOpenQuizInput(q({ quizOrigin: 'ai' }))).toBeNull()
+    expect(buildOpenQuizInput(q({ quizOrigin: 'ai', topicPhrase: ' tcp ' }))).toEqual({ origin: 'ai', topic: 'tcp', links: [] })
+  })
+  it('notes origin or non-quiz is null', () => {
+    expect(buildOpenQuizInput(q({ topicPhrase: 'x' }))).toBeNull()
+    expect(buildOpenQuizInput({ ...q({ quizOrigin: 'ai', topicPhrase: 'x' }), action: 'ask' })).toBeNull()
+  })
+  it('labels', () => {
+    expect(scopeLabel(q({ quizOrigin: 'web', topicPhrase: 'rust' }))).toBe('Web: rust')
+    expect(scopeLabel(q({ quizOrigin: 'web', links: 'https://a.com https://b.com' }))).toBe('Web: 2 links')
+    expect(scopeLabel(q({ quizOrigin: 'ai', topicPhrase: 'rust' }))).toBe('AI knowledge: rust')
+  })
+  it('hints', () => {
+    expect(openScopeHint('web')).toBe('Enter a topic or paste links to quiz on.')
+    expect(openScopeHint('ai')).toBe('Enter a topic to quiz on.')
   })
 })

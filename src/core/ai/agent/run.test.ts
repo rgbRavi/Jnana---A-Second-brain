@@ -32,6 +32,64 @@ describe('runAgent', () => {
     expect(res.proposals[0].title).toBe('Summary')
   })
 
+  it('systemExtra is appended to the system prompt', async () => {
+    chatWithTools.mockReset()
+    chatWithTools.mockResolvedValueOnce({ content: 'ok', toolCalls: [] })
+    await runAgent(config, 'hi', [], notes, { systemExtra: 'EXTRA-BLOCK' })
+    const sys = chatWithTools.mock.calls[0][1][0]
+    expect(sys.role).toBe('system')
+    expect(sys.content).toMatch(/note-taking agent[\s\S]*\n\nEXTRA-BLOCK$/)
+  })
+
+  it('leadingSystem is sent before SYSTEM; empty leaves SYSTEM first', async () => {
+    chatWithTools.mockReset()
+    chatWithTools.mockResolvedValue({ content: 'ok', toolCalls: [] })
+    await runAgent(config, 'hi', [], notes, { leadingSystem: 'USER-PROMPT' })
+    const m = chatWithTools.mock.calls[0][1]
+    expect(m[0]).toEqual({ role: 'system', content: 'USER-PROMPT' })
+    expect(m[1].content).toMatch(/note-taking agent/)
+    await runAgent(config, 'hi', [], notes, { leadingSystem: '' })
+    expect(chatWithTools.mock.calls[1][1][0].content).toMatch(/note-taking agent/)
+  })
+
+  it('a model that never stops calling tools still yields a final answer at maxSteps', async () => {
+    chatWithTools.mockReset()
+    chatWithTools.mockImplementation(async (_c: unknown, _m: unknown, tools: unknown[]) =>
+      tools.length === 0
+        ? { content: 'final', toolCalls: [] }
+        : { content: '', toolCalls: [{ id: 'x', name: 'read_note', args: { note: 'Alpha' } }] })
+    const res = await runAgent(config, 'loop', [], notes, { maxSteps: 20 })
+    expect(res.answer).toBe('final')
+    expect(res.steps).toHaveLength(20)
+    expect(chatWithTools).toHaveBeenCalledTimes(21)
+  })
+
+  it('aborting mid-run makes no further model calls and keeps the steps so far', async () => {
+    chatWithTools.mockReset()
+    chatWithTools.mockResolvedValue({ content: 'Reading Alpha.', toolCalls: [{ id: 'x', name: 'read_note', args: { note: 'Alpha' } }] })
+    const ctrl = new AbortController()
+    const res = await runAgent(config, 'loop', [], notes, { maxSteps: 20, signal: ctrl.signal, onStep: () => ctrl.abort() })
+    expect(chatWithTools).toHaveBeenCalledTimes(1)
+    expect(res.steps).toHaveLength(1)
+    expect(res.answer).toBe('Reading Alpha.')
+  })
+
+  it('a stop mid-round skips the round\'s remaining tool calls', async () => {
+    chatWithTools.mockReset()
+    chatWithTools.mockResolvedValue({
+      content: 'Reading.',
+      toolCalls: [
+        { id: '1', name: 'read_note', args: { note: 'Alpha' } },
+        { id: '2', name: 'read_note', args: { note: 'Alpha' } },
+        { id: '3', name: 'read_note', args: { note: 'Alpha' } },
+      ],
+    })
+    const ctrl = new AbortController()
+    const res = await runAgent(config, 'x', [], notes, { signal: ctrl.signal, onStep: () => ctrl.abort() })
+    expect(res.steps).toHaveLength(1)
+    expect(chatWithTools).toHaveBeenCalledTimes(1)
+  })
+
   it('returns the answer directly when the model calls no tools', async () => {
     chatWithTools.mockReset()
     chatWithTools.mockResolvedValueOnce({ content: 'Just an answer.', toolCalls: [] })

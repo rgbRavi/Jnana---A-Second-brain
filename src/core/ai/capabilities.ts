@@ -10,7 +10,7 @@
 // Vision can be answered explicitly per model by the user (lib/visionOverride),
 // which beats the name guess in both directions.
 
-import { getVisionOverride } from '../../lib/visionOverride'
+import { getThinkingOverride, getVisionOverride } from '../../lib/visionOverride'
 
 export interface ModelCapabilities {
   /** Accepts image input (vision). */
@@ -31,7 +31,7 @@ export function modelCapabilities(model: string): ModelCapabilities {
   const m = (model || '').toLowerCase()
   return {
     vision: getVisionOverride(m) ?? VISION_RE.test(m),
-    thinking: THINKING_RE.test(m),
+    thinking: getThinkingOverride(m) ?? THINKING_RE.test(m),
     deepResearch: true,
   }
 }
@@ -39,6 +39,11 @@ export function modelCapabilities(model: string): ModelCapabilities {
 /** Vision guessed from the model name alone, ignoring any user override. */
 export function detectVision(model: string): boolean {
   return VISION_RE.test((model || '').toLowerCase())
+}
+
+/** Reasoning guessed from the model name alone, ignoring any user override. */
+export function detectThinking(model: string): boolean {
+  return THINKING_RE.test((model || '').toLowerCase())
 }
 
 export function isVisionModel(model: string): boolean {

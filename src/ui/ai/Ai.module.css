@@ -90,6 +90,22 @@
   border-color: var(--accent);
 }
 
+.presetBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.presetSelect { min-width: 12rem; }
+
+.textarea {
+  resize: vertical;
+  min-height: 4rem;
+  line-height: 1.4;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -354,6 +370,15 @@
 }
 
 .sources { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.webFooter { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; color: var(--text-2); }
+.webFooterRow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.webFooterLabel { color: var(--text-3); }
+.webCites { margin: 0.2rem 0 0; padding-left: 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.webCiteLink { background: none; border: 0; padding: 0 0.2rem; border-radius: var(--radius-sm); color: var(--text-2); text-decoration: underline; cursor: pointer; font: inherit; }
+.webCiteLink:hover { background: var(--surface-hover); color: var(--text-1); }
+.webCiteOk { color: var(--success); }
+.webCiteWarn { color: var(--warning); }
+.webNotice { color: var(--text-3); }
 
 .sourceChip {
   background: var(--surface-2);
@@ -911,6 +936,19 @@
 
 .quizScoreValue { font-weight: 600; color: var(--accent); }
 .quizMarkLine { font-size: 0.78rem; color: var(--text-2); margin-top: 0.2rem; }
+.quizProvenance { font-size: 0.78rem; color: var(--text-3); margin: 0.2rem 0 0; }
+.quizLink {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  text-decoration: underline;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.quizLink:hover { background: var(--surface-hover); }
 .quizActions { display: flex; gap: var(--space-xs); margin-top: var(--space-sm); }
 
 /* ─── Composer toolbar menus (Attach / Capabilities / More) ─────────────────
@@ -918,8 +956,6 @@
    vocabulary: same pill trigger, same panel, same rows, accent on active. */
 
 .cMenu { position: relative; display: inline-flex; }
-
-.cScrim { position: fixed; inset: 0; z-index: 44; }
 
 .cPop {
   position: absolute;
@@ -1460,4 +1496,45 @@
   border-color: var(--accent);
   border-style: dashed;
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+/* ── Reasoning ("thinking") above a reply ── */
+.thinking {
+  margin-bottom: var(--space-xs);
+}
+.thinkingToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+}
+.thinkingToggle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-2);
+}
+.thinkingToggle:disabled {
+  cursor: default;
+}
+.thinkingToggle svg {
+  transition: transform var(--dur-fast) ease;
+}
+.thinkingChevronOpen {
+  transform: rotate(180deg);
+}
+.thinkingBody {
+  margin-top: var(--space-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
 }

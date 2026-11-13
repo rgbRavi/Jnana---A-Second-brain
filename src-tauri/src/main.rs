@@ -7,6 +7,7 @@ mod commands;
 mod db;
 
 use commands::ai::*;
+use commands::ai_presets::*;
 use commands::ai_rules::*;
 use commands::ai_workspace::*;
 use commands::annotations::*;
@@ -26,6 +27,7 @@ use commands::plugin_loader::*;
 use commands::themes::*;
 use commands::vaults::*;
 use commands::web::*;
+use commands::web_search::*;
 use commands::workspaces::*;
 
 use std::io::{Read, Seek, SeekFrom};
@@ -360,6 +362,11 @@ fn main() {
             list_note_progress,
             get_ai_config,
             set_ai_config,
+            save_ai_preset,
+            update_ai_preset,
+            apply_ai_preset,
+            rename_ai_preset,
+            delete_ai_preset,
             ai_request,
             ai_chat_stream,
             ai_chat_cancel,
@@ -406,7 +413,7 @@ fn main() {
             save_canvas,
             rename_canvas,
             delete_canvas,
-            fetch_link_preview,
+            fetch_link_preview, fetch_page_text, web_search,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,

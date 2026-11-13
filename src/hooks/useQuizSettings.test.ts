@@ -19,7 +19,7 @@ describe('useQuizSettings store', () => {
     expect(s.feedback).toBe('end')
     expect(s.source).toBe('retrieval')
     expect(s.difficulty).toBe('mix')
-    expect(s.showToolbar).toBe(true)
+    expect(s.verify).toBe(true)
   })
 
   it('merges a partial patch and persists it', () => {

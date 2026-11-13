@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
-  Bot, Brain, FileText, Image as ImageIcon, MessageSquare, Microscope, MoreHorizontal, Music,
-  NotebookPen, Paperclip, Puzzle, Palette, Plus, ScrollText, SlidersHorizontal,
+  Bot, Brain, FileText, Globe, Image as ImageIcon, Lightbulb, MessageSquare, Microscope, MoreHorizontal, Music,
+  NotebookPen, Paperclip, Puzzle, Palette, Plus, ScrollText, SlidersHorizontal, Layers,
   Sparkles, Square, Wrench, X,
 } from 'lucide-react'
-import type { AiPreset } from '../../types'
+import type { AiPreset, AiPresetView } from '../../types'
 import type { ChatAttachment } from '../../core/ai'
 import type { Note } from '../../types'
-import { ACTION_VERB, scopeLabel, type FocusState } from '../../core/ai/focusedScope'
+import type { WebMode } from '../../core/ai/webContext'
+import { cycleWebMode } from './freeThread'
+import { ACTION_VERB, scopeLabel, quizOriginOf, type FocusState } from '../../core/ai/focusedScope'
+import { useComposerToolbar, type ToolbarItem } from '../../hooks/useComposerToolbar'
 import { closeFocusPanel } from '../../lib/activeFocus'
 import { ComposerMenu, MenuRow, MenuHeader, pillStyle } from './ComposerMenu'
 import { FocusedContent } from './FocusedMenu'
@@ -34,12 +37,19 @@ interface Props {
   onAddNote: (note: Note) => void
   think: boolean
   onThinkChange: (v: boolean) => void
-  /** Model is a reasoning model — only then is the Thinking toggle meaningful. */
+  /** Model is a reasoning model (name guess or the user's answer) — only then is the Thinking toggle meaningful. */
   canThink: boolean
+  /** What the model name alone suggests — shown as the Reasoning model switch's hint. */
+  thinkingDetected: boolean
+  onReasoningChange: (on: boolean) => void
   deepResearch: boolean
   onDeepResearchChange: (v: boolean) => void
   agent: boolean
   onAgentChange: (v: boolean) => void
+  webMode: WebMode
+  onWebModeChange: (m: WebMode) => void
+  /** A web search provider is configured (else Always reads pasted links only). */
+  canWebSearch: boolean
   /** Images will be sent to the chat model (name guess or the user's answer). */
   vision: boolean
   /** What the model name alone suggests — shown as the switch's hint. */
@@ -69,6 +79,16 @@ interface Props {
   projectName?: string
   inputRef?: React.Ref<HTMLTextAreaElement>
   disabled?: boolean
+  // Provider presets (chat section) and this conversation's own system prompt.
+  chatPresets: AiPresetView[]
+  activeChatPresetId?: string
+  onPickChatPreset: (id: string) => void
+  convPrompt: string
+  onConvPrompt: (v: string) => void
+  /** The prompt was edited and left (blur / view closed) — persist it. */
+  onConvPromptCommit: () => void
+  /** Names the prompt the conversation instructions add to (preset name or "global"). */
+  promptBase?: string
 }
 
 const kindIcon: Record<ChatAttachment['kind'], React.ReactNode> = {
@@ -163,12 +183,24 @@ function CapabilitiesContent(props: {
   vaultId: string
   ruleIds: string[]
   onRuleIds: (ids: string[]) => void
+  convPrompt: string
+  onConvPrompt: (v: string) => void
+  onConvPromptCommit: () => void
+  promptBase?: string
 }) {
-  const [view, setView] = useState<'root' | 'rules' | 'styles' | 'skills'>('root')
+  const [view, setView] = useState<'root' | 'rules' | 'styles' | 'skills' | 'conversation'>('root')
   const activeStyle = props.stylePresets.find((s) => s.id === props.styleId)
   const skillCount = props.skillIds.filter((id) => props.skillPresets.some((s) => s.id === id)).length
   const back = () => setView('root')
 
+  if (view === 'conversation') {
+    return (
+      <>
+        <MenuHeader icon={<MessageSquare size={15} />} title="Conversation instructions" onBack={back} />
+        <ConvPromptField {...props} />
+      </>
+    )
+  }
   if (view === 'rules') {
     return (
       <>
@@ -195,6 +227,12 @@ function CapabilitiesContent(props: {
   }
   return (
     <>
+      <MenuRow
+        icon={<MessageSquare size={15} />} label="Conversation instructions"
+        active={!!props.convPrompt.trim()}
+        trailing={<Plus size={13} style={{ transform: 'rotate(45deg)' }} />}
+        onClick={() => setView('conversation')}
+      />
       <MenuRow
         icon={<ScrollText size={15} />} label="Rules"
         badge={props.ruleIds.length || undefined}
@@ -225,27 +263,84 @@ function CapabilitiesContent(props: {
   )
 }
 
-// ─── More menu (Thinking / Deep research / Agent toggles) ────────────────────
+/** Commits on blur and on unmount (the menu closing unmounts it), so a closed menu never drops an edit. */
+function ConvPromptField({ convPrompt, onConvPrompt, onConvPromptCommit, promptBase }: {
+  convPrompt: string; onConvPrompt: (v: string) => void; onConvPromptCommit: () => void; promptBase?: string
+}) {
+  const commitCb = useRef(onConvPromptCommit)
+  commitCb.current = onConvPromptCommit
+  const latest = useRef(convPrompt)
+  latest.current = convPrompt
+  const saved = useRef(convPrompt)
+  // Only a real edit commits; opening and closing untouched must not re-save the chat.
+  const commit = () => {
+    if (latest.current === saved.current) return
+    saved.current = latest.current
+    commitCb.current()
+  }
+  const commitRef = useRef(commit)
+  commitRef.current = commit
+  useEffect(() => () => commitRef.current(), [])
+  return (
+    <div style={{ padding: '0 0.2rem 0.2rem' }}>
+      <textarea
+        autoFocus
+        aria-label="Conversation instructions"
+        rows={5}
+        value={convPrompt}
+        onChange={(e) => onConvPrompt(e.target.value)}
+        onBlur={commit}
+        placeholder="Extra instructions for this conversation only…"
+        className={styles.cField}
+      />
+      <small style={{ color: 'var(--text-3)' }}>
+        {promptBase ? `Added after your ${promptBase} system prompt` : "Sent as this conversation's system prompt."}
+      </small>
+    </div>
+  )
+}
+
+const WEB_LABEL: Record<WebMode, string> = { off: 'Off', always: 'Always', hybrid: 'Model decides' }
+
+// ─── More menu (Thinking / Deep research / Agent / Web) ────────────────────
 
 function MoreContent(props: {
   think: boolean; onThinkChange: (v: boolean) => void; canThink: boolean
+  thinkingDetected: boolean; onReasoningChange: (on: boolean) => void; model: string
   deepResearch: boolean; onDeepResearchChange: (v: boolean) => void
   agent: boolean; onAgentChange: (v: boolean) => void
+  webMode: WebMode; onWebModeChange: (m: WebMode) => void; canWebSearch: boolean
   /** The armed Focused action, if any — it takes over Send. */
   focusAction: FocusState['action']
 }) {
   // Deep research shapes a plain chat reply; Agent and Focused runs don't use it.
   const drBlockedBy = props.focusAction ? ACTION_VERB[props.focusAction] : props.agent ? 'Agent' : null
   const onOff = (v: boolean) => <span style={{ color: v ? 'var(--accent)' : 'var(--text-3)' }}>{v ? 'On' : 'Off'}</span>
+  const webHint =
+    props.webMode === 'hybrid' && props.canWebSearch ? 'Agent with web tools — the model decides'
+      : props.webMode === 'always'
+        ? props.canWebSearch ? 'Searches the web before every reply' : 'Reads pasted links only — set up web search in Settings → AI'
+        : props.canWebSearch ? 'Search the web for answers' : 'Pasted links are read; set up web search in Settings → AI to search'
   return (
     <>
       <MenuRow
         icon={<Brain size={15} />} label="Thinking"
-        hint={props.canThink ? 'Extended reasoning' : 'Not a reasoning model'}
+        hint={props.canThink ? 'Extended reasoning' : 'Not a reasoning model — turn on "Reasoning model" if it is'}
         disabled={!props.canThink}
         active={props.canThink && props.think}
         trailing={props.canThink ? onOff(props.think) : <span style={{ color: 'var(--text-3)' }}>n/a</span>}
         onClick={() => props.onThinkChange(!props.think)}
+      />
+      <MenuRow
+        icon={<Lightbulb size={15} />} label="Reasoning model"
+        hint={
+          props.thinkingDetected
+            ? `${props.model || 'This model'} looks like a reasoning model`
+            : `Turn on if ${props.model || 'this model'} reasons before answering`
+        }
+        active={props.canThink}
+        trailing={onOff(props.canThink)}
+        onClick={() => props.onReasoningChange(!props.canThink)}
       />
       <MenuRow
         icon={<Microscope size={15} />} label="Deep research"
@@ -261,6 +356,13 @@ function MoreContent(props: {
         active={props.agent}
         trailing={onOff(props.agent)}
         onClick={() => props.onAgentChange(!props.agent)}
+      />
+      <MenuRow
+        icon={<Globe size={15} />} label="Web"
+        hint={webHint}
+        active={props.webMode !== 'off'}
+        trailing={<span style={{ color: props.webMode !== 'off' ? 'var(--accent)' : 'var(--text-3)' }}>{WEB_LABEL[props.webMode]}</span>}
+        onClick={() => props.onWebModeChange(cycleWebMode(props.webMode, props.canWebSearch))}
       />
     </>
   )
@@ -283,10 +385,15 @@ export function ChatComposer({
   think,
   onThinkChange,
   canThink,
+  thinkingDetected,
+  onReasoningChange,
   deepResearch,
   onDeepResearchChange,
   agent,
   onAgentChange,
+  webMode,
+  onWebModeChange,
+  canWebSearch,
   vision,
   stylePresets,
   skillPresets,
@@ -308,6 +415,13 @@ export function ChatComposer({
   model,
   onPasteFiles,
   onDropPaths,
+  chatPresets,
+  activeChatPresetId,
+  onPickChatPreset,
+  convPrompt,
+  onConvPrompt,
+  onConvPromptCommit,
+  promptBase,
 }: Props) {
   // OS file drops arrive at the window, not as DOM events (Tauri), so hit-test
   // the drop point against the composer — same pattern as LiveEditor.
@@ -352,8 +466,91 @@ export function ChatComposer({
 
   const styleActive = stylePresets.some((s) => s.id === styleId)
   const skillCount = skillIds.filter((id) => skillPresets.some((s) => s.id === id)).length
-  const capBadge = ruleIds.length + skillCount + (styleActive ? 1 : 0)
-  const moreCount = (canThink && think ? 1 : 0) + (deepResearch ? 1 : 0) + (agent ? 1 : 0)
+  const capBadge = ruleIds.length + skillCount + (styleActive ? 1 : 0) + (convPrompt.trim() ? 1 : 0)
+  const activePreset = chatPresets.find((p) => p.id === activeChatPresetId)
+  const presetLabel = activePreset?.name ?? (model.length > 24 ? model.slice(0, 23) + '…' : model || 'Model')
+  const moreCount = (canThink && think ? 1 : 0) + (deepResearch ? 1 : 0) + (agent ? 1 : 0) + (webMode !== 'off' ? 1 : 0)
+
+  const [{ order, hidden }] = useComposerToolbar()
+  const activeOf: Partial<Record<ToolbarItem, boolean>> = {
+    more: moreCount > 0, capabilities: capBadge > 0, focused: !!focus.action, attach: attachments.length > 0,
+  }
+  const controls: Record<ToolbarItem, React.ReactNode> = {
+    preset: chatPresets.length === 0 ? null : (
+      <ComposerMenu icon={<Layers size={14} />} label={presetLabel} active={!!activePreset}>
+        {(close) =>
+          chatPresets.map((p) => (
+            <MenuRow
+              key={p.id}
+              label={p.name}
+              hint={p.model}
+              active={p.id === activeChatPresetId}
+              onClick={() => { onPickChatPreset(p.id); close() }}
+            />
+          ))
+        }
+      </ComposerMenu>
+    ),
+    attach: (
+      <ComposerMenu icon={<Paperclip size={14} />} label="Attach" badge={attachments.length || undefined} active={attachments.length > 0}>
+        {(close) => (
+          <AttachContent
+            vision={vision}
+            visionDetected={visionDetected}
+            onVisionChange={onVisionChange}
+            model={model}
+            notes={notes}
+            onAttach={onAttach}
+            onAddNote={onAddNote}
+            close={close}
+          />
+        )}
+      </ComposerMenu>
+    ),
+    capabilities: (
+      <ComposerMenu icon={<SlidersHorizontal size={14} />} label="Capabilities" badge={capBadge || undefined} active={capBadge > 0}>
+        {() => (
+          <CapabilitiesContent
+            stylePresets={stylePresets}
+            skillPresets={skillPresets}
+            styleId={styleId}
+            onStyleId={onStyleId}
+            skillIds={skillIds}
+            onSkillIds={onSkillIds}
+            onPresetsChanged={onPresetsChanged}
+            vaultId={vaultId}
+            ruleIds={ruleIds}
+            onRuleIds={onRuleIds}
+            convPrompt={convPrompt}
+            onConvPrompt={onConvPrompt}
+            onConvPromptCommit={onConvPromptCommit}
+            promptBase={promptBase}
+          />
+        )}
+      </ComposerMenu>
+    ),
+    more: (
+      <ComposerMenu icon={<MoreHorizontal size={14} />} label="More" badge={moreCount || undefined} active={moreCount > 0}>
+        {() => (
+          <MoreContent
+            think={think} onThinkChange={onThinkChange} canThink={canThink}
+            thinkingDetected={thinkingDetected} onReasoningChange={onReasoningChange} model={model}
+            deepResearch={deepResearch} onDeepResearchChange={onDeepResearchChange}
+            agent={agent} onAgentChange={onAgentChange}
+            webMode={webMode} onWebModeChange={onWebModeChange} canWebSearch={canWebSearch}
+            focusAction={focus.action}
+          />
+        )}
+      </ComposerMenu>
+    ),
+    focused: (
+      <ComposerMenu icon={<Sparkles size={14} />} label="Focused" active={!!focus.action}>
+        {(close) => (
+          <FocusedContent focus={focus} setFocus={onFocus} close={close} />
+        )}
+      </ComposerMenu>
+    ),
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -408,12 +605,15 @@ export function ChatComposer({
       <ModeLine
         focus={focus}
         agent={agent}
+        webMode={webMode}
+        canWebSearch={canWebSearch}
         deepResearch={deepResearch}
         projectName={projectName}
         presetsOn={styleActive || skillCount > 0}
         rulesOn={ruleIds.length > 0}
         onFocusOff={() => { onFocus((f) => ({ ...f, action: null })); closeFocusPanel() }}
         onAgentOff={() => onAgentChange(false)}
+        onWebOff={() => onWebModeChange('off')}
         onDeepResearchOff={() => onDeepResearchChange(false)}
       />
 
@@ -454,54 +654,7 @@ export function ChatComposer({
           }}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <ComposerMenu icon={<Paperclip size={14} />} label="Attach" badge={attachments.length || undefined} active={attachments.length > 0}>
-            {(close) => (
-              <AttachContent
-                vision={vision}
-                visionDetected={visionDetected}
-                onVisionChange={onVisionChange}
-                model={model}
-                notes={notes}
-                onAttach={onAttach}
-                onAddNote={onAddNote}
-                close={close}
-              />
-            )}
-          </ComposerMenu>
-
-          <ComposerMenu icon={<SlidersHorizontal size={14} />} label="Capabilities" badge={capBadge || undefined} active={capBadge > 0}>
-            {() => (
-              <CapabilitiesContent
-                stylePresets={stylePresets}
-                skillPresets={skillPresets}
-                styleId={styleId}
-                onStyleId={onStyleId}
-                skillIds={skillIds}
-                onSkillIds={onSkillIds}
-                onPresetsChanged={onPresetsChanged}
-                vaultId={vaultId}
-                ruleIds={ruleIds}
-                onRuleIds={onRuleIds}
-              />
-            )}
-          </ComposerMenu>
-
-          <ComposerMenu icon={<MoreHorizontal size={14} />} label="More" badge={moreCount || undefined} active={moreCount > 0}>
-            {() => (
-              <MoreContent
-                think={think} onThinkChange={onThinkChange} canThink={canThink}
-                deepResearch={deepResearch} onDeepResearchChange={onDeepResearchChange}
-                agent={agent} onAgentChange={onAgentChange}
-                focusAction={focus.action}
-              />
-            )}
-          </ComposerMenu>
-
-          <ComposerMenu icon={<Sparkles size={14} />} label="Focused" active={!!focus.action}>
-            {(close) => (
-              <FocusedContent focus={focus} setFocus={onFocus} close={close} />
-            )}
-          </ComposerMenu>
+          {order.filter((i) => !hidden.includes(i) || activeOf[i]).map((i) => <Fragment key={i}>{controls[i]}</Fragment>)}
 
           <div style={{ marginLeft: 'auto' }}>
             {busy ? (
@@ -534,12 +687,15 @@ const joinList = (items: string[]) =>
 function ModeLine(props: {
   focus: FocusState
   agent: boolean
+  webMode: WebMode
+  canWebSearch: boolean
   deepResearch: boolean
   projectName?: string
   presetsOn: boolean
   rulesOn: boolean
   onFocusOff: () => void
   onAgentOff: () => void
+  onWebOff: () => void
   onDeepResearchOff: () => void
 }) {
   const { focus, projectName, presetsOn, rulesOn } = props
@@ -557,7 +713,10 @@ function ModeLine(props: {
     if (projectName) ignored.push('project instructions')
     if (presetsOn) ignored.push('styles & skills')
     if (rulesOn) ignored.push('rules')
-    detail = ignored.length ? `Uses only your notes — ${joinList(ignored)} don't apply` : 'Uses only the notes in scope'
+    const origin = quizOriginOf(focus)
+    detail = focus.action === 'quiz' && origin !== 'notes'
+      ? origin === 'web' ? 'Uses the web — not your notes' : "Uses the AI's general knowledge — not your notes"
+      : ignored.length ? `Uses only your notes — ${joinList(ignored)} don't apply` : 'Uses only the notes in scope'
     off = { label: `Turn off ${ACTION_VERB[focus.action]}`, run: props.onFocusOff }
   } else if (props.agent) {
     icon = <Bot size={14} />
@@ -565,10 +724,17 @@ function ModeLine(props: {
     grounded = true
     if (projectName) ignored.push('project instructions')
     if (presetsOn) ignored.push('styles & skills')
-    detail = ignored.length
+    detail = props.webMode === 'hybrid' ? 'Agent with web tools'
+      : props.webMode === 'always' ? 'Agent · searches the web first'
+      : ignored.length
       ? `Proposes note edits for you to approve — ${joinList(ignored)} don't apply`
       : 'Searches your notes and proposes edits for you to approve'
     off = { label: 'Turn off Agent', run: props.onAgentOff }
+  } else if (props.webMode === 'always') {
+    icon = <Globe size={14} />
+    label = 'Web'
+    detail = props.canWebSearch ? 'Searches the web, then answers' : 'Reads pasted links, then answers'
+    off = { label: 'Turn off Web', run: props.onWebOff }
   } else if (props.deepResearch) {
     icon = <Microscope size={14} />
     label = 'Deep research'

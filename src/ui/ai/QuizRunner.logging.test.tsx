@@ -26,7 +26,6 @@ const settings = {
   feedback: 'end',
   source: 'raw',
   difficulty: 'mix',
-  showToolbar: true,
 } as QuizSettings
 
 const descriptive = emptyAttempt(

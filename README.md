@@ -180,6 +180,9 @@ through Rust to only the host you configured.
   topic, a time range, or any set of notes you tick. A line above the composer always says what Send
   will do; starters on an empty chat set up a quiz on this week's notes, a question over your notes, or
   an analysis of your last saved note
+- **Quiz from the web or the AI's own knowledge** — beyond your notes, build a quiz from pasted links, a
+  web search (bring your own Brave/Tavily/SearXNG), or the model's knowledge; answers are checked against the sources
+  when possible (labelled when not), and you can dispute any question
 - **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
   Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
   notes send the passages that best match your question or topic

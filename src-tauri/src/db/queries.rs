@@ -272,23 +272,24 @@ pub fn fetch_all_links(conn: &Connection) -> Result<Vec<(String, String)>> {
 
 pub fn upsert_conversation(conn: &Connection, c: &ConversationRow) -> Result<()> {
     conn.execute(
-        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, vault_id, rule_ids, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        "INSERT INTO conversations (id, mode, title, messages, scope, project_id, vault_id, rule_ids, system_prompt, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
          ON CONFLICT(id) DO UPDATE SET
-           title      = excluded.title,
-           messages   = excluded.messages,
-           scope      = excluded.scope,
-           project_id = excluded.project_id,
-           rule_ids   = excluded.rule_ids,
-           updated_at = excluded.updated_at",
-        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.vault_id, c.rule_ids, c.created_at, c.updated_at],
+           title         = excluded.title,
+           messages      = excluded.messages,
+           scope         = excluded.scope,
+           project_id    = excluded.project_id,
+           rule_ids      = excluded.rule_ids,
+           system_prompt = excluded.system_prompt,
+           updated_at    = excluded.updated_at",
+        params![c.id, c.mode, c.title, c.messages, c.scope, c.project_id, c.vault_id, c.rule_ids, c.system_prompt, c.created_at, c.updated_at],
     )?;
     Ok(())
 }
 
 pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow> {
     conn.query_row(
-        "SELECT id, mode, title, messages, scope, project_id, vault_id, rule_ids, created_at, updated_at
+        "SELECT id, mode, title, messages, scope, project_id, vault_id, rule_ids, system_prompt, created_at, updated_at
          FROM conversations WHERE id = ?1",
         params![id],
         |row| {
@@ -301,8 +302,9 @@ pub fn fetch_conversation(conn: &Connection, id: &str) -> Result<ConversationRow
                 project_id: row.get(5)?,
                 vault_id: row.get(6)?,
                 rule_ids: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                system_prompt: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         },
     )
@@ -1563,6 +1565,29 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         run_migrations(&mut conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn conversation_system_prompt_round_trips() {
+        let conn = setup_db();
+        let mut c = ConversationRow {
+            id: "c1".into(),
+            mode: "chat".into(),
+            title: "t".into(),
+            messages: "[]".into(),
+            scope: None,
+            project_id: None,
+            vault_id: "vault-default".into(),
+            rule_ids: None,
+            system_prompt: Some("Be brief".into()),
+            created_at: 1,
+            updated_at: 1,
+        };
+        upsert_conversation(&conn, &c).unwrap();
+        assert_eq!(fetch_conversation(&conn, "c1").unwrap().system_prompt.as_deref(), Some("Be brief"));
+        c.system_prompt = None;
+        upsert_conversation(&conn, &c).unwrap();
+        assert_eq!(fetch_conversation(&conn, "c1").unwrap().system_prompt, None);
     }
 
     #[test]

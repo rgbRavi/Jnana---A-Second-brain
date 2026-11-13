@@ -6,9 +6,9 @@
 // writes the reworked attempt straight back into note.content.
 
 import type { NoteEditorProps, NoteViewProps } from '../../lib/noteTypes'
-import type { AiConfig, QuizAttempt } from '../../types'
+import { DEFAULT_VAULT_ID, type AiConfig, type QuizAttempt } from '../../types'
 import { QuizRunner } from '../../ui/ai/QuizRunner'
-import { emptyAttempt } from '../../core/ai/quizGrade'
+import { retakeAttempt, scoringOf } from '../../core/ai/quizGrade'
 import { getQuizSettings } from '../../hooks/useQuizSettings'
 import { loadAiConfig } from '../../core/ai/config'
 import { showConfirmDialog } from '../../lib/dialog'
@@ -79,6 +79,7 @@ export function QuizNoteView({ note }: NoteViewProps) {
           attempt={practice}
           settings={settings}
           config={config}
+          vaultId={note.vaultId ?? DEFAULT_VAULT_ID}
           onChange={setPractice}
           log={quizLog}
         />
@@ -95,7 +96,9 @@ export function QuizNoteView({ note }: NoteViewProps) {
           title="Answer again without saving"
           onClick={() => {
             quizLog.debug('Practice retake started', { noteId: note.id, questions: attempt.questions.length })
-            setPractice(emptyAttempt(attempt.questions, attempt.scopeLabel))
+            setPractice(
+              retakeAttempt(attempt, scoringOf(settings)),
+            )
           }}
         >
           Practice retake
@@ -109,9 +112,11 @@ export function QuizNoteView({ note }: NoteViewProps) {
           attempt={attempt}
           settings={settings}
           config={config}
+          vaultId={note.vaultId ?? DEFAULT_VAULT_ID}
           onChange={() => {
             /* read mode — answers aren't persisted */
           }}
+          log={quizLog}
         />
       </fieldset>
     </>
@@ -163,7 +168,11 @@ export function QuizNoteEditor({ note, value, onChange }: NoteEditorProps) {
                 questions: attempt.questions.length,
                 previous: graded ? `${attempt.total}/${attempt.max}` : null,
               })
-              onChange(serializeAttempt(emptyAttempt(attempt.questions, attempt.scopeLabel)))
+              onChange(
+                serializeAttempt(
+                  retakeAttempt(attempt, scoringOf(settings)),
+                ),
+              )
             })()
           }}
         >
@@ -174,6 +183,7 @@ export function QuizNoteEditor({ note, value, onChange }: NoteEditorProps) {
         attempt={attempt}
         settings={settings}
         config={config}
+        vaultId={note.vaultId ?? DEFAULT_VAULT_ID}
         onChange={(next) => onChange(serializeAttempt(next))}
         log={quizLog}
       />

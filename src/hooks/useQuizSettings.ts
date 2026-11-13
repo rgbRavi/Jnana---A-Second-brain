@@ -23,7 +23,7 @@ export const QUIZ_SETTINGS_DEFAULTS: QuizSettings = {
   feedback: 'end',
   source: 'retrieval',
   difficulty: 'mix',
-  showToolbar: true,
+  verify: true,
 }
 
 function load(): QuizSettings {

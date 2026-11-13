@@ -30,6 +30,11 @@ const CONTEXT_HINTS: Record<number, string> = {
   100000: 'most hosted models',
 }
 
+const WEB_CITATION_OPTIONS: SelectOption[] = [
+  { value: 'checked', label: 'Checked citations' },
+  { value: 'sources', label: 'Sources only' },
+]
+
 const DRIFT_MODE_OPTIONS: SelectOption[] = [
   { value: 'topic-shift', label: 'Topic shift (recommended)' },
   { value: 'rule-content', label: 'Rule-vs-content (spec-literal, noisy)' },
@@ -96,6 +101,22 @@ export function AdvancedAiPanel() {
           included). If not, each long note sends the passages that best match your question or topic
           — or an even spread across the note when there's nothing to match. Keep this below your
           model's context window; larger amounts are slower and cost more per run.
+        </span>
+      </div>
+
+      <div className={styles.field}>
+        <div className={styles.fieldHead}>
+          <label htmlFor="advai-web-citations">Web answers</label>
+        </div>
+        <SettingSelect
+          id="advai-web-citations"
+          value={cfg.webCitations}
+          options={WEB_CITATION_OPTIONS}
+          onChange={(v) => setAdvancedAiSettings({ webCitations: v as typeof cfg.webCitations })}
+        />
+        <span className={styles.hint}>
+          Checked citations keeps only the quotes found on the pages the AI read. Sources only lists the
+          pages without checking them.
         </span>
       </div>
 
