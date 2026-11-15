@@ -4,10 +4,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   MAX_REMEMBERED,
+  addNeverAsk,
   clearAskedQuestions,
+  excludedQuestions,
   getAskedQuestions,
+  getNeverAsk,
   normalizeQuestion,
+  openBucket,
   rememberQuestions,
+  removeNeverAsk,
 } from './quizMemory'
 
 describe('normalizeQuestion', () => {
@@ -65,5 +70,43 @@ describe('quiz memory', () => {
     localStorage.setItem('jnana.quiz.asked.v1', 'not json')
     expect(getAskedQuestions('v')).toEqual([])
     expect(() => rememberQuestions('v', ['A?'])).not.toThrow()
+  })
+})
+
+describe('never-ask list', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('never-ask survives the MAX_REMEMBERED cap', () => {
+    addNeverAsk('v', 'Bad question?')
+    rememberQuestions('v', Array.from({ length: 250 }, (_, i) => `Q ${i}?`))
+    expect(excludedQuestions('v')).toContain('Bad question?')
+    expect(getNeverAsk('v')).toEqual(['Bad question?'])
+  })
+
+  it('dedupes and removeNeverAsk matches ignoring case/punctuation', () => {
+    addNeverAsk('v', 'What is X?')
+    addNeverAsk('v', 'what is x')
+    expect(getNeverAsk('v')).toHaveLength(1)
+    removeNeverAsk('v', 'WHAT IS X!!')
+    expect(getNeverAsk('v')).toEqual([])
+  })
+
+  it('excludedQuestions dedupes asked + never-ask', () => {
+    rememberQuestions('v', ['A?'])
+    addNeverAsk('v', 'a')
+    expect(excludedQuestions('v')).toEqual(['A?'])
+  })
+
+  it('clearAskedQuestions clears the never-ask list too', () => {
+    addNeverAsk('v', 'A?')
+    clearAskedQuestions('v')
+    expect(getNeverAsk('v')).toEqual([])
+  })
+
+  it('openBucket keeps open questions out of the vault bucket', () => {
+    rememberQuestions(openBucket('v'), ['Open?'])
+    expect(openBucket('v')).toBe('v:open')
+    expect(getAskedQuestions('v')).toEqual([])
+    expect(getAskedQuestions('v:open')).toEqual(['Open?'])
   })
 })

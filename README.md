@@ -180,6 +180,9 @@ through Rust to only the host you configured.
   topic, a time range, or any set of notes you tick. A line above the composer always says what Send
   will do; starters on an empty chat set up a quiz on this week's notes, a question over your notes, or
   an analysis of your last saved note
+- **Quiz from the web or the AI's own knowledge** — beyond your notes, build a quiz from pasted links, a
+  web search (bring your own Brave/Tavily/SearXNG), or the model's knowledge; answers are checked against the sources
+  when possible (labelled when not), and you can dispute any question
 - **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
   Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
   notes send the passages that best match your question or topic
@@ -248,7 +251,20 @@ through Rust to only the host you configured.
 - **Install from anywhere** — a local `.zip`, an unpacked folder, or a **curated community catalog**
   ([JnanaApp/JnanaPlugins](https://github.com/JnanaApp/JnanaPlugins)); installs show a **permission
   consent** prompt, catalog packages are checksum- and manifest-checked before you are asked, and
-  updates surface newer catalog versions
+  updates surface newer catalog versions. The prompt also notes when a plugin never writes to the
+  log, so you know its errors may be hard to trace back to it
+- **Plugin logging** — every plugin gets a write-only `ctx.log` (both runtimes, no permission); its
+  lines are tagged with its id. Jnana also records each plugin's lifecycle, load time, permission
+  denials and failures. Canvas and Quiz log through the same API
+
+### Developer Log
+- **Settings → Developer → Developer Log** — one structured log for the app, plugins and Rust: filter
+  by level, source, category, plugin, time and keyword (including an operation id), expand entries
+  for data and stack traces, pause live updates, copy an entry or a diagnostics summary, export, clear
+- Errors and warnings are always recorded and written to a rotating log file; "Developer detail"
+  (Debug / Trace) adds IPC calls, routes, events and plugin API calls on demand
+- Secrets, note text and your OS user name are redacted before anything is stored, so an export is
+  safe to share. Guide: [docs/logging.md](docs/logging.md)
 
 ---
 
@@ -373,8 +389,11 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
   prevent path traversal, and external opens go through a scoped `open_asset` command.
 - AI settings and keys live in a Rust-side config file; provider requests are proxied through Rust
   and constrained to the configured host (chat / embedding / transcription each independent).
+- One structured, redacted logging pipeline (`lib/logger.ts`) feeds the rotating log file and the
+  in-app Developer Log (Settings → Developer); plugins get a write-only `ctx.log`. See
+  [docs/logging.md](docs/logging.md).
 
-More detail: [PROGRESS.md](PROGRESS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [PLAN.md](PLAN.md)
+More detail: [PROGRESS.md](PROGRESS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [PLAN.md](PLAN.md) · [Logging](docs/logging.md)
 
 ---
 

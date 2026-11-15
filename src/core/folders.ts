@@ -6,7 +6,7 @@
 // emit stringly-typed bus events so the sidebar tree and notes list re-sync
 // without prop-drilling (mirrors core/workspaces.ts).
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { Folder } from '../types'
 import { eventBus } from '../lib/eventBus'
 

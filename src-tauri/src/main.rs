@@ -7,6 +7,7 @@ mod commands;
 mod db;
 
 use commands::ai::*;
+use commands::ai_presets::*;
 use commands::ai_rules::*;
 use commands::ai_workspace::*;
 use commands::annotations::*;
@@ -26,6 +27,7 @@ use commands::plugin_loader::*;
 use commands::themes::*;
 use commands::vaults::*;
 use commands::web::*;
+use commands::web_search::*;
 use commands::workspaces::*;
 
 use std::io::{Read, Seek, SeekFrom};
@@ -151,7 +153,9 @@ fn main() {
                 .targets([
                     Target::new(TargetKind::Stdout),
                     Target::new(TargetKind::LogDir { file_name: Some("jnana".into()) }),
-                    Target::new(TargetKind::Webview),
+                    // Feeds Settings → Developer → Developer Log. Records that came
+                    // *from* the webview are skipped so they don't echo back as Rust lines.
+                    Target::new(TargetKind::Webview).filter(|m| !m.target().starts_with("webview")),
                 ])
                 .level(if cfg!(debug_assertions) {
                     log::LevelFilter::Debug
@@ -159,7 +163,9 @@ fn main() {
                     log::LevelFilter::Info
                 })
                 .max_file_size(5_000_000)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                // Up to 5 × 5 MB: rotated files are kept (date-stamped) instead of
+                // the previous file being discarded the moment it filled up.
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(5))
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
@@ -172,7 +178,14 @@ fn main() {
         // Initialize the database after the logger is installed so migrations and
         // any staged restore-swap are logged. Shared with all commands via state.
         .setup(|app| {
-            log::info!("Jnana starting — v{}", env!("CARGO_PKG_VERSION"));
+            log::info!(
+                "Jnana starting — v{} ({} {}, {} build)",
+                env!("CARGO_PKG_VERSION"),
+                std::env::consts::OS,
+                std::env::consts::ARCH,
+                if cfg!(debug_assertions) { "debug" } else { "release" }
+            );
+            let db_started = std::time::Instant::now();
             // A failed migration or corrupt database must not crash with a raw
             // panic (a WebView-less hard crash). Migrations are transactional
             // (db/schema.rs), so the on-disk schema is never half-applied and the
@@ -181,6 +194,7 @@ fn main() {
             // cleanly instead of unwinding.
             match db::init_db() {
                 Ok(conn) => {
+                    log::info!("init_db: ready in {} ms", db_started.elapsed().as_millis());
                     app.manage(Mutex::new(conn));
                 }
                 Err(e) => {
@@ -348,6 +362,11 @@ fn main() {
             list_note_progress,
             get_ai_config,
             set_ai_config,
+            save_ai_preset,
+            update_ai_preset,
+            apply_ai_preset,
+            rename_ai_preset,
+            delete_ai_preset,
             ai_request,
             ai_chat_stream,
             ai_chat_cancel,
@@ -394,7 +413,7 @@ fn main() {
             save_canvas,
             rename_canvas,
             delete_canvas,
-            fetch_link_preview,
+            fetch_link_preview, fetch_page_text, web_search,
             save_note_embeddings,
             search_embeddings,
             delete_note_embeddings,

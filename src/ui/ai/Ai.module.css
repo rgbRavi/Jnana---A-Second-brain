@@ -90,6 +90,22 @@
   border-color: var(--accent);
 }
 
+.presetBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.presetSelect { min-width: 12rem; }
+
+.textarea {
+  resize: vertical;
+  min-height: 4rem;
+  line-height: 1.4;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -138,7 +154,6 @@
 
 .btnPrimary {
   appearance: none;
-  outline: none;
   border: none;
   background: var(--accent);
   color: var(--on-accent);
@@ -148,26 +163,20 @@
   font-family: var(--font-body);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--dur-base) var(--motion-ease);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 50%, transparent);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: background var(--dur-fast) var(--motion-ease);
 }
-.btnPrimary:hover:not(:disabled) { 
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 60%, transparent);
-}
+/* Flat accent: the glow was decoration (nothing else in the app glows), and `outline: none`
+   here used to beat the global :focus-visible ring, hiding keyboard focus on Send/New chat. */
+.btnPrimary:hover:not(:disabled) { background: var(--accent-hover); }
+.btnPrimary:active:not(:disabled) { background: var(--accent-active); }
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btnActive {
   appearance: none;
-  outline: none;
   background: var(--accent);
   border: none;
   color: var(--on-accent);
-  box-shadow: 0 0 15px color-mix(in srgb, var(--accent) 40%, transparent);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* ─── Analyzer ─── */
@@ -229,7 +238,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
   overflow: hidden;
 }
 
@@ -354,6 +363,15 @@
 }
 
 .sources { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.webFooter { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem; color: var(--text-2); }
+.webFooterRow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.webFooterLabel { color: var(--text-3); }
+.webCites { margin: 0.2rem 0 0; padding-left: 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.webCiteLink { background: none; border: 0; padding: 0 0.2rem; border-radius: var(--radius-sm); color: var(--text-2); text-decoration: underline; cursor: pointer; font: inherit; }
+.webCiteLink:hover { background: var(--surface-hover); color: var(--text-1); }
+.webCiteOk { color: var(--success); }
+.webCiteWarn { color: var(--warning); }
+.webNotice { color: var(--text-3); }
 
 .sourceChip {
   background: var(--surface-2);
@@ -459,36 +477,9 @@
   gap: var(--space-lg);
 }
 
-.settingsBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: color-mix(in srgb, var(--surface) var(--fx-alpha-light), transparent);
-  backdrop-filter: var(--fx-blur);
-  border: 1px solid var(--border);
-  color: var(--text-1);
-  border-radius: 999px;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.82rem;
-  font-family: var(--font-body);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all var(--dur-base) var(--motion-ease);
-}
 
-.settingsText {
-  display: none;
-}
 
-.settingsBtn:hover .settingsText {
-  display: inline;
-}
 
-.settingsBtn:hover {
-  border-color: var(--border-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-}
 
 /* ─── Provider settings sections ─── */
 .providerSection {
@@ -911,6 +902,19 @@
 
 .quizScoreValue { font-weight: 600; color: var(--accent); }
 .quizMarkLine { font-size: 0.78rem; color: var(--text-2); margin-top: 0.2rem; }
+.quizProvenance { font-size: 0.78rem; color: var(--text-3); margin: 0.2rem 0 0; }
+.quizLink {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text-2);
+  text-decoration: underline;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.quizLink:hover { background: var(--surface-hover); }
 .quizActions { display: flex; gap: var(--space-xs); margin-top: var(--space-sm); }
 
 /* ─── Composer toolbar menus (Attach / Capabilities / More) ─────────────────
@@ -918,8 +922,6 @@
    vocabulary: same pill trigger, same panel, same rows, accent on active. */
 
 .cMenu { position: relative; display: inline-flex; }
-
-.cScrim { position: fixed; inset: 0; z-index: 44; }
 
 .cPop {
   position: absolute;
@@ -1461,3 +1463,173 @@
   border-style: dashed;
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
+
+/* ── Reasoning ("thinking") above a reply ── */
+.thinking {
+  margin-bottom: var(--space-xs);
+}
+.thinkingToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  cursor: pointer;
+}
+.thinkingToggle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-2);
+}
+.thinkingToggle:disabled {
+  cursor: default;
+}
+.thinkingToggle svg {
+  transition: transform var(--dur-fast) ease;
+}
+.thinkingChevronOpen {
+  transform: rotate(180deg);
+}
+.thinkingBody {
+  margin-top: var(--space-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ─── Image attachment thumbnails (composer + sent messages) ─── */
+.attThumb { position: relative; display: inline-flex; }
+.attThumbImg {
+  appearance: none;
+  padding: 0;
+  width: 80px;
+  height: 80px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-2);
+  cursor: zoom-in;
+  transition: border-color var(--dur-fast) var(--motion-ease);
+}
+.attThumbImg:hover { border-color: var(--border-hover); }
+.attThumbImg img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.attThumbRemove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--motion-ease);
+}
+.attThumb:hover .attThumbRemove,
+.attThumbRemove:focus-visible { opacity: 1; }
+.attThumbRemove:hover { color: var(--text-1); background: var(--surface-hover); }
+
+/* ─── Chat history: auto-hide mode ───
+   The edge strip sits in the AI view's left padding (1.5rem; padding is 1rem 1.5rem, set in views/ai/Ai.tsx) so the
+   pointer only has to reach the view's edge. Closed, the drawer slides off-canvas but stays
+   focusable, so Tab still reaches it (focus opens it). */
+.historyEdge {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(1.5rem + 6px);
+  margin-left: -1.5rem;
+}
+.historyFloat {
+  position: absolute;
+  /* Reach through the view's 1rem top/bottom padding (Ai.tsx) so the drawer runs edge to
+     edge instead of floating with a strip of page above and below it. */
+  top: -1rem;
+  bottom: -1rem;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  padding: 1rem 0 1rem 1.5rem;
+  background: var(--surface);
+  transform: translateX(-100%);
+  pointer-events: none;
+  transition: transform var(--dur-base) var(--motion-ease);
+}
+/* Shadow only when open — closed, it would bleed in from the edge. */
+.historyFloatOpen { transform: none; pointer-events: auto; box-shadow: var(--shadow-lg); }
+
+/* Inline link-styled button inside the mode-line hint (opens a toolbar menu). */
+.modeLineLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+.modeLineLink:hover { text-decoration: underline; }
+
+/* Status-line tools (notes source, "What the AI sees") sit at the line's right end so the
+   mode description keeps the room it needs; the description ellipsizes first. */
+.modeLineTools {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+/* Chat header: the active provider · model, linking to AI settings. */
+.modelLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  color: var(--text-3);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.modelLink:hover { color: var(--text-1); background: var(--surface-hover); }
+
+/* Chat history: "In <project> ×" — the list is filtered to the active project. */
+.historyScope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-xs);
+  padding: 0.3rem 0.35rem 0.3rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-softer);
+  color: var(--text-2);
+  font-size: 0.78rem;
+}
+.historyScopeName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.historyScopeClear {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.historyScopeClear:hover { color: var(--text-1); background: var(--surface-hover); }

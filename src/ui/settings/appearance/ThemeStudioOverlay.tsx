@@ -37,7 +37,7 @@ export function ThemeStudioOverlay() {
           <button
             type="button"
             className={styles.secondaryBtn}
-            aria-label={collapsed ? 'Expand' : 'Collapse'}
+            title={collapsed ? 'Expand' : 'Collapse'} aria-label={collapsed ? 'Expand' : 'Collapse'}
             onClick={() => setCollapsed((v) => !v)}
           >
             {collapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

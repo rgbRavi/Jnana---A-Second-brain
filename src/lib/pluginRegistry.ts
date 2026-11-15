@@ -3,7 +3,7 @@
 
 import { Plug } from 'lucide-react'
 import type { Plugin } from '../types'
-import type { PluginRegisterOptions } from './pluginApi'
+import type { PluginRegisterOptions, PluginLogApi } from './pluginApi'
 import { eventBus, PluginBus } from './eventBus'
 import { registerNoteType, unregisterNoteType } from './noteTypes'
 import {
@@ -32,7 +32,8 @@ import { setPluginEnabledState } from './pluginEnabled'
 import { clearPluginActivity } from './pluginActivity'
 import { chargePluginCall, resetPluginBudget } from '../core/plugins/guard'
 import { toast } from './toast'
-import { pluginLog } from './pluginLog'
+import { pluginLog, pluginWrite } from './pluginLog'
+import { logEvent, isLogLevelEnabled } from './logger'
 import { makePluginStorage } from '../core/plugins/storage'
 import { makePluginNotesApi } from '../core/plugins/notesApi'
 import { makePluginNet } from '../core/plugins/net'
@@ -92,6 +93,16 @@ const WORKER_BLOCKED_EVENTS = new Set([
   'annotation:created', 'annotation:updated', 'annotation:deleted',
 ])
 
+
+/** `ctx.log` for a main-thread plugin: write-only, charged to its call budget. */
+function makeCtxLog(pluginId: string): PluginLogApi {
+  const write = (level: 'debug' | 'info' | 'warn' | 'error') => (message: string, data?: unknown) => {
+    if (!chargePluginCall(pluginId)) return
+    pluginWrite(pluginId, level, message, data)
+  }
+  return { debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error') }
+}
+
 class PluginRegistry {
   private plugins = new Map<string, Plugin>()
   private buses = new Map<string, PluginBus>()
@@ -115,7 +126,7 @@ class PluginRegistry {
    *  capability-gated. */
   register(plugin: Plugin, opts?: PluginRegisterOptions): void {
     if (this.plugins.has(plugin.id)) {
-      console.warn(`Plugin "${plugin.id}" is already registered`)
+      pluginLog('warn', 'Already registered — second registration ignored', plugin.id)
       return
     }
 
@@ -123,7 +134,6 @@ class PluginRegistry {
 
     this.plugins.set(plugin.id, plugin)
     eventBus.emit('plugin:registered', { id: plugin.id })
-    console.log(`Plugin "${plugin.name}" v${plugin.version} loaded`)
     pluginLog('info', `Loaded v${plugin.version}`, plugin.id)
   }
 
@@ -260,7 +270,14 @@ class PluginRegistry {
       }
     }
 
+    // A refused capability is a security-relevant event: always on the record.
+    const deny = (why: string): Promise<never> => {
+      pluginLog('warn', `Permission denied: ${why}`, meta.id)
+      return Promise.reject(new Error(why))
+    }
+
     const call = (ns: string, fn: string, args: unknown[]): Promise<unknown> => {
+      if (isLogLevelEnabled('trace')) logEvent('trace', 'plugin', `RPC ${ns}.${fn}`, { pluginId: meta.id, event: 'rpc' })
       if (ns === 'storage') {
         if (fn === 'get') return storage.get(args[0] as string)
         if (fn === 'set') return storage.set(args[0] as string, args[1])
@@ -269,9 +286,7 @@ class PluginRegistry {
       }
       if (ns === 'notes') {
         if (!notes) {
-          return Promise.reject(
-            new Error(`"${meta.name}" was not granted the notes permission.`),
-          )
+          return deny(`"${meta.name}" was not granted the notes permission.`)
         }
         if (fn === 'getAll') return notes.getAll()
         if (fn === 'getById') return notes.getById(args[0] as string)
@@ -281,9 +296,7 @@ class PluginRegistry {
       }
       if (ns === 'media') {
         if (!media) {
-          return Promise.reject(
-            new Error(`"${meta.name}" was not granted access to attachments.`),
-          )
+          return deny(`"${meta.name}" was not granted access to attachments.`)
         }
         if (fn === 'list') return media.list(args[0] as string)
         if (fn === 'read') return media.read(args[0] as string)
@@ -291,14 +304,13 @@ class PluginRegistry {
       }
       if (ns === 'net') {
         if (!net) {
-          return Promise.reject(
-            new Error(`"${meta.name}" was not granted the network permission.`),
-          )
+          return deny(`"${meta.name}" was not granted the network permission.`)
         }
         if (fn === 'request') {
           return net.request(args[0] as string, args[1] as Parameters<typeof net.request>[1])
         }
       }
+      pluginLog('warn', `Invalid API call: "${ns}.${fn}" does not exist`, meta.id)
       return Promise.reject(new Error(`Unknown plugin API "${ns}.${fn}".`))
     }
 
@@ -430,7 +442,7 @@ class PluginRegistry {
           return
         }
         case 'log':
-          pluginLog(m.level, m.message, meta.id)
+          pluginWrite(meta.id, m.level, m.message, m.data)
           return
         case 'ready':
           pluginLog('info', `Loaded v${meta.version} (worker)`, meta.id)
@@ -564,6 +576,7 @@ class PluginRegistry {
         net: canUseNetwork ? makePluginNet(plugin.id) : undefined,
         media: canUseMedia ? makePluginMediaApi(plugin.id) : undefined,
         motion: canAnimate ? createMotionApi(plugin.id, { builtin: trusted }) : undefined,
+        log: makeCtxLog(plugin.id),
         registerNoteType: (def) => {
           if (!chargePluginCall(plugin.id)) return
           registerNoteType(def)

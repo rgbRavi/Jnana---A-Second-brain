@@ -2,10 +2,13 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useState, useMemo } from 'react'
-import { FileUp, Plus, X, FolderKanban, MessageSquarePlus } from 'lucide-react'
+import { ArrowLeft, FileUp, Plus, Trash2, X, FolderKanban, MessageSquarePlus } from 'lucide-react'
 import { showConfirmDialog } from '../../lib/dialog'
+import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import { useNotesContext } from '../../context/NotesContext'
 import { useViewState } from '../../hooks/useViewState'
+import { goToAiMode, backAiMode, useAiBackLabel } from '../../hooks/aiNav'
 import { requestChatAction } from '../../hooks/useChatHistory'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import { listConversations } from '../../core/chat'
@@ -21,6 +24,7 @@ import {
 } from '../../core/aiWorkspace'
 import { listProjectRules, setProjectRules } from '../../core/aiRules'
 import { pickAttachments as pickFiles } from '../../core/ai'
+import styles from './ProjectsView.module.css'
 import { RulesPicker } from '../../ui/ai/RulesPicker'
 import { DEFAULT_VAULT_ID, type AiProject, type Note, type ProjectKnowledge, type ConversationMeta } from '../../types'
 
@@ -33,8 +37,17 @@ const field: React.CSSProperties = {
   padding: '0.6rem 0.8rem',
   fontSize: '0.9rem',
   fontFamily: 'var(--font-body)',
-  outline: 'none',
+  // No `outline: 'none'` — inline it beats the global :focus-visible ring.
   transition: 'border-color 0.2s',
+}
+
+/** Sentence-case field/section label (one style for the whole project form). */
+const fieldLabel: React.CSSProperties = {
+  display: 'block',
+  margin: '0 0 0.5rem',
+  fontSize: '0.82rem',
+  fontWeight: 600,
+  color: 'var(--text-2)',
 }
 
 const pill: React.CSSProperties = {
@@ -61,13 +74,16 @@ export function ProjectsView() {
   const [chats, setChats] = useState<ConversationMeta[]>([])
   const [noteQuery, setNoteQuery] = useState('')
   const [projectRuleIds, setProjectRuleIds] = useState<string[]>([])
-  const [, setAiMode] = useViewState('ai.mode', 'chat')
+  const backLabel = useAiBackLabel()
   const [, setActiveProjectId] = useViewState('ai.free.projectId', '')
   const [forceOpenProject, setForceOpenProject] = useViewState('ai.projects.openId', '')
 
   const refreshProjects = async () => {
-    const ps = await listProjects()
+    // Projects are vault-scoped like everything else; listing another vault's here let a chat
+    // in this vault be tagged with a project the rest of the AI view can't see.
+    const ps = (await listProjects()).filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === vaultId)
     setProjects(ps)
+    setEditing((e) => (e && ps.some((p) => p.id === e.id) ? e : null))
     return ps
   }
 
@@ -109,9 +125,16 @@ export function ProjectsView() {
     listProjectRules(editing.id).then(setProjectRuleIds).catch(() => setProjectRuleIds([]))
   }, [editing?.id])
 
-  const persistProject = async (p: AiProject) => {
-    await saveProject({ ...p, updatedAt: Date.now() }).catch((e) => console.error(e))
+  /** Returns false (after a toast) if the save didn't persist. */
+  const persistProject = async (p: AiProject): Promise<boolean> => {
+    let ok = true
+    await saveProject({ ...p, updatedAt: Date.now() }).catch((e) => {
+      ok = false
+      log.error('Failed to save project', e)
+      toast.error("Couldn't save the project.")
+    })
     await refreshProjects()
+    return ok
   }
 
   const createNew = async () => {
@@ -128,7 +151,13 @@ export function ProjectsView() {
       danger: true,
     })
     if (!ok) return
-    await deleteProject(p.id).catch((e) => console.error(e))
+    try {
+      await deleteProject(p.id)
+    } catch (e) {
+      console.error(e)
+      toast.error(`Couldn't delete “${p.name}”.`)
+      return
+    }
     if (editing?.id === p.id) setEditing(null)
     await refreshProjects()
   }
@@ -146,7 +175,13 @@ export function ProjectsView() {
     if (!editing) return
     if (knowledge.some((k) => k.kind === 'note' && k.refId === note.id)) return
     const item = newKnowledge(editing.id, 'note', note.id, note.title?.trim() || 'Untitled')
-    await addProjectKnowledge(item).catch((e) => console.error(e))
+    try {
+      await addProjectKnowledge(item)
+    } catch (e) {
+      console.error(e)
+      toast.error("Couldn't add the note to this project.")
+      return
+    }
     setKnowledge((prev) => [...prev, item])
     setNoteQuery('')
   }
@@ -163,11 +198,18 @@ export function ProjectsView() {
       }
     } catch (e) {
       console.error(e)
+      toast.error("Couldn't add the file to this project.")
     }
   }
 
   const removeKnowledge = async (id: string) => {
-    await removeProjectKnowledge(id).catch((e) => console.error(e))
+    try {
+      await removeProjectKnowledge(id)
+    } catch (e) {
+      console.error(e)
+      toast.error("Couldn't remove the item from this project.")
+      return
+    }
     setKnowledge((prev) => prev.filter((k) => k.id !== id))
   }
 
@@ -175,14 +217,14 @@ export function ProjectsView() {
     if (!editing) return
     setActiveProjectId(editing.id)
     requestChatAction('chat', { type: 'new', projectId: editing.id })
-    setAiMode('chat')
+    goToAiMode('chat')
   }
 
   const openChat = (chatId: string) => {
     if (!editing) return
     setActiveProjectId(editing.id)
     requestChatAction('chat', { type: 'load', id: chatId })
-    setAiMode('chat')
+    goToAiMode('chat')
   }
 
   if (!editing) {
@@ -190,6 +232,9 @@ export function ProjectsView() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button onClick={backAiMode} style={{ ...pill, padding: '0.4rem', borderRadius: 'var(--radius-sm)' }} title={backLabel} aria-label={backLabel}>
+              <ArrowLeft size={18} />
+            </button>
             <FolderKanban size={24} color="var(--accent)" /> AI Projects
           </h1>
           <button style={{ ...pill, background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)' }} onClick={createNew}>
@@ -199,37 +244,20 @@ export function ProjectsView() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
           {projects.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => openProject(p)}
-              style={{
-                background: 'color-mix(in srgb, var(--surface) var(--fx-alpha-soft), transparent)',
-                backdropFilter: 'var(--fx-blur-strong)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '1.25rem',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                transition: 'border-color var(--dur-fast) var(--motion-ease)',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</h3>
-                <button
-                  onClick={(e) => { e.stopPropagation(); removeProject(p) }}
-                  title="Delete Project"
-                  style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '4px' }}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-2)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                {p.description || 'No description provided.'}
-              </p>
+            <div key={p.id} className={styles.card}>
+              <button type="button" className={styles.cardMain} onClick={() => openProject(p)}>
+                <h3 className={styles.cardTitle}>{p.name}</h3>
+                <p className={styles.cardDesc}>{p.description || 'No description provided.'}</p>
+              </button>
+              <button
+                type="button"
+                className={styles.cardDelete}
+                onClick={() => removeProject(p)}
+                title="Delete project"
+                aria-label={`Delete project ${p.name}`}
+              >
+                <Trash2 size={15} />
+              </button>
             </div>
           ))}
           {projects.length === 0 && (
@@ -243,40 +271,57 @@ export function ProjectsView() {
     )
   }
 
+  // Compared with the last saved copy (the list refreshes after every save).
+  const instructionsDirty = editing.instructions !== (projects.find((p) => p.id === editing.id)?.instructions ?? editing.instructions)
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-        <button onClick={() => setEditing(null)} style={{ ...pill, padding: '0.4rem', borderRadius: '8px' }} title="Back to Projects">
-          <X size={18} />
+        <button onClick={() => setEditing(null)} style={{ ...pill, padding: '0.4rem', borderRadius: 'var(--radius-sm)' }} title="Back to Projects" aria-label="Back to Projects">
+          <ArrowLeft size={18} />
         </button>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-1)' }}>Project Settings</h2>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-1)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editing.name.trim() || 'Untitled project'}</h2>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 0', display: 'flex', gap: '2rem' }}>
         {/* Left column: Settings */}
         <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project Name</label>
-            <input style={field} placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} onBlur={() => persistProject(editing)} />
+            <label htmlFor="project-name" style={fieldLabel}>Name</label>
+            <input id="project-name" style={field} placeholder="Name" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} onBlur={() => persistProject(editing)} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</label>
-            <input style={field} placeholder="Description (optional)" value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} onBlur={() => persistProject(editing)} />
+            <label htmlFor="project-description" style={fieldLabel}>Description</label>
+            <input id="project-description" style={field} placeholder="Description (optional)" value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} onBlur={() => persistProject(editing)} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Custom Instructions</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', minHeight: 28 }}>
+              <label htmlFor="project-instructions" style={{ ...fieldLabel, marginBottom: 0 }}>Custom instructions</label>
+              {instructionsDirty && (
+                <button
+                  // Keep focus in the textarea so its blur doesn't save a second time.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={async () => { if (await persistProject(editing)) toast.success('Instructions saved.', 2000) }}
+                  style={{ ...pill, padding: '0.3rem 0.85rem', background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)' }}
+                >
+                  Save
+                </button>
+              )}
+            </div>
             <textarea
+              id="project-instructions"
               style={{ ...field, minHeight: '160px', resize: 'vertical', lineHeight: 1.5 }}
               placeholder="How should the assistant behave in this project? (role, goals, constraints…)"
               value={editing.instructions}
               onChange={(e) => setEditing({ ...editing, instructions: e.target.value })}
-              onBlur={() => persistProject(editing)}
+              // Still saves on leaving the field, so navigating away never drops an edit.
+              onBlur={() => { if (instructionsDirty) void persistProject(editing) }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rules (inherited by every chat in this project)</label>
+            <h3 style={fieldLabel}>Rules (inherited by every chat in this project)</h3>
             <RulesPicker
               vaultId={editing.vaultId}
               selectedIds={projectRuleIds}
@@ -288,7 +333,7 @@ export function ProjectsView() {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Knowledge ({knowledge.length})</label>
+            <h3 style={fieldLabel}>Knowledge ({knowledge.length})</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '1rem' }}>
               {knowledge.map((k) => (
                 <div key={k.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border)', background: 'color-mix(in srgb, var(--surface) 40%, transparent)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 0.75rem' }}>
@@ -307,7 +352,7 @@ export function ProjectsView() {
               <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
                 <input style={{ ...field, padding: '0.4rem 0.8rem', borderRadius: '999px' }} placeholder="Search notes to add…" value={noteQuery} onChange={(e) => setNoteQuery(e.target.value)} />
                 {noteMatches.length > 0 && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 60, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: '0 10px 28px rgba(0,0,0,0.4)', maxHeight: '220px', overflowY: 'auto' }}>
+                  <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 60, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-lg)', maxHeight: '220px', overflowY: 'auto' }}>
                     {noteMatches.map((n) => (
                       <button key={n.id} onClick={() => addNoteKnowledge(n)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.85rem', padding: '0.6rem 0.8rem', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {n.title?.trim() || 'Untitled'}
@@ -323,32 +368,13 @@ export function ProjectsView() {
         {/* Right column: Recent Chats & Actions */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingLeft: '1.5rem', borderLeft: '1px solid var(--border)' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-2)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recent Chats in Project</label>
+            <h3 style={fieldLabel}>Recent chats in this project</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {chats.length === 0 ? (
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-3)', fontStyle: 'italic' }}>No chats yet.</p>
               ) : (
                 chats.slice(0, 10).map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => openChat(c.id)}
-                    style={{
-                      textAlign: 'left',
-                      padding: '0.6rem 0.8rem',
-                      background: 'color-mix(in srgb, var(--surface) 40%, transparent)',
-                      border: '1px solid transparent',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-1)',
-                      fontSize: '0.85rem',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      transition: 'background 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 15%, transparent)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'color-mix(in srgb, var(--surface) 40%, transparent)'}
-                  >
+                  <button key={c.id} type="button" className={styles.chatLink} onClick={() => openChat(c.id)}>
                     {c.title || 'Untitled Chat'}
                   </button>
                 ))
@@ -357,29 +383,7 @@ export function ProjectsView() {
           </div>
 
           <div style={{ marginTop: 'auto' }}>
-            <button
-              onClick={startNewChatInProject}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '0.8rem',
-                background: 'color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent)',
-                backdropFilter: 'var(--fx-blur-strong)',
-                border: '1px solid var(--fx-composer-border)',
-                borderRadius: 'var(--fx-composer-radius)',
-                boxShadow: 'var(--fx-composer-shadow)',
-                color: 'var(--text-1)',
-                fontSize: '1rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                transition: 'border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease)',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent)' }}
-            >
+            <button type="button" className={styles.newChat} onClick={startNewChatInProject}>
               <MessageSquarePlus size={20} color="var(--accent)" /> Start New Chat
             </button>
           </div>

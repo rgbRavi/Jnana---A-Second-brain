@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { QuizAttempt } from '../../types'
 import {
   EMPTY_QUIZ_CONTENT,
+  isOpenQuizContent,
   parseAttempt,
   quizToExportMarkdown,
   quizToSearchText,
@@ -44,6 +45,43 @@ const attempt: QuizAttempt = {
 describe('quiz note content', () => {
   it('round-trips an attempt through note content', () => {
     expect(parseAttempt(serializeAttempt(attempt))).toEqual(attempt)
+  })
+
+  it('keeps valid frozen scoring and drops a malformed one', () => {
+    const scoring = { negativeMarking: true, negativeFraction: 0.25, mcmaRule: 'proportional' as const, feedback: 'end' as const }
+    expect(parseAttempt(serializeAttempt({ ...attempt, scoring }))?.scoring).toEqual(scoring)
+
+    const bad = JSON.stringify({ ...attempt, scoring: { ...scoring, negativeFraction: 'lots' } })
+    expect(parseAttempt(bad)).not.toBeNull()
+    expect(parseAttempt(bad)?.scoring).toBeUndefined()
+  })
+
+  it('parses an old attempt with none of the new fields', () => {
+    const p = parseAttempt(serializeAttempt(attempt))
+    expect(p?.origin).toBeUndefined()
+    expect(p?.disputed).toBeUndefined()
+    expect(p?.sources).toBeUndefined()
+    expect(p).toEqual(attempt)
+  })
+
+  it('drops non-http(s) source URLs', () => {
+    const q = { ...attempt.questions[0], source: { url: 'javascript:alert(1)', title: 't', quote: 'q' } }
+    const raw = JSON.stringify({
+      ...attempt,
+      questions: [q, attempt.questions[1]],
+      sources: [
+        { url: 'file:///x', title: 'bad' },
+        { url: 'https://example.com/a', title: 'ok' },
+      ],
+    })
+    const p = parseAttempt(raw)
+    expect(p?.questions[0].source).toBeUndefined()
+    expect(p?.sources).toEqual([{ url: 'https://example.com/a', title: 'ok' }])
+  })
+
+  it('pads disputed to the question count', () => {
+    const p = parseAttempt(JSON.stringify({ ...attempt, disputed: [true] }))
+    expect(p?.disputed).toEqual([true, false])
   })
 
   it('parses the empty content a new quiz note starts with', () => {
@@ -99,5 +137,16 @@ describe('quiz note content', () => {
     // Export should show the second question as ungraded
     const md = quizToExportMarkdown(JSON.stringify(shortAttempt))
     expect(md).toContain('**Marks awarded:** ungraded')
+  })
+})
+
+describe('isOpenQuizContent', () => {
+  const q = (origin?: string) => JSON.stringify({ ...(origin ? { origin } : {}), questions: [] })
+  it('is true for web/ai, false for notes/absent/garbage', () => {
+    expect(isOpenQuizContent(q('web'))).toBe(true)
+    expect(isOpenQuizContent(q('ai'))).toBe(true)
+    expect(isOpenQuizContent(q('notes'))).toBe(false)
+    expect(isOpenQuizContent(q())).toBe(false)
+    expect(isOpenQuizContent('not json')).toBe(false)
   })
 })

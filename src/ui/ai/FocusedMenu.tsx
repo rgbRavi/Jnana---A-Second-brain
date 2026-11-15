@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { Bot, FileSearch, GraduationCap, Power } from 'lucide-react'
+import { Bot, ChevronRight, FileSearch, GraduationCap, Power } from 'lucide-react'
 import type { FocusState, FocusAction } from '../../core/ai/focusedScope'
 import { openFocusPanel, closeFocusPanel } from '../../lib/activeFocus'
 import { openRailPanel } from '../rail/RightRail'
@@ -55,7 +55,7 @@ export function FocusedContent({
           label={actionMeta[a].label}
           hint={actionMeta[a].hint}
           active={focus.action === a}
-          trailing={<span style={{ fontSize: '0.85rem' }}>▸</span>}
+          trailing={<ChevronRight size={13} />}
           onClick={() => launch(a)}
         />
       ))}

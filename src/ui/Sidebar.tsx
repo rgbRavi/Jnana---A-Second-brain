@@ -4,7 +4,8 @@
 import { useState } from "react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { useTranscription } from "../context/TranscriptionContext"
-import { useSidebarPrefs, toggleSidebarCollapsed } from "../hooks/useSidebarPrefs"
+import { useSidebarPrefs, toggleSidebarCollapsed, setSidebarPrefs } from "../hooks/useSidebarPrefs"
+import { useHoverReveal } from "../hooks/useHoverReveal"
 import { useWorkspaces } from "../hooks/useWorkspaces"
 import { usePluginActions } from "../hooks/usePluginActions"
 import { runPluginAction } from "../lib/pluginActions"
@@ -13,7 +14,7 @@ import { openComposer } from "./editor/NoteCreator"
 import { ContextMenu } from "./ContextMenu"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
-import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
+import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftDashed, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
 import SidebarStyles from "./Sidebar.module.css"
 
 const ICONS = {
@@ -33,7 +34,8 @@ const itemClass =
 
 export function Sidebar() {
   const { jobs } = useTranscription()
-  const { collapsed } = useSidebarPrefs()
+  const prefs = useSidebarPrefs()
+  const autoHide = prefs.autoHide
   const sidebarActions = usePluginActions("sidebar")
   // Open workspaces are cross-vault shortcuts — resolve them against ALL
   // workspaces (not just the active vault's) so they never vanish when you
@@ -49,6 +51,9 @@ export function Sidebar() {
   const [wsExpanded, setWsExpanded] = useState(true)
   const [notesExpanded, setNotesExpanded] = useState(true)
   const [wsMenu, setWsMenu] = useState<{ x: number; y: number; id: string } | null>(null)
+  const reveal = useHoverReveal(!!wsMenu)
+  // Auto-hide rests as the icon-only rail and expands on hover; it overrides the collapse pref.
+  const collapsed = autoHide ? !reveal.show : prefs.collapsed
   const runningCount = jobs.filter((j) => j.status === "running").length
   const openWorkspaces = allWorkspaces.filter((w) => openWorkspaceIds.includes(w.id))
   const hasSubWorkspaces = openWorkspaces.length > 0
@@ -66,7 +71,7 @@ export function Sidebar() {
     if (pathname === `/workspaces/${id}`) navigate("/workspaces")
   }
 
-  return (
+  const sidebar = (
     <aside data-anchor="sidebar" className={`${SidebarStyles.sidebar}${collapsed ? " " + SidebarStyles.collapsed : ""}`}>
       <div className={SidebarStyles.sidebarLogo}>
         <div className={SidebarStyles.logoRow}>
@@ -82,15 +87,29 @@ export function Sidebar() {
               <span className={SidebarStyles.tagline}>Second Brain</span>
             </span>
           </span>
-          <button
-            type="button"
-            className={SidebarStyles.collapseToggle}
-            onClick={toggleSidebarCollapsed}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
-          </button>
+          <span className={SidebarStyles.headerBtns}>
+            <button
+              type="button"
+              className={SidebarStyles.collapseToggle}
+              onClick={() => setSidebarPrefs({ autoHide: !autoHide })}
+              title={autoHide ? "Auto-hide is on — click to keep the sidebar open" : "Auto-hide sidebar (icons only until you hover it)"}
+              aria-label="Auto-hide sidebar"
+              aria-pressed={autoHide}
+            >
+              <PanelLeftDashed size={14} />
+            </button>
+            {!autoHide && (
+              <button
+                type="button"
+                className={SidebarStyles.collapseToggle}
+                onClick={toggleSidebarCollapsed}
+                title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+              </button>
+            )}
+          </span>
         </div>
       </div>
 
@@ -287,5 +306,14 @@ export function Sidebar() {
         />
       )}
     </aside>
+  )
+
+  if (!autoHide) return sidebar
+  // Auto-hide: the slot keeps the icon rail's width in the layout; the sidebar inside it
+  // widens over the page on hover instead of pushing the page aside.
+  return (
+    <div className={`${SidebarStyles.autoSlot} ${reveal.show ? SidebarStyles.autoSlotOpen : ""}`} {...reveal.bind}>
+      {sidebar}
+    </div>
   )
 }

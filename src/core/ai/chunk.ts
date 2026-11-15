@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import type { Note, NoteChunk } from '../../types'
-import { noteSearchText } from '../../lib/noteTypes'
+import { isGroundable, noteSearchText } from '../../lib/noteTypes'
 
 const MAX_CHARS = 1200
 const OVERLAP_CHARS = 150
@@ -79,7 +79,7 @@ export function stripLoneSurrogates(text: string): string {
  * of "indexed / total" counts as well as out of the stale list.
  */
 export function hasEmbeddableText(note: Note): boolean {
-  return cleanForEmbedding(noteSearchText(note)).length > 0
+  return isGroundable(note) && cleanForEmbedding(noteSearchText(note)).length > 0
 }
 
 /**
@@ -93,6 +93,7 @@ export function chunkNote(note: Note, extraText = ''): NoteChunk[] {
   // embeds its real text instead of raw JSON; plain notes get their content back.
   // `extraText` is already-plain attachment text (e.g. PDF contents) — appended
   // as extra paragraphs so PDF text becomes semantically retrievable.
+  if (!isGroundable(note)) return []
   const noteBody = cleanForEmbedding(noteSearchText(note))
   const extra = extraText.trim()
   const body = extra ? (noteBody ? `${noteBody}\n\n${extra}` : extra) : noteBody

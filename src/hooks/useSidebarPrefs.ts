@@ -12,10 +12,16 @@ import { useSyncExternalStore } from 'react'
 export interface SidebarPrefs {
   /** When true the rail is icon-only (labels hidden, shown as tooltips). */
   collapsed: boolean
+  /** AI chat history drawer hides until the pointer reaches the left edge of the AI view. */
+  aiHistoryAutoHide: boolean
+  /** File explorer hides until the pointer reaches the strip beside the nav sidebar. */
+  explorerAutoHide: boolean
+  /** Nav sidebar rests as the icon-only rail and expands over the page on hover. */
+  autoHide: boolean
 }
 
 const STORAGE_KEY = 'jnana.sidebar.prefs'
-const DEFAULTS: SidebarPrefs = { collapsed: false }
+const DEFAULTS: SidebarPrefs = { collapsed: false, aiHistoryAutoHide: false, explorerAutoHide: false, autoHide: false }
 
 function load(): SidebarPrefs {
   try {

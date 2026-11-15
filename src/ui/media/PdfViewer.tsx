@@ -598,7 +598,7 @@ export function PdfViewer({ filename, noteId, pdfIndex = 0, onRegisterPageSetter
                 {PEN_COLORS.map((c) => (
                   <button
                     key={c}
-                    aria-label={`Pen colour ${c}`}
+                    title={`Pen colour ${c}`} aria-label={`Pen colour ${c}`}
                     onClick={() => setPenColor(c)}
                     className={`${styles.swatch} ${penColor === c ? styles.swatchActive : ''}`}
                     style={{ background: c }}

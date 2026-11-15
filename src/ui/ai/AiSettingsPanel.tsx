@@ -13,6 +13,8 @@ import {
   type ModelKind,
 } from '../../core/ai'
 import { SettingSelect, SettingToggle } from '../settings/SettingControls'
+import { PresetBar } from './PresetBar'
+import { ToolbarSettings } from './ToolbarSettings'
 import styles from './Ai.module.css'
 
 interface Props {
@@ -43,6 +45,10 @@ interface ProviderSectionProps {
   onModel: (value: string) => void
   /** Which model-name history bucket feeds this field's dropdown. */
   historyKey?: ModelKind
+  /** Preset bar rendered above the fields. */
+  presets?: React.ReactNode
+  /** Extra fields rendered after the model (e.g. the chat system prompt). */
+  extra?: React.ReactNode
 }
 
 /** A reusable provider block: backend select + base URL + (optional) key + model.
@@ -62,6 +68,7 @@ function ProviderSection(p: ProviderSectionProps) {
     <section className={styles.providerSection}>
       <h3 className={styles.subhead}>{p.title}</h3>
       {p.hint && <p className={styles.hint}>{p.hint}</p>}
+      {p.presets}
       <div className={styles.fields}>
         <div className={styles.field}>
           <label className={styles.label}>Backend</label>
@@ -104,6 +111,60 @@ function ProviderSection(p: ProviderSectionProps) {
             </datalist>
           )}
         </div>
+        {p.extra}
+      </div>
+    </section>
+  )
+}
+
+const WEB_SEARCH_OPTIONS = [
+  { value: 'brave', label: 'Brave Search' },
+  { value: 'tavily', label: 'Tavily' },
+  { value: 'searxng', label: 'SearXNG (self-hosted)' },
+]
+
+/** Web search backend: provider + key (brave/tavily) or base URL (searxng). No model. */
+function WebSearchSection({ config, set }: { config: AiConfig; set: <K extends keyof AiConfig>(k: K, v: AiConfig[K]) => void }) {
+  const searx = config.webSearchProvider === 'searxng'
+  return (
+    <section className={styles.providerSection}>
+      <h3 className={styles.subhead}>Web search</h3>
+      <p className={styles.hint}>
+        Used by Web quizzes and answer rechecks. Your topic is sent to this provider; pages are read by Jnana and sent to your chat model.
+      </p>
+      <PresetBar section="webSearch" config={config} />
+      <div className={styles.fields}>
+        <div className={styles.field}>
+          <label className={styles.label}>Provider</label>
+          <SettingSelect
+            ariaLabel="Web search provider"
+            value={config.webSearchProvider}
+            options={WEB_SEARCH_OPTIONS}
+            onChange={(v) => set('webSearchProvider', v as AiConfig['webSearchProvider'])}
+          />
+        </div>
+        {searx ? (
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.label}>Base URL</label>
+            <input
+              className={styles.input}
+              placeholder="https://searx.example.org"
+              value={config.webSearchBaseUrl}
+              onChange={(e) => set('webSearchBaseUrl', e.target.value)}
+            />
+          </div>
+        ) : (
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.label}>API key</label>
+            <input
+              className={styles.input}
+              type="password"
+              placeholder={config.hasWebSearchApiKey ? '•••••• saved — type to replace' : 'API key'}
+              value={config.webSearchApiKey}
+              onChange={(e) => set('webSearchApiKey', e.target.value)}
+            />
+          </div>
+        )}
       </div>
     </section>
   )
@@ -149,6 +210,20 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         model={config.chatModel}
         onModel={(v) => set('chatModel', v)}
         historyKey="chat"
+        presets={<PresetBar section="chat" config={config} />}
+        extra={
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.label}>System prompt (optional)</label>
+            <textarea
+              className={`${styles.input} ${styles.textarea}`}
+              rows={4}
+              aria-label="Chat system prompt"
+              value={config.chatSystemPrompt}
+              onChange={(e) => set('chatSystemPrompt', e.target.value)}
+            />
+            <span className={styles.hint}>Overrides the global system prompt while this chat setup is active.</span>
+          </div>
+        }
       />
 
       <ProviderSection
@@ -167,6 +242,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         model={config.embeddingModel}
         onModel={(v) => set('embeddingModel', v)}
         historyKey="embedding"
+        presets={<PresetBar section="embedding" config={config} onReindex={() => onReindex(notes)} />}
       />
 
       <div className={styles.row}>
@@ -207,6 +283,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         model={config.transcriptionModel}
         onModel={(v) => set('transcriptionModel', v)}
         historyKey="transcription"
+        presets={<PresetBar section="transcription" config={config} />}
       />
 
       <ProviderSection
@@ -225,7 +302,28 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
         model={config.deepResearchModel}
         onModel={(v) => set('deepResearchModel', v)}
         historyKey="deepResearch"
+        presets={<PresetBar section="deepResearch" config={config} />}
       />
+
+      <WebSearchSection config={config} set={set} />
+
+      <section className={styles.providerSection}>
+        <h3 className={styles.subhead}>General</h3>
+        <div className={styles.fields}>
+          <div className={`${styles.field} ${styles.fieldWide}`}>
+            <label className={styles.label}>Global system prompt (optional)</label>
+            <textarea
+              className={`${styles.input} ${styles.textarea}`}
+              rows={4}
+              aria-label="Global system prompt"
+              value={config.globalSystemPrompt}
+              onChange={(e) => set('globalSystemPrompt', e.target.value)}
+            />
+            <span className={styles.hint}>Added to every AI chat. A chat setup's own system prompt overrides it.</span>
+          </div>
+          <ToolbarSettings />
+        </div>
+      </section>
     </>
   )
 }

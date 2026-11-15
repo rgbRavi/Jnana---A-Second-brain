@@ -11,7 +11,7 @@ import { openComposer } from './editor/NoteCreator'
 import { workspaceColor } from '../core/workspaces'
 import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWorkingLayout'
 import { listNoteTypes, noteSearchText, subscribeNoteTypes, getNoteTypesVersion } from '../lib/noteTypes'
-import { listCommands, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
+import { listCommands, listWidgets, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
 import { isRailHidden, toggleRailHidden } from './rail/RightRail'
 import styles from './CommandPalette.module.css'
 
@@ -152,6 +152,10 @@ export function CommandPalette() {
           close()
         },
       },
+      // Always-reachable way into plugin widgets (the floating button can be turned off).
+      ...(listWidgets().length
+        ? [{ key: 'cmd:widgets', icon: '🧩', label: 'Show plugin widgets', hint: 'Widgets', run: () => { eventBus.emit('widgets:toggle', {}); close() } }]
+        : []),
       // Commands contributed by plugins via ctx.ui.registerCommand.
       ...listCommands().map((c) => ({
         key: `plugincmd:${c.id}`,

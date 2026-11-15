@@ -9,6 +9,7 @@ vi.mock('../core/chat', () => ({
   saveConversation: vi.fn(),
 }))
 
+import { saveConversation } from '../core/chat'
 import { requestChatAction, useChatHistory } from './useChatHistory'
 
 describe('requestChatAction', () => {
@@ -34,5 +35,15 @@ describe('requestChatAction', () => {
     unmount()
     requestChatAction('chat-test-b', { type: 'new' })
     expect(onNew).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('persist', () => {
+  it('writes the conversation system prompt to the row', async () => {
+    const { result } = renderHook(() => useChatHistory('chat-test-p', vi.fn(), vi.fn()))
+    await result.current.persist([], null, 't', null, [], undefined, 'be brief')
+    expect(vi.mocked(saveConversation).mock.calls[vi.mocked(saveConversation).mock.calls.length - 1][0].systemPrompt).toBe('be brief')
+    await result.current.persist([], null, 't')
+    expect(vi.mocked(saveConversation).mock.calls[vi.mocked(saveConversation).mock.calls.length - 1][0].systemPrompt).toBeNull()
   })
 })

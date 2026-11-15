@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-// Developer utilities. Currently onboarding controls only: the first-run wizard
-// is otherwise unreachable after launch 3, which makes it impossible to test
-// without wiping app data.
+// Developer utilities: onboarding controls (the first-run wizard is otherwise
+// unreachable after launch 3) and the Developer Log viewer.
 
 import { SettingToggle } from './SettingControls'
 import {
@@ -13,11 +12,13 @@ import {
   useOnboardingState,
 } from '../../hooks/useOnboarding'
 import styles from './DeveloperPanel.module.css'
+import { DeveloperLog } from './DeveloperLog'
 
 export function DeveloperPanel() {
   const state = useOnboardingState()
 
   return (
+    <>
     <div className={styles.panel}>
       <p className={styles.intro}>
         Tools for testing Jnana itself. The first-run tour normally shows once, so this is the only
@@ -58,5 +59,7 @@ export function DeveloperPanel() {
         <dd>{state.comfort ?? '—'}</dd>
       </dl>
     </div>
+    <DeveloperLog />
+    </>
   )
 }

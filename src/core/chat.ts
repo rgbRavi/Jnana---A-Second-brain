@@ -3,7 +3,7 @@
 
 // src/core/chat.ts
 // Thin wrappers over the Rust conversation-history commands.
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { ConversationMeta, StoredConversation } from '../types'
 
 export async function listConversations(

@@ -91,6 +91,23 @@ export function GeneralSettingsPanel() {
         />
         <span className={styles.hint}>Notes in Trash are permanently deleted after this long. Restore them any time before then.</span>
       </div>
+
+      <h3 className={styles.section}>Plugins</h3>
+      <SettingToggle
+        checked={opts.showWidgetButton}
+        onChange={(showWidgetButton) => setOpts({ showWidgetButton })}
+        label="Show the widget button"
+        hint="the round puzzle button, bottom-right; when off, open widgets from the command palette"
+        ariaLabel="Show the widget button"
+      />
+      <SettingToggle
+        checked={opts.autoHideWidgetButton}
+        onChange={(autoHideWidgetButton) => setOpts({ autoHideWidgetButton })}
+        label="Auto-hide the widget button while typing"
+        hint="hidden while a text field or the editor has focus"
+        ariaLabel="Auto-hide the widget button while typing"
+        disabled={!opts.showWidgetButton}
+      />
     </div>
   )
 }

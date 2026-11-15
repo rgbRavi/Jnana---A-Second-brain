@@ -5,7 +5,7 @@
 // pattern in core/ai/config.ts, but themes are opaque JSON blobs (like canvas
 // `data` / conversation `messages`) rather than a typed Rust struct.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { SavedTheme, Theme } from '../types'
 
 interface ThemeRow {

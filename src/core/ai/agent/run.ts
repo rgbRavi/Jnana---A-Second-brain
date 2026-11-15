@@ -44,6 +44,10 @@ export async function runAgent(
     signal?: AbortSignal
     /** Rendered adaptive-rules block (buildRulesSystem) — inserted after SYSTEM and again before the final user turn. */
     rulesSystem?: string
+    /** Appended to the system prompt (e.g. WEB_AGENT_SYSTEM). */
+    systemExtra?: string
+    /** The user's own system prompt — sent as the very first system turn, before SYSTEM. */
+    leadingSystem?: string
   } = {},
 ): Promise<AgentRunResult> {
   const tools = [...NATIVE_TOOLS, ...(opts.extraTools ?? [])]
@@ -83,7 +87,8 @@ export async function runAgent(
   }
 
   const messages: AgentMessage[] = [
-    { role: 'system', content: SYSTEM },
+    ...(opts.leadingSystem ? [{ role: 'system' as const, content: opts.leadingSystem }] : []),
+    { role: 'system', content: opts.systemExtra ? `${SYSTEM}\n\n${opts.systemExtra}` : SYSTEM },
     ...(opts.rulesSystem ? [{ role: 'system' as const, content: opts.rulesSystem }] : []),
     ...history,
     { role: 'user', content: userText },
@@ -99,6 +104,8 @@ export async function runAgent(
     }
     messages.push({ role: 'assistant', content, toolCalls })
     for (const call of toolCalls) {
+      // Stopped: skip the round's remaining calls (no further model call follows).
+      if (opts.signal?.aborted) break
       const tool = byName.get(call.name)
       let result: string
       if (!tool) {
@@ -117,7 +124,10 @@ export async function runAgent(
     }
   }
 
-  // Reached the step cap (or aborted) — get a tool-free final answer.
+  // Stopped by the user: no further model call — keep the steps and the last narration.
+  if (opts.signal?.aborted) return { answer: steps[steps.length - 1]?.thought ?? '', steps, proposals }
+
+  // Reached the step cap — get a tool-free final answer.
   const final = await chatWithTools(
     config,
     [...messages, { role: 'user', content: 'Stop using tools and give your final answer now.' }],

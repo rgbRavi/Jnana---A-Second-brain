@@ -16,10 +16,10 @@ export function PomodoroWidget() {
       </div>
       <div className={Styles.time}>{formatTime(s.remaining)}</div>
       <div className={Styles.controls}>
-        <button className={Styles.btn} onClick={toggleRun} aria-label={s.running ? 'Pause' : 'Start'}>
+        <button className={Styles.btn} onClick={toggleRun} title={s.running ? 'Pause' : 'Start'} aria-label={s.running ? 'Pause' : 'Start'}>
           {s.running ? <Pause size={16} /> : <Play size={16} />}
         </button>
-        <button className={Styles.btn} onClick={reset} aria-label="Reset">
+        <button className={Styles.btn} onClick={reset} title="Reset" aria-label="Reset">
           <RotateCcw size={16} />
         </button>
       </div>

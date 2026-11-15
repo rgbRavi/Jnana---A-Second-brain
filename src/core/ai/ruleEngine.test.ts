@@ -41,3 +41,9 @@ describe('selectRules', () => {
     expect(out.some((r) => r.id === 'a')).toBe(true)
   })
 })
+
+describe('web settings', () => {
+  it('defaults web answers to checked citations', () => {
+    expect(DEFAULT_ADVANCED_AI.webCitations).toBe('checked')
+  })
+})

@@ -41,7 +41,7 @@ export type WorkerToHost =
   /** Declare a settings pane (rendered by the host, since a worker has no UI). */
   | { k: 'settings'; fields: PluginSettingField[] }
   /** Write a line to the Plugin Console. */
-  | { k: 'log'; level: 'info' | 'warn' | 'error'; message: string }
+  | { k: 'log'; level: 'debug' | 'info' | 'warn' | 'error'; message: string; data?: unknown }
   /** `init(ctx)` returned without throwing. */
   | { k: 'ready' }
   /** The plugin failed to load or initialize; the host unregisters it. */

@@ -216,7 +216,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trash
           >
             {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
-          <button className={NoteModalStyles.noteModalClose} onClick={onClose} aria-label="Close">
+          <button className={NoteModalStyles.noteModalClose} onClick={onClose} title="Close" aria-label="Close">
             <X size={16} />
           </button>
         </div>

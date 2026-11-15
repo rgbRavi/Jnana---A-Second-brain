@@ -23,6 +23,10 @@ export interface GeneralOptions {
   trashRetentionDays: number
   /** Folder a live Markdown copy of every note is written to (core/mirror.ts). null = off. */
   mirrorDir: string | null
+  /** Show the floating plugin-widgets button (bottom-right). Off: widgets open from the command palette. */
+  showWidgetButton: boolean
+  /** Hide that button while a text field or the editor has focus, so it never covers what you type. */
+  autoHideWidgetButton: boolean
 }
 
 const STORAGE_KEY = 'jnana.general.options'
@@ -33,6 +37,8 @@ const DEFAULTS: GeneralOptions = {
   weekStart: 'monday',
   trashRetentionDays: 30,
   mirrorDir: null,
+  showWidgetButton: true,
+  autoHideWidgetButton: false,
 }
 
 function load(): GeneralOptions {

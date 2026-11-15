@@ -91,12 +91,18 @@ export async function confirmPluginInstall(manifest: PluginManifestPreview): Pro
         ? `\n\nIt is listed as a theme, but also asks for ${perms.join(' and ')} — a theme does not need that. Install it only if you know why.`
         : '\n\nThis is a theme: it changes how Jnana looks, and asks for nothing else.'
   const source = manifest.homepage ? `\n\nSource: ${manifest.homepage}` : ''
+  // Only a note, never a gate: a plugin that never calls ctx.log can still fail in
+  // ways the log blames on something else. `null`/missing = we didn't look.
+  const logNote =
+    manifest.emitsLogs === false
+      ? `\n\nNote: ${manifest.name} doesn't write to Jnana's log, so if it causes an error you might not be able to tell it was this plugin.`
+      : ''
 
   const ok = await showConfirmDialog({
     title: `Install ${manifest.name}?`,
     message:
       `${manifest.name} v${manifest.version}${manifest.author ? ` by ${manifest.author}` : ''}. ` +
-      `${trust}\n\n${permLines}${typeNote}${source}`,
+      `${trust}\n\n${permLines}${typeNote}${logNote}${source}`,
     confirmLabel: 'Install',
     danger: !sandboxed,
   })

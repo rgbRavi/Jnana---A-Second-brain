@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import {HashRouter, Routes, Route} from "react-router-dom";
+import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { lazy } from "react";
 import AppLayout from "./AppLayout";
 import ErrorBoundary from "./ui/ErrorBoundary";
@@ -34,8 +34,12 @@ function App() {
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>
                                     <Route path = "/settings" element = {<Settings />}/>
-                                    <Route path = "/settings/ai" element = {<Settings />}/>
+                                    {/* Deep links to a tab (/settings/plugins, …) — see settingsTabs.ts. */}
+                                    <Route path = "/settings/*" element = {<Settings />}/>
                                     <Route path = "/trash" element = {<TrashView />}/>
+                                    {/* Unknown path (stale restored route, bad deep link) → Home,
+                                        never a blank shell with nothing to click. */}
+                                    <Route path = "*" element = {<Navigate to="/" replace />}/>
                             </Route>
                         </Routes>
                     </HashRouter>

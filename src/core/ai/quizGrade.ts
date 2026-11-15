@@ -8,7 +8,7 @@
 // pure and IO-free so the marking rules are unit-testable, in the same spirit
 // as views/notes/filterNotes.ts.
 
-import type { AiConfig, QuizAttempt, QuizQuestion, QuizSettings } from '../../types'
+import type { AiConfig, AttemptMeta, QuizAttempt, QuizQuestion, QuizScoring, QuizSettings } from '../../types'
 import { extractJsonArray } from './jsonish'
 import { getChatProvider } from './provider'
 
@@ -50,9 +50,27 @@ export function scoreObjective(
   }
 }
 
+/** The marking-relevant slice of the settings, to freeze into an attempt. */
+export function scoringOf(settings: QuizScoring): QuizScoring {
+  const { negativeMarking, negativeFraction, mcmaRule, feedback } = settings
+  return { negativeMarking, negativeFraction, mcmaRule, feedback }
+}
+
+/** The settings an attempt is marked under: its frozen scoring over the current settings. */
+export function effectiveSettings(attempt: QuizAttempt, settings: QuizSettings): QuizSettings {
+  return attempt.scoring ? { ...settings, ...attempt.scoring } : settings
+}
+
 /** A blank attempt for freshly generated questions. */
-export function emptyAttempt(questions: QuizQuestion[], scopeLabel: string): QuizAttempt {
+export function emptyAttempt(
+  questions: QuizQuestion[],
+  scopeLabel: string,
+  scoring?: QuizScoring,
+  meta?: AttemptMeta,
+): QuizAttempt {
   return {
+    ...meta,
+    ...(scoring ? { scoring } : {}),
     questions,
     responses: questions.map((q) => (q.format === 'descriptive' ? '' : [])),
     marks: questions.map(() => null),
@@ -62,6 +80,19 @@ export function emptyAttempt(questions: QuizQuestion[], scopeLabel: string): Qui
     scopeLabel,
     takenAt: Date.now(),
   }
+}
+
+/** A fresh run of the same questions: keeps provenance, disputes, rechecks and frozen scoring. */
+export function retakeAttempt(attempt: QuizAttempt, fallback: QuizScoring): QuizAttempt {
+  const { origin, sources, verified, dropped, failedPages, disputed, rechecks } = attempt
+  const fresh = emptyAttempt(attempt.questions, attempt.scopeLabel, attempt.scoring ?? fallback, {
+    origin, sources, verified, dropped, failedPages,
+  })
+  return { ...fresh, ...(disputed ? { disputed } : {}), ...(rechecks ? { rechecks } : {}) }
+}
+
+export function isDisputed(attempt: QuizAttempt, i: number): boolean {
+  return attempt.disputed?.[i] === true
 }
 
 /**
@@ -74,7 +105,7 @@ export function recomputeTotals(attempt: QuizAttempt): QuizAttempt {
   let total = 0
   let max = 0
   attempt.marks.forEach((m, i) => {
-    if (m === null) return
+    if (m === null || isDisputed(attempt, i)) return
     total += m
     max += attempt.questions[i]?.marks ?? 0
   })

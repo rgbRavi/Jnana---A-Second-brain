@@ -17,7 +17,9 @@ import { log } from '../../lib/logger'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { FolderTree, requestReveal } from './FolderTree'
 import { eventBus } from '../../lib/eventBus'
-import { PanelLeftClose, PanelLeftOpen, Package, ChevronDown } from 'lucide-react'
+import { PanelLeftClose, PanelLeftDashed, PanelLeftOpen, Package, ChevronDown } from 'lucide-react'
+import { setSidebarPrefs, useSidebarPrefs } from '../../hooks/useSidebarPrefs'
+import { useHoverReveal } from '../../hooks/useHoverReveal'
 import styles from './FileExplorer.module.css'
 
 // ─── Collapsed state (persisted module store) ───────────
@@ -60,19 +62,24 @@ export function FileExplorer() {
   const [renamingVault, setRenamingVault] = useState(false)
   const [draft, setDraft] = useState('')
   const switcherRef = useRef<HTMLButtonElement>(null)
+  const { explorerAutoHide: autoHide } = useSidebarPrefs()
+  const reveal = useHoverReveal(!!menuPos || renamingVault)
 
   const activeVault = vaults.find((v) => v.id === activeVaultId)
 
-  // "Reveal in file explorer" (e.g. the Working Notes tab menu): un-collapse,
-  // then hand the note to the tree — which may only mount after this render.
+  // "Reveal in file explorer" (e.g. the Working Notes tab menu): un-collapse (or, in
+  // auto-hide mode, pop it open for a moment), then hand the note to the tree — which
+  // may only mount after this render.
+  const { peek } = reveal
   useEffect(() => {
     const handler = ({ noteId }: { noteId: string }) => {
       setCollapsed(false)
+      peek()
       requestReveal(noteId)
     }
     eventBus.on('explorer:reveal', handler)
     return () => eventBus.off('explorer:reveal', handler)
-  }, [])
+  }, [peek])
 
   // If the active vault vanished (deleted elsewhere), fall back to a real one.
   useEffect(() => {
@@ -149,7 +156,7 @@ export function FileExplorer() {
     { label: 'Delete vault', danger: true, onClick: () => void handleDeleteVault() },
   ]
 
-  if (isCollapsed) {
+  if (isCollapsed && !autoHide) {
     return (
       <div className={styles.rail}>
         <button
@@ -165,7 +172,7 @@ export function FileExplorer() {
     )
   }
 
-  return (
+  const panel = (
     <aside className={styles.panel}>
       <div className={styles.vaultBar}>
         {renamingVault ? (
@@ -201,12 +208,24 @@ export function FileExplorer() {
         <button
           type="button"
           className={styles.collapseBtn}
-          onClick={() => setCollapsed(true)}
-          title="Hide file explorer"
-          aria-label="Hide file explorer"
+          onClick={() => setSidebarPrefs({ explorerAutoHide: !autoHide })}
+          title={autoHide ? 'Auto-hide is on — click to keep the file explorer open' : 'Auto-hide file explorer (show on hover at its edge)'}
+          aria-label="Auto-hide file explorer"
+          aria-pressed={autoHide}
         >
-          <PanelLeftClose size={16} />
+          <PanelLeftDashed size={16} />
         </button>
+        {!autoHide && (
+          <button
+            type="button"
+            className={styles.collapseBtn}
+            onClick={() => setCollapsed(true)}
+            title="Hide file explorer"
+            aria-label="Hide file explorer"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        )}
       </div>
 
       <FolderTree vaultId={activeVaultId} />
@@ -215,5 +234,13 @@ export function FileExplorer() {
         <ContextMenu x={menuPos.x} y={menuPos.y} items={switcherMenu} onClose={() => setMenuPos(null)} />
       )}
     </aside>
+  )
+
+  if (!autoHide) return panel
+  // Auto-hide: a thin strip beside the nav sidebar; the explorer overlays the page while hovered.
+  return (
+    <div className={styles.edge} {...reveal.bind}>
+      <div className={`${styles.float} ${reveal.show ? styles.floatOpen : ''}`}>{panel}</div>
+    </div>
   )
 }

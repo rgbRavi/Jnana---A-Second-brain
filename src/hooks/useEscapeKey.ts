@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useRef } from 'react'
+import { getDialog } from '../lib/dialog'
 
 /** Close an overlay/picker/dialog on Escape. For surfaces that otherwise close
  *  only on an outside mouse click (no keyboard way out). A ref keeps the
@@ -11,7 +12,10 @@ export function useEscapeKey(onClose: () => void) {
   cb.current = onClose
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cb.current()
+      // A confirm/prompt dialog stacked on top owns Esc (DialogHost closes it);
+      // a menu that already handled the key calls preventDefault.
+      if (e.key !== 'Escape' || e.defaultPrevented || getDialog()) return
+      cb.current()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

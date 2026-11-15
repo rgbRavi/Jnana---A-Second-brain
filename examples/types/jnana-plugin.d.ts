@@ -366,6 +366,24 @@ declare namespace Jnana {
     on<T = unknown>(moment: string, handler: (payload: T) => void): () => void
   }
 
+  /**
+   * Write-only logging, in both runtimes, no permission needed. Lines show up in
+   * Settings → Developer → Developer Log (filter by your plugin id) and in the
+   * Plugin Console; `warn`/`error` are also written to the app's log file.
+   * `data` is structured context — secrets and note bodies are redacted, long
+   * values clipped, messages capped at 1000 chars. Every call counts against your
+   * call budget, so don't log inside a hot loop. You can't read or clear the log.
+   *
+   *   ctx.log.info('Synced', { items: 12, ms: 340 })
+   *   ctx.log.error('Sync failed', { status: res.status })
+   */
+  interface PluginLogApi {
+    debug(message: string, data?: unknown): void
+    info(message: string, data?: unknown): void
+    warn(message: string, data?: unknown): void
+    error(message: string, data?: unknown): void
+  }
+
   /** What your `init(ctx)` receives. */
   interface PluginContext {
     /** Your own id — the scope of your storage. */
@@ -380,6 +398,8 @@ declare namespace Jnana {
     net?: PluginNetApi
     /** Present only with the `motion` permission, main-thread runtime only. */
     motion?: PluginMotionApi
+    /** Write-only logging (debug/info/warn/error), both runtimes. */
+    log: PluginLogApi
     /** Main-thread runtime only — throws in a worker plugin. */
     registerNoteType(def: NoteTypeDefinition): void
     ui: PluginUiApi

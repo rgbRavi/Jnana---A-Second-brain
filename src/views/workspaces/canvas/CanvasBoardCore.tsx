@@ -14,7 +14,8 @@ import {
 import { Check, Link2, Maximize2, Minimize2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { readClipboardImage } from '../../../lib/clipboardImage'
 import { importMedia, openAssetFile } from '../../../core/media'
 import { assetUrl, uploadAsset } from '../../../core/notes'
 import {
@@ -42,6 +43,7 @@ import { resolveNoteByTitle } from '../../../core/markdown/wikilinks'
 import { getActiveVaultId } from '../../../hooks/useVaults'
 import { eventBus } from '../../../lib/eventBus'
 import { renderCanvasToPng } from './canvasExport'
+import { scopedLog, type ScopedLog } from '../../../lib/logger'
 import { savePngFile } from '../../../core/savePng'
 import styles from './canvas.module.css'
 
@@ -64,6 +66,9 @@ export interface CanvasBoardCoreProps {
   loading?: boolean
   /** When this changes, the undo/redo history resets (a different doc source). */
   resetKey?: string
+  /** Where failures are logged. The canvas note plugin passes its `ctx.log` (so lines
+   *  carry its plugin id); the workspace canvas uses the app's `canvas` category. */
+  log?: ScopedLog
 }
 
 type Pt = { x: number; y: number }
@@ -147,42 +152,10 @@ function appendWikilink(content: string, targetTitle: string): string {
   return `${content.trimEnd()}\n\n${heading}\n${wl}\n`
 }
 
-/** PNG-encode raw RGBA via a canvas (fallback path for the Tauri clipboard image). */
-async function rgbaToPng(rgba: Uint8Array, width: number, height: number): Promise<Uint8Array> {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0)
-  const blob: Blob = await new Promise((res, rej) =>
-    canvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'),
-  )
-  return new Uint8Array(await blob.arrayBuffer())
-}
-
-/** Read an image off the clipboard as PNG bytes — prefers the async web clipboard
- *  (gives a PNG blob), falling back to the Tauri plugin (RGBA → PNG). */
-async function readClipboardImage(): Promise<Uint8Array | null> {
-  try {
-    if (navigator.clipboard?.read) {
-      const items = await navigator.clipboard.read()
-      for (const it of items) {
-        const type = it.types.find((t) => t.startsWith('image/'))
-        if (type) return new Uint8Array(await (await it.getType(type)).arrayBuffer())
-      }
-    }
-  } catch { /* fall through to the Tauri plugin */ }
-  try {
-    const img = await readImage()
-    const { width, height } = await img.size()
-    return await rgbaToPng(new Uint8Array(await img.rgba()), width, height)
-  } catch {
-    return null
-  }
-}
+const CANVAS_LOG = scopedLog('canvas')
 
 export function CanvasBoardCore({
-  doc, setDoc, notesPool, allNotes, update, updateTags, headerSlot, loading = false, resetKey,
+  doc, setDoc, notesPool, allNotes, update, updateTags, headerSlot, loading = false, resetKey, log = CANVAS_LOG,
 }: CanvasBoardCoreProps) {
   const [prefs, setPrefs] = useCanvasPrefs()
   const { collapsed: sidebarCollapsed } = useSidebarPrefs()
@@ -420,6 +393,7 @@ export function CanvasBoardCore({
       await savePngFile('canvas.png', blob)
     } catch (err) {
       toast.error('Could not export canvas: ' + String(err))
+      log.error('Could not export canvas', err)
     }
   }, [allNotes, doc.background])
 
@@ -440,6 +414,7 @@ export function CanvasBoardCore({
       recordableSetDoc((d) => ({ ...d, background: { type: 'image', value: filename } }))
     } catch (err) {
       toast.error('Could not set background: ' + String(err))
+      log.error('Could not set background', err)
     }
   }, [recordableSetDoc])
 
@@ -488,6 +463,7 @@ export function CanvasBoardCore({
       addNode({ id: newId(), type: 'media', file: filename, mediaType, x: c.x - 140, y: c.y - 110, width: 280, height: 220 })
     } catch (err) {
       toast.error('Could not add media: ' + String(err))
+      log.error('Could not add media', err)
     }
   }
   const handleAddWeb = async () => {
@@ -505,6 +481,7 @@ export function CanvasBoardCore({
       else addTextAt(p, t)
     } catch (err) {
       toast.error('Could not read clipboard: ' + String(err))
+      log.warn('Could not read clipboard', err)
     }
   }, [addLinkAt, addTextAt])
 
@@ -515,6 +492,7 @@ export function CanvasBoardCore({
       addLinkAt(normalizeUrl(t), p)
     } catch (err) {
       toast.error('Could not read clipboard: ' + String(err))
+      log.warn('Could not read clipboard', err)
     }
   }, [addLinkAt])
 
@@ -525,6 +503,7 @@ export function CanvasBoardCore({
       await addImageBytesAt(bytes, p)
     } catch (err) {
       toast.error('Could not paste image: ' + String(err))
+      log.error('Could not paste image', err)
     }
   }, [addImageBytesAt])
 
@@ -635,6 +614,7 @@ export function CanvasBoardCore({
       else if (node.type === 'media' && node.file) await openAssetFile(node.file)
     } catch (err) {
       toast.error('Could not open: ' + String(err))
+      log.error('Could not open', err)
     }
   }, [])
 

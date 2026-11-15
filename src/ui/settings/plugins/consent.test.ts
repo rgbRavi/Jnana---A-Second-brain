@@ -55,3 +55,22 @@ describe('motion install step', () => {
     expect(dialog.showChoiceDialog).not.toHaveBeenCalled()
   })
 })
+
+describe('logging note', () => {
+  const message = () => (dialog.showConfirmDialog.mock.calls[0][0] as { message: string }).message
+
+  it('is added to the same install prompt when the plugin never logs', async () => {
+    await confirmPluginInstall({ ...manifest([]), emitsLogs: false })
+    expect(dialog.showConfirmDialog).toHaveBeenCalledOnce() // a note, not another window
+    expect(message()).toContain("Confetti doesn't write to Jnana's log")
+  })
+
+  it('is left out when the plugin logs or was not checked', async () => {
+    await confirmPluginInstall({ ...manifest([]), emitsLogs: true })
+    expect(message()).not.toContain("write to Jnana's log")
+    vi.clearAllMocks()
+    dialog.showConfirmDialog.mockResolvedValue(true)
+    await confirmPluginInstall(manifest([]))
+    expect(message()).not.toContain("write to Jnana's log")
+  })
+})

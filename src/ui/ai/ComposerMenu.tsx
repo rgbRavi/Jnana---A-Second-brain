@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import styles from './Ai.module.css'
 
 /**
@@ -16,32 +17,55 @@ import styles from './Ai.module.css'
 export function ComposerMenu({
   icon,
   label,
+  iconOnly,
   badge,
   active,
   disabled,
   alignRight,
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   icon: React.ReactNode
   label: string
+  /** Show only the icon; `label` becomes the tooltip + accessible name. */
+  iconOnly?: boolean
   /** Count shown as an accent badge; falsy hides it. */
   badge?: number
   /** Highlight the trigger (something inside is engaged). */
   active?: boolean
   disabled?: boolean
   alignRight?: boolean
+  /** Optional controlled open state (pair with `onOpenChange`); omit for the usual self-managed menu. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   children: (close: () => void) => React.ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : innerOpen
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? v(open) : v
+    if (!controlled) setInnerOpen(next)
+    onOpenChange?.(next)
+  }
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
 
-  // Close on Escape while open (pointer-outside handled by the scrim).
+  useEscapeKey(() => {
+    if (open) close()
+  })
+
+  // Close on any press outside the menu. (This used to be a full-screen `position: fixed`
+  // scrim, but the composer's `backdrop-filter` makes it the containing block for fixed
+  // children — the scrim only covered the composer, so clicks on the chat never closed it.)
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const onDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
   }, [open])
 
   return (
@@ -52,9 +76,11 @@ export function ComposerMenu({
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
+        title={iconOnly ? label : undefined}
+        aria-label={iconOnly ? label : undefined}
         style={pillStyle(!!active || open)}
       >
-        {icon} {label}
+        {icon}{iconOnly ? null : <> {label}</>}
         {badge ? <span className={styles.cBadge}>{badge}</span> : null}
         <ChevronDown
           size={13}
@@ -62,12 +88,9 @@ export function ComposerMenu({
         />
       </button>
       {open && (
-        <>
-          <div className={styles.cScrim} onClick={close} onContextMenu={(e) => { e.preventDefault(); close() }} />
-          <div className={`${styles.cPop} ${alignRight ? styles.alignRight : ''}`} role="menu">
-            {children(close)}
-          </div>
-        </>
+        <div className={`${styles.cPop} ${alignRight ? styles.alignRight : ''}`} role="menu">
+          {children(close)}
+        </div>
       )}
     </div>
   )

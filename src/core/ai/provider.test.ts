@@ -11,7 +11,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   },
 }))
 
-import { getChatProvider } from './provider'
+import { getChatProvider, streamChat } from './provider'
 import type { AiConfig } from '../../types'
 
 type Msg = { type: 'chunk'; text: string } | { type: 'done' }
@@ -42,5 +42,54 @@ describe('ChatProvider.complete', () => {
       { role: 'system', content: 'sys' },
       { role: 'user', content: 'prompt' },
     ])
+  })
+})
+
+describe('streamChat', () => {
+  it('a request stopped before it starts never reaches Rust and resolves empty', async () => {
+    invokeMock.mockReset().mockResolvedValue(undefined)
+    const ctrl = new AbortController()
+    ctrl.abort()
+    const onToken = vi.fn()
+    const config = { chatProvider: 'openai', chatModel: 'm' } as AiConfig
+    await expect(streamChat(config, [{ role: 'user', content: 'hi' }], { signal: ctrl.signal }, onToken)).resolves.toBe('')
+    expect(invokeMock).not.toHaveBeenCalled()
+    expect(onToken).not.toHaveBeenCalled()
+  })
+
+  const run = async (provider: 'openai' | 'ollama', lines: string[]) => {
+    invokeMock.mockReset().mockImplementation((_cmd: string, args: { onEvent: { onmessage: (m: Msg) => void } }) => {
+      for (const l of lines) args.onEvent.onmessage({ type: 'chunk', text: l })
+      args.onEvent.onmessage({ type: 'done' })
+      return Promise.resolve()
+    })
+    const onToken = vi.fn()
+    const onReasoning = vi.fn()
+    const config = { chatProvider: provider, chatModel: 'm' } as AiConfig
+    const out = await streamChat(config, [{ role: 'user', content: 'hi' }], { onReasoning }, onToken)
+    return { out, tokens: onToken.mock.calls.map((c) => c[0]).join(''), thoughts: onReasoning.mock.calls.map((c) => c[0]).join('') }
+  }
+  const delta = (d: Record<string, string>) => `data: ${JSON.stringify({ choices: [{ delta: d }] })}\n`
+
+  it('routes DeepSeek-style reasoning_content to onReasoning, never into the reply', async () => {
+    const r = await run('openai', [delta({ reasoning_content: 'Let me think. ' }), delta({ reasoning_content: 'Done.' }), delta({ content: 'Answer' })])
+    expect(r.thoughts).toBe('Let me think. Done.')
+    expect(r.tokens).toBe('Answer')
+    expect(r.out).toBe('Answer')
+  })
+
+  it('reads OpenRouter-style delta.reasoning', async () => {
+    const r = await run('openai', [delta({ reasoning: 'hmm' }), delta({ content: 'ok' })])
+    expect(r.thoughts).toBe('hmm')
+    expect(r.out).toBe('ok')
+  })
+
+  it('reads Ollama message.thinking', async () => {
+    const r = await run('ollama', [
+      JSON.stringify({ message: { thinking: 'pondering', content: '' } }) + '\n',
+      JSON.stringify({ message: { content: 'reply' } }) + '\n',
+    ])
+    expect(r.thoughts).toBe('pondering')
+    expect(r.out).toBe('reply')
   })
 })

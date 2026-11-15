@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Bot, ChevronLeft, ChevronRight, ChevronDown, FileSearch, GraduationCap, MoreHorizontal, RotateCcw } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { Bot, ChevronLeft, Settings, ChevronRight, ChevronDown, FileSearch, GraduationCap, MoreHorizontal, RotateCcw } from 'lucide-react'
 import type { AiConfig, AiRule, Note, ProjectKnowledge, StoredConversation } from '../../types'
 import { DEFAULT_VAULT_ID } from '../../types'
 import {
@@ -11,6 +12,7 @@ import {
   pickAttachments,
   attachmentFromFile,
   attachmentFromPath,
+  detectThinking,
   detectVision,
   makeNoteAttachment,
   modelCapabilities,
@@ -27,10 +29,43 @@ import {
   type AgentStep,
   type ProposedAction,
 } from '../../core/ai'
-import { settleVersions, showVersion, versionsToKeep, type FreeMessage, type ReplyVersion } from './freeThread'
-import { emptyAttempt } from '../../core/ai/quizGrade'
+import {
+  agentAfterWebMode,
+  compactWebStep,
+  earlierPagesList,
+  effectiveWebMode,
+  isToolUnsupportedError,
+  markWebProposals,
+  nextPageNumber,
+  priorWebSources,
+  settleReasoning,
+  settleVersions,
+  showVersion,
+  splitThinkTags,
+  threadScrollKey,
+  toChatHistory,
+  TOOLS_UNSUPPORTED_NOTICE,
+  versionsToKeep,
+  webModeAfterAgent,
+  withWebResult,
+  commitConvPromptEdit,
+  type FreeMessage,
+  type ReplyVersion,
+} from './freeThread'
+import { buildWebSystemBlock, gatherWebContext, type WebContext, type WebMode } from '../../core/ai/webContext'
+import { CITATION_INSTRUCTIONS, stripCitationBlock } from '../../core/ai/citations'
+import { neutralizeEmbeds } from '../../core/markdown/neutralizeEmbeds'
+import { createWebToolState, makeWebTools, WEB_AGENT_SYSTEM } from '../../core/ai/agent/webTools'
+import { parseLinks } from '../../core/ai/links'
+import { hasWebSearch } from '../../core/ai/config'
+import { composeUserSystemPrompt } from '../../core/ai/systemPrompt'
+import { emptyAttempt, scoringOf } from '../../core/ai/quizGrade'
+import { generateOpenQuiz } from '../../core/ai/quizOpen'
 import {
   buildScope,
+  buildOpenQuizInput,
+  quizOriginOf,
+  openScopeHint,
   scopeLabel,
   scopeHint,
   emptyFocus,
@@ -42,6 +77,8 @@ import {
 import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { listRules, listProjectRules, resolveEffectiveRules, buildRulesSystem } from '../../core/aiRules'
+import { describeAiLayers } from '../../core/ai/aiLayers'
+import { goToAiMode } from '../../hooks/aiNav'
 import { estimateTokens } from '../../core/ai/ruleEngine'
 import { selectRulesForSend } from '../../core/ai/ruleSelect'
 import { decideRefresh } from '../../core/ai/ruleDecide'
@@ -58,7 +95,15 @@ import { serializeAttempt } from '../../plugins/quiz/quizNote'
 import { QUIZ_NOTE_KIND } from '../../plugins/quiz'
 import { closeFocusPanel, openFocusPanel } from '../../lib/activeFocus'
 import { showConfirmDialog } from '../../lib/dialog'
-import { getVisionOverrides, setVisionOverride, subscribeVisionOverrides } from '../../lib/visionOverride'
+import { isGroundable } from '../../lib/noteTypes'
+import {
+  getThinkingOverrides,
+  getVisionOverrides,
+  setThinkingOverride,
+  setVisionOverride,
+  subscribeThinkingOverrides,
+  subscribeVisionOverrides,
+} from '../../lib/visionOverride'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { MarkdownLite } from '../editor/MarkdownLite'
 import { openRailPanel } from '../rail/RightRail'
@@ -66,11 +111,15 @@ import { FOCUSED_PANEL_ID } from './FocusedMenu'
 import { toast } from '../../lib/toast'
 import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
-import { ChatComposer } from './ChatComposer'
+import { ChatComposer, ImageThumb } from './ChatComposer'
+import { switchPreset } from './switchPreset'
+import { activePreset } from '../../core/ai/presets'
 import { AgentSteps } from './AgentSteps'
 import { AnalysisCard } from './AnalysisCard'
 import { QuizRunner } from './QuizRunner'
 import { ProposalCard } from './ProposalCard'
+import { WebReplyFooter } from './WebReplyFooter'
+import { ThinkingBlock } from './ThinkingBlock'
 import styles from './Ai.module.css'
 
 const titleFrom = (messages: FreeMessage[]): string => {
@@ -91,15 +140,24 @@ const toAskHistory = (msgs: FreeMessage[]): AskTurn[] => {
   return turns
 }
 
-/** Turns fed to the model as chat history. A grounded turn with no text reply
- *  (quiz/analysis card, failed request) is dropped along with its label — an
- *  empty assistant turn or a bare "Quiz — Topic: …" only confuses the model. */
-const toChatHistory = (msgs: FreeMessage[]): FreeMessage[] =>
-  msgs.filter((m, i) => {
-    if (m.role === 'assistant') return !!m.content
-    const next = msgs[i + 1]
-    return !m.focus || (next?.role === 'assistant' && !!next.content)
-  })
+/** A streaming reply hides its trailing citations block; a finished one is already stripped.
+ *  Assistant text never auto-loads embeds: injected page text could plant one to exfiltrate. */
+const shownText = (m: FreeMessage) => {
+  // A model that puts its reasoning inline (`<think>…</think>`) shows it in the Thinking block instead.
+  const answer = splitThinkTags(m.content).answer
+  return neutralizeEmbeds(m.pending ? stripCitationBlock(answer) : answer)
+}
+/** All of a reply's reasoning: the streamed field plus any inline `<think>` block. */
+const reasoningOf = (m: FreeMessage) =>
+  [m.reasoning, splitThinkTags(m.content).reasoning].filter(Boolean).join('\n\n')
+
+/** Always-search gathering. gatherWebContext never throws; this is the belt to its braces. */
+const gatherWeb = (text: string, msgs: FreeMessage[], config: AiConfig, signal: AbortSignal): Promise<WebContext> =>
+  gatherWebContext(text, priorWebSources(msgs), nextPageNumber(msgs), config, signal).catch(() => ({
+    pages: [],
+    sources: [],
+    notice: { kind: 'failed' as const, text: 'Web lookup failed — answered without it.' },
+  }))
 
 /**
  * Requests in flight, keyed by conversation id. The reply writes here, so it
@@ -112,6 +170,7 @@ interface InflightThread {
   vaultId: string
   projectId: string | null
   ruleIds: string[]
+  systemPrompt: string | null
   controller?: AbortController
   /** The save made at send time — finishing awaits it so the existence check can't race it. */
   saved?: Promise<void>
@@ -154,6 +213,7 @@ export function FreeChat({
   const [think, setThink] = useViewState('ai.free.think', true)
   const [deepResearch, setDeepResearch] = useViewState('ai.free.deepResearch', false)
   const [agent, setAgent] = useViewState('ai.free.agent', false)
+  const [webMode, setWebMode] = useViewState<WebMode>('ai.free.web', 'off')
   const [busy, setBusy] = useViewState('ai.free.busy', false)
   const [error, setError] = useViewState<string | null>('ai.free.error', null)
 
@@ -167,6 +227,8 @@ export function FreeChat({
 
   // Adaptive Rules — session-scoped selection, round-tripped through the conversation.
   const [ruleIds, setRuleIds] = useViewState<string[]>('ai.free.ruleIds', [])
+  // Per-conversation system prompt, edited under Capabilities → Conversation instructions.
+  const [convPrompt, setConvPrompt] = useViewState<string>('ai.free.systemPrompt', '')
   // Everything note-facing here (attach picker, grounding, agent, re-index) is
   // limited to the active vault, like the rest of the app.
   const vaultId = useActiveVaultId()
@@ -174,6 +236,8 @@ export function FreeChat({
     () => allNotes.filter((n) => (n.vaultId ?? DEFAULT_VAULT_ID) === vaultId),
     [allNotes, vaultId],
   )
+  // Notes allowed to ground analyze/ask/quiz (saved web/AI quizzes are not "your notes").
+  const groundable = useMemo(() => notes.filter(isGroundable), [notes])
   // The "Analyze last saved note" starter's target: newest plain-markdown note in
   // this vault (typed notes — canvas, quiz — hold JSON, not prose worth analyzing).
   const lastSavedNote = useMemo(
@@ -214,8 +278,33 @@ export function FreeChat({
   const [editText, setEditText] = useState('')
 
   // Breadcrumb state
-  const [, setAiMode] = useViewState('ai.mode', 'chat')
   const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
+
+  // "What the AI sees": the instruction layers behind the next send. Rule names need the
+  // vault's rule list + the project's rules; reloaded whenever the panel opens so edits
+  // made elsewhere show up. Preview only — the send path resolves rules itself.
+  const [ruleCatalog, setRuleCatalog] = useState<{ all: AiRule[]; project: string[] }>({ all: [], project: [] })
+  const loadRuleCatalog = useCallback(async () => {
+    try {
+      const all = await listRules(vaultId)
+      const project = projectId ? await listProjectRules(projectId) : []
+      setRuleCatalog({ all, project })
+    } catch (e) {
+      log.debug('Rule preview unavailable', e)
+    }
+  }, [vaultId, projectId])
+  useEffect(() => { void loadRuleCatalog() }, [loadRuleCatalog])
+  const layerProject = projects.find((p) => p.id === projectId)
+  const aiLayers = describeAiLayers({
+    mode: focus.action ? 'focused' : agent ? 'agent' : 'chat',
+    systemPromptSource: config.chatSystemPrompt?.trim() ? 'chat' : config.globalSystemPrompt?.trim() ? 'global' : null,
+    conversationInstructions: convPrompt,
+    projectName: layerProject?.name,
+    projectHasInstructions: !!layerProject?.instructions?.trim(),
+    ruleNames: resolveEffectiveRules(ruleIds, ruleCatalog.project, ruleCatalog.all).map((r) => r.name),
+    skillNames: skillPresets.filter((s) => skillIds.includes(s.id)).map((s) => s.name),
+    styleName: stylePresets.find((s) => s.id === styleId)?.name,
+  })
   const [chatTitle, setChatTitle] = useState('New chat')
   const [isRenamingChat, setIsRenamingChat] = useState(false)
   const [chatTitleInput, setChatTitleInput] = useState('')
@@ -225,11 +314,16 @@ export function FreeChat({
   const bottomRef = useRef<HTMLDivElement>(null)
   // Re-render when the user flips "Send images to this model" (caps reads the override).
   useSyncExternalStore(subscribeVisionOverrides, getVisionOverrides, getVisionOverrides)
+  // …and when they flip "Reasoning model" (the name guess misses new models).
+  useSyncExternalStore(subscribeThinkingOverrides, getThinkingOverrides, getThinkingOverrides)
   const caps = modelCapabilities(config.chatModel)
   const visionDetected = detectVision(config.chatModel)
   const changeVision = (on: boolean) =>
     // Store an answer only when it disagrees with the name guess.
     setVisionOverride(config.chatModel, on === visionDetected ? undefined : on)
+  const thinkingDetected = detectThinking(config.chatModel)
+  const changeReasoning = (on: boolean) =>
+    setThinkingOverride(config.chatModel, on === thinkingDetected ? undefined : on)
 
   // History wiring: load/new come from the drawer via the eventBus.
   // Switching chats never aborts a request — it carries on in `inflight`.
@@ -240,8 +334,9 @@ export function FreeChat({
     setInput('')
     setAttachments([])
     setRuleIds([])
+    setConvPrompt('')
     setProjectId(opts?.projectId ?? '') // project-less unless started from a project
-  }, [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId])
+  }, [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setConvPrompt, setProjectId])
 
   const loadConv = useCallback(
     (c: StoredConversation) => {
@@ -262,9 +357,10 @@ export function FreeChat({
       setInput('')
       setAttachments([])
       setRuleIds(c.ruleIds ?? [])
+      setConvPrompt(c.systemPrompt ?? '')
       setProjectId(c.projectId || '') // projectId always mirrors the active conversation
     },
-    [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setProjectId],
+    [setBusy, setMessages, setError, setInput, setAttachments, setRuleIds, setConvPrompt, setProjectId],
   )
 
   // Debounced quiz-answer persistence needs to flush before the active id
@@ -298,11 +394,12 @@ export function FreeChat({
       vaultId: getActiveVaultId(),
       projectId: getViewState<string>('ai.free.projectId') || null,
       ruleIds: getViewState<string[]>('ai.free.ruleIds') ?? [],
+      systemPrompt: getViewState<string>('ai.free.systemPrompt') || null,
       controller,
     }
     inflight.set(convId, entry)
     if (getActiveId() === convId) setMessages(next)
-    entry.saved = persist(next, null, titleFrom(next), entry.projectId, entry.ruleIds, { id: convId, vaultId: entry.vaultId })
+    entry.saved = persist(next, null, titleFrom(next), entry.projectId, entry.ruleIds, { id: convId, vaultId: entry.vaultId }, entry.systemPrompt)
   }
   const patchThread = (convId: string, fn: (prev: FreeMessage[]) => FreeMessage[]) => {
     const entry = inflight.get(convId)
@@ -340,7 +437,7 @@ export function FreeChat({
     await persist(entry.messages, null, titleFrom(entry.messages), entry.projectId, entry.ruleIds, {
       id: convId,
       vaultId: entry.vaultId,
-    })
+    }, entry.systemPrompt)
     if (!onScreen) toast.success(`AI replied in “${titleFrom(entry.messages)}” — open it from Chat history.`)
   }
 
@@ -352,9 +449,19 @@ export function FreeChat({
       titleFrom(m),
       getViewState<string>('ai.free.projectId') || null,
       getViewState<string[]>('ai.free.ruleIds') ?? [],
+      undefined,
+      getViewState<string>('ai.free.systemPrompt') || null,
     )
   }, [persist])
   persistNowRef.current = persistNow
+
+  // Conversation instructions were edited and left: keep a running reply's late save from reverting them, then save.
+  const commitConvPrompt = useCallback(() => {
+    commitConvPromptEdit(
+      inflight, getActiveId(), getViewState<string>('ai.free.systemPrompt') ?? '',
+      (getViewState<FreeMessage[]>('ai.free.messages') ?? []).length, persistNow,
+    )
+  }, [getActiveId, persistNow])
 
   // Debounced persist for quiz answer edits (per-keystroke IPC would be one
   // round-trip per character); a scoring event persists immediately instead.
@@ -412,9 +519,11 @@ export function FreeChat({
     }
   }
 
+  // Follow the thread's growth only — not edits inside a card (quiz answers).
+  const scrollKey = threadScrollKey(messages)
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages])
+  }, [scrollKey])
 
   const handleAttach = async () => {
     try {
@@ -461,9 +570,11 @@ export function FreeChat({
   const runFocused = async (f: FocusState, text: string, keepComposer = false, versions?: ReplyVersion[]) => {
     const action = f.action
     if (!action || busy) return
-    const scope = buildScope(f)
-    if (!scope) {
-      setError(scopeHint(f.scopeKind))
+    const openInput = buildOpenQuizInput(f)
+    const origin = action === 'quiz' ? quizOriginOf(f) : 'notes'
+    const scope = origin === 'notes' ? buildScope(f) : null
+    if (origin !== 'notes' ? !openInput : !scope) {
+      setError(origin !== 'notes' ? openScopeHint(origin) : scopeHint(f.scopeKind))
       return
     }
     const question = text.trim()
@@ -494,14 +605,15 @@ export function FreeChat({
 
     try {
       if (action === 'analyze') {
-        const result = await analyze(scope, config, notes, grounding)
+        const result = await analyze(scope!, config, groundable, grounding)
         patchLast({ card: { type: 'analysis', result }, pending: false })
       } else if (action === 'quiz') {
-        const { questions, reason } = await generateQuiz(scope, config, notes, quizSettings, vaultId, grounding)
-        console.warn('[quiz-debug] generateQuiz result', { count: questions.length, reason, scope, formats: quizSettings.formats })
-        patchLast({ card: { type: 'quiz', attempt: emptyAttempt(questions, label), reason }, pending: false })
+        const { questions, reason, meta } = openInput
+          ? await generateOpenQuiz(openInput, config, quizSettings, vaultId, grounding)
+          : await generateQuiz(scope!, config, groundable, quizSettings, vaultId, grounding)
+        patchLast({ card: { type: 'quiz', attempt: emptyAttempt(questions, label, scoringOf(quizSettings), meta), reason }, pending: false })
       } else {
-        const res = await askNotes(scope, question, toAskHistory(priorMsgs), config, notes, grounding)
+        const res = await askNotes(scope!, question, toAskHistory(priorMsgs), config, groundable, grounding)
         patchLast({ content: res.answer, sources: res.sourceNotes, pending: false })
       }
     } catch (e) {
@@ -531,7 +643,6 @@ export function FreeChat({
     // rest of send() reads messages/projectId/ruleIds via getViewState).
     const focusNow = getViewState<FocusState>('ai.free.focus') ?? focus
     const goesFocused = !!focusNow.action && !explicit
-    console.warn(`[quiz-debug] send -> ${goesFocused ? 'FOCUSED:' + focusNow.action : 'CHAT'} (storeAction=${focusNow.action}, closureAction=${focus.action}, textLen=${text.length})`)
     if (goesFocused) {
       await runFocused(focusNow, text)
       return
@@ -550,10 +661,7 @@ export function FreeChat({
     // chats while attachments/rules below are still resolving.
     const convId = getActiveId()
     const baseMsgs = getViewState<FreeMessage[]>('ai.free.messages') ?? []
-    const prior: ChatTurn[] = toChatHistory(baseMsgs).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }))
+    const prior: ChatTurn[] = toChatHistory(baseMsgs)
 
     let userTurn: ChatTurn
     let warnings: string[] = []
@@ -576,6 +684,12 @@ export function FreeChat({
     // corrupts the drift anchor for a turn that was never sent.
     const cfg = getAdvancedAiSettings()
     const sessionRuleIds = getViewState<string[]>('ai.free.ruleIds') ?? []
+    // The user's own system prompt (chat/global + this conversation's) — Agent/Hybrid and plain chat only.
+    const userSystem = composeUserSystemPrompt({
+      chat: config.chatSystemPrompt,
+      global: config.globalSystemPrompt,
+      conversation: getViewState<string>('ai.free.systemPrompt') ?? '',
+    })
     const activeProjectId = getViewState<string>('ai.free.projectId') || ''
     const query = text
     let effectiveRules: AiRule[] = []
@@ -613,25 +727,88 @@ export function FreeChat({
     )
     if (warnings.length) reportError(convId, warnings.join('  '))
 
+    // Web access: `effectiveWeb` (never raw webMode — hybrid without a provider is off).
+    const budget = cfg.noteContextTokens
+    const checked = cfg.webCitations === 'checked'
+    const finishWeb = (web: Parameters<typeof withWebResult>[1], cited: boolean, patch: Partial<FreeMessage> = {}) =>
+      patchThread(convId, (p) => {
+        const last = p[p.length - 1]
+        return last?.role === 'assistant' ? [...p.slice(0, -1), withWebResult({ ...last, ...patch }, web, cited)] : p
+      })
+
     // ── Agent mode: tool-loop over the vault (writes staged as proposals) ──
     if (agent) {
+      const hybrid = effectiveWeb === 'hybrid'
       const history: AgentMessage[] = prior.map((m) => ({ role: m.role, content: m.content }))
       const onStep = (s: AgentStep) =>
         patchThread(convId, (p) => {
           const next = p.slice()
           const last = next[next.length - 1]
-          if (last && last.role === 'assistant') next[next.length - 1] = { ...last, steps: [...(last.steps ?? []), s] }
+          // Page text / search results stay inside runAgent — the thread keeps a short label.
+          if (last && last.role === 'assistant') next[next.length - 1] = { ...last, steps: [...(last.steps ?? []), compactWebStep(s)] }
           return next
         })
       try {
-        const result = await runAgent(config, userTurn.content, history, notes, {
-          onStep,
-          rulesSystem: rulesBlock || undefined,
-        })
-        patchLastReply(convId, { content: result.answer, steps: result.steps, proposals: result.proposals, pending: false })
+        if (hybrid) {
+          // Hybrid: the agent decides when to search/read, within the web-tool budget.
+          const prevSources = priorWebSources(baseMsgs)
+          const state = createWebToolState(prevSources, nextPageNumber(baseMsgs), parseLinks(text))
+          const systemExtra = [WEB_AGENT_SYSTEM, earlierPagesList(prevSources), checked ? CITATION_INSTRUCTIONS : '']
+            .filter(Boolean)
+            .join('\n\n')
+          const result = await runAgent(config, userTurn.content, history, notes, {
+            onStep,
+            signal: controller.signal,
+            rulesSystem: rulesBlock || undefined,
+            leadingSystem: userSystem,
+            extraTools: makeWebTools(state, budget),
+            maxSteps: 20,
+            systemExtra,
+          })
+          finishWeb({ pages: state.pages, sources: state.sources }, checked, {
+            content: result.answer,
+            steps: result.steps.map(compactWebStep),
+            proposals: markWebProposals(result.proposals, state.sources),
+            pending: false,
+          })
+        } else if (effectiveWeb === 'always') {
+          // Agent + Always: read the web first, hand the pages to the agent as system context.
+          const ctx = await gatherWeb(text, baseMsgs, config, controller.signal)
+          const { block, pages } = buildWebSystemBlock(ctx, budget)
+          const cited = checked && !!block
+          const systemExtra = [block, cited ? CITATION_INSTRUCTIONS : ''].filter(Boolean).join('\n\n')
+          const result = await runAgent(config, userTurn.content, history, notes, {
+            onStep,
+            signal: controller.signal,
+            rulesSystem: rulesBlock || undefined,
+            leadingSystem: userSystem,
+            systemExtra: systemExtra || undefined,
+          })
+          finishWeb({ pages, sources: ctx.sources, notice: ctx.notice }, cited, {
+            content: result.answer,
+            steps: result.steps,
+            proposals: markWebProposals(result.proposals, ctx.sources),
+            pending: false,
+          })
+        } else {
+          const result = await runAgent(config, userTurn.content, history, notes, {
+            onStep,
+            signal: controller.signal,
+            rulesSystem: rulesBlock || undefined,
+            leadingSystem: userSystem,
+          })
+          patchLastReply(convId, { content: result.answer, steps: result.steps, proposals: result.proposals, pending: false })
+        }
       } catch (e) {
-        reportError(convId, e instanceof Error ? e.message : String(e))
-        patchLastReply(convId, { pending: false })
+        const toolsUnsupported = hybrid && isToolUnsupportedError(e)
+        // Category only — a provider message can carry URLs.
+        if (hybrid) log.warn('hybrid web agent failed', { category: toolsUnsupported ? 'tools-unsupported' : 'other' })
+        if (toolsUnsupported) {
+          patchLastReply(convId, { webNotice: TOOLS_UNSUPPORTED_NOTICE, pending: false })
+        } else {
+          reportError(convId, e instanceof Error ? e.message : String(e))
+          patchLastReply(convId, { pending: false })
+        }
       } finally {
         if (cfg.logMetrics && rulesBlock) {
           recordRuleEvent({
@@ -679,10 +856,23 @@ export function FreeChat({
       )
     }
     if (rulesBlock) systemParts.push(rulesBlock)
-    const system: ChatTurn[] = systemParts.length ? [{ role: 'system', content: systemParts.join('\n\n') }] : []
+    const system: ChatTurn[] = [
+      ...(userSystem ? [{ role: 'system' as const, content: userSystem }] : []),
+      ...(systemParts.length ? [{ role: 'system' as const, content: systemParts.join('\n\n') }] : []),
+    ]
 
-    const tail: ChatTurn[] = refreshFired ? [{ role: 'system', content: rulesBlock }] : []
-    const turns: ChatTurn[] = [...system, ...prior, ...tail, userTurn]
+    // Always search: page data gets its own system turn after the system prompt and
+    // before the conversation, so the tail Rules turn still comes after it.
+    const ctx = effectiveWeb === 'always' ? await gatherWeb(text, baseMsgs, config, controller.signal) : null
+    const web = ctx ? buildWebSystemBlock(ctx, budget) : null
+    const cited = checked && !!web?.block
+    const webTurn: ChatTurn[] = web?.block
+      ? [{ role: 'system', content: cited ? `${web.block}\n\n${CITATION_INSTRUCTIONS}` : web.block }]
+      : []
+
+    // Page data must never be the last word before the user turn: Rules follow it whenever it's there.
+    const tail: ChatTurn[] = rulesBlock && (refreshFired || webTurn.length > 0) ? [{ role: 'system', content: rulesBlock }] : []
+    const turns: ChatTurn[] = [...system, ...webTurn, ...prior, ...tail, userTurn]
 
     if (cfg.logMetrics && rulesBlock) {
       recordRuleEvent({
@@ -697,20 +887,37 @@ export function FreeChat({
       })
     }
 
-    const onToken = (delta: string) =>
+    // Reasoning streams separately from the reply; time it from the first thought to the first
+    // word of the answer (or the end, if the reply was stopped while still thinking).
+    let thinkStart: number | undefined
+    let thoughtMs: number | undefined
+    const markThought = () => {
+      if (thinkStart !== undefined && thoughtMs === undefined) thoughtMs = Date.now() - thinkStart
+    }
+    const patchLast = (f: (m: FreeMessage) => FreeMessage) =>
       patchThread(convId, (prev) => {
-        const next = prev.slice()
-        const last = next[next.length - 1]
-        if (last && last.role === 'assistant') next[next.length - 1] = { ...last, content: last.content + delta }
-        return next
+        const last = prev[prev.length - 1]
+        return last?.role === 'assistant' ? [...prev.slice(0, -1), f(last)] : prev
       })
+    const onReasoning = (delta: string) => {
+      thinkStart ??= Date.now()
+      patchLast((m) => ({ ...m, reasoning: (m.reasoning ?? '') + delta }))
+    }
+    const onToken = (delta: string) => {
+      if (delta.trim()) markThought()
+      patchLast((m) => ({ ...m, content: m.content + delta, ...(thoughtMs !== undefined ? { thoughtMs } : {}) }))
+    }
 
     try {
-      await streamChat(config, turns, { think, signal: controller.signal, route }, onToken)
+      await streamChat(config, turns, { think, signal: controller.signal, route, onReasoning }, onToken)
     } catch (e) {
       reportError(convId, e instanceof Error ? e.message : String(e))
     } finally {
-      patchLastReply(convId, { pending: false })
+      markThought()
+      // Inline `<think>` reasoning moves out of the reply before citations are checked.
+      patchLast((m) => settleReasoning(thoughtMs !== undefined ? { ...m, thoughtMs } : m))
+      if (ctx && web) finishWeb({ pages: web.pages, sources: ctx.sources, notice: ctx.notice }, cited, { pending: false })
+      else patchLastReply(convId, { pending: false })
       await finishThread(convId)
     }
   }
@@ -901,6 +1108,7 @@ export function FreeChat({
     setFocus(next)
     if (next.action && getViewState<boolean>('ai.free.agent')) {
       setAgent(false)
+      setWebMode(webModeAfterAgent(getViewState<WebMode>('ai.free.web') ?? 'off', false))
       toast.info(`Agent turned off — ${ACTION_VERB[next.action]} works from your notes directly.`)
     }
   }
@@ -912,6 +1120,12 @@ export function FreeChat({
       toast.info(`${ACTION_VERB[f.action]} turned off — Agent can't run alongside a note action.`)
     }
     setAgent(on)
+    setWebMode(webModeAfterAgent(getViewState<WebMode>('ai.free.web') ?? webMode, on))
+  }
+  const effectiveWeb = effectiveWebMode(webMode, hasWebSearch(config))
+  const changeWebMode = (m: WebMode) => {
+    setWebMode(m)
+    if (agentAfterWebMode(m, agent) !== agent) changeAgent(true)
   }
 
   // ── Empty-state starters: set a mode up, never send on their own.
@@ -962,7 +1176,7 @@ export function FreeChat({
               <button 
                 onClick={() => {
                   setForceOpenProject(activeProject.id)
-                  setAiMode('projects')
+                  goToAiMode('projects')
                 }}
                 style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', padding: 0, fontWeight: 500 }}
               >
@@ -1008,9 +1222,11 @@ export function FreeChat({
           )}
         </div>
 
-        <span className={styles.scopeLabel}>
+        {/* The model in use doubles as the way into AI settings (the view has no other header). */}
+        <NavLink to="/settings/ai" className={styles.modelLink} title="AI settings — provider, model, prompts">
+          <Settings size={13} aria-hidden />
           {config.chatProvider} · {config.chatModel || 'no model set'}
-        </span>
+        </NavLink>
       </div>
 
       {/* Scrollable message area */}
@@ -1085,7 +1301,9 @@ export function FreeChat({
                       <p className={styles.chatQ}>{m.displayText ?? m.content}</p>
                       {m.attachments && m.attachments.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                          {m.attachments.map((a) => (
+                          {m.attachments.map((a) => a.kind === 'image' && a.filename ? (
+                            <ImageThumb key={a.id} filename={a.filename} name={a.name} />
+                          ) : (
                             <span key={a.id} style={chipStyle}>
                               {a.kind === 'note' ? '📝 ' : ''}
                               {a.name}
@@ -1142,7 +1360,12 @@ export function FreeChat({
                       settings={quizSettings}
                       config={config}
                       reason={m.card.reason}
+                      vaultId={vaultId}
                       onChange={(next) => {
+                        // `activeId` is the chat this card was rendered in. A slow recheck/grade
+                        // landing after a chat switch would patch message `i` of the OTHER chat —
+                        // drop it (finished quiz threads have no per-conversation patch path).
+                        if (getActiveId() !== activeId) return
                         // A scoring event changes total/max — persist immediately;
                         // a plain answer edit only touches responses — debounce.
                         const cur = m.card && m.card.type === 'quiz' ? m.card.attempt : null
@@ -1168,8 +1391,11 @@ export function FreeChat({
                     />
                   ) : (
                     <div className={styles.chatA}>
-                      {m.content ? (
-                        <MarkdownLite content={m.content} />
+                      {m.role === 'assistant' && (
+                        <ThinkingBlock reasoning={reasoningOf(m)} live={!!m.pending && !shownText(m)} thoughtMs={m.thoughtMs} />
+                      )}
+                      {shownText(m) ? (
+                        <MarkdownLite content={shownText(m)} />
                       ) : (
                         <span className={styles.spinner}>{m.pending ? (m.steps?.length ? 'Working…' : 'Thinking…') : ''}</span>
                       )}
@@ -1218,6 +1444,14 @@ export function FreeChat({
                         </button>
                       ))}
                     </div>
+                  )}
+                  {(m.webSources?.length || m.citations?.length || m.webNotice) && (
+                    <WebReplyFooter
+                      sources={m.webSources}
+                      citations={m.citations}
+                      notice={m.webNotice}
+                      onSwitchToAlways={() => { changeAgent(false); setWebMode('always') }}
+                    />
                   )}
                   {m.proposals && m.proposals.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
@@ -1277,10 +1511,15 @@ export function FreeChat({
             think={think}
             onThinkChange={setThink}
             canThink={caps.thinking}
+            thinkingDetected={thinkingDetected}
+            onReasoningChange={changeReasoning}
             deepResearch={deepResearch}
             onDeepResearchChange={setDeepResearch}
             agent={agent}
             onAgentChange={changeAgent}
+            webMode={effectiveWeb}
+            onWebModeChange={changeWebMode}
+            canWebSearch={hasWebSearch(config)}
             vision={caps.vision}
             visionDetected={visionDetected}
             onVisionChange={changeVision}
@@ -1301,6 +1540,21 @@ export function FreeChat({
             onFocus={updateFocus}
             projectName={activeProject?.name}
             inputRef={composerInputRef}
+            chatPresets={config.presets?.chat ?? []}
+            activeChatPresetId={config.activePresets?.chat}
+            onPickChatPreset={(id) => void switchPreset('chat', id, config)}
+            aiLayers={aiLayers}
+            onAiLayersOpen={() => void loadRuleCatalog()}
+            convPrompt={convPrompt}
+            onConvPrompt={setConvPrompt}
+            onConvPromptCommit={commitConvPrompt}
+            promptBase={
+              config.chatSystemPrompt.trim()
+                ? activePreset(config, 'chat')?.name ?? 'chat'
+                : config.globalSystemPrompt.trim()
+                  ? 'global'
+                  : undefined
+            }
           />
         </div>
       </div>

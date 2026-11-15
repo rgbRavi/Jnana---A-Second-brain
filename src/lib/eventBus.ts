@@ -15,6 +15,8 @@
 // `note:favourited { noteId, on }`, `note:tagged { id, tags }` (user tags),
 // `quiz:completed { total, max }` (once, when the last question gets a mark).
 // The labelled set motion plugins can claim lives in lib/motion/moments.ts.
+import { logEvent, isLogLevelEnabled } from './logger'
+
 type Handler<T = unknown> = (payload: T) => void
 
 export class EventBus {
@@ -35,8 +37,17 @@ export class EventBus {
 
   emit<T>(event: string, payload: T): void {
     const handlers = this.listeners.get(event)
+    if (isLogLevelEnabled('trace')) logEvent('trace', 'event', event, { data: { listeners: handlers?.length ?? 0 } })
     if (!handlers) return
-    handlers.forEach(h => h(payload))
+    // One throwing listener must not stop the others or throw into the emitter
+    // (a save would look failed because some unrelated view's handler broke).
+    for (const h of handlers) {
+      try {
+        h(payload)
+      } catch (err) {
+        logEvent('error', 'event', `Listener for "${event}" threw`, { event: 'listener-error', error: err })
+      }
+    }
   }
 
   clear(event?: string): void {

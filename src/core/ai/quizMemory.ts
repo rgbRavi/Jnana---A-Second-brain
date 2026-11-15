@@ -9,6 +9,7 @@
 // — a ring buffer of question texts is not worth a table.
 
 const STORAGE_KEY = 'jnana.quiz.asked.v1'
+const NEVER_KEY = 'jnana.quiz.neverAsk.v1'
 
 /** Questions kept per vault. Old ones fall off the front. */
 export const MAX_REMEMBERED = 200
@@ -23,9 +24,9 @@ export function normalizeQuestion(text: string): string {
     .trim()
 }
 
-function load(): Store {
+function load(key = STORAGE_KEY): Store {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
@@ -35,9 +36,9 @@ function load(): Store {
   }
 }
 
-function save(store: Store): void {
+function save(store: Store, key = STORAGE_KEY): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+    localStorage.setItem(key, JSON.stringify(store))
   } catch {
     /* storage unavailable — the prompt just loses its exclusion list */
   }
@@ -64,8 +65,48 @@ export function rememberQuestions(vaultId: string, questions: string[]): void {
   save(store)
 }
 
+/** Bucket for off-notes (web / AI-knowledge) questions, kept apart from the vault's. */
+export function openBucket(vaultId: string): string {
+  return `${vaultId}:open`
+}
+
+/** Questions the user disputed — never asked again, no cap. */
+export function getNeverAsk(bucket: string): string[] {
+  return load(NEVER_KEY)[bucket] ?? []
+}
+
+export function addNeverAsk(bucket: string, question: string): void {
+  const store = load(NEVER_KEY)
+  const existing = store[bucket] ?? []
+  const key = normalizeQuestion(question)
+  if (!key || existing.some((q) => normalizeQuestion(q) === key)) return
+  store[bucket] = [...existing, question]
+  save(store, NEVER_KEY)
+}
+
+export function removeNeverAsk(bucket: string, question: string): void {
+  const store = load(NEVER_KEY)
+  const key = normalizeQuestion(question)
+  store[bucket] = (store[bucket] ?? []).filter((q) => normalizeQuestion(q) !== key)
+  save(store, NEVER_KEY)
+}
+
+/** Asked + never-ask, deduped — what generators feed the exclusion block. */
+export function excludedQuestions(bucket: string): string[] {
+  const seen = new Set<string>()
+  return [...getAskedQuestions(bucket), ...getNeverAsk(bucket)].filter((q) => {
+    const k = normalizeQuestion(q)
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
+
 export function clearAskedQuestions(vaultId: string): void {
   const store = load()
   delete store[vaultId]
   save(store)
+  const never = load(NEVER_KEY)
+  delete never[vaultId]
+  save(never, NEVER_KEY)
 }

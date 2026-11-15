@@ -97,6 +97,8 @@ export interface StoredConversation {
   updatedAt: number
   /** Adaptive Rules selected for this conversation (session-scoped). */
   ruleIds?: string[]
+  /** Per-conversation system prompt (appended to the global/chat one). */
+  systemPrompt?: string | null
 }
 
 /** Lightweight conversation summary for the history list. */
@@ -213,6 +215,9 @@ export interface Annotation {
 /** Which family of API the provider speaks. */
 export type AiProviderKind = 'openai' | 'ollama'
 
+/** Web search backend used by Web quizzes and answer rechecks. */
+export type WebSearchProviderKind = 'brave' | 'tavily' | 'searxng'
+
 /** Transcription backend: OpenAI cloud, or a local OpenAI-compatible Whisper server. */
 export type TranscriptionProviderKind = 'openai' | 'local'
 
@@ -265,6 +270,36 @@ export interface AiConfig {
   deepResearchApiKey: string
   deepResearchModel: string
   hasDeepResearchApiKey?: boolean
+
+  // ── Web search (Web quizzes / rechecks) ──
+  webSearchProvider: WebSearchProviderKind
+  /** SearXNG instance URL; unused for brave/tavily. */
+  webSearchBaseUrl: string
+  /** Write-only, same rules as the other keys. */
+  webSearchApiKey: string
+  hasWebSearchApiKey?: boolean
+
+  // ── System prompts & provider presets ──
+  /** AI-Chat instructions; they lead the send and override the global prompt. The conversation prompt is appended. */
+  chatSystemPrompt: string
+  /** Fallback chat/agent instructions when no chat prompt is set. Focused actions (Analyze/Ask/Quiz) never get any prompt. */
+  globalSystemPrompt: string
+  /** Section → id of the preset last applied (read-only; changed via preset commands). */
+  activePresets: Partial<Record<AiSection, string>>
+  /** Saved presets per section (read-only; never carries keys). */
+  presets: Record<AiSection, AiPresetView[]>
+}
+
+export type AiSection = 'chat' | 'embedding' | 'transcription' | 'deepResearch' | 'webSearch'
+
+export interface AiPresetView {
+  id: string
+  name: string
+  provider: string
+  baseUrl: string
+  model: string
+  systemPrompt: string
+  hasApiKey: boolean
 }
 
 /** A single embeddable slice of a note. */
@@ -353,6 +388,23 @@ export interface QuizQuestion {
   explanation: string
   /** Marks this question is worth, frozen in from settings at generation time. */
   marks: number
+  /** Web quizzes: the page passage this question was drawn from. */
+  source?: QuizSourceRef
+  /** The recheck rewrote this question's answer. */
+  corrected?: boolean
+}
+
+/** Where a web-sourced question came from. */
+export interface QuizSourceRef { url: string; title: string; quote: string }
+
+/** Where a quiz's questions were drawn from. */
+export type QuizOrigin = 'notes' | 'web' | 'ai'
+
+/** Outcome of re-checking one answer against its source. */
+export interface RecheckRecord {
+  outcome: 'confirmed' | 'unclear' | 'corrected'
+  evidence?: QuizSourceRef
+  reason?: string
 }
 
 /** User-tunable quiz behaviour, persisted in localStorage (no DB row). */
@@ -373,9 +425,12 @@ export interface QuizSettings {
   /** 'retrieval' = semantic search over the index; 'raw' = feed scoped notes directly. */
   source: 'retrieval' | 'raw'
   difficulty: QuizDifficulty
-  /** Show the compact quiz toolbar above the AI composer. */
-  showToolbar: boolean
+  /** Verify generated questions before showing them. */
+  verify: boolean
 }
+
+/** The settings that decide how an attempt is marked — frozen into it at generation. */
+export type QuizScoring = Pick<QuizSettings, 'negativeMarking' | 'negativeFraction' | 'mcmaRule' | 'feedback'>
 
 /** One taken (or in-progress) quiz. Serialized into a kind='quiz' note on save. */
 export interface QuizAttempt {
@@ -393,13 +448,34 @@ export interface QuizAttempt {
   /** Human label for the scope the quiz came from, e.g. 'Topic: neural networks'. */
   scopeLabel: string
   takenAt: number
+  /** How this attempt is marked, so changing settings later can't re-mark it.
+   *  Absent on attempts made before it was recorded — those use current settings. */
+  scoring?: QuizScoring
+  origin?: QuizOrigin
+  sources?: { url: string; title: string }[]
+  verified?: 'yes' | 'failed' | 'off'
+  dropped?: number
+  failedPages?: number
+  /** Per question: the user disputed it — excluded from total and max. */
+  disputed?: boolean[]
+  rechecks?: (RecheckRecord | null)[]
 }
+
+/** The provenance fields of an attempt, carried from generation. */
+export type AttemptMeta = Pick<QuizAttempt, 'origin' | 'sources' | 'verified' | 'dropped' | 'failedPages'>
+
+/** Why a quiz came back empty. 'empty-index' = retrieval found nothing (offer to
+ *  index); 'empty-scope' = no notes in scope; 'off-topic' = the notes found don't
+ *  cover the requested topic. */
+export type QuizEmptyReason =
+  | 'empty-index' | 'empty-scope' | 'off-topic'
+  | 'nothing-verified' | 'no-pages' | 'no-search' | 'unknown-topic'
 
 /** Result of a generation attempt — `reason` explains an empty question list. */
 export interface QuizGeneration {
   questions: QuizQuestion[]
-  /** 'empty-index' = retrieval found nothing (offer to index); 'empty-scope' = no notes in scope. */
-  reason?: 'empty-index' | 'empty-scope'
+  reason?: QuizEmptyReason
+  meta?: AttemptMeta
 }
 
 /** A source note the analyzer actually drew from (grounding, not hallucinated). */

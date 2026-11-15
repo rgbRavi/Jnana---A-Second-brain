@@ -36,12 +36,14 @@ export function SettingSelect({
   options,
   id,
   ariaLabel,
+  disabled,
 }: {
   value: string
   onChange: (v: string) => void
   options: SelectItem[]
   id?: string
   ariaLabel?: string
+  disabled?: boolean
 }) {
   const flat = flatten(options)
   const selected = flat.find((o) => o.value === value)
@@ -133,6 +135,7 @@ export function SettingSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKey}
       >

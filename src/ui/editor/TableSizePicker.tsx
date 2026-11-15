@@ -12,6 +12,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import Styles from './TableSizePicker.module.css'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 const GRID_ROWS = 8
 const GRID_COLS = 8
@@ -24,6 +25,7 @@ interface Props {
 export function TableSizePicker({ onInsert, onClose }: Props) {
   // 1-based hovered size; 0 = nothing hovered yet.
   const [hover, setHover] = useState<{ r: number; c: number }>({ r: 1, c: 2 })
+  useEscapeKey(onClose)
 
   return createPortal(
     <div className={Styles.overlay} onMouseDown={onClose}>

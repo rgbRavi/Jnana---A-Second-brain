@@ -6,7 +6,7 @@
 // localStorage at module load, so each case re-imports the module with storage
 // already set — that is what "a new session" means here.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { Table } from 'lucide-react'
 
@@ -31,6 +31,13 @@ async function freshRail() {
 }
 
 describe('right rail', () => {
+  // The first import transforms the rail's whole module graph (~2s alone, >5s under
+  // full-suite load). Pay that once here, outside any test's timeout; later
+  // `freshRail()` re-evaluations reuse the transform cache and take milliseconds.
+  beforeAll(async () => {
+    await import('./RightRail')
+  }, 60_000)
+
   beforeEach(() => {
     localStorage.clear()
   })
