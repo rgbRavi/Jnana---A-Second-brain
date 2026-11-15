@@ -1,0 +1,18 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0.6rem;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+.row:hover,
+.row:has(:focus-visible) {
+  background: var(--surface-hover);
+}
+.row.selected {
+  background: var(--surface-selected);
+}

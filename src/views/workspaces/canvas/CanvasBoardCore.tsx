@@ -14,7 +14,8 @@ import {
 import { Check, Link2, Maximize2, Minimize2 } from 'lucide-react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { readText, readImage } from '@tauri-apps/plugin-clipboard-manager'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { readClipboardImage } from '../../../lib/clipboardImage'
 import { importMedia, openAssetFile } from '../../../core/media'
 import { assetUrl, uploadAsset } from '../../../core/notes'
 import {
@@ -149,40 +150,6 @@ function appendWikilink(content: string, targetTitle: string): string {
   const heading = '## Links'
   if (content.includes(heading)) return content.replace(heading, `${heading}\n${wl}`)
   return `${content.trimEnd()}\n\n${heading}\n${wl}\n`
-}
-
-/** PNG-encode raw RGBA via a canvas (fallback path for the Tauri clipboard image). */
-async function rgbaToPng(rgba: Uint8Array, width: number, height: number): Promise<Uint8Array> {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), width, height), 0, 0)
-  const blob: Blob = await new Promise((res, rej) =>
-    canvas.toBlob((b) => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'),
-  )
-  return new Uint8Array(await blob.arrayBuffer())
-}
-
-/** Read an image off the clipboard as PNG bytes — prefers the async web clipboard
- *  (gives a PNG blob), falling back to the Tauri plugin (RGBA → PNG). */
-async function readClipboardImage(): Promise<Uint8Array | null> {
-  try {
-    if (navigator.clipboard?.read) {
-      const items = await navigator.clipboard.read()
-      for (const it of items) {
-        const type = it.types.find((t) => t.startsWith('image/'))
-        if (type) return new Uint8Array(await (await it.getType(type)).arrayBuffer())
-      }
-    }
-  } catch { /* fall through to the Tauri plugin */ }
-  try {
-    const img = await readImage()
-    const { width, height } = await img.size()
-    return await rgbaToPng(new Uint8Array(await img.rgba()), width, height)
-  } catch {
-    return null
-  }
 }
 
 const CANVAS_LOG = scopedLog('canvas')

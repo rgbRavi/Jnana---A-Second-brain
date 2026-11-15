@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Bot, ChevronLeft, ChevronRight, ChevronDown, FileSearch, GraduationCap, MoreHorizontal, RotateCcw } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { Bot, ChevronLeft, Settings, ChevronRight, ChevronDown, FileSearch, GraduationCap, MoreHorizontal, RotateCcw } from 'lucide-react'
 import type { AiConfig, AiRule, Note, ProjectKnowledge, StoredConversation } from '../../types'
 import { DEFAULT_VAULT_ID } from '../../types'
 import {
@@ -76,6 +77,8 @@ import {
 import { getConversation, renameConversation, deleteConversation, saveConversation } from '../../core/chat'
 import { buildPresetSystem, buildProjectGrounding, listProjectKnowledge } from '../../core/aiWorkspace'
 import { listRules, listProjectRules, resolveEffectiveRules, buildRulesSystem } from '../../core/aiRules'
+import { describeAiLayers } from '../../core/ai/aiLayers'
+import { goToAiMode } from '../../hooks/aiNav'
 import { estimateTokens } from '../../core/ai/ruleEngine'
 import { selectRulesForSend } from '../../core/ai/ruleSelect'
 import { decideRefresh } from '../../core/ai/ruleDecide'
@@ -108,7 +111,7 @@ import { FOCUSED_PANEL_ID } from './FocusedMenu'
 import { toast } from '../../lib/toast'
 import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
-import { ChatComposer } from './ChatComposer'
+import { ChatComposer, ImageThumb } from './ChatComposer'
 import { switchPreset } from './switchPreset'
 import { activePreset } from '../../core/ai/presets'
 import { AgentSteps } from './AgentSteps'
@@ -275,8 +278,33 @@ export function FreeChat({
   const [editText, setEditText] = useState('')
 
   // Breadcrumb state
-  const [, setAiMode] = useViewState('ai.mode', 'chat')
   const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
+
+  // "What the AI sees": the instruction layers behind the next send. Rule names need the
+  // vault's rule list + the project's rules; reloaded whenever the panel opens so edits
+  // made elsewhere show up. Preview only — the send path resolves rules itself.
+  const [ruleCatalog, setRuleCatalog] = useState<{ all: AiRule[]; project: string[] }>({ all: [], project: [] })
+  const loadRuleCatalog = useCallback(async () => {
+    try {
+      const all = await listRules(vaultId)
+      const project = projectId ? await listProjectRules(projectId) : []
+      setRuleCatalog({ all, project })
+    } catch (e) {
+      log.debug('Rule preview unavailable', e)
+    }
+  }, [vaultId, projectId])
+  useEffect(() => { void loadRuleCatalog() }, [loadRuleCatalog])
+  const layerProject = projects.find((p) => p.id === projectId)
+  const aiLayers = describeAiLayers({
+    mode: focus.action ? 'focused' : agent ? 'agent' : 'chat',
+    systemPromptSource: config.chatSystemPrompt?.trim() ? 'chat' : config.globalSystemPrompt?.trim() ? 'global' : null,
+    conversationInstructions: convPrompt,
+    projectName: layerProject?.name,
+    projectHasInstructions: !!layerProject?.instructions?.trim(),
+    ruleNames: resolveEffectiveRules(ruleIds, ruleCatalog.project, ruleCatalog.all).map((r) => r.name),
+    skillNames: skillPresets.filter((s) => skillIds.includes(s.id)).map((s) => s.name),
+    styleName: stylePresets.find((s) => s.id === styleId)?.name,
+  })
   const [chatTitle, setChatTitle] = useState('New chat')
   const [isRenamingChat, setIsRenamingChat] = useState(false)
   const [chatTitleInput, setChatTitleInput] = useState('')
@@ -1148,7 +1176,7 @@ export function FreeChat({
               <button 
                 onClick={() => {
                   setForceOpenProject(activeProject.id)
-                  setAiMode('projects')
+                  goToAiMode('projects')
                 }}
                 style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', padding: 0, fontWeight: 500 }}
               >
@@ -1194,9 +1222,11 @@ export function FreeChat({
           )}
         </div>
 
-        <span className={styles.scopeLabel}>
+        {/* The model in use doubles as the way into AI settings (the view has no other header). */}
+        <NavLink to="/settings/ai" className={styles.modelLink} title="AI settings — provider, model, prompts">
+          <Settings size={13} aria-hidden />
           {config.chatProvider} · {config.chatModel || 'no model set'}
-        </span>
+        </NavLink>
       </div>
 
       {/* Scrollable message area */}
@@ -1271,7 +1301,9 @@ export function FreeChat({
                       <p className={styles.chatQ}>{m.displayText ?? m.content}</p>
                       {m.attachments && m.attachments.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', justifyContent: 'flex-end' }}>
-                          {m.attachments.map((a) => (
+                          {m.attachments.map((a) => a.kind === 'image' && a.filename ? (
+                            <ImageThumb key={a.id} filename={a.filename} name={a.name} />
+                          ) : (
                             <span key={a.id} style={chipStyle}>
                               {a.kind === 'note' ? '📝 ' : ''}
                               {a.name}
@@ -1511,6 +1543,8 @@ export function FreeChat({
             chatPresets={config.presets?.chat ?? []}
             activeChatPresetId={config.activePresets?.chat}
             onPickChatPreset={(id) => void switchPreset('chat', id, config)}
+            aiLayers={aiLayers}
+            onAiLayersOpen={() => void loadRuleCatalog()}
             convPrompt={convPrompt}
             onConvPrompt={setConvPrompt}
             onConvPromptCommit={commitConvPrompt}

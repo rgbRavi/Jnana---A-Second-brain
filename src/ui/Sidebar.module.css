@@ -482,3 +482,25 @@
   color: var(--danger);
   line-height: 1.35;
 }
+
+/* Header buttons: auto-hide + collapse side by side (stacked when collapsed). */
+.headerBtns { display: flex; gap: 4px; }
+.collapsed .headerBtns { flex-direction: column; }
+.collapseToggle[aria-pressed='true'] { color: var(--accent); background: var(--accent-soft); }
+
+/* ─── Auto-hide mode ───
+   The slot holds the icon rail's width in the layout; the sidebar is pinned inside it and
+   widens over the page on hover (its own width transition animates it). */
+.autoSlot {
+  position: relative;
+  z-index: 45;
+  flex: none;
+  width: var(--sidebar-collapsed-width);
+}
+.autoSlot > .sidebar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+.autoSlotOpen > .sidebar { box-shadow: var(--shadow-lg); }

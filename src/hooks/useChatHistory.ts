@@ -4,7 +4,10 @@
 // src/hooks/useChatHistory.ts
 import { useCallback, useEffect, useRef } from 'react'
 import { eventBus } from '../lib/eventBus'
-import { getConversation, saveConversation } from '../core/chat'
+import { getConversation, saveConversation, deleteConversation, renameConversation } from '../core/chat'
+import { showConfirmDialog } from '../lib/dialog'
+import { toast } from '../lib/toast'
+import { log } from '../lib/logger'
 import { useViewState, getViewState } from './useViewState'
 import { useActiveVaultId, getActiveVaultId } from './useVaults'
 import type { StoredConversation } from '../types'
@@ -29,6 +32,50 @@ export function requestChatAction(mode: string, action: ChatAction): void {
   } else {
     pendingActions.set(mode, action)
   }
+}
+
+/**
+ * Confirm, then delete chats (one or many). Resets the open chat if it was deleted and
+ * tells every list to refresh. Returns the ids actually deleted — a failure keeps the rest.
+ */
+export async function deleteChats(mode: string, chats: { id: string; title: string }[]): Promise<string[]> {
+  if (chats.length === 0) return []
+  const one = chats.length === 1
+  const ok = await showConfirmDialog({
+    title: one ? 'Delete chat' : `Delete ${chats.length} chats`,
+    message: one
+      ? `“${chats[0].title || 'Untitled'}” and all its messages will be deleted. This can't be undone.`
+      : `These ${chats.length} chats and all their messages will be deleted. This can't be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return []
+  const results = await Promise.allSettled(chats.map((c) => deleteConversation(c.id)))
+  const deleted = chats.filter((_, i) => results[i].status === 'fulfilled').map((c) => c.id)
+  const failed = chats.length - deleted.length
+  if (failed) {
+    log.error('Failed to delete chats', { failed, total: chats.length })
+    toast.error(one ? "Couldn't delete the chat." : `Couldn't delete ${failed} of ${chats.length} chats.`)
+  }
+  if (deleted.length) {
+    const activeId = getViewState<string>(`ai.conv.${mode}.${getActiveVaultId()}`)
+    if (activeId && deleted.includes(activeId)) requestChatAction(mode, { type: 'new' }) // reset the open chat
+    eventBus.emit('ai:conversationDeleted', { mode })
+  }
+  return deleted
+}
+
+/** Rename a chat and refresh every list. Returns false (after a toast) if it didn't persist. */
+export async function renameChat(mode: string, id: string, title: string): Promise<boolean> {
+  try {
+    await renameConversation(id, title, Date.now())
+  } catch (e) {
+    log.error('Failed to rename chat', e)
+    toast.error("Couldn't rename the chat.")
+    return false
+  }
+  eventBus.emit('ai:conversationSaved', { mode })
+  return true
 }
 
 const newId = () =>

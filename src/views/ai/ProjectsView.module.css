@@ -1,0 +1,128 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+/* Card = container; the title/body is one real <button> stretched over the whole card,
+   and the delete button sits above it (a button can't nest in a button). */
+.card {
+  position: relative;
+  background: color-mix(in srgb, var(--surface) var(--fx-alpha-soft), transparent);
+  backdrop-filter: var(--fx-blur-strong);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color var(--dur-fast) var(--motion-ease);
+}
+.card:hover,
+.card:has(:focus-visible) {
+  border-color: var(--border-strong);
+}
+
+.cardMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cardMain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+}
+.cardMain:focus-visible {
+  outline: none;
+}
+.cardMain:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cardTitle {
+  margin: 0;
+  padding-right: 1.75rem;
+  font-size: 1.1rem;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cardDesc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardDelete {
+  position: absolute;
+  top: 1.1rem;
+  right: 1.1rem;
+  z-index: 1;
+  display: inline-flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  cursor: pointer;
+}
+.cardDelete:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.chatLink {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background var(--dur-fast) var(--motion-ease);
+}
+.chatLink:hover,
+.chatLink:focus-visible {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.newChat {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.8rem;
+  background: color-mix(in srgb, var(--surface) var(--fx-alpha-glass), transparent);
+  backdrop-filter: var(--fx-blur-strong);
+  border: 1px solid var(--fx-composer-border);
+  border-radius: var(--fx-composer-radius);
+  box-shadow: var(--fx-composer-shadow);
+  color: var(--text-1);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.newChat:hover,
+.newChat:focus-visible {
+  background: var(--surface-hover);
+}

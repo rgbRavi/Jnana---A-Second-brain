@@ -65,6 +65,7 @@ import { AsyncAudio } from '../AsyncAudio'
 import { AsyncYouTube } from '../AsyncYouTube'
 import { PdfViewer } from '../media/PdfViewer'
 import { PdfThumbnail } from '../media/PdfThumbnail'
+import { ImageLightbox } from '../media/ImageLightbox'
 import MdStyles from './MarkdownLite.module.css'
 
 function timeStringToSeconds(timeStr: string): number {
@@ -1102,21 +1103,11 @@ export function ImageEmbed({
       >
         {imgEl}
       </span>
-      {isFullscreen && createPortal(
-        <div className={MdStyles.fullscreenOverlay} onClick={() => setIsFullscreen(false)}>
-          <div className={MdStyles.lightboxContent} onClick={(e) => e.stopPropagation()}>
-            <button className={MdStyles.fullscreenClose} onClick={() => setIsFullscreen(false)} aria-label="Close"><X size={18} /></button>
-            {url.startsWith('jnana-asset://')
-              ? <AsyncImage filename={url.replace('jnana-asset://', '')} alt={altText} className={MdStyles.lightboxImage} lazy={false} />
-              : <img src={url} alt={altText} className={MdStyles.lightboxImage} />
-            }
-          </div>
-        </div>,
-        document.body
-      )}
+      {isFullscreen && <ImageLightbox url={url} alt={altText} onClose={() => setIsFullscreen(false)} />}
     </>
   )
 }
+
 
 export function ExternalDocLink({ name, path }: { name: string; path: string }) {
   const displayName = name.replace(/^External:\s*/i, '')

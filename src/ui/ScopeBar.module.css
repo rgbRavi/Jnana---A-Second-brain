@@ -76,3 +76,72 @@
 .select:focus {
   border-color: var(--accent);
 }
+
+.compact {
+  display: inline-flex;
+  align-items: center;
+}
+
+.compactBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.compactBtn:hover .compactValue {
+  color: var(--accent);
+}
+
+.compactValue {
+  color: var(--text-2);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.menu {
+  position: fixed;
+  z-index: 1001;
+  min-width: 160px;
+  max-width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.menuItem {
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menuItem:hover {
+  background: var(--surface-hover);
+}
+
+.menuItemOn {
+  background: var(--surface-selected);
+}

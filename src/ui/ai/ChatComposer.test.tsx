@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { ChatComposer } from './ChatComposer'
 import { useComposerToolbar } from '../../hooks/useComposerToolbar'
 
@@ -11,6 +11,8 @@ vi.mock('@tauri-apps/api/webview', () => ({
   getCurrentWebview: () => ({ onDragDropEvent: () => Promise.resolve(() => {}) }),
 }))
 vi.mock('./RulesPicker', () => ({ RulesBody: () => null }))
+vi.mock('../../hooks/useWorkspaces', () => ({ useWorkspaces: () => ({ workspaces: [] }) }))
+vi.mock('../../hooks/useActiveWorkspace', () => ({ getActiveWorkspaceId: () => null }))
 
 const preset = (id: string, name: string) => ({
   id, name, provider: 'openai', baseUrl: '', model: 'm', systemPrompt: '', hasApiKey: true,
@@ -29,6 +31,7 @@ function baseProps(over: Record<string, unknown> = {}) {
     focus: { action: null }, onFocus: vi.fn(),
     chatPresets: [preset('p1', 'Work'), preset('p2', 'Home')], activeChatPresetId: 'p1',
     onPickChatPreset: vi.fn(), convPrompt: '', onConvPrompt: vi.fn(), onConvPromptCommit: vi.fn(), promptBase: 'Work',
+    aiLayers: [{ key: 'rules', label: 'Rules', description: 'Always-follow rules.', active: true, detail: '1 rule: Cite' }],
     ...over,
   }
 }
@@ -115,7 +118,7 @@ describe('composer toolbar customisation', () => {
     setup()
     const names = ['Focused', 'Work', 'Attach', 'Capabilities', 'More']
     const pos = names.map((n) => {
-      const b = screen.getAllByRole('button').find((x) => x.textContent?.includes(n))!
+      const b = screen.getAllByRole('button').find((x) => (x.getAttribute('aria-label') ?? x.textContent ?? '').includes(n))!
       return screen.getAllByRole('button').indexOf(b)
     })
     expect([...pos].sort((a, b) => a - b)).toEqual(pos)
@@ -165,5 +168,61 @@ describe('Conversation instructions', () => {
   it('counts a set conversation prompt in the Capabilities badge', () => {
     setup({ convPrompt: 'Be brief' })
     expect(screen.getByRole('button', { name: /Capabilities/ }).textContent).toContain('1')
+  })
+})
+
+describe('message box right-click menu', () => {
+  it('replaces the native menu; selection-only items are disabled when nothing is selected', () => {
+    const p = setup()
+    const box = screen.getByRole('textbox', { name: 'Message' })
+    expect(fireEvent.contextMenu(box)).toBe(false) // default prevented
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'Cut' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Attach files…' }))
+    expect(p.onAttach).toHaveBeenCalled()
+  })
+})
+
+describe('image attachments', () => {
+  it('show as a thumbnail that opens a full-size viewer, closed by Esc', () => {
+    const img = { id: 'a.png', filename: 'a.png', name: 'Pasted image.png', ext: 'png', mime: 'image/png', kind: 'image' }
+    const p = setup({ attachments: [img] })
+    fireEvent.click(screen.getByRole('button', { name: 'View Pasted image.png' }))
+    expect(screen.getAllByRole('img', { name: 'Pasted image.png' })).toHaveLength(2) // thumb + viewer
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getAllByRole('img', { name: 'Pasted image.png' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Pasted image.png' }))
+    expect(p.onRemoveAttachment).toHaveBeenCalledWith('a.png')
+  })
+})
+
+describe('mode-line Focused hint', () => {
+  it('opens the Focused menu from the hint in plain chat', () => {
+    const { result } = renderHook(() => useComposerToolbar())
+    act(() => result.current[1].reset())
+    setup()
+    expect(screen.queryByRole('menuitem', { name: /Analyze/ })).toBeNull()
+    fireEvent.click(screen.getByTitle(/Open the Focused menu/))
+    expect(screen.getByRole('menuitem', { name: /Analyze/ })).toBeTruthy()
+  })
+  it('still works when the Focused control is hidden', () => {
+    const { result } = renderHook(() => useComposerToolbar())
+    act(() => { result.current[1].reset(); result.current[1].toggle('focused') })
+    setup()
+    expect(screen.queryByRole('button', { name: 'Focused', expanded: false })).toBeNull()
+    fireEvent.click(screen.getByTitle(/Open the Focused menu/))
+    expect(screen.getByRole('menuitem', { name: /Analyze/ })).toBeTruthy()
+  })
+})
+
+describe('status line: what the AI sees + notes source', () => {
+  it('plain chat offers "What the AI sees" but no notes source; Agent shows the source', () => {
+    setup()
+    expect(screen.queryByRole('button', { name: /Notes source/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'What the AI sees' }))
+    expect(screen.getByRole('dialog', { name: 'What the AI sees' }).textContent).toMatch(/1 rule: Cite/)
+    cleanup()
+    setup({ agent: true })
+    expect(screen.getByRole('button', { name: /Notes source/ })).toBeTruthy()
   })
 })

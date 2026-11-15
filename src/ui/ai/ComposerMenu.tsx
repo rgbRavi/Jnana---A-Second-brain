@@ -17,23 +17,38 @@ import styles from './Ai.module.css'
 export function ComposerMenu({
   icon,
   label,
+  iconOnly,
   badge,
   active,
   disabled,
   alignRight,
+  open: openProp,
+  onOpenChange,
   children,
 }: {
   icon: React.ReactNode
   label: string
+  /** Show only the icon; `label` becomes the tooltip + accessible name. */
+  iconOnly?: boolean
   /** Count shown as an accent badge; falsy hides it. */
   badge?: number
   /** Highlight the trigger (something inside is engaged). */
   active?: boolean
   disabled?: boolean
   alignRight?: boolean
+  /** Optional controlled open state (pair with `onOpenChange`); omit for the usual self-managed menu. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   children: (close: () => void) => React.ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [innerOpen, setInnerOpen] = useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : innerOpen
+  const setOpen = (v: boolean | ((o: boolean) => boolean)) => {
+    const next = typeof v === 'function' ? v(open) : v
+    if (!controlled) setInnerOpen(next)
+    onOpenChange?.(next)
+  }
   const ref = useRef<HTMLDivElement>(null)
   const close = () => setOpen(false)
 
@@ -61,9 +76,11 @@ export function ComposerMenu({
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
+        title={iconOnly ? label : undefined}
+        aria-label={iconOnly ? label : undefined}
         style={pillStyle(!!active || open)}
       >
-        {icon} {label}
+        {icon}{iconOnly ? null : <> {label}</>}
         {badge ? <span className={styles.cBadge}>{badge}</span> : null}
         <ChevronDown
           size={13}

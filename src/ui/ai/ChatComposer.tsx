@@ -3,9 +3,10 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import {
-  Bot, Brain, FileText, Globe, Image as ImageIcon, Lightbulb, MessageSquare, Microscope, MoreHorizontal, Music,
-  NotebookPen, Paperclip, Puzzle, Palette, Plus, ScrollText, SlidersHorizontal, Layers,
+  Bot, Brain, ChevronRight, FileText, Globe, Image as ImageIcon, Lightbulb, MessageSquare, Microscope, MoreHorizontal, Music,
+  NotebookPen, Paperclip, Puzzle, Palette, ScrollText, SlidersHorizontal, Layers,
   Sparkles, Square, Wrench, X,
 } from 'lucide-react'
 import type { AiPreset, AiPresetView } from '../../types'
@@ -17,6 +18,13 @@ import { ACTION_VERB, scopeLabel, quizOriginOf, type FocusState } from '../../co
 import { useComposerToolbar, type ToolbarItem } from '../../hooks/useComposerToolbar'
 import { closeFocusPanel } from '../../lib/activeFocus'
 import { ComposerMenu, MenuRow, MenuHeader, pillStyle } from './ComposerMenu'
+import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { readClipboardImage } from '../../lib/clipboardImage'
+import { assetUrl } from '../../core/notes'
+import { ImageLightbox } from '../media/ImageLightbox'
+import { WhatAiSees } from './WhatAiSees'
+import { GroundingScope } from './GroundingScope'
+import type { AiLayer } from '../../core/ai/aiLayers'
 import { FocusedContent } from './FocusedMenu'
 import { StylesBody, SkillsBody } from './PresetPicker'
 import { RulesBody } from './RulesPicker'
@@ -89,6 +97,9 @@ interface Props {
   onConvPromptCommit: () => void
   /** Names the prompt the conversation instructions add to (preset name or "global"). */
   promptBase?: string
+  /** Instruction layers behind the next send, for the "What the AI sees" panel. */
+  aiLayers: AiLayer[]
+  onAiLayersOpen?: () => void
 }
 
 const kindIcon: Record<ChatAttachment['kind'], React.ReactNode> = {
@@ -100,6 +111,24 @@ const kindIcon: Record<ChatAttachment['kind'], React.ReactNode> = {
 }
 
 const chipStyle: React.CSSProperties = { ...pillStyle(false), cursor: 'default' }
+
+/** Image attachment tile: click to view full size; `onRemove` adds a × in the corner. */
+export function ImageThumb({ filename, name, onRemove }: { filename: string; name: string; onRemove?: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className={styles.attThumb}>
+      <button type="button" className={styles.attThumbImg} onClick={() => setOpen(true)} title={name} aria-label={`View ${name}`}>
+        <img src={assetUrl(filename)} alt={name} />
+      </button>
+      {onRemove && (
+        <button type="button" className={styles.attThumbRemove} onClick={onRemove} title="Remove" aria-label={`Remove ${name}`}>
+          <X size={12} />
+        </button>
+      )}
+      {open && <ImageLightbox url={`jnana-asset://${filename}`} alt={name} onClose={() => setOpen(false)} />}
+    </span>
+  )
+}
 
 // ─── Attach menu ────────────────────────────────────────────────────────────
 
@@ -230,13 +259,13 @@ function CapabilitiesContent(props: {
       <MenuRow
         icon={<MessageSquare size={15} />} label="Conversation instructions"
         active={!!props.convPrompt.trim()}
-        trailing={<Plus size={13} style={{ transform: 'rotate(45deg)' }} />}
+        trailing={<ChevronRight size={13} />}
         onClick={() => setView('conversation')}
       />
       <MenuRow
         icon={<ScrollText size={15} />} label="Rules"
         badge={props.ruleIds.length || undefined}
-        trailing={<Plus size={13} style={{ transform: 'rotate(45deg)' }} />}
+        trailing={<ChevronRight size={13} />}
         active={props.ruleIds.length > 0}
         onClick={() => setView('rules')}
       />
@@ -244,14 +273,14 @@ function CapabilitiesContent(props: {
         icon={<Palette size={15} />} label="Response style"
         hint={activeStyle?.name ?? 'None'}
         active={!!activeStyle}
-        trailing={<Plus size={13} style={{ transform: 'rotate(45deg)' }} />}
+        trailing={<ChevronRight size={13} />}
         onClick={() => setView('styles')}
       />
       <MenuRow
         icon={<Wrench size={15} />} label="Skills"
         badge={skillCount || undefined}
         active={skillCount > 0}
-        trailing={<Plus size={13} style={{ transform: 'rotate(45deg)' }} />}
+        trailing={<ChevronRight size={13} />}
         onClick={() => setView('skills')}
       />
       <MenuRow
@@ -422,6 +451,8 @@ export function ChatComposer({
   onConvPrompt,
   onConvPromptCommit,
   promptBase,
+  aiLayers,
+  onAiLayersOpen,
 }: Props) {
   // OS file drops arrive at the window, not as DOM events (Tauri), so hit-test
   // the drop point against the composer — same pattern as LiveEditor.
@@ -429,6 +460,7 @@ export function ChatComposer({
   const onDropRef = useRef(onDropPaths)
   onDropRef.current = onDropPaths
   const [dropActive, setDropActive] = useState(false)
+  const [textMenu, setTextMenu] = useState<{ x: number; y: number; el: HTMLTextAreaElement } | null>(null)
   useEffect(() => {
     let unlisten: (() => void) | undefined
     let cancelled = false
@@ -472,6 +504,8 @@ export function ChatComposer({
   const moreCount = (canThink && think ? 1 : 0) + (deepResearch ? 1 : 0) + (agent ? 1 : 0) + (webMode !== 'off' ? 1 : 0)
 
   const [{ order, hidden }] = useComposerToolbar()
+  // Opened from the mode-line "Focused" hint; also force-renders the control if the user hid it.
+  const [focusedOpen, setFocusedOpen] = useState(false)
   const activeOf: Partial<Record<ToolbarItem, boolean>> = {
     more: moreCount > 0, capabilities: capBadge > 0, focused: !!focus.action, attach: attachments.length > 0,
   }
@@ -492,7 +526,7 @@ export function ChatComposer({
       </ComposerMenu>
     ),
     attach: (
-      <ComposerMenu icon={<Paperclip size={14} />} label="Attach" badge={attachments.length || undefined} active={attachments.length > 0}>
+      <ComposerMenu icon={<Paperclip size={14} />} label="Attach" iconOnly badge={attachments.length || undefined} active={attachments.length > 0}>
         {(close) => (
           <AttachContent
             vision={vision}
@@ -508,7 +542,7 @@ export function ChatComposer({
       </ComposerMenu>
     ),
     capabilities: (
-      <ComposerMenu icon={<SlidersHorizontal size={14} />} label="Capabilities" badge={capBadge || undefined} active={capBadge > 0}>
+      <ComposerMenu icon={<SlidersHorizontal size={14} />} label="Capabilities" iconOnly badge={capBadge || undefined} active={capBadge > 0}>
         {() => (
           <CapabilitiesContent
             stylePresets={stylePresets}
@@ -530,7 +564,7 @@ export function ChatComposer({
       </ComposerMenu>
     ),
     more: (
-      <ComposerMenu icon={<MoreHorizontal size={14} />} label="More" badge={moreCount || undefined} active={moreCount > 0}>
+      <ComposerMenu icon={<MoreHorizontal size={14} />} label="More" iconOnly badge={moreCount || undefined} active={moreCount > 0}>
         {() => (
           <MoreContent
             think={think} onThinkChange={onThinkChange} canThink={canThink}
@@ -544,7 +578,7 @@ export function ChatComposer({
       </ComposerMenu>
     ),
     focused: (
-      <ComposerMenu icon={<Sparkles size={14} />} label="Focused" active={!!focus.action}>
+      <ComposerMenu icon={<Sparkles size={14} />} label="Focused" iconOnly active={!!focus.action} open={focusedOpen} onOpenChange={setFocusedOpen}>
         {(close) => (
           <FocusedContent focus={focus} setFocus={onFocus} close={close} />
         )}
@@ -557,7 +591,9 @@ export function ChatComposer({
       {/* Attachment chips */}
       {attachments.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-          {attachments.map((a) => (
+          {attachments.map((a) => a.kind === 'image' && a.filename ? (
+            <ImageThumb key={a.id} filename={a.filename} name={a.name} onRemove={() => onRemoveAttachment(a.id)} />
+          ) : (
             <span key={a.id} style={chipStyle}>
               <span aria-hidden style={{ display: 'inline-flex' }}>{kindIcon[a.kind]}</span>
               <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -604,6 +640,8 @@ export function ChatComposer({
 
       <ModeLine
         focus={focus}
+        aiLayers={aiLayers}
+        onAiLayersOpen={onAiLayersOpen}
         agent={agent}
         webMode={webMode}
         canWebSearch={canWebSearch}
@@ -611,6 +649,7 @@ export function ChatComposer({
         projectName={projectName}
         presetsOn={styleActive || skillCount > 0}
         rulesOn={ruleIds.length > 0}
+        onOpenFocused={() => setFocusedOpen(true)}
         onFocusOff={() => { onFocus((f) => ({ ...f, action: null })); closeFocusPanel() }}
         onAgentOff={() => onAgentChange(false)}
         onWebOff={() => onWebModeChange('off')}
@@ -621,6 +660,10 @@ export function ChatComposer({
         <textarea
           ref={inputRef}
           aria-label="Message"
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setTextMenu({ x: e.clientX, y: e.clientY, el: e.currentTarget })
+          }}
           onPaste={(e) => {
             const files = Array.from(e.clipboardData.files)
             if (files.length === 0) return // plain text paste — leave it alone
@@ -653,8 +696,11 @@ export function ChatComposer({
             overflowY: 'auto',
           }}
         />
+        {textMenu && (
+          <ContextMenu x={textMenu.x} y={textMenu.y} items={textMenuItems(textMenu.el, onAttach, onPasteFiles)} onClose={() => setTextMenu(null)} />
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-          {order.filter((i) => !hidden.includes(i) || activeOf[i]).map((i) => <Fragment key={i}>{controls[i]}</Fragment>)}
+          {order.filter((i) => !hidden.includes(i) || activeOf[i] || (i === 'focused' && focusedOpen)).map((i) => <Fragment key={i}>{controls[i]}</Fragment>)}
 
           <div style={{ marginLeft: 'auto' }}>
             {busy ? (
@@ -671,6 +717,27 @@ export function ChatComposer({
       </div>
     </div>
   )
+}
+
+// ─── Message box right-click menu ────────────────────────────────────────────
+
+/** Edits go through `insertText` so they fire React's onChange and stay on the native undo stack. */
+function textMenuItems(el: HTMLTextAreaElement, onAttach: () => void, onPasteFiles: (files: File[]) => void): MenuItem[] {
+  const selected = el.value.slice(el.selectionStart, el.selectionEnd)
+  const edit = (text: string) => { el.focus(); document.execCommand('insertText', false, text) }
+  return [
+    { label: 'Cut', disabled: !selected, onClick: () => void navigator.clipboard.writeText(selected).then(() => edit('')) },
+    { label: 'Copy', disabled: !selected, onClick: () => void navigator.clipboard.writeText(selected) },
+    // Text wins when the clipboard holds both (e.g. a Word selection); otherwise attach an image, like Ctrl+V.
+    { label: 'Paste', onClick: () => void readText().catch(() => '').then(async (text) => {
+      if (text) return edit(text)
+      const png = await readClipboardImage()
+      if (png) onPasteFiles([new File([png as BlobPart], 'image.png', { type: 'image/png' })])
+    }) },
+    { label: 'Select all', disabled: !el.value, onClick: () => { el.focus(); el.select() } },
+    { label: 'Attach files…', separator: true, onClick: onAttach },
+    { label: 'Clear message', danger: true, disabled: !el.value, onClick: () => { el.focus(); el.select(); edit('') } },
+  ]
 }
 
 // ─── Mode line ───────────────────────────────────────────────────────────────
@@ -693,6 +760,9 @@ function ModeLine(props: {
   projectName?: string
   presetsOn: boolean
   rulesOn: boolean
+  onOpenFocused: () => void
+  aiLayers: AiLayer[]
+  onAiLayersOpen?: () => void
   onFocusOff: () => void
   onAgentOff: () => void
   onWebOff: () => void
@@ -701,8 +771,12 @@ function ModeLine(props: {
   const { focus, projectName, presetsOn, rulesOn } = props
   let icon: React.ReactNode
   let label: string
-  let detail: string
+  let detail: React.ReactNode
+  let detailTitle: string | undefined
   let grounded = false
+  // The workspace/vault scope only steers semantic search: Agent's note search and a
+  // Focused action over a topic. Picked notes, a date window or a web quiz ignore it.
+  let searchesNotes = false
   let off: { label: string; run: () => void } | null = null
   const ignored: string[] = []
 
@@ -714,6 +788,7 @@ function ModeLine(props: {
     if (presetsOn) ignored.push('styles & skills')
     if (rulesOn) ignored.push('rules')
     const origin = quizOriginOf(focus)
+    searchesNotes = origin === 'notes' && focus.scopeKind === 'topic'
     detail = focus.action === 'quiz' && origin !== 'notes'
       ? origin === 'web' ? 'Uses the web — not your notes' : "Uses the AI's general knowledge — not your notes"
       : ignored.length ? `Uses only your notes — ${joinList(ignored)} don't apply` : 'Uses only the notes in scope'
@@ -722,6 +797,7 @@ function ModeLine(props: {
     icon = <Bot size={14} />
     label = 'Agent'
     grounded = true
+    searchesNotes = true
     if (projectName) ignored.push('project instructions')
     if (presetsOn) ignored.push('styles & skills')
     detail = props.webMode === 'hybrid' ? 'Agent with web tools'
@@ -743,16 +819,29 @@ function ModeLine(props: {
   } else {
     icon = <MessageSquare size={14} />
     label = 'Chat'
-    detail = projectName
-      ? `${projectName} instructions on · won't search your notes`
-      : "Won't search your notes — use Focused to ground a reply in them"
+    detail = `${projectName} instructions on · won't search your notes`
+    if (!projectName) {
+      detailTitle = "Won't search your notes — use Focused to ground a reply in them"
+      detail = (
+        <>
+          Won't search your notes — use{' '}
+          <button type="button" className={styles.modeLineLink} onClick={props.onOpenFocused} title="Open the Focused menu (the sparkles button)">Focused</button>
+          {' '}to ground a reply in them
+        </>
+      )
+    }
   }
 
   return (
     <div className={`${styles.modeLine} ${grounded ? styles.modeLineOn : ''}`} aria-live="polite">
       <span className={styles.modeLineIcon} aria-hidden>{icon}</span>
       <span className={styles.modeLineLabel}>{label}</span>
-      <span className={styles.modeLineDetail} title={detail}>{detail}</span>
+      <span className={styles.modeLineDetail} title={detailTitle ?? (typeof detail === 'string' ? detail : undefined)}>{detail}</span>
+      {/* Which notes a grounded send searches — only shown when the send actually searches them. */}
+      <span className={styles.modeLineTools}>
+        {searchesNotes && <GroundingScope />}
+        <WhatAiSees layers={props.aiLayers} onOpen={props.onAiLayersOpen} />
+      </span>
       {off && (
         <button type="button" className={styles.modeLineOff} onClick={off.run} title={off.label} aria-label={off.label}>
           <X size={13} />
