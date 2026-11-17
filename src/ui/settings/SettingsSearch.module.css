@@ -1,0 +1,72 @@
+/* Settings search — in the shell header. Results are a popover under the field,
+   so the page never reflows. */
+
+.search {
+  position: relative;
+  margin-left: auto;
+  width: min(26rem, 100%);
+}
+
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.icon {
+  position: absolute;
+  left: 0.7rem;
+  color: var(--text-2);
+  pointer-events: none;
+}
+
+/* Room for the search icon; outranks the shared .input padding regardless of CSS order. */
+.inputWrap .input { padding-left: 2.1rem; }
+
+.results {
+  position: absolute;
+  top: calc(100% + var(--space-3xs));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  box-shadow: var(--shadow-lg);
+  margin: 0;
+  padding: var(--space-3xs);
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.resultActive { background: var(--surface-hover); }
+
+.label {
+  font-size: 0.875rem;
+  color: var(--text-1);
+}
+
+.where {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+
+.enter {
+  margin-left: auto;
+  align-self: center;
+  color: var(--text-2);
+}
+
+.empty {
+  overflow-wrap: anywhere;
+  padding: var(--space-sm);
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}

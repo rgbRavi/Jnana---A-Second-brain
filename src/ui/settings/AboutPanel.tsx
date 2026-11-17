@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { log } from '../../lib/logger'
+import { ExternalLink } from 'lucide-react'
+import { toast } from '../../lib/toast'
+import { SettingActionRow, SettingButton, SettingPanel, SettingSection } from './SettingLayout'
 import styles from './AboutPanel.module.css'
 
 // Where the complete corresponding source lives. AGPL §13 requires that users of
@@ -27,53 +30,86 @@ export function AboutPanel() {
   }, [])
 
   const open = (url: string) => {
-    openUrl(url).catch((e) => log.error('Failed to open URL', e))
+    openUrl(url).catch((e) => {
+      log.error('Failed to open URL', e)
+      toast.error("Couldn't open the link. Check that a web browser is set up.")
+    })
   }
 
+  const AGPL_URL = 'https://www.gnu.org/licenses/agpl-3.0.html'
+
   return (
-    <div className={styles.panel}>
-      {/* 1 — Identity */}
-      <div className={styles.header}>
-        <p className={styles.appName}>Jnana</p>
-        <span className={styles.version}>{version ? `Version ${version}` : ''}</span>
-      </div>
-      <p className={styles.body}>A local-first "second brain": notes, media, a wikilink graph, workspaces, and an optional, locally-grounded AI layer.</p>
-
-      {/* 2 — Links */}
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Links</p>
-        <div className={styles.actions}>
-          <button className={styles.button} onClick={() => open(SOURCE_URL)}>View source ↗</button>
-          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/releases`)}>Release notes ↗</button>
-          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/issues/new`)}>Report an issue ↗</button>
-        </div>
-      </div>
-
-      {/* 3 — Legal (AGPL Appropriate Legal Notice — do not remove) */}
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>License</p>
+    <SettingPanel
+      intro={
+        <>
+          Jnana{version ? ` · Version ${version}` : ''} — a local-first "second brain": notes, media, a wikilink graph, workspaces, and an optional, locally-grounded AI layer.
+        </>
+      }
+    >
+      {/* Legal (AGPL Appropriate Legal Notice - do not remove) */}
+      <SettingSection title="License">
         <p className={styles.body}>
           Copyright © 2026 Jnana Project. Jnana is free software: you can redistribute it and/or modify it under the terms of the{' '}
-          <a className={styles.link} onClick={() => open('https://www.gnu.org/licenses/agpl-3.0.html')}>GNU Affero General Public License, version 3</a>
-          . It is distributed in the hope that it will be useful, but <strong>WITHOUT ANY WARRANTY</strong>; without even the implied warranty of merchantability or fitness for a particular purpose.
+          <a
+            className={styles.link}
+            href={AGPL_URL}
+            onClick={(e) => {
+              e.preventDefault()
+              open(AGPL_URL)
+            }}
+          >
+            GNU Affero General Public License, version 3
+          </a>
+          .
         </p>
         <p className={styles.body}>
           If you modify Jnana and make it available to others — including over a network — the AGPL requires you to publish your modified source under the same license.
         </p>
+        <SettingActionRow label="License text">
+            <SettingButton onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE`)}>
+              AGPL-3.0 license <ExternalLink size={14} aria-hidden />
+            </SettingButton>
+        </SettingActionRow>
+      </SettingSection>
+
+      <SettingSection title="No warranty">
+        <p className={styles.body}>
+          It is distributed in the hope that it will be useful, but <strong>WITHOUT ANY WARRANTY</strong>; without even the implied warranty of merchantability or fitness for a particular purpose.
+        </p>
+      </SettingSection>
+
+      <SettingSection title="Plugin exception">
         <p className={styles.body}>
           Plugins that interface with Jnana only through its documented plugin API are exempt from the AGPL and may be released under any terms. See the plugin exception for exact conditions.
         </p>
-        <div className={styles.actions}>
-          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE`)}>AGPL-3.0 license ↗</button>
-          <button className={styles.button} onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE-EXCEPTION.md`)}>Plugin exception ↗</button>
-        </div>
-      </div>
+        <SettingActionRow label="Exception text">
+            <SettingButton onClick={() => open(`${SOURCE_URL}/blob/main/LICENSE-EXCEPTION.md`)}>
+              Plugin exception <ExternalLink size={14} aria-hidden />
+            </SettingButton>
+        </SettingActionRow>
+      </SettingSection>
 
-      {/* 4 — Acknowledgements */}
-      <div className={styles.section}>
-        <p className={styles.sectionTitle}>Built with</p>
+      <SettingSection title="Built with">
         <p className={styles.body}>Tauri · React · TypeScript · SQLite (rusqlite) · CodeMirror 6 · pdf.js · lucide icons. Thanks to the maintainers of these projects.</p>
-      </div>
-    </div>
+      </SettingSection>
+      {/* Links last: where to go next */}
+      <SettingSection title="Links">
+        <SettingActionRow label="Source code">
+            <SettingButton onClick={() => open(SOURCE_URL)}>
+              View source <ExternalLink size={14} aria-hidden />
+            </SettingButton>
+        </SettingActionRow>
+        <SettingActionRow label="Releases">
+            <SettingButton onClick={() => open(`${SOURCE_URL}/releases`)}>
+              Release notes <ExternalLink size={14} aria-hidden />
+            </SettingButton>
+        </SettingActionRow>
+        <SettingActionRow label="Feedback">
+            <SettingButton onClick={() => open(`${SOURCE_URL}/issues/new`)}>
+              Report an issue <ExternalLink size={14} aria-hidden />
+            </SettingButton>
+        </SettingActionRow>
+      </SettingSection>
+    </SettingPanel>
   )
 }

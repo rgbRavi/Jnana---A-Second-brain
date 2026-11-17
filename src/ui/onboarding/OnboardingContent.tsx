@@ -148,7 +148,7 @@ export const STEP_COPY: Record<StepId, StepCopy> = {
         <p>
           Bring your own provider — an OpenAI-compatible endpoint or a fully local Ollama. Keys are
           stored on your machine and every request is made by the app itself. Settings → AI
-          Providers.
+          setup.
         </p>
       </>
     ),
@@ -158,7 +158,7 @@ export const STEP_COPY: Record<StepId, StepCopy> = {
     body: (
       <>
         <p>
-          Settings → Import / Export takes a folder of <code>.md</code> files (top level) and makes
+          Settings → Backup &amp; export takes a folder of <code>.md</code> files (top level) and makes
           each one a note, and can bulk-import documents and media the same way.
         </p>
         <p>
@@ -194,7 +194,7 @@ export const STEP_COPY: Record<StepId, StepCopy> = {
         </p>
         <p>
           Everything here is in <strong>Settings</strong>, and you can replay this tour any time
-          from Settings → Developer.
+          from Settings → General.
         </p>
       </>
     ),

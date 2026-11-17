@@ -13,6 +13,8 @@ import { openNoteInWorking, setNotesSubView } from '../views/notes/working/useWo
 import { listNoteTypes, noteSearchText, subscribeNoteTypes, getNoteTypesVersion } from '../lib/noteTypes'
 import { listCommands, listWidgets, subscribeContributions, getContributionsVersion } from '../lib/pluginContributions'
 import { isRailHidden, toggleRailHidden } from './rail/RightRail'
+import { useGeneralSettings } from '../hooks/useGeneralSettings'
+import { revealSetting, searchSettings, TAB_LABELS } from './settings/settingsIndex'
 import styles from './CommandPalette.module.css'
 
 // Intuitive, non-intrusive: ⇧ + the palette-style modifier + E ("Editor desk").
@@ -44,6 +46,7 @@ interface Item {
  */
 export function CommandPalette() {
   const navigate = useNavigate()
+  const [{ showDeveloperOptions }] = useGeneralSettings()
   const { notes, create } = useNotesContext()
   const { workspaces } = useWorkspaces()
   // Re-render when the note-type registry changes so a plugin loaded *after* mount
@@ -188,6 +191,20 @@ export function CommandPalette() {
 
     const cmdItems = q ? commands.filter((c) => c.label.toLowerCase().includes(q)) : commands
 
+    // Settings only surface once you type, so the default list stays short.
+    const settingItems: Item[] = q
+      ? searchSettings(q, { showDev: showDeveloperOptions, limit: 6 }).map((e) => ({
+          key: `setting:${e.tab}:${e.label}`,
+          icon: '⚙️',
+          label: `Settings: ${e.label}`,
+          hint: TAB_LABELS[e.tab],
+          run: () => {
+            goto('/settings/' + e.tab)
+            revealSetting(e.anchor, e)
+          },
+        }))
+      : []
+
     let noteItems: Item[] = []
     if (q && noteIndex) {
       noteItems = noteIndex
@@ -204,11 +221,12 @@ export function CommandPalette() {
 
     return [
       { title: 'Commands', items: cmdItems },
+      { title: 'Settings', items: settingItems },
       { title: 'Workspaces', items: wsItems },
       { title: 'Notes', items: noteItems },
     ].filter((g) => g.items.length > 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, workspaces, commands, noteIndex, notes])
+  }, [query, workspaces, commands, noteIndex, notes, showDeveloperOptions])
 
   // Flatten for keyboard navigation.
   const flat = useMemo(() => groups.flatMap((g) => g.items), [groups])

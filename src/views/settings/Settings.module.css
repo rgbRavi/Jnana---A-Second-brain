@@ -5,18 +5,33 @@
   padding: var(--space-lg) var(--space-xl) var(--space-2xl);
 }
 
+.header,
+.shell {
+  /* Cap to nav + gap + panel so the header search meets the panel's right edge. */
+  max-width: calc(200px + var(--space-xl) + 560px);
+}
+
 .header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
 
+.title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-2);
+}
+
 .backBtn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2xs);
-  padding: 0.4rem 0.7rem;
+  padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
@@ -35,25 +50,49 @@
 .subNav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2xs);
   width: 200px;
   flex-shrink: 0;
   position: sticky;
   top: var(--space-md);
 }
 
-/* Section nav mirrors the app's primary Sidebar nav idiom so Settings reads as
-   part of the same product, not a bolted-on page: resting --text-2, an accent
-   wash + left accent rail on the active item (DESIGN.md nav-item-active). */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+}
+/* Groups are separated by a hairline + space, so the structure reads at a glance
+   without leaning on the labels alone. */
+.group + .group {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+/* Group label = small, quiet heading; nav items below are brighter and larger, so
+   "what kind" vs "where you can go" never compete. Sentence case, no tracking —
+   not the uppercase eyebrow. */
+.groupLabel {
+  margin: 0;
+  padding: 0 var(--space-md) var(--space-2xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+/* Items rest at --text-1 (one step brighter than the group labels) so they read
+   as the clickable layer; active = accent wash + weight (DESIGN.md nav-item-active),
+   no side stripe. */
 .navItem {
-  position: relative;
   text-align: left;
-  padding: 0.55rem 0.75rem;
+  padding: var(--space-sm) var(--space-md);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-2);
+  color: var(--text-1);
   font: inherit;
+  font-size: 0.9375rem;
   cursor: pointer;
   transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
@@ -66,19 +105,34 @@
   font-weight: 500;
 }
 
-/* Left accent rail — the same active-item signature the Sidebar uses. */
-.navItemActive::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 22%;
-  bottom: 22%;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-}
-
 .content {
   flex: 1;
   min-width: 0;
 }
+
+.panelTitle {
+  margin: 0 0 var(--space-lg);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--text-1);
+}
+
+@media (min-width: 62rem) {
+  .header,
+  .shell { max-width: calc(200px + var(--space-xl) + 54rem); }
+}
+
+.panelError {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+.panelError p { margin: 0; }
