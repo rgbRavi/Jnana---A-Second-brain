@@ -5,7 +5,7 @@
 //
 // Builds the "here are the user's notes" block that the grounded actions
 // (Analyze / Ask / Quiz) send to the model, inside a user-set token budget
-// (Settings → AI behaviour).
+// (Settings → How the AI answers).
 //
 //  1. Each note becomes plain text: embed links stripped (they carry no meaning
 //     and ate the old fixed allowance), extracted PDF text appended.

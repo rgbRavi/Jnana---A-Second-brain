@@ -39,6 +39,7 @@ export function SettingSelect({
   options,
   id,
   ariaLabel,
+  labelledBy,
   ariaDescribedBy,
   disabled,
 }: {
@@ -47,6 +48,8 @@ export function SettingSelect({
   options: SelectItem[]
   id?: string
   ariaLabel?: string
+  /** Id of an external label element (wins over a `<label for>` lookup). */
+  labelledBy?: string
   /** Id of a hint to announce with the trigger — `hintId(id)` inside a SettingField. */
   ariaDescribedBy?: string
   disabled?: boolean
@@ -57,6 +60,19 @@ export function SettingSelect({
   const [active, setActive] = useState(0)
   const listId = useId()
   const optId = (i: number) => `${listId}-o${i}`
+  const valueId = `${listId}-v`
+  const nameId = `${listId}-n`
+  // Select-only combobox: the name must include the value, so it's built with
+  // aria-labelledby = "<label> <value>". A <label for> can't be combined with the
+  // value, so find it via the button's `labels` and give it an id if it has none.
+  const [forLabelId, setForLabelId] = useState<string>()
+  useEffect(() => {
+    const l = triggerRef.current?.labels?.[0]
+    if (!l) return setForLabelId(undefined)
+    if (!l.id) l.id = `${listId}-lbl`
+    setForLabelId(l.id)
+  }, [id, listId])
+  const nameRef = labelledBy ?? (ariaLabel ? nameId : forLabelId)
   const typed = useRef({ buf: '', t: 0 })
   const seedActive = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -185,22 +201,24 @@ export function SettingSelect({
 
   return (
     <>
+      {ariaLabel && !labelledBy && <span id={nameId} className={styles.srOnly}>{ariaLabel}</span>}
       <button
         ref={triggerRef}
         id={id}
         type="button"
         className={styles.selectTrigger}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open ? optId(active) : undefined}
-        aria-label={ariaLabel}
+        aria-labelledby={nameRef ? `${nameRef} ${valueId}` : valueId}
         aria-describedby={ariaDescribedBy}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKey}
       >
-        <span className={styles.selectValue} title={selected?.title ?? selected?.label}>{selected?.label ?? (value || 'Unknown')}</span>
+        <span id={valueId} className={styles.selectValue} title={selected?.title ?? selected?.label}>{selected?.label ?? (value || 'Unknown')}</span>
         <ChevronDown
           size={15}
           strokeWidth={1.75}
@@ -215,7 +233,8 @@ export function SettingSelect({
             id={listId}
             className={styles.selectMenu}
             role="listbox"
-            aria-label={ariaLabel}
+            aria-label={nameRef ? undefined : ariaLabel}
+            aria-labelledby={nameRef}
             style={{
               top: rect.top,
               left: rect.left,
@@ -340,6 +359,7 @@ export function SettingToggle({
   )
   if (!hasLabel) return button
   return (
+    <div className={styles.toggleWrap}>
     <div className={`${styles.toggleRow} ${disabled ? styles.toggleDisabled : ''}`}>
       {button}
       <div className={styles.toggleText}>
@@ -355,6 +375,7 @@ export function SettingToggle({
           </HintText>
         )}
       </div>
+    </div>
     </div>
   )
 }
@@ -375,6 +396,7 @@ export function SettingSlider({
   onChange,
   id,
   ariaLabel,
+  labelledBy,
   formatValue,
 }: {
   value: number
@@ -384,6 +406,8 @@ export function SettingSlider({
   onChange: (v: number) => void
   id?: string
   ariaLabel?: string
+  /** Id of the element that names the slider (a `<label for>` can't name a div). */
+  labelledBy?: string
   /** Human-readable value for assistive tech (aria-valuetext); defaults to the number. */
   formatValue?: (v: number) => string
 }) {
@@ -437,6 +461,7 @@ export function SettingSlider({
       role="slider"
       tabIndex={0}
       aria-label={ariaLabel}
+      aria-labelledby={labelledBy}
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}

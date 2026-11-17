@@ -74,13 +74,13 @@ export function MotionTab({ api }: { api: UseThemeApi }) {
         intro="Controls how fast animations run app-wide. Your OS's “reduce motion” setting still overrides these (forcing everything instant). Use the Feel demo at the bottom to preview a change."
       >
       <SliderField
-        label="Overall speed"
+        label="Animation length"
         value={scale}
         min={0}
         max={2}
         step={0.05}
         suffix="×"
-        hint="Speeds up or slows down every animation at once: 0× is instant, 1× as set below, 2× twice as slow."
+        hint="0× turns animations off, 1× as set below, 2× makes them take twice as long."
         onChange={(v) => setToken('--motion-scale', String(v))}
       />
       <SliderField

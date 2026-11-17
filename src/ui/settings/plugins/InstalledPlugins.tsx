@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { ShieldCheck, ExternalLink, Palette, Search, X } from 'lucide-react'
+import { ShieldCheck, ChevronRight, ExternalLink, Palette, Search, X } from 'lucide-react'
 import { BUILTIN_PLUGINS, setPluginEnabled } from '../../../plugins'
 import {
   listInstalledPlugins,
@@ -349,15 +349,17 @@ export function InstalledPlugins() {
             return { value: f.value, label: <>{f.label} <span className={Styles.segmentCount}>{count}</span></> }
           })}
         />
-        <SettingSelect
-          value={sortBy}
+        <div className={Styles.sortSelect}>
+          <SettingSelect
+            value={sortBy}
           onChange={(v) => setSortBy(v as SortBy)}
           options={[
             { value: 'name', label: 'Name (A–Z)' },
             { value: 'recent', label: 'Recently installed' },
           ]}
-          ariaLabel="Sort plugins"
-        />
+            ariaLabel="Sort plugins"
+          />
+        </div>
       </div>
 
       <SettingToggle
@@ -490,7 +492,10 @@ export function InstalledPlugins() {
                 if (parts.length === 0) return null
                 return (
                   <details className={Styles.details}>
-                    <summary>{parts.join(' · ')}</summary>
+                    <summary>
+                      <ChevronRight size={14} className={Styles.chevron} aria-hidden />
+                      {parts.join(' · ')}
+                    </summary>
                     {row.installed && <PluginPermissions plugin={row.installed} onChanged={refreshInstalled} />}
                     {enabled && <PluginShortcuts pluginId={row.id} />}
                     {enabled && <PluginSettingsPane pluginId={row.id} pluginName={row.name} />}

@@ -166,6 +166,7 @@ function FieldRow({
           min={field.min ?? 0}
           max={field.max ?? 100}
           step={field.step ?? 1}
+          ariaLabel={field.label}
           onChange={onChange}
         />
       )}

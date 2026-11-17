@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
 import type { AiConfig, AiProviderKind, IndexStats, Note } from '../../types'
 import {
   withChatProviderDefaults,
@@ -21,11 +22,9 @@ import { toast } from '../../lib/toast'
 import { plural } from '../../lib/plural'
 import { log } from '../../lib/logger'
 import { registerCloseFlush } from '../../core/closeGuard'
-import { useAdvancedAiSettings, setAdvancedAiSettings } from '../../hooks/useAdvancedAiSettings'
 import { SettingSelect, SettingToggle } from '../settings/SettingControls'
 import { SettingActions, SettingButton, SettingField, SettingPanel, SettingSection, hintId, settingAnchor, settingInputClass } from '../settings/SettingLayout'
 import { PresetBar } from './PresetBar'
-import { ToolbarSettings } from './ToolbarSettings'
 import { AiSetupGuide } from './AiSetupGuide'
 import { connectionSignature, recordConnectionTest, testedAgo, useConnectionRecord } from './connectionStatus'
 import styles from './AiSettings.module.css'
@@ -46,10 +45,6 @@ interface Props {
 const sameUrl = (a: string, b: string) => a.trim().replace(/\/+$/, '') === b.trim().replace(/\/+$/, '')
 
 const QUICKSTART_KEY = 'jnana.ai.quickstartDone'
-const WEB_CITATION_OPTIONS = [
-  { value: 'checked', label: 'Checked citations' },
-  { value: 'sources', label: 'Sources only' },
-]
 
 const KEY_NOTE = 'Stored on this device only, and sent only to the provider you set here.'
 const CLEARS_KEY = 'Changing the URL clears the saved API key for this provider — you will need to enter it again.'
@@ -66,6 +61,7 @@ function UrlField({
   placeholder,
   keyAtRisk,
   hint,
+  hintVisible,
 }: {
   label: string
   value: string
@@ -74,6 +70,7 @@ function UrlField({
   /** A saved key exists that a changed URL would clear. */
   keyAtRisk: boolean
   hint?: ReactNode
+  hintVisible?: boolean
 }) {
   const id = useId()
   const [draft, setDraft] = useState(value)
@@ -84,7 +81,7 @@ function UrlField({
   const warn = keyAtRisk && !sameUrl(draft, value)
   const describedBy = [hint ? hintId(id) : null, warn ? `${id}-warn` : null].filter(Boolean).join(' ') || undefined
   return (
-    <SettingField label={label} htmlFor={id} hint={hint}>
+    <SettingField label={label} htmlFor={id} hint={hint} hintVisible={hintVisible}>
       <input
         id={id}
         className={settingInputClass}
@@ -112,7 +109,7 @@ function UrlField({
  * close guard) before the window closes - so typing doesn't fire a full config save per
  * keystroke, yet nothing typed is lost. `multiline` renders a textarea.
  */
-function DraftText({
+export function DraftText({
   value,
   onCommit,
   multiline,
@@ -252,6 +249,7 @@ interface ProviderSectionProps {
   hasKey: boolean
   onKey: (value: string) => void | Promise<boolean>
   modelLabel: string
+  modelHint?: string
   model: string
   onModel: (value: string) => void
   /** Which model-name history bucket feeds this field's dropdown. */
@@ -262,16 +260,18 @@ interface ProviderSectionProps {
   extra?: ReactNode
   /** Which Rust target "Test connection" probes; omit when no cheap probe exists. */
   testTarget?: TestTarget
-  /** Chat is always open; the rest sit behind a disclosure row with a one-line summary. */
-  collapsible?: boolean
+  /** Start expanded until a test of the current settings has succeeded (Chat). */
+  openUnlessConnected?: boolean
 }
 
-/** A reusable provider block: provider select + base URL + (optional) key + model.
+/** A reusable provider block: provider select + service address + (optional) key + model.
  *  The model field is a combobox — free text plus a dropdown of names used before. */
 function ProviderSection(p: ProviderSectionProps) {
   const uid = useId()
   const [suggestions, setSuggestions] = useState<string[]>(() => (p.historyKey ? getModelHistory(p.historyKey) : []))
   const [testing, setTesting] = useState(false)
+  // The failure reason outlives its toast for this session (connectionStatus stores only ok/at).
+  const [failure, setFailure] = useState<string | null>(null)
   const listId = p.historyKey ? `models-${p.historyKey}` : undefined
   const keyAtRisk = p.hasKey && !p.apiKey
   const changeProvider = async (v: string) => {
@@ -293,12 +293,16 @@ function ProviderSection(p: ProviderSectionProps) {
     const r = await testAiConnection(p.testTarget, p.provider as AiProviderKind, p.model)
     setTesting(false)
     recordConnectionTest(p.testTarget, r.ok, connectionSignature(p.provider, p.baseUrl, p.model))
+    setFailure(r.ok ? null : r.message)
     if (r.ok) toast.success(r.message)
     else toast.error(r.message)
   }
   // The last test only counts while this section still points at what was tested.
   const record = useConnectionRecord(p.testTarget)
   const current = record && record.signature === connectionSignature(p.provider, p.baseUrl, p.model) ? record : undefined
+  const statusText = current ? (current.ok ? `Connected · tested ${testedAgo(current.at)}` : `Last test failed · ${testedAgo(current.at)}`) : 'Not tested yet'
+  // Open on first view only while the section still needs attention; afterwards the user owns it.
+  const [open, setOpen] = useState(() => !!p.openUnlessConnected && !current?.ok)
 
   const base = p.idPrefix ?? uid
   const providerId = `${base}-provider`
@@ -313,18 +317,19 @@ function ProviderSection(p: ProviderSectionProps) {
       </SettingField>
 
       <UrlField
-        label="Base URL"
+        label="Service address"
         value={p.baseUrl}
         onCommit={p.onBaseUrl}
         keyAtRisk={keyAtRisk}
-        hint="The web address of the AI service, e.g. http://localhost:11434 for Ollama running on this computer."
+        hint="Where the AI service runs, e.g. http://localhost:11434 for Ollama."
+        hintVisible
       />
 
       {p.showKey && (
         <KeyField id={keyId} hasKey={p.hasKey} onCommit={p.onKey} target={p.keyTarget} placeholder="sk-..." />
       )}
 
-      <SettingField label={p.modelLabel} htmlFor={modelId}>
+      <SettingField label={p.modelLabel} htmlFor={modelId} hint={p.modelHint} hintVisible={!!p.modelHint}>
         <DraftText
           id={modelId}
           className={settingInputClass}
@@ -359,7 +364,7 @@ function ProviderSection(p: ProviderSectionProps) {
               className={`${styles.connStatus} ${current ? (current.ok ? styles.connOk : styles.connFail) : ''}`}
             >
               <span className={styles.connDot} aria-hidden />
-              {current ? (current.ok ? `Connected · tested ${testedAgo(current.at)}` : `Last test failed · ${testedAgo(current.at)}`) : 'Not tested yet'}
+              {statusText}
             </span>
           }
         >
@@ -368,20 +373,37 @@ function ProviderSection(p: ProviderSectionProps) {
               {testing ? 'Testing…' : 'Test connection'}
             </SettingButton>
           </div>
+          {current && !current.ok && failure && (
+            <p role="status" className={styles.warn}>
+              {failure}
+            </p>
+          )}
         </SettingField>
       )}
     </div>
   )
 
-  if (!p.collapsible) return <SettingSection title={p.title}>{body}</SettingSection>
-  const label = p.options.find((o) => o.value === p.provider)?.label ?? p.provider
+  // Summary is one line: the option's short name ("OpenAI-compatible"), not its explanation.
+  const label = (p.options.find((o) => o.value === p.provider)?.label ?? p.provider).split(' — ')[0]
   return (
-    <details className={styles.disclosure} data-setting-anchor={settingAnchor(p.title)}>
+    <details
+      className={styles.disclosure}
+      data-setting-anchor={settingAnchor(p.title)}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
       <summary>
+        <ChevronRight size={14} className={styles.chevron} aria-hidden />
         <span className={styles.disclosureTitle}>{p.title}</span>
         <span className={styles.disclosureSummary} title={[label, p.model.trim()].filter(Boolean).join(' · ')}>
           {[label, p.model.trim()].filter(Boolean).join(' · ')}
         </span>
+        {p.testTarget && (
+          <span className={`${styles.connStatus} ${styles.summaryStatus} ${current ? (current.ok ? styles.connOk : styles.connFail) : ''}`}>
+            <span className={styles.connDot} aria-hidden />
+            {statusText}
+          </span>
+        )}
       </summary>
       {body}
     </details>
@@ -397,7 +419,6 @@ const WEB_SEARCH_OPTIONS = [
 /** Web search backend: provider + key (brave/tavily) or base URL (searxng). No model. */
 function WebSearchSection({ config, set }: { config: AiConfig; set: <K extends keyof AiConfig>(k: K, v: AiConfig[K]) => void | Promise<boolean> }) {
   const uid = useId()
-  const adv = useAdvancedAiSettings()
   const searx = config.webSearchProvider === 'searxng'
   const hasKey = !!config.hasWebSearchApiKey && !config.webSearchApiKey
   const changeProvider = async (v: string) => {
@@ -417,6 +438,7 @@ function WebSearchSection({ config, set }: { config: AiConfig; set: <K extends k
   return (
     <details className={styles.disclosure} data-setting-anchor="web-search">
       <summary>
+        <ChevronRight size={14} className={styles.chevron} aria-hidden />
         <span className={styles.disclosureTitle}>Web search</span>
         <span className={styles.disclosureSummary}>{label}</span>
       </summary>
@@ -436,7 +458,7 @@ function WebSearchSection({ config, set }: { config: AiConfig; set: <K extends k
         </SettingField>
         {searx ? (
           <UrlField
-            label="Base URL"
+            label="Service address"
             value={config.webSearchBaseUrl}
             onCommit={(v) => set('webSearchBaseUrl', v)}
             placeholder="https://searx.example.org"
@@ -452,18 +474,6 @@ function WebSearchSection({ config, set }: { config: AiConfig; set: <K extends k
             placeholder="API key"
           />
         )}
-        <SettingField
-          label="Web answers"
-          htmlFor={`${uid}-web-citations`}
-          hint="Checked citations keeps only the quotes found on the pages the AI read. Sources only lists the pages without checking them."
-        >
-          <SettingSelect
-            id={`${uid}-web-citations`}
-            value={adv.webCitations}
-            options={WEB_CITATION_OPTIONS}
-            onChange={(v) => setAdvancedAiSettings({ webCitations: v as typeof adv.webCitations })}
-          />
-        </SettingField>
       </div>
     </details>
   )
@@ -475,7 +485,7 @@ const LLM_OPTIONS = [
 ]
 
 /**
- * AI provider settings: chat, embeddings, and transcription are each
+ * AI connections: chat, search by meaning, and transcription are each
  * configured independently — so you can, for example, embed locally with
  * Ollama while chatting through an online API.
  */
@@ -514,7 +524,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
   const indexBlocker = indexing
     ? null
     : !config.embeddingModel.trim()
-      ? 'Choose an embedding model above first.'
+      ? 'Choose a search model above first.'
       : notes.length === 0
         ? 'There are no notes in this vault to index yet.'
         : null
@@ -537,9 +547,9 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           <SettingToggle
             checked={config.autoIndex}
             onChange={(v) => set('autoIndex', v)}
-            label="Auto-index on save"
-            hint="keep AI search up to date as you edit notes"
-            ariaLabel="Auto-index on save"
+            label="Keep search up to date as you edit"
+            hint="re-indexes each note when you save it"
+            ariaLabel="Keep search up to date as you edit"
           />
         )}
         {config.enabled && !showGuide && (
@@ -571,6 +581,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           <>
           <ProviderSection
             title="Chat"
+            openUnlessConnected
             idPrefix="chat-setup"
             keyTarget="chat"
             provider={config.chatProvider}
@@ -591,9 +602,9 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
             extra={
               <SettingField
                 stacked
-                label="System prompt (optional)"
+                label="System prompt for this chat setup"
                 htmlFor={`${uid}-chat-prompt`}
-                hint="Standing instructions for the AI in this chat setup. Overrides the global system prompt while it is active."
+                hint="Used instead of the global prompt (How the AI answers → Chat defaults) while this setup is active."
               >
                 <DraftText
                   multiline
@@ -609,8 +620,7 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           />
 
           <ProviderSection
-            collapsible
-            title="Embeddings"
+            title="Search by meaning"
             keyTarget="embedding"
             hint="Lets Jnana search your notes by meaning. Runs well locally with Ollama, even alongside a cloud chat model."
             provider={config.embeddingProvider}
@@ -622,7 +632,8 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
             apiKey={config.embeddingApiKey}
             hasKey={!!config.hasEmbeddingApiKey}
             onKey={(v) => set('embeddingApiKey', v)}
-            modelLabel="Embedding model"
+            modelLabel="Search model"
+            modelHint="The embedding model, e.g. nomic-embed-text."
             model={config.embeddingModel}
             onModel={(v) => set('embeddingModel', v)}
             historyKey="embedding"
@@ -658,7 +669,6 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           />
 
           <ProviderSection
-            collapsible
             title="Transcription"
             keyTarget="transcription"
             hint="Used by the Transcribe button under an audio clip; runs in the background."
@@ -682,7 +692,6 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           />
 
           <ProviderSection
-            collapsible
             title="Deep research"
             keyTarget="deepResearch"
             hint="Powers the Deep research toggle in AI chat. Leave the model blank to use your chat model."
@@ -704,26 +713,6 @@ export function AiSettingsPanel({ config, onChange, stats, indexing, notes, stal
           />
 
           <WebSearchSection config={config} set={set} />
-
-          <SettingSection title="Chat defaults">
-            <SettingField
-              stacked
-              label="Global system prompt (optional)"
-              htmlFor={`${uid}-global-prompt`}
-              hint="Added to every AI chat. A chat setup's own system prompt overrides it."
-            >
-              <DraftText
-                multiline
-                id={`${uid}-global-prompt`}
-                className={`${settingInputClass} ${styles.textarea}`}
-                rows={4}
-                aria-describedby={hintId(`${uid}-global-prompt`)}
-                value={config.globalSystemPrompt}
-                onCommit={(v) => set('globalSystemPrompt', v)}
-              />
-            </SettingField>
-            <ToolbarSettings />
-          </SettingSection>
           </>
           )}
         </>

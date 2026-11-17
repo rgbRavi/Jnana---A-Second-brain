@@ -24,7 +24,7 @@ export function sanitizeToolbar(raw: unknown): ToolbarState {
   const r = (raw && typeof raw === 'object' ? raw : {}) as { order?: unknown; hidden?: unknown }
   const order = uniq(r.order)
   for (const d of DEFAULT_TOOLBAR) if (!order.includes(d)) order.push(d)
-  // No saved choice yet → the preset pill starts hidden (opt in from Settings → AI setup → Chat toolbar).
+  // No saved choice yet → the preset pill starts hidden (opt in from Settings → How the AI answers → Chat toolbar).
   return { order, hidden: Array.isArray(r.hidden) ? uniq(r.hidden) : [...DEFAULT_HIDDEN] }
 }
 

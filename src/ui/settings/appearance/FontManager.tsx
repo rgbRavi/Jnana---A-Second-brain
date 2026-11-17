@@ -52,14 +52,11 @@ export function FontManager({
 
   return (
     <div className={styles.field}>
-      <StudioField label="Your fonts" htmlFor="font-install">
-        <div id="font-install">
-          <SettingButton disabled={installing} onClick={handleInstall}>
-            <Plus size={14} aria-hidden /> {installing ? 'Installing…' : 'Install font…'}
-          </SettingButton>
-        </div>
-      </StudioField>
-      <p className={styles.hint}>
+      <StudioField
+        label="Your fonts"
+        htmlFor="font-install"
+        hint={
+          <>
         Get free fonts from{' '}
         <button type="button" className={styles.inlineLink} onClick={() => openUrl('https://fontsource.org')}>
           Fontsource ↗
@@ -70,8 +67,15 @@ export function FontManager({
         </button>
         , download, then Install and pick the <code>.woff2</code>/<code>.ttf</code> files (or the whole{' '}
         <code>.zip</code>).
-      </p>
-
+          </>
+        }
+      >
+        <div id="font-install">
+          <SettingButton disabled={installing} onClick={handleInstall}>
+            <Plus size={14} aria-hidden /> {installing ? 'Installing…' : 'Install font…'}
+          </SettingButton>
+        </div>
+      </StudioField>
       {installed.length > 0 && (
         <ul className={styles.fontList}>
           {installed.map((f) => (

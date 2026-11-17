@@ -51,7 +51,7 @@ export async function checkSetupName(raw: string | null, others: string[]): Prom
 }
 
 const SECTION_LABEL: Record<AiSection, string> = {
-  chat: 'Chat', embedding: 'Embedding', transcription: 'Transcription', deepResearch: 'Deep research', webSearch: 'Web search',
+  chat: 'Chat', embedding: 'Search by meaning', transcription: 'Transcription', deepResearch: 'Deep research', webSearch: 'Web search',
 }
 
 /** Saved setups for one AI section: switch, save, update, rename, delete. */

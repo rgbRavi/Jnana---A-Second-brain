@@ -19,6 +19,7 @@ import { clearPluginLog } from '../../../lib/pluginLog'
 import { usePluginLog, setPluginSubview } from './usePluginManager'
 import { showPromptDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
+import { SettingActionRow, SettingButton } from '../SettingLayout'
 import Styles from './PluginsPanel.module.css'
 
 function slugify(name: string): string {
@@ -121,36 +122,36 @@ export function DeveloperTools() {
 
   return (
     <div className={Styles.dev}>
-      <div className={Styles.toolGrid}>
-        <button className={Styles.tool} onClick={() => void run(createPlugin)} disabled={busy}>
-          <FilePlus2 size={16} />
-          <span>Create Plugin</span>
-          <small>Scaffold a new plugin project</small>
-        </button>
-
-        <button className={Styles.tool} onClick={() => void run(packagePluginFolder)} disabled={busy}>
-          <Package size={16} />
-          <span>Package Plugin</span>
-          <small>Zip a built plugin for distribution</small>
-        </button>
-
-        <button className={Styles.tool} onClick={() => void run(loadLocal)} disabled={busy}>
-          <FolderInput size={16} />
-          <span>Load Local Plugin</span>
-          <small>Install an unpacked plugin folder</small>
-        </button>
-
-        <button className={Styles.tool} onClick={() => void run(reload)} disabled={busy}>
-          <RotateCw size={16} />
-          <span>Reload</span>
-          <small>Re-register built-in and installed plugins</small>
-        </button>
-
-        <button className={Styles.tool} onClick={() => void run(viewLogs)} disabled={busy}>
-          <ScrollText size={16} />
-          <span>View Logs</span>
-          <small>Open the app log folder</small>
-        </button>
+      <div className={Styles.toolRows}>
+        <SettingActionRow
+          label="Build"
+          hintVisible
+          hint="Create sets up a starter plugin folder. Package zips a built plugin so others can install it."
+        >
+          <SettingButton onClick={() => void run(createPlugin)} disabled={busy}>
+            <FilePlus2 size={14} aria-hidden /> Create plugin
+          </SettingButton>
+          <SettingButton onClick={() => void run(packagePluginFolder)} disabled={busy}>
+            <Package size={14} aria-hidden /> Package plugin
+          </SettingButton>
+        </SettingActionRow>
+        <SettingActionRow label="Install from a folder" hintVisible hint="Load an unpacked plugin you're working on.">
+          <SettingButton onClick={() => void run(loadLocal)} disabled={busy}>
+            <FolderInput size={14} aria-hidden /> Load local plugin
+          </SettingButton>
+        </SettingActionRow>
+        <SettingActionRow
+          label="Troubleshoot"
+          hintVisible
+          hint="Reload re-registers built-in and installed plugins. Open logs shows the app's log folder."
+        >
+          <SettingButton onClick={() => void run(reload)} disabled={busy}>
+            <RotateCw size={14} aria-hidden /> Reload plugins
+          </SettingButton>
+          <SettingButton onClick={() => void run(viewLogs)} disabled={busy}>
+            <ScrollText size={14} aria-hidden /> Open logs
+          </SettingButton>
+        </SettingActionRow>
       </div>
 
       <div className={Styles.consoleHead}>

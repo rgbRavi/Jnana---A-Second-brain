@@ -15,9 +15,9 @@
 }
 .tabs {
   display: flex;
-  gap: var(--space-md);
+  flex-wrap: wrap; /* no scroll container: a 1px underline overflow made WebView2 draw scroll arrows */
+  gap: 0 var(--space-md);
   min-width: 0;
-  overflow-x: auto;
 }
 .tab {
   display: inline-flex;

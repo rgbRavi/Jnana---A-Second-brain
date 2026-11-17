@@ -10,7 +10,7 @@
   width: 100%;
   min-height: 2rem;
   padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-1);
@@ -21,12 +21,21 @@
   transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
 }
 .selectTrigger:hover {
-  border-color: var(--border-hover);
-  background: var(--surface-hover);
+  border-color: var(--border-control-hover);
+  background: var(--surface-hover-strong);
 }
 .selectTrigger:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .selectValue {
@@ -120,7 +129,7 @@
   width: 38px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   border-radius: 999px;
   background: var(--surface-3);
   cursor: pointer;
@@ -150,6 +159,15 @@
   transform: translateX(16px);
 }
 
+/* Wide containers (a Settings panel row) put the switch at the start of the
+   control column, aligned with buttons/selects; narrow ones (cards, overlays)
+   keep the compact row. A container query on this small wrapper — never on the
+   panel, whose layout containment would trap position:fixed overlays. */
+.toggleWrap {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
 /* Row wrapper: switch on the left, a clickable label + hint on the right. */
 .toggleRow {
   display: flex;
@@ -184,6 +202,21 @@
 .toggleDisabled .toggleLabel {
   cursor: default;
   color: var(--text-3);
+}
+
+/* Must follow the base .toggleRow rules (same specificity — order decides).
+   Same viewport gate as SettingField's .row (SettingLayout.module.css), so a
+   toggle never goes two-column while the fields around it are still stacked. */
+@media (min-width: 62rem) {
+  @container (min-width: 38rem) {
+    .toggleRow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(15rem, 21rem);
+      column-gap: var(--space-xl);
+    }
+    .toggleRow > .switch { grid-column: 2; grid-row: 1; justify-self: start; }
+    .toggleRow > .toggleText { grid-column: 1; grid-row: 1; }
+  }
 }
 
 /* ── Slider ─────────────────────────────────────────────────────────────── */

@@ -357,6 +357,13 @@ pub fn import_markdown_dir(state: State<'_, DbState>, dir: String) -> Result<Vec
 
 // ─── Diagnostics ────────────────────────────────────────────────────────────
 
+/// The folder holding jnana.db and the assets — shown in Settings → About so the
+/// local-first promise is something the user can see and open.
+#[command]
+pub fn get_data_dir() -> String {
+    data_dir().to_string_lossy().into_owned()
+}
+
 /// Reveal the log directory (where tauri-plugin-log writes jnana.log) in the OS
 /// file manager, via the existing opener plugin.
 #[command]

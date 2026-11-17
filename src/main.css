@@ -64,6 +64,8 @@
   --surface-hover-strong: var(--surface-3);    /* hover fill for elements already resting on --surface-2 */
   --surface-selected:     var(--surface-2);    /* selected / active fill */
   --border-strong:        var(--border-hover); /* resting emphasis stroke (dashed drop-zones, composer outline) */
+  --border-control:       #6b6b7a;             /* resting stroke of form controls (inputs/selects/switch), >= 3:1 vs --bg; derived per theme in apply.ts */
+  --border-control-hover: color-mix(in srgb, var(--border-control), var(--text-2)); /* their hover — always stronger than rest (--border-strong is weaker) */
   --control-grip:         var(--border);       /* scrollbar thumbs + drag/resize grips (resting) */
   --control-grip-hover:   var(--border-hover); /* their hover */
   /* Elevation-wash channel — sites keep their own alpha via

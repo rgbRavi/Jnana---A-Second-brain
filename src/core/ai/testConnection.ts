@@ -32,17 +32,17 @@ export function describeConnectionFailure(statusOrError: number | string): strin
   if (typeof statusOrError === 'number') {
     const s = statusOrError
     if (s === 401 || s === 403) return 'The provider rejected your API key. Check that it is correct and still active.'
-    if (s === 404) return "The provider doesn't know that model (or the Base URL is wrong). Check the model name and URL."
+    if (s === 404) return "The provider doesn't know that model (or the service address is wrong). Check the model name and service address."
     if (s === 429) return 'The provider is rate-limiting you or your quota is used up. Try again shortly.'
     if (s >= 500) return `The provider had an error (${s}). Try again in a moment.`
-    return `The provider refused the request (${s}). Check the model name and Base URL.`
+    return `The provider refused the request (${s}). Check the model name and service address.`
   }
   const e = statusOrError
   if (/disabled/i.test(e)) return 'Turn on "Enable AI" first.'
-  if (/invalid ai base url|must be http/i.test(e)) return 'That Base URL is not valid. It should start with http:// or https://.'
+  if (/invalid ai base url|must be http/i.test(e)) return 'That service address is not valid. It should start with http:// or https://.'
   if (/refusing to send the api key/i.test(e)) return 'Use an https:// address when sending an API key to a remote host.'
   if (/request failed|connect|dns|timed out|refused/i.test(e)) {
-    return "Couldn't reach the provider. Check the Base URL, your internet connection, or that the local server (e.g. Ollama) is running."
+    return "Couldn't reach the provider. Check the service address, your internet connection, or that the local server (e.g. Ollama) is running."
   }
   return "Couldn't complete the test. Check the Base URL, key and model."
 }

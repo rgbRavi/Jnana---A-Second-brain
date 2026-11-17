@@ -23,20 +23,19 @@
 }
 .disclosure > summary {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-sm);
   cursor: pointer;
   list-style: none;
   border-radius: var(--radius-sm);
 }
 .disclosure > summary::-webkit-details-marker { display: none; }
-.disclosure > summary::before {
-  content: '▸';
+.chevron {
+  flex-shrink: 0;
   color: var(--text-2);
-  font-size: 0.75rem;
   transition: transform var(--dur-fast) var(--motion-ease);
 }
-.disclosure[open] > summary::before { transform: rotate(90deg); }
+.disclosure[open] > summary .chevron { transform: rotate(90deg); }
 .disclosureTitle { font-size: 0.9375rem; font-weight: 600; color: var(--text-1); }
 .disclosureSummary {
   font-size: 0.8125rem;
@@ -176,3 +175,6 @@
 .connOk .connDot { background: var(--success); }
 .connFail .connDot { background: var(--danger); }
 .showAll { align-self: flex-start; }
+
+/* Status chip inside a collapsed disclosure row. */
+.summaryStatus { margin-left: auto; white-space: nowrap; flex-shrink: 0; }

@@ -15,7 +15,7 @@ import { logEvent } from '../lib/logger'
 import { registerCloseFlush } from '../core/closeGuard'
 import { applyVars, THEME_STORAGE_KEY } from '../core/themes/apply'
 import { PRESETS, swapBase, themeFromPreset } from '../core/themes/presets'
-import { MAX_THEME_NAME, sanitizeUserTheme } from '../core/themes/sanitize'
+import { MAX_THEME_NAME, sanitizeUserTheme, themeFingerprint } from '../core/themes/sanitize'
 import { sanitizeTokens } from '../lib/pluginThemes'
 import {
   deleteTheme as persistDeleteTheme,
@@ -204,7 +204,31 @@ function setRadius(v: number): void {
 }
 
 function pickPreset(id: string): void {
-  commit({ ...themeFromPreset(id), glassEffects: theme.glassEffects })
+  switchThemeWithUndo(() => commit({ ...themeFromPreset(id), glassEffects: theme.glassEffects }))
+}
+
+/** Run `apply` (a theme switch). If it discards unsaved custom work (no preset,
+ *  and matching no saved theme) offer an Undo toast that restores it, unless the
+ *  theme changed again in the meantime. Switching presets/saved themes stays quiet. */
+/** Returns true when it showed the "Switched to …" Undo toast (callers skip their own success toast). */
+export function switchThemeWithUndo(apply: () => void): boolean {
+  const prev = theme
+  const print = themeFingerprint(prev)
+  const unsaved = !prev.presetId && !savedThemes.some((s) => themeFingerprint(s.theme) === print)
+  const before = themeVersion
+  apply()
+  if (!unsaved || themeVersion === before) return false
+  const after = themeVersion
+  toast(`Switched to ${theme.name}.`, {
+    action: {
+      label: 'Undo',
+      onClick: () => {
+        if (themeVersion !== after) toast('Undo skipped — the theme has changed since.')
+        else importTheme(prev)
+      },
+    },
+  })
+  return true
 }
 
 /** Validate + merge pasted/plugin theme data over the defaults (see
@@ -215,7 +239,7 @@ function importTheme(input: unknown): boolean {
 }
 
 function reset(): void {
-  commit({ ...themeFromPreset('dark'), glassEffects: theme.glassEffects })
+  switchThemeWithUndo(() => commit({ ...themeFromPreset('dark'), glassEffects: theme.glassEffects }))
 }
 
 /** Save the current theme under `name`. `replaceId` overwrites that custom theme in place. */
@@ -238,7 +262,7 @@ async function saveCurrent(name: string, replaceId?: string): Promise<void> {
 function loadSaved(id: string): void {
   const found = savedThemes.find((s) => s.id === id)
   const t = found && sanitizeUserTheme(found.theme)
-  if (t) commit(t)
+  if (t) switchThemeWithUndo(() => commit(t))
   else toast.error("That theme couldn't be applied. Your current theme is unchanged.")
 }
 

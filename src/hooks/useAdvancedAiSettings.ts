@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-// Persisted store for Advanced AI generation settings (rule refresh/selection
+// Persisted store for "How the AI answers" settings (rule refresh/selection
 // strategy knobs). localStorage module-store pattern — see useComposerOptions.
 import { useSyncExternalStore } from 'react'
 import { DEFAULT_ADVANCED_AI, type AdvancedAiSettings } from '../core/ai/ruleEngine'

@@ -43,7 +43,7 @@ const GROUPS: Group[] = [
     label: 'AI',
     items: [
       { id: 'ai', label: 'AI setup' },
-      { id: 'advanced-ai', label: 'AI behaviour' },
+      { id: 'advanced-ai', label: 'How the AI answers' },
     ],
   },
   {
@@ -104,11 +104,15 @@ function Settings() {
 
   return (
     <div className={styles.settings}>
+      {/* Same two columns as the shell below: back + title over the nav,
+          search over the content (left edge shared with the panel title). */}
       <header className={styles.header}>
-        <button type="button" className={styles.backBtn} onClick={goBack}>
-          <ArrowLeft size={16} /> Back
-        </button>
-        <h1 className={styles.title}>Settings</h1>
+        <div className={styles.headNav}>
+          <button type="button" className={styles.backBtn} onClick={goBack} title="Back" aria-label="Back">
+            <ArrowLeft size={16} aria-hidden />
+          </button>
+          <h1 className={styles.title}>Settings</h1>
+        </div>
         <SettingsSearch />
       </header>
 
@@ -149,7 +153,7 @@ function Settings() {
               onReindex={reindexAll}
             />
           )}
-          {tab === 'advanced-ai' && <AdvancedAiPanel />}
+          {tab === 'advanced-ai' && <AdvancedAiPanel config={config} updateConfig={updateConfig} />}
           {tab === 'data' && <ImportExportPanel />}
           {tab === 'plugins' && <PluginsPanel />}
           {tab === 'developer' && <DeveloperPanel />}

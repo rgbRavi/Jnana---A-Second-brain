@@ -55,7 +55,12 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
 
   return (
     <SettingSection title="Wallpaper">
-      <StudioField label="Image" htmlFor="wallpaper-choose">
+      <StudioField
+        label="Image"
+        htmlFor="wallpaper-choose"
+        hintVisible
+        hint="A picture behind the app. The file is copied into Jnana, so moving or deleting the original won’t break it. While a wallpaper is set it takes precedence over any backdrop a plugin provides."
+      >
         <div id="wallpaper-choose" className={styles.wallpaperControl}>
           {preview && (
             <div
@@ -82,12 +87,6 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
           </div>
         </div>
       </StudioField>
-      <p className={styles.hint}>
-        A picture behind the app. The file is copied into Jnana, so moving or deleting the original
-        won&rsquo;t break it. While a wallpaper is set it takes precedence over any backdrop a plugin
-        provides.
-      </p>
-
       {wallpaper?.asset && (
         <>
           <SegmentedField

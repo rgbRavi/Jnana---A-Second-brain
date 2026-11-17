@@ -28,7 +28,7 @@ export const TAB_LABELS: Record<SettingsTab, string> = {
   composer: 'Quick note',
   appearance: 'Appearance',
   ai: 'AI setup',
-  'advanced-ai': 'AI behaviour',
+  'advanced-ai': 'How the AI answers',
   data: 'Backup & export',
   plugins: 'Plugins',
   developer: 'Developer',
@@ -69,18 +69,18 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 
   // AI setup
   { label: 'Enable AI', tab: 'ai', where: 'AI features', anchor: 'ai-features', keywords: 'ai on off turn' },
-  { label: 'Auto-index on save', tab: 'ai', where: 'AI features', anchor: 'ai-features', keywords: 'index embeddings save' },
-  { label: 'Chat provider, model & API key', tab: 'ai', where: 'Chat', anchor: 'chat', keywords: 'llm openai ollama api key base url model test connection' },
-  { label: 'Embedding model', tab: 'ai', where: 'Embeddings', anchor: 'embeddings', keywords: 'embeddings index search semantic rag vectors' },
-  { label: 'Index all notes', tab: 'ai', where: 'Embeddings', anchor: 'embeddings', keywords: 'reindex index embeddings stale' },
+  { label: 'Keep search up to date as you edit', tab: 'ai', where: 'AI features', anchor: 'ai-features', keywords: 'auto-index auto index on save embeddings reindex' },
+  { label: 'Chat provider, model & API key', tab: 'ai', where: 'Chat', anchor: 'chat', keywords: 'llm openai ollama api key base url service address model test connection system prompt' },
+  { label: 'Search by meaning model', tab: 'ai', where: 'Search by meaning', anchor: 'search-by-meaning', keywords: 'embedding model embeddings index search semantic rag vectors base url service address' },
+  { label: 'Index all notes', tab: 'ai', where: 'Search by meaning', anchor: 'search-by-meaning', keywords: 'reindex index embeddings stale' },
   { label: 'Transcription', tab: 'ai', where: 'Transcription', anchor: 'transcription', keywords: 'whisper audio voice speech recording' },
   { label: 'Deep research', tab: 'ai', where: 'Deep research', anchor: 'deep-research', keywords: 'research reports' },
   { label: 'Web search provider', tab: 'ai', where: 'Web search', anchor: 'web-search', keywords: 'brave tavily searxng internet web' },
-  { label: 'Web answers', tab: 'ai', where: 'Web search', anchor: 'web-search', keywords: 'web citations sources answers' },
-  { label: 'Global system prompt', tab: 'ai', where: 'Chat defaults', anchor: 'chat-defaults', keywords: 'system prompt instructions persona' },
-  { label: 'Chat toolbar', tab: 'ai', where: 'Chat defaults', anchor: 'chat-defaults', keywords: 'chat composer toolbar buttons order reorder' },
+  { label: 'Web answers', tab: 'advanced-ai', where: 'Web answers', anchor: 'web-answers', keywords: 'web citations sources answers' },
+  { label: 'Global system prompt', tab: 'advanced-ai', where: 'Chat defaults', anchor: 'chat-defaults', keywords: 'system prompt instructions persona' },
+  { label: 'Chat toolbar', tab: 'advanced-ai', where: 'Chat defaults', anchor: 'chat-defaults', keywords: 'chat composer toolbar buttons order reorder' },
 
-  // AI behaviour
+  // How the AI answers
   { label: 'Notes the AI may read', tab: 'advanced-ai', where: 'Reading your notes', anchor: 'reading-your-notes', keywords: 'context tokens analyze ask quiz' },
   { label: 'Remind the AI of your Rules', tab: 'advanced-ai', where: 'Rules', anchor: 'rules', keywords: 'rules reminders drift long chats' },
   { label: 'Which Rules to send', tab: 'advanced-ai', where: 'Rules', anchor: 'rules', keywords: 'rules top-k number' },
@@ -107,6 +107,8 @@ export const SETTINGS_INDEX: SettingEntry[] = [
 
   // About
   { label: 'Version & license', tab: 'about', keywords: 'about version agpl license source code' },
+  { label: 'Support Jnana', tab: 'about', where: 'Support', anchor: 'support', keywords: 'donate donation support coffee buy me a coffee sponsor fund' },
+  { label: 'Where your data is stored', tab: 'about', where: 'Your data', anchor: 'your-data', keywords: 'data folder location storage local database files privacy' },
 ]
 
 const norm = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')

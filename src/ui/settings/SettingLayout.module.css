@@ -64,11 +64,12 @@
     column-gap: var(--space-xl);
     row-gap: var(--space-3xs);
   }
-  .row > .fieldHead { grid-area: head; align-self: end; }
-  .row > .control { grid-area: control; align-self: center; }
+  /* Labels line up with the control's first line (a 2rem control → ~6px inset), so a
+     tall control (select + buttons, input + Remove) doesn't leave the label floating. */
+  .row > .fieldHead { grid-area: head; align-self: start; padding-top: var(--space-xs); }
+  .row > .control { grid-area: control; align-self: start; }
   .row > .hint { grid-area: hint; align-self: start; }
-  /* No hint on screen (none, or tucked behind ⓘ): the label centres against the control. */
-  .row.noHint > .fieldHead { grid-row: 1 / span 2; align-self: center; }
+  .row.noHint > .fieldHead { grid-row: 1 / span 2; }
 }
 
 .fieldHead {
@@ -121,9 +122,20 @@
   color: var(--text-1);
 }
 
+.controlWithValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.controlWithValue > :first-child { flex: 1; min-width: 0; }
+
 .value {
+  flex-shrink: 0;
+  min-width: 3.5ch;
+  text-align: right;
   font-size: 0.8125rem;
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
 
@@ -141,7 +153,7 @@
   min-height: 2rem;
   padding: var(--space-xs) var(--space-sm);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-family: var(--font-body);
@@ -149,7 +161,7 @@
   transition: border-color var(--dur-fast) var(--motion-ease);
 }
 .input::placeholder { color: var(--text-2); }
-.input:hover { border-color: var(--border-hover); }
+.input:hover { border-color: var(--border-control-hover); }
 .input:focus-visible { border-color: var(--accent); }
 textarea.input { resize: vertical; line-height: 1.45; }
 
@@ -179,10 +191,10 @@ textarea.input { resize: vertical; line-height: 1.45; }
 
 .default {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   color: var(--text-1);
 }
-.default:hover:not(:disabled) { border-color: var(--border-hover); background: var(--surface-hover); }
+.default:hover:not(:disabled) { border-color: var(--border-control-hover); background: var(--surface-hover-strong); }
 
 .primary {
   background: var(--accent);

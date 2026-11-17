@@ -18,10 +18,60 @@ function Sel({ onChange }: { onChange?: (v: string) => void }) {
   return <SettingSelect ariaLabel="Fruit" value={v} options={OPTS} onChange={(x) => { setV(x); onChange?.(x) }} />
 }
 
+describe('SettingSelect naming', () => {
+  it('ariaLabel + value form the accessible name; updates on change', () => {
+    render(<Sel />)
+    const t = screen.getByRole('combobox', { name: 'Fruit Apple' })
+    expect(t.getAttribute('aria-haspopup')).toBe('listbox')
+    fireEvent.keyDown(t, { key: 'Enter' })
+    expect(t.getAttribute('aria-controls')).toBeTruthy()
+    fireEvent.keyDown(t, { key: 'ArrowDown' })
+    fireEvent.keyDown(t, { key: 'Enter' })
+    expect(screen.getByRole('combobox', { name: 'Fruit Banana' })).toBe(t)
+  })
+
+  it('a <label for> and the value both name the combobox', () => {
+    function F() {
+      const [v, setV] = useState('b')
+      return (
+        <>
+          <label htmlFor="sel1">Date format</label>
+          <SettingSelect id="sel1" value={v} options={OPTS} onChange={setV} />
+        </>
+      )
+    }
+    render(<F />)
+    expect(screen.getByRole('combobox', { name: 'Date format Banana' })).toBeTruthy()
+  })
+
+  it('labelledBy wins', () => {
+    render(<><span id="ext">Ext</span><SettingSelect labelledBy="ext" value="a" options={OPTS} onChange={() => {}} /></>)
+    expect(screen.getByRole('combobox', { name: 'Ext Apple' })).toBeTruthy()
+  })
+})
+
+describe('SettingSlider naming', () => {
+  it('labelledBy names the slider', () => {
+    render(<><span id="sl">Volume</span><SettingSlider labelledBy="sl" value={3} min={0} max={10} onChange={() => {}} /></>)
+    expect(screen.getByRole('slider', { name: 'Volume' })).toBeTruthy()
+  })
+})
+
+describe('SettingToggle', () => {
+  it('keeps the label wired and clickable inside the grid wrapper', () => {
+    let v = false
+    render(<SettingToggle checked={v} onChange={(x) => { v = x }} label="Auto save" />)
+    const sw = screen.getByRole('switch', { name: 'Auto save' })
+    fireEvent.click(screen.getByText('Auto save'))
+    expect(v).toBe(true)
+    expect(sw.closest('[class*="toggleWrap"]')).toBeTruthy()
+  })
+})
+
 describe('SettingSelect', () => {
   it('aria-activedescendant follows ArrowDown', () => {
     render(<Sel />)
-    const t = screen.getByRole('button', { name: 'Fruit' })
+    const t = screen.getByRole('combobox', { name: /Fruit/ })
     fireEvent.keyDown(t, { key: 'Enter' })
     expect(t.getAttribute('aria-expanded')).toBe('true')
     const first = t.getAttribute('aria-activedescendant')
@@ -34,7 +84,7 @@ describe('SettingSelect', () => {
   it('typeahead opens on the match when closed (never commits), cycles when open', () => {
     const seen: string[] = []
     render(<Sel onChange={(v) => seen.push(v)} />)
-    const t = screen.getByRole('button', { name: 'Fruit' })
+    const t = screen.getByRole('combobox', { name: /Fruit/ })
     const activeText = () => document.getElementById(t.getAttribute('aria-activedescendant')!)?.textContent
     fireEvent.keyDown(t, { key: 'b' })
     expect(seen).toEqual([])
@@ -49,7 +99,7 @@ describe('SettingSelect', () => {
   it('Tab closes without committing', () => {
     const seen: string[] = []
     render(<Sel onChange={(v) => seen.push(v)} />)
-    const t = screen.getByRole('button', { name: 'Fruit' })
+    const t = screen.getByRole('combobox', { name: /Fruit/ })
     fireEvent.keyDown(t, { key: 'Enter' })
     fireEvent.keyDown(t, { key: 'ArrowDown' })
     fireEvent.keyDown(t, { key: 'Tab' })

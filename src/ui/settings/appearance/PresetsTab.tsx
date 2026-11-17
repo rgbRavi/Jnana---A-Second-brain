@@ -15,7 +15,7 @@ import {
   subscribePluginThemes,
 } from '../../../lib/pluginThemes'
 import { pluginRegistry } from '../../../lib/pluginRegistry'
-import type { UseThemeApi } from '../../../hooks/useTheme'
+import { switchThemeWithUndo, type UseThemeApi } from '../../../hooks/useTheme'
 import { X } from 'lucide-react'
 import { SettingButton, SettingField, SettingSection, settingInputClass } from '../SettingLayout'
 import { StudioField } from './controls'
@@ -99,10 +99,13 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
       setImportError('That text is too large to be a theme.')
       return
     }
-    if (importTheme(importText)) {
+    let ok = false
+    const undoShown = switchThemeWithUndo(() => { ok = importTheme(importText) })
+    if (ok) {
       setImportError(null)
       setImportText('')
-      toast.success('Theme applied.')
+      // The undo toast already says what happened; don't stack a second one.
+      if (!undoShown) toast.success('Theme applied.')
     } else {
       setImportError("That isn’t a Jnana theme. Paste the full text copied with “Copy theme as text”.")
     }
@@ -136,7 +139,10 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
       </div>
 
       {pluginThemes.length > 0 && (
-        <SettingSection title="From plugins">
+        <SettingSection
+          title="From plugins"
+          intro="Provided by a plugin. Applying one copies it into your theme — save it under “Your themes” to keep it after the plugin is removed."
+        >
           <div className={styles.presetGrid}>
             {pluginThemes.map((t) => {
               const owner = pluginRegistry.get(t.pluginId)?.name ?? t.pluginId
@@ -152,7 +158,7 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
                   key={t.key}
                   type="button"
                   className={`${styles.presetCard} ${active ? styles.presetCardActive : ''}`}
-                  onClick={() => importTheme(pluginTheme)}
+                  onClick={() => switchThemeWithUndo(() => importTheme(pluginTheme))}
                   title={`${t.name} — from ${owner}`}
                 >
                   <div className={styles.presetSwatchStrip}>
@@ -168,10 +174,6 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
               )
             })}
           </div>
-          <p className={styles.hint}>
-            Provided by a plugin. Applying one copies it into your theme — save it under
-            “Your themes” to keep it after the plugin is removed.
-          </p>
         </SettingSection>
       )}
 

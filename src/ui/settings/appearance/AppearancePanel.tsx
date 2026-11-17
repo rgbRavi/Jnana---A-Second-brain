@@ -2,9 +2,8 @@
 // Copyright (c) 2026 Jnana Project
 
 import { showConfirmDialog } from '../../../lib/dialog'
-import { toast } from '../../../lib/toast'
 import { useNavigate } from 'react-router-dom'
-import { getThemeVersion, useTheme } from '../../../hooks/useTheme'
+import { useTheme } from '../../../hooks/useTheme'
 import { getViewState, useViewState } from '../../../hooks/useViewState'
 import { ThemeEditor } from './ThemeEditor'
 import { SettingButton, SettingPanel } from '../SettingLayout'
@@ -18,11 +17,10 @@ import styles from './Appearance.module.css'
 export function AppearancePanel() {
   const navigate = useNavigate()
   const api = useTheme()
-  const { theme, reset, importTheme } = api
+  const { theme, reset } = api
 
   async function handleReset() {
     // A named preset is one click to get back; only custom work needs a guard.
-    const prev = theme
     if (!theme.presetId) {
       const ok = await showConfirmDialog({
         title: 'Reset theme',
@@ -33,17 +31,6 @@ export function AppearancePanel() {
       if (!ok) return
     }
     reset()
-    const afterReset = getThemeVersion()
-    toast('Theme reset to Dark.', {
-      action: {
-        label: 'Undo',
-        // Undoing after further edits would overwrite them.
-        onClick: () => {
-          if (getThemeVersion() !== afterReset) toast('Undo skipped — the theme has changed since the reset.')
-          else importTheme(prev)
-        },
-      },
-    })
   }
   const [overlayOpen, setOverlayOpen] = useViewState('themeStudio.overlayOpen', false)
 

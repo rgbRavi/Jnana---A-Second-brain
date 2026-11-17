@@ -383,6 +383,7 @@ fn main() {
             restore_backup,
             import_markdown_dir,
             open_logs_dir,
+            get_data_dir,
             restart_app,
             list_workspaces,
             save_workspace,

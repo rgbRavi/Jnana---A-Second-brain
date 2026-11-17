@@ -148,9 +148,18 @@ export function SettingField({
           <label htmlFor={htmlFor} className={styles.label}>{label}</label>
           {tucked && <InfoButton text={hintNode as string} open={open} onToggle={toggle} controls={hintId(htmlFor)} label={typeof label === 'string' ? label : undefined} />}
         </span>
-        {value != null && <span className={styles.value}>{value}</span>}
       </div>
-      <div className={styles.control}>{children}</div>
+      {/* The readout belongs to the control (e.g. a slider's value), so it sits beside it. */}
+      <div className={styles.control}>
+        {value != null ? (
+          <div className={styles.controlWithValue}>
+            {children}
+            <span className={styles.value}>{value}</span>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
       {hint && (
         <HintText id={hintId(htmlFor)} open={!tucked || open}>
           {hintNode}

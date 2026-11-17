@@ -69,7 +69,7 @@ function cfg(over: Partial<AiConfig> = {}): AiConfig {
 }
 
 const pick = (name: string) => {
-  fireEvent.click(screen.getByRole('button', { name: /saved setup$/i }))
+  fireEvent.click(screen.getByRole('combobox', { name: /saved setup/i }))
   fireEvent.pointerDown(screen.getByText(name))
 }
 

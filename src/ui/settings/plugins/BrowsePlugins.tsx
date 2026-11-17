@@ -224,7 +224,7 @@ export function BrowsePlugins() {
                       <Check size={14} /> Installed
                     </span>
                   ) : (
-                    <SettingButton variant="primary" busy={installing === entry.id} disabled={busy} onClick={() => void install(entry)}>
+                    <SettingButton busy={installing === entry.id} disabled={busy} onClick={() => void install(entry)}>
                       <Download size={14} /> {upgradable ? 'Update' : 'Install'}
                     </SettingButton>
                   )}

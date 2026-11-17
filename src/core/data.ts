@@ -87,6 +87,11 @@ export function revealInFolder(path: string): Promise<void> {
 }
 
 /** Reveal the log folder (jnana.log) in the OS file manager. */
+/** Absolute path of the folder holding jnana.db and the assets. */
+export function getDataDir(): Promise<string> {
+  return invoke<string>('get_data_dir')
+}
+
 export function openLogsDir(): Promise<void> {
   return invoke<void>('open_logs_dir')
 }

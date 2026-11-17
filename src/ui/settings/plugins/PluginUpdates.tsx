@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, RefreshCw, ArrowUpCircle } from 'lucide-react'
+import { CheckCircle2, PackageSearch, RefreshCw, ArrowUpCircle } from 'lucide-react'
 import { listInstalledPlugins, type InstalledPlugin } from '../../../core/plugins/loader'
 import { fetchPluginCatalog, isNewerVersion, type CatalogEntry } from '../../../core/plugins/catalog'
 import { SettingButton } from '../SettingLayout'
@@ -89,7 +89,7 @@ export function PluginUpdates() {
   if (!catalogUrl.trim()) {
     return (
       <div className={Styles.empty}>
-        <CheckCircle2 size={28} className={Styles.emptyIcon} />
+        <PackageSearch size={28} className={Styles.emptyIcon} aria-hidden />
         <h3>Set a catalog to check for updates</h3>
         <p>
           Built-in plugins update with Jnana. To check installed third-party plugins for updates, set a
@@ -115,7 +115,7 @@ export function PluginUpdates() {
       <div className={Styles.empty}>
         <CheckCircle2 size={28} className={Styles.emptyIcon} />
         <h3>Everything is up to date</h3>
-        <p>Everything is up to date.</p>
+        <p>Your installed plugins match the latest versions in the catalog. Built-in plugins update with Jnana.</p>
         <SettingButton onClick={() => void check()}>
           <RefreshCw size={14} /> Check again
         </SettingButton>
@@ -127,7 +127,7 @@ export function PluginUpdates() {
     <div className={Styles.list}>
       <div className={Styles.consoleHead}>
         <h3 className={Styles.subHeading}>{plural(upgrades.length, 'update')} available</h3>
-        <SettingButton onClick={() => void updateAll()} busy={busy === '*'} disabled={busy !== null}>
+        <SettingButton variant="primary" onClick={() => void updateAll()} busy={busy === '*'} disabled={busy !== null}>
           Update all
         </SettingButton>
       </div>
@@ -143,7 +143,7 @@ export function PluginUpdates() {
             {u.entry.description && <div className={Styles.cardMeta}>{u.entry.description}</div>}
           </div>
           <div className={Styles.cardActions}>
-            <SettingButton variant="primary" busy={busy === u.installed.id} disabled={busy !== null} onClick={() => void update(u)}>
+            <SettingButton busy={busy === u.installed.id} disabled={busy !== null} onClick={() => void update(u)}>
               <ArrowUpCircle size={14} /> Update
             </SettingButton>
           </div>

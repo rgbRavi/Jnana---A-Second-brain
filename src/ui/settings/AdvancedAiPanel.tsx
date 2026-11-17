@@ -4,9 +4,13 @@
 import { useId, useState } from 'react'
 import { useAdvancedAiSettings, setAdvancedAiSettings } from '../../hooks/useAdvancedAiSettings'
 import { useGeneralSettings } from '../../hooks/useGeneralSettings'
+import type { AiConfig } from '../../types'
+import { DraftText } from '../ai/AiSettingsPanel'
+import { ToolbarSettings } from '../ai/ToolbarSettings'
+import aiStyles from '../ai/AiSettings.module.css'
 import { getRuleEvents, clearRuleEvents } from '../../core/ai/ruleMetrics'
 import { SettingSelect, SettingSlider, SettingToggle, type SelectOption } from './SettingControls'
-import { SettingActions, SettingButton, SettingField, SettingPanel, SettingSection, hintId, settingInputClass } from './SettingLayout'
+import { SettingActionRow, SettingButton, SettingField, SettingPanel, SettingSection, hintId, settingInputClass } from './SettingLayout'
 import { toast } from '../../lib/toast'
 import { log } from '../../lib/logger'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
@@ -15,7 +19,7 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 const REFRESH_OPTIONS: (SelectOption & { experimental?: boolean })[] = [
   { value: 'off', label: 'Once, at the start of the chat' },
   { value: 'always-tail', label: 'Before every message' },
-  { value: 'counters', label: 'Every few messages, or when the chat gets long' },
+  { value: 'counters', label: 'Every few messages or in long chats' },
   { value: 'counters-drift', label: 'Counters + drift (experimental — falls back to counters)', experimental: true },
   { value: 'counters-violation', label: 'Counters + violation (experimental — falls back to counters)', experimental: true },
 ]
@@ -39,8 +43,15 @@ const DRIFT_MODE_OPTIONS: SelectOption[] = [
   { value: 'rule-content', label: 'Rule-vs-content (spec-literal, noisy)' },
 ]
 
-/** Settings → AI behaviour: how much of your notes the AI reads, and how Rules are re-injected. */
-export function AdvancedAiPanel() {
+const WEB_CITATION_OPTIONS: SelectOption[] = [
+  { value: 'checked', label: 'Checked citations' },
+  { value: 'sources', label: 'Sources only' },
+]
+
+/** Settings → How the AI answers: chat defaults, web answers, how much of your notes the AI reads, and how Rules are re-injected. */
+// Settings owns the one useRag() copy and passes it down (a second copy would
+// double-index every saved note while this tab is open).
+export function AdvancedAiPanel({ config, updateConfig }: { config: AiConfig; updateConfig: (c: AiConfig) => Promise<boolean> }) {
   const cfg = useAdvancedAiSettings()
   const [{ showDeveloperOptions: dev }] = useGeneralSettings()
   const uid = useId()
@@ -84,11 +95,47 @@ export function AdvancedAiPanel() {
   const id = (name: string) => `${uid}-${name}`
   return (
     <SettingPanel>
+      <SettingSection title="Chat defaults">
+        <SettingField
+          stacked
+          label="Global system prompt"
+          htmlFor={id('global-prompt')}
+          hint="Added to every chat unless the active chat setup has its own."
+        >
+          <DraftText
+            multiline
+            id={id('global-prompt')}
+            className={`${settingInputClass} ${aiStyles.textarea}`}
+            rows={4}
+            aria-describedby={hintId(id('global-prompt'))}
+            value={config.globalSystemPrompt}
+            onCommit={(v) => void updateConfig({ ...config, globalSystemPrompt: v })}
+          />
+        </SettingField>
+        <ToolbarSettings />
+      </SettingSection>
+
+      <SettingSection title="Web answers">
+        <SettingField
+          label="How sources are shown"
+          htmlFor={id('web-citations')}
+          hint="Checked citations keeps only the quotes found on the pages the AI read. Sources only lists the pages without checking them."
+          hintVisible
+        >
+          <SettingSelect
+            id={id('web-citations')}
+            value={cfg.webCitations}
+            options={WEB_CITATION_OPTIONS}
+            ariaDescribedBy={hintId(id('web-citations'))}
+            onChange={(v) => setAdvancedAiSettings({ webCitations: v as typeof cfg.webCitations })}
+          />
+        </SettingField>
+      </SettingSection>
+
       <SettingSection title="Reading your notes">
         <SettingField
           label="Notes the AI may read (Analyze, Ask, Quiz)"
           htmlFor={id('note-context')}
-          value={fmtTokens(cfg.noteContextTokens)}
           hintVisible
           hint="A token is about ¾ of a word. Notes that fit are sent whole; longer ones send their best-matching passages. More is slower and costs more — stay under your model's context window."
         >
@@ -144,7 +191,7 @@ export function AdvancedAiPanel() {
                 max={20}
                 step={1}
                 value={cfg.everyNTurns}
-                ariaLabel="Refresh every N turns"
+                ariaLabel="Every this many messages"
                 onChange={(everyNTurns) => setAdvancedAiSettings({ everyNTurns })}
               />
             </SettingField>
@@ -161,7 +208,7 @@ export function AdvancedAiPanel() {
                 max={20000}
                 step={500}
                 value={cfg.tokenThreshold}
-                ariaLabel="Refresh when history exceeds this many tokens"
+                ariaLabel="…or once the chat is longer than (tokens)"
                 onChange={(tokenThreshold) => setAdvancedAiSettings({ tokenThreshold })}
               />
             </SettingField>
@@ -253,7 +300,7 @@ export function AdvancedAiPanel() {
               max={20}
               step={1}
               value={cfg.ragTopK}
-              ariaLabel="Number of rules to include (Top-K)"
+              ariaLabel="How many Rules to send"
               onChange={(ragTopK) => setAdvancedAiSettings({ ragTopK })}
             />
           </SettingField>
@@ -269,7 +316,7 @@ export function AdvancedAiPanel() {
             hint="record per-turn rule events for A/B testing"
             ariaLabel="Log strategy metrics"
           />
-          <SettingActions>
+          <SettingActionRow label="Metrics">
             <SettingButton onClick={() => void exportMetrics()}>Copy metrics JSON</SettingButton>
             <SettingButton
               onClick={() => {
@@ -279,7 +326,7 @@ export function AdvancedAiPanel() {
             >
               Clear metrics
             </SettingButton>
-          </SettingActions>
+          </SettingActionRow>
         </SettingSection>
       )}
     </SettingPanel>

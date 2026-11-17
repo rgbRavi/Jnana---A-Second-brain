@@ -105,6 +105,7 @@ export function resolveVars(theme: Theme): Record<string, string> {
     // (sites supply their own alpha via rgba(var(--wash-rgb), α)). The
     // primitive-following state tokens (--surface-hover, --control-grip, …) stay
     // as var() aliases in main.css and need no per-theme value here.
+    '--border-control': deriveBorderControl(theme.tokens),
     '--wash-rgb': dark ? '255, 255, 255' : '0, 0, 0',
     '--scrim': dark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(15, 18, 24, 0.4)',
     '--reading-scale': String(theme.readingScale),
@@ -117,6 +118,15 @@ export function resolveVars(theme: Theme): Record<string, string> {
     '--font-mono': fontStack('mono', theme.fonts.mono),
     '--font-reading': fontStack('reading', theme.fonts.reading),
   }
+}
+
+/** Resting stroke for form controls (WCAG 1.4.11, >= 3:1 vs --bg and --surface):
+ *  starts at --border-hover and steps toward --text-2 until it passes. */
+export function deriveBorderControl(t: Theme['tokens']): string {
+  const ok = (c: string) => Math.min(contrastRatio(c, t['--bg']), contrastRatio(c, t['--surface'])) >= 3
+  let c = t['--border-hover']
+  for (let i = 1; i <= 20 && !ok(c); i++) c = mix(t['--border-hover'], t['--text-2'], i / 20)
+  return ok(c) ? c : t['--text-2']
 }
 
 /** Write every resolved var onto `el.style` — no React re-render for the repaint

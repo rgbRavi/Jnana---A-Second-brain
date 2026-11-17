@@ -131,7 +131,7 @@ export function AiSetupGuide({
       (next.embeddingModel !== config.embeddingModel || next.embeddingProvider !== config.embeddingProvider)
     if (changesEmbed && !priorRef.current) {
       const ok = await showConfirmDialog({
-        title: 'Replace embedding model?',
+        title: 'Replace search model?',
         message: `This switches search by meaning from ${config.embeddingModel} to ${next.embeddingModel}. Your search index will need rebuilding.`,
         confirmLabel: 'Continue',
       })
@@ -333,11 +333,11 @@ export function AiSetupGuide({
           <p className={styles.statusLine}>
             Next: ask the AI something in chat, or index your notes so answers can find and quote them.
             {where === 'local' && ' Indexing needs the nomic-embed-text model from step 2.'}
-            {embedChanged && ' Your embedding model changed, so the search index needs rebuilding.'}
+            {embedChanged && ' Your search model changed, so the search index needs rebuilding.'}
           </p>
           <SettingActions>
             <SettingButton
-              variant="primary"
+              variant={embedChanged && noteCount > 0 ? undefined : 'primary'}
               onClick={() => {
                 onFinish()
                 navigate('/ai')
