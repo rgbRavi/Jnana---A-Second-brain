@@ -11,7 +11,6 @@ import Home from "./views/home/Home"
 // default boot view, and lazy-loading it would flash on the most common landing.
 const NotesView = lazy(() => import('./views/notes/NotesView'))
 const Graph = lazy(() => import("./views/graph/Graph"))
-const Search = lazy(() => import("./views/search/Search"))
 const Ai = lazy(() => import("./views/ai/Ai"))
 const Settings = lazy(() => import("./views/settings/Settings"))
 const TrashView = lazy(() => import("./views/trash/TrashView"))
@@ -29,7 +28,6 @@ function App() {
                                     <Route path = "/" element = {<Home />} />
                                     <Route path = "/notes" element = {<NotesView />} />
                                     <Route path = "/graph" element = {<Graph />}/>
-                                    <Route path = "/search" element = {<Search />}/>
                                     <Route path = "/ai" element = {<Ai />}/>
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>

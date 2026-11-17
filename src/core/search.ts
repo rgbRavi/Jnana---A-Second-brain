@@ -3,6 +3,7 @@
 
 import MiniSearch, { SearchResult } from 'minisearch'
 import type { Note } from '../types'
+import { noteSearchText } from '../lib/noteTypes'
 
 type IndexedNote = {
   id: string
@@ -12,12 +13,14 @@ type IndexedNote = {
   updatedAt: number
 }
 
+// Index the note-type search projection (plain text for typed notes — never their
+// JSON) plus any attachment text (PDF contents), so both are findable by keyword.
 function toIndexedNote(note: Note, extra = ''): IndexedNote {
-  const content = extra ? `${note.content ?? ''}\n\n${extra}` : note.content ?? ''
+  const text = noteSearchText(note) ?? ''
   return {
     id: note.id,
     title: note.title ?? '',
-    content,
+    content: extra ? `${text}\n\n${extra}` : text,
     tags: (note.tags || []).join(' '),
     updatedAt: note.updatedAt,
   }
@@ -28,11 +31,6 @@ export async function createNoteIndex(notes: Note[], attachmentText?: Map<string
     idField: 'id',
     fields: ['title', 'content', 'tags'],
     storeFields: ['title', 'content', 'tags', 'updatedAt'],
-    searchOptions: {
-      boost: { title: 3, tags: 2, content: 1 },
-      prefix: true,
-      fuzzy: 0.1,
-    },
   })
 
   await index.addAllAsync(
@@ -42,29 +40,12 @@ export async function createNoteIndex(notes: Note[], attachmentText?: Map<string
   return index
 }
 
-export function updateIndexedNote(index: MiniSearch<IndexedNote>, note: Note, extra = '') {
-  const doc = toIndexedNote(note, extra)
-
-  if (index.has(doc.id)) {
-    index.replace(doc)
-  } else {
-    index.add(doc)
-  }
-}
-
-export function removeIndexedNote(index: MiniSearch<IndexedNote>, id: string) {
-  if (index.has(id)) {
-    index.discard(id)
-  }
-}
-
 export function searchNotes(query: string, index: MiniSearch<IndexedNote>): SearchResult[] {
   if (!query.trim()) return []
 
   return index.search(query, {
     boost: { title: 3, tags: 2, content: 1 },
     prefix: true,
-    fuzzy: 0.1,
+    fuzzy: 0.2,
   })
 }
-

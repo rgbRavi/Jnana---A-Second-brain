@@ -10,6 +10,7 @@ import type { Note } from '../../../types'
 import type { DashboardData } from './useDashboardData'
 import { StatCard } from './components/StatCard'
 import { QuickActionButton } from './components/QuickActionButton'
+import { openCommandPalette } from '../../../ui/CommandPalette'
 import { InsightCard } from './components/InsightCard'
 import { ProjectCard } from './components/ProjectCard'
 import { TaskCard } from './components/TaskCard'
@@ -59,7 +60,7 @@ export function QuickActionsSection({ actions }: SectionProps) {
       <QuickActionButton icon={<SquarePen size={22} />} label="New Note" onClick={actions.newNote} />
       <QuickActionButton icon={<Mic size={22} />} label="Record Audio" onClick={actions.recordAudio} />
       <QuickActionButton icon={<FileUp size={22} />} label="Import File" onClick={actions.importFile} />
-      <QuickActionButton icon={<Search size={22} />} label="Search Vault" onClick={() => actions.goto('/search')} />
+      <QuickActionButton icon={<Search size={22} />} label="Search" onClick={openCommandPalette} />
       <QuickActionButton icon={<Bot size={22} />} label="AI Chat" onClick={() => actions.goto('/ai')} />
     </div>
   )

@@ -12,7 +12,6 @@ const STARTUP_OPTIONS: SelectOption[] = [
   { value: 'last', label: 'Last view I was on' },
   { value: '/', label: 'Home' },
   { value: '/notes', label: 'Notes' },
-  { value: '/search', label: 'Search' },
   { value: '/ai', label: 'AI' },
   { value: '/graph', label: 'Graph' },
   { value: '/workspaces', label: 'Workspaces' },

@@ -4,7 +4,6 @@
 /** Human name for a route the Working Notes "back" control returns to. */
 export function routeName(path: string): string {
   if (path === '/') return 'Home'
-  if (path === '/search') return 'Search'
   if (path === '/graph') return 'Graph'
   if (path === '/ai') return 'AI'
   if (path === '/trash') return 'Trash'

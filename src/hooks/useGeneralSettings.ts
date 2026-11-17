@@ -7,7 +7,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-export type StartupView = 'last' | '/' | '/notes' | '/search' | '/ai' | '/graph' | '/workspaces'
+export type StartupView = 'last' | '/' | '/notes' | '/ai' | '/graph' | '/workspaces'
 export type DateFormat = 'locale' | 'iso' | 'us' | 'eu'
 
 export interface GeneralOptions {
@@ -48,7 +48,10 @@ function load(): GeneralOptions {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return DEFAULTS
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GeneralOptions>) }
+    const opts = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GeneralOptions>) }
+    // The Search page became the command palette; a stored '/search' start falls back.
+    if ((opts.startupView as string) === '/search') opts.startupView = 'last'
+    return opts
   } catch {
     return DEFAULTS
   }

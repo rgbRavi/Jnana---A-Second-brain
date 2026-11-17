@@ -12,6 +12,7 @@ import { runPluginAction } from "../lib/pluginActions"
 import { useActiveWorkspace, closeWorkspace } from "../hooks/useActiveWorkspace"
 import { openComposer } from "./editor/NoteCreator"
 import { ContextMenu } from "./ContextMenu"
+import { openCommandPalette, PALETTE_SHORTCUT } from "./CommandPalette"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
 import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftDashed, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass, Trash2 } from "lucide-react"
@@ -236,10 +237,16 @@ export function Sidebar() {
           </div>
         )}
 
-        <NavLink to="/search" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Search" : undefined}>
+        {/* Search is the command palette — no page of its own. */}
+        <button
+          type="button"
+          className={itemClass(false)}
+          onClick={openCommandPalette}
+          title={`Search (${PALETTE_SHORTCUT})`}
+        >
           <span className={SidebarStyles.navIcon}>{ICONS.search}</span>
           <span className={SidebarStyles.label}>Search</span>
-        </NavLink>
+        </button>
         <NavLink to="/graph" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Graph" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.graph}</span>
           <span className={SidebarStyles.label}>Graph</span>

@@ -24,12 +24,37 @@
   overflow: hidden;
 }
 
-.input {
-  border: none;
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-left: var(--space-sm);
   border-bottom: 1px solid var(--border);
+}
+
+.modeChip {
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  padding: var(--space-3xs) var(--space-sm);
+  cursor: pointer;
+}
+
+.modeChip:hover {
+  background: var(--surface-hover);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
   background: transparent;
   color: var(--text-1);
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-family: var(--font-body);
   padding: 0.9rem 1.1rem;
   outline: none;
@@ -73,7 +98,7 @@
   border: none;
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  font-size: 0.88rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
   padding: var(--space-sm) 0.6rem;
   cursor: pointer;
@@ -98,8 +123,14 @@
   flex-shrink: 0;
 }
 
-.itemLabel {
+.itemText {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.itemLabel {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -127,4 +158,26 @@
   border-radius: 4px;
   padding: 0 4px;
   margin-right: 2px;
+}
+
+.itemDetail {
+  color: var(--text-2);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itemLabel mark,
+.itemDetail mark {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.status {
+  margin: 0;
+  padding: var(--space-sm) 0.6rem;
+  color: var(--text-2);
+  font-size: 0.8125rem;
 }

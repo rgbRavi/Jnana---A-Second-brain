@@ -7,7 +7,6 @@ import { backLabelFor } from './backLabel'
 describe('backLabelFor', () => {
   it('maps routes to names', () => {
     expect(backLabelFor('/')).toBe('Back to Home')
-    expect(backLabelFor('/search')).toBe('Back to Search')
     expect(backLabelFor('/ai')).toBe('Back to AI')
     expect(backLabelFor('/workspaces/abc')).toBe('Back to workspace')
     expect(backLabelFor('/settings/ai')).toBe('Back to Settings')
