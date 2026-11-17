@@ -15,7 +15,7 @@ import Styles from './Tooltip.module.css'
  *
  * No per-button wiring: every existing `title="…"` in the app is upgraded, and so
  * is any added later. Positioned above the target (flipping below near the top
- * edge) and clamped to the viewport. Hover-only, matching native behaviour.
+ * edge) and clamped to the viewport. Also shown on keyboard focus; Esc dismisses.
  */
 interface Tip {
   text: string
@@ -23,6 +23,7 @@ interface Tip {
 }
 
 const SHOW_DELAY = 350
+const FOCUS_DELAY = 80
 
 export function Tooltip() {
   const [tip, setTip] = useState<Tip | null>(null)
@@ -32,6 +33,8 @@ export function Tooltip() {
   // the OS box), plus the text to restore.
   const active = useRef<{ el: HTMLElement; title: string } | null>(null)
   const timer = useRef<number | undefined>(undefined)
+  const shownRef = useRef(false)
+  shownRef.current = !!tip
 
   useEffect(() => {
     const restore = () => {
@@ -45,7 +48,7 @@ export function Tooltip() {
       setTip(null)
       setPos(null)
     }
-    const activate = (el: HTMLElement) => {
+    const activate = (el: HTMLElement, delay = SHOW_DELAY) => {
       const title = el.getAttribute('title')
       if (!title) return
       el.removeAttribute('title') // suppress the native tooltip
@@ -53,7 +56,7 @@ export function Tooltip() {
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => {
         if (active.current?.el === el) setTip({ text: title, anchor: el.getBoundingClientRect() })
-      }, SHOW_DELAY)
+      }, delay)
     }
     const onOver = (e: PointerEvent) => {
       const target = e.target as Element | null
@@ -75,16 +78,53 @@ export function Tooltip() {
       if (!related || !active.current.el.contains(related)) clear()
     }
     const onDismiss = () => clear()
+    // Keyboard: show on keyboard focus (:focus-visible), hide on blur, Esc dismisses (WCAG 1.4.13).
+    const onFocusIn = (e: FocusEvent) => {
+      const el = (e.target as Element | null)?.closest?.('[title]') as HTMLElement | null
+      if (!el || el.tagName === 'IFRAME') return
+      let visible = true
+      try {
+        visible = el.matches(':focus-visible')
+      } catch {
+        /* engine without :focus-visible — treat as keyboard */
+      }
+      if (!visible) return
+      if (active.current) clear()
+      activate(el, FOCUS_DELAY)
+    }
+    const onFocusOut = (e: FocusEvent) => {
+      if (active.current && active.current.el.contains(e.target as Node)) clear()
+    }
+    // Esc always dismisses. Other keys dismiss only a tip on the focused control (Enter /
+    // Space may remove the trigger, which would strand the tip) — a hover tip stays, so
+    // typing elsewhere doesn't hand the restored title back to the native OS tooltip.
+    // Esc is swallowed only for the focused control's tip, never a hover tip's: that
+    // Esc is meant for the modal/menu (useEscapeKey skips prevented keys).
+    const onKey = (e: KeyboardEvent) => {
+      const a = active.current
+      if (!a) return
+      const owned = a.el.contains(document.activeElement)
+      if (e.key !== 'Escape' && !owned) return
+      const shown = shownRef.current
+      clear()
+      if (e.key === 'Escape' && owned && shown) e.preventDefault()
+    }
 
     document.addEventListener('pointerover', onOver, true)
     document.addEventListener('pointerout', onOut, true)
     document.addEventListener('pointerdown', onDismiss, true)
+    document.addEventListener('focusin', onFocusIn, true)
+    document.addEventListener('focusout', onFocusOut, true)
+    document.addEventListener('keydown', onKey, true)
     window.addEventListener('scroll', onDismiss, true)
     window.addEventListener('resize', onDismiss)
     return () => {
       document.removeEventListener('pointerover', onOver, true)
       document.removeEventListener('pointerout', onOut, true)
       document.removeEventListener('pointerdown', onDismiss, true)
+      document.removeEventListener('focusin', onFocusIn, true)
+      document.removeEventListener('focusout', onFocusOut, true)
+      document.removeEventListener('keydown', onKey, true)
       window.removeEventListener('scroll', onDismiss, true)
       window.removeEventListener('resize', onDismiss)
       window.clearTimeout(timer.current)

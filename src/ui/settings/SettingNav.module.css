@@ -1,0 +1,102 @@
+/* Shared Settings sub-navigation + segmented control (SettingNav.tsx). Spacing on
+   the --space-* scale so the Density setting reaches these too. */
+
+/* Tab row: tabs left, panel actions right, one hairline under both. No outer
+   margin: the container's gap spaces it (SettingPanel), so it isn't doubled.
+   wrap-reverse: when the actions don't fit beside the tabs (560px column) they
+   wrap ABOVE, keeping the tabs on the hairline. Under wrap-reverse the cross axis
+   flips, so flex-start = bottom-aligned. */
+.tabRow {
+  display: flex;
+  flex-wrap: wrap-reverse;
+  align-items: flex-start;
+  gap: var(--space-md);
+  border-bottom: 1px solid var(--border);
+}
+.tabs {
+  display: flex;
+  gap: var(--space-md);
+  min-width: 0;
+  overflow-x: auto;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-2xs);
+  margin-bottom: -1px; /* sit the active underline on the row's hairline */
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease);
+}
+.tab:hover { color: var(--text-1); }
+.tabActive {
+  color: var(--text-1);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+.count {
+  min-width: 1.125rem;
+  padding: 0 var(--space-2xs);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text-1);
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  text-align: center;
+}
+.trailing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-left: auto;
+  padding-bottom: var(--space-xs);
+  flex-shrink: 0;
+}
+
+/* Segmented: a picked value, so the active segment is a solid accent fill
+   (matching an "on" switch), not a wash. */
+.segmented {
+  display: inline-flex;
+  gap: var(--space-3xs);
+  padding: var(--space-3xs);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.segment {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+}
+.segment:hover { color: var(--text-1); background: var(--surface-hover); }
+.segmentOn,
+.segmentOn:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -11,12 +11,15 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown } from 'lucide-react'
 import styles from './SettingControls.module.css'
+import { HintText, InfoButton, normalizeHint, useHintToggle } from './SettingLayout'
 
 // ─── Select ──────────────────────────────────────────────────────────────────
 
 export interface SelectOption {
   value: string
   label: string
+  /** Full text on hover when the label may be truncated (long names). */
+  title?: string
 }
 export interface SelectGroup {
   label: string
@@ -36,6 +39,7 @@ export function SettingSelect({
   options,
   id,
   ariaLabel,
+  ariaDescribedBy,
   disabled,
 }: {
   value: string
@@ -43,12 +47,18 @@ export function SettingSelect({
   options: SelectItem[]
   id?: string
   ariaLabel?: string
+  /** Id of a hint to announce with the trigger — `hintId(id)` inside a SettingField. */
+  ariaDescribedBy?: string
   disabled?: boolean
 }) {
   const flat = flatten(options)
   const selected = flat.find((o) => o.value === value)
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
+  const listId = useId()
+  const optId = (i: number) => `${listId}-o${i}`
+  const typed = useRef({ buf: '', t: 0 })
+  const seedActive = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState<{ top: number; left: number; width: number; drop: 'down' | 'up' } | null>(null)
@@ -62,10 +72,11 @@ export function SettingSelect({
     setRect({ top: drop === 'down' ? r.bottom + 4 : r.top - 4, left: r.left, width: r.width, drop })
   }, [])
 
-  // Open: seed the active row at the current selection and position the menu.
+  // Open: seed the active row (a typeahead match, else the current selection) and position the menu.
   useLayoutEffect(() => {
     if (!open) return
-    setActive(Math.max(0, flat.findIndex((o) => o.value === value)))
+    setActive(seedActive.current ?? Math.max(0, flat.findIndex((o) => o.value === value)))
+    seedActive.current = null
     place()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -77,7 +88,11 @@ export function SettingSelect({
       const t = e.target as Node
       if (!triggerRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
     }
-    const onScroll = () => setOpen(false)
+    // Scrolling the menu itself (arrowing to an off-screen row) must not close it.
+    const onScroll = (e: Event) => {
+      if (e.target instanceof Node && menuRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
     document.addEventListener('pointerdown', onDown, true)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onScroll)
@@ -88,13 +103,56 @@ export function SettingSelect({
     }
   }, [open])
 
+  // Keep the active row visible while arrowing.
+  useEffect(() => {
+    if (open) document.getElementById(optId(active))?.scrollIntoView?.({ block: 'nearest' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, active, rect])
+
   const commit = (v: string) => {
     onChange(v)
     setOpen(false)
     triggerRef.current?.focus()
   }
 
+  // Typeahead: printable keys jump to the next option whose label starts with
+  // the typed buffer (reset after 500 ms) and highlight it. Closed: opens the
+  // menu on that row instead of committing — several selects here have side
+  // effects (provider defaults, preset switch), so a stray key must not change one.
+  const typeahead = (key: string): boolean => {
+    const ty = typed.current
+    const now = Date.now()
+    ty.buf = now - ty.t > 500 ? key : ty.buf + key
+    ty.t = now
+    // "bbb" means "next b", not a literal prefix — repeating one letter cycles its matches.
+    const repeated = [...ty.buf].every((ch) => ch === ty.buf[0])
+    const q = (repeated ? ty.buf[0] : ty.buf).toLowerCase()
+    const from = open ? active : flat.findIndex((o) => o.value === value)
+    // A single/repeated letter moves past the current row; a longer prefix may match it.
+    const start = q.length > 1 ? from : from + 1
+    for (let k = 0; k < flat.length; k++) {
+      const i = (start + k + flat.length) % flat.length
+      if (flat[i].label.toLowerCase().startsWith(q)) {
+        if (open) setActive(i)
+        else {
+          seedActive.current = i
+          setOpen(true)
+        }
+        return true
+      }
+    }
+    return false
+  }
+
   const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      setOpen(false) // commit nothing; focus moves on naturally
+      return
+    }
+    if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (typeahead(e.key)) e.preventDefault()
+      return
+    }
     if (!open) {
       if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
@@ -134,12 +192,15 @@ export function SettingSelect({
         className={styles.selectTrigger}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-activedescendant={open ? optId(active) : undefined}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={onKey}
       >
-        <span className={styles.selectValue}>{selected?.label ?? ''}</span>
+        <span className={styles.selectValue} title={selected?.title ?? selected?.label}>{selected?.label ?? (value || 'Unknown')}</span>
         <ChevronDown
           size={15}
           strokeWidth={1.75}
@@ -151,8 +212,10 @@ export function SettingSelect({
         createPortal(
           <div
             ref={menuRef}
+            id={listId}
             className={styles.selectMenu}
             role="listbox"
+            aria-label={ariaLabel}
             style={{
               top: rect.top,
               left: rect.left,
@@ -162,11 +225,12 @@ export function SettingSelect({
           >
             {options.map((item, gi) =>
               isGroup(item) ? (
-                <div key={`g${gi}`} className={styles.selectGroup}>
-                  <div className={styles.selectGroupLabel}>{item.label}</div>
+                <div key={`g${gi}`} className={styles.selectGroup} role="group" aria-labelledby={`${listId}-g${gi}`}>
+                  <div id={`${listId}-g${gi}`} className={styles.selectGroupLabel}>{item.label}</div>
                   {item.options.map((o) => (
                     <Row
                       key={o.value}
+                      id={optId(flat.indexOf(o))}
                       option={o}
                       selected={o.value === value}
                       active={flat.indexOf(o) === active}
@@ -178,6 +242,7 @@ export function SettingSelect({
               ) : (
                 <Row
                   key={item.value}
+                  id={optId(flat.indexOf(item))}
                   option={item}
                   selected={item.value === value}
                   active={flat.indexOf(item) === active}
@@ -194,12 +259,14 @@ export function SettingSelect({
 }
 
 function Row({
+  id,
   option,
   selected,
   active,
   onPick,
   onHover,
 }: {
+  id: string
   option: SelectOption
   selected: boolean
   active: boolean
@@ -207,8 +274,8 @@ function Row({
   onHover: () => void
 }) {
   return (
-    <button
-      type="button"
+    <div
+      id={id}
       role="option"
       aria-selected={selected}
       className={`${styles.selectRow} ${active ? styles.selectRowActive : ''} ${selected ? styles.selectRowSelected : ''}`}
@@ -219,9 +286,9 @@ function Row({
       }}
       onPointerEnter={onHover}
     >
-      <span className={styles.selectRowLabel}>{option.label}</span>
-      {selected && <Check size={14} strokeWidth={2} className={styles.selectCheck} />}
-    </button>
+      <span className={styles.selectRowLabel} title={option.title ?? option.label}>{option.label}</span>
+      {selected && <Check size={14} strokeWidth={2} className={styles.selectCheck} aria-hidden />}
+    </div>
   )
 }
 
@@ -233,26 +300,37 @@ export function SettingToggle({
   label,
   hint,
   ariaLabel,
+  hintVisible,
   disabled,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   /** Text beside the switch; clicking it toggles. Omit for a bare switch. */
   label?: ReactNode
-  /** Trailing muted clause (rendered after an em dash). */
+  /** Explanation behind an ⓘ button (callers pass lowercase clauses; capitalised here). */
   hint?: string
+  /** Keep the hint on screen — for consequences the user must not miss. */
+  hintVisible?: boolean
+  /** Accessible name for a bare switch (ignored when a visible `label` exists). */
   ariaLabel?: string
   /** Block interaction while a change is in flight. */
   disabled?: boolean
 }) {
   const id = useId()
+  const labelId = `${id}-label`
+  const hintDomId = `${id}-hint`
+  const hasLabel = label != null
+  const { open, toggle } = useHintToggle()
+  const hintText = hint ? normalizeHint(hint) : ''
   const button = (
     <button
       id={id}
       type="button"
       role="switch"
       aria-checked={checked}
-      aria-label={ariaLabel}
+      aria-label={hasLabel ? undefined : ariaLabel}
+      aria-labelledby={hasLabel ? labelId : undefined}
+      aria-describedby={hasLabel && hint ? hintDomId : undefined}
       disabled={disabled}
       className={`${styles.switch} ${checked ? styles.switchOn : ''}`}
       onClick={() => onChange(!checked)}
@@ -260,14 +338,23 @@ export function SettingToggle({
       <span className={styles.switchKnob} />
     </button>
   )
-  if (label == null) return button
+  if (!hasLabel) return button
   return (
-    <div className={styles.toggleRow}>
+    <div className={`${styles.toggleRow} ${disabled ? styles.toggleDisabled : ''}`}>
       {button}
-      <label htmlFor={id} className={styles.toggleLabel}>
-        {label}
-        {hint && <span className={styles.toggleHint}> — {hint}</span>}
-      </label>
+      <div className={styles.toggleText}>
+        <span className={styles.toggleHead}>
+          <label id={labelId} htmlFor={id} className={styles.toggleLabel}>
+            {label}
+          </label>
+          {hint && !hintVisible && <InfoButton text={hintText} open={open} onToggle={toggle} controls={hintDomId} label={typeof label === 'string' ? label : undefined} />}
+        </span>
+        {hint && (
+          <HintText id={hintDomId} open={!!hintVisible || open}>
+            {hintText}
+          </HintText>
+        )}
+      </div>
     </div>
   )
 }
@@ -288,6 +375,7 @@ export function SettingSlider({
   onChange,
   id,
   ariaLabel,
+  formatValue,
 }: {
   value: number
   min: number
@@ -296,6 +384,8 @@ export function SettingSlider({
   onChange: (v: number) => void
   id?: string
   ariaLabel?: string
+  /** Human-readable value for assistive tech (aria-valuetext); defaults to the number. */
+  formatValue?: (v: number) => string
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const pct = max > min ? ((value - min) / (max - min)) * 100 : 0
@@ -306,6 +396,7 @@ export function SettingSlider({
       const el = trackRef.current
       if (!el) return
       const r = el.getBoundingClientRect()
+      if (r.width <= 0) return // measured while hidden: avoid NaN
       const ratio = Math.min(1, Math.max(0, (clientX - r.left) / r.width))
       const raw = min + Math.round((ratio * (max - min)) / step) * step
       const clamped = Math.min(max, Math.max(min, raw))
@@ -325,8 +416,12 @@ export function SettingSlider({
 
   const onKey = (e: React.KeyboardEvent) => {
     let next = value
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = value + step
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = value - step
+    const big = Math.max(step, Math.round((max - min) / 10 / step) * step)
+    const small = e.shiftKey ? step * 10 : step
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = value + small
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = value - small
+    else if (e.key === 'PageUp') next = value + big
+    else if (e.key === 'PageDown') next = value - big
     else if (e.key === 'Home') next = min
     else if (e.key === 'End') next = max
     else return
@@ -345,6 +440,7 @@ export function SettingSlider({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}
+      aria-valuetext={formatValue ? formatValue(value) : String(value)}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onKeyDown={onKey}

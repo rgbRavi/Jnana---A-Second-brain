@@ -8,13 +8,14 @@
   justify-content: space-between;
   gap: var(--space-sm);
   width: 100%;
-  padding: 0.4rem 0.6rem;
+  min-height: 2rem;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-1);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   cursor: pointer;
   text-align: left;
   transition: border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
@@ -72,13 +73,10 @@
   flex-direction: column;
 }
 .selectGroupLabel {
-  padding: 0.4rem 0.55rem 0.2rem;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  padding: var(--space-xs) var(--space-sm) var(--space-3xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
 }
 
 .selectRow {
@@ -87,13 +85,13 @@
   justify-content: space-between;
   gap: var(--space-sm);
   width: 100%;
-  padding: 0.42rem 0.55rem;
+  padding: var(--space-xs) var(--space-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-2);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   text-align: left;
   cursor: pointer;
 }
@@ -102,7 +100,8 @@
   color: var(--text-1);
 }
 .selectRowSelected {
-  color: var(--accent);
+  color: var(--text-1);
+  font-weight: 600;
 }
 .selectRowLabel {
   overflow: hidden;
@@ -121,7 +120,7 @@
   width: 38px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--surface-3);
   cursor: pointer;
@@ -142,27 +141,48 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--text-1);
+  background: var(--text-2);
   box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-fast) var(--motion-ease);
+  transition: background var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 .switchOn .switchKnob {
+  background: var(--on-accent);
   transform: translateX(16px);
 }
 
 /* Row wrapper: switch on the left, a clickable label + hint on the right. */
 .toggleRow {
   display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
   align-items: flex-start;
-  gap: var(--space-sm);
+  gap: var(--space-xl);
+}
+.toggleRow > .switch {
+  flex-shrink: 0;
 }
 .toggleLabel {
-  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
   line-height: 1.45;
   color: var(--text-1);
   cursor: pointer;
 }
-.toggleHint {
+.toggleText {
+  flex: 1;
+  max-width: 65ch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+.toggleHead {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+}
+.toggleDisabled .toggleLabel {
+  cursor: default;
   color: var(--text-3);
 }
 
@@ -214,4 +234,8 @@
   box-shadow: var(--shadow-sm), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
-.switch:disabled { opacity: 0.55; cursor: default; }
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
+}

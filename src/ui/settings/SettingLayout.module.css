@@ -1,0 +1,206 @@
+/* Shared Settings vocabulary — see SettingLayout.tsx. Type steps follow DESIGN.md
+   (compact 0.875rem labels, caption 0.8125rem hints/intros). Hints use --text-2:
+   --text-3 is caption-only and fails AA for instructional text. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 560px;
+}
+
+.intro {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-2);
+  max-width: 65ch;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+.section:first-child { padding-top: 0; border-top: none; }
+/* Focus lands here when Settings search jumps to a section; the flash is the cue, not a ring. */
+.section:focus { outline: none; }
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-1);
+  /* Hug the group: 12px title→first row vs 16px row→row. */
+  margin-bottom: calc(-1 * var(--space-2xs));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.control { min-width: 0; }
+
+/* Wide windows: settings read as rows — what it is (label + hint) on the left,
+   the control in a fixed right column — so the panel uses the width instead of
+   stacking everything in a narrow strip. A viewport query, not a container query:
+   container-type adds layout containment, which would trap position:fixed
+   overlays inside the panel (CLAUDE.md, `contain`). ~62rem ≈ content ≥ 42rem. */
+@media (min-width: 62rem) {
+  .panel { max-width: 54rem; }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 21rem);
+    grid-template-areas:
+      'head control'
+      'hint control';
+    column-gap: var(--space-xl);
+    row-gap: var(--space-3xs);
+  }
+  .row > .fieldHead { grid-area: head; align-self: end; }
+  .row > .control { grid-area: control; align-self: center; }
+  .row > .hint { grid-area: hint; align-self: start; }
+  /* No hint on screen (none, or tucked behind ⓘ): the label centres against the control. */
+  .row.noHint > .fieldHead { grid-row: 1 / span 2; align-self: center; }
+}
+
+.fieldHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.labelWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  min-width: 0;
+}
+
+/* ⓘ hint toggle — quiet until hovered; accent while pinned open. */
+.info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-2);
+  cursor: help;
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.info:hover { color: var(--text-1); background: var(--surface-hover); }
+.infoOpen { color: var(--accent); }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.label {
+  font-size: 0.875rem;
+  color: var(--text-1);
+}
+
+.value {
+  font-size: 0.8125rem;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+.hint {
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  transition: border-color var(--dur-fast) var(--motion-ease);
+}
+.input::placeholder { color: var(--text-2); }
+.input:hover { border-color: var(--border-hover); }
+.input:focus-visible { border-color: var(--accent); }
+textarea.input { resize: vertical; line-height: 1.45; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-sm);
+}
+.actionsColumn { flex-direction: column; }
+
+.btn {
+  /* Never stretch to a column's width — buttons size to their label. */
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  border-radius: var(--radius-sm);
+  min-height: 2rem;
+  padding: var(--space-xs) var(--space-md);
+  font-size: 0.8125rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease),
+    background var(--dur-fast) var(--motion-ease);
+}
+
+.default {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-1);
+}
+.default:hover:not(:disabled) { border-color: var(--border-hover); background: var(--surface-hover); }
+
+.primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.danger {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent);
+  color: var(--danger);
+}
+.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

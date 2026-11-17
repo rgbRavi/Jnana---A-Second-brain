@@ -97,11 +97,15 @@ rounded:
   xl: "16px"
   pill: "999px"
 spacing:
-  xs: "0.35rem"
-  sm: "0.55rem"
-  md: "0.9rem"
-  lg: "1.25rem"
-  xl: "1.5rem"
+  # --space-* tokens, each × --density (src/main.css)
+  3xs: "2px"
+  2xs: "4px"
+  xs: "6px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  xl: "24px"
+  2xl: "32px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
