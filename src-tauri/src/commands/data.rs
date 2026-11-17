@@ -371,6 +371,12 @@ pub fn open_logs_dir(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to open logs directory: {}", e))
 }
 
+/// Relaunch the app (applies a staged restore on the next start).
+#[command]
+pub fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

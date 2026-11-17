@@ -13,7 +13,7 @@ const TREE_EVENTS = ['vault:changed', 'vault:deleted', 'folder:changed', 'folder
 const TREE_DEBOUNCE_MS = 300
 
 /**
- * Keeps the Markdown mirror folder (Settings → Import / Export) in step with
+ * Keeps the Markdown mirror folder (Settings → Backup & export) in step with
  * saves, deletes and vault/folder changes. Mounted once in AppLayout. Runs after
  * the save and never blocks it; core/mirror.ts reports failures.
  */
