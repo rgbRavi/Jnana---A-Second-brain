@@ -9,6 +9,8 @@
 
 import { useEffect, useSyncExternalStore } from 'react'
 import { toast, updateToast } from '../lib/toast'
+import { logEvent } from '../lib/logger'
+import { plural } from '../lib/plural'
 import { installFonts, listFonts, removeFont, type InstalledFont } from '../core/fonts'
 import { applyFaceCss } from '../core/fonts/loadFaces'
 import { setInstalledStacks } from '../core/fonts/registry'
@@ -17,6 +19,7 @@ import { reapplyActiveTheme } from './useTheme'
 let fonts: InstalledFont[] = []
 const listeners = new Set<() => void>()
 let hydrated = false
+let installing = false
 
 function notify(): void {
   listeners.forEach((l) => l())
@@ -37,19 +40,34 @@ async function hydrate(): Promise<void> {
   try {
     apply(await listFonts())
   } catch (err) {
-    console.error('[useInstalledFonts] hydrate failed', err)
+    hydrated = false
+    logEvent('error', 'fonts', 'hydrate failed', { error: err })
   }
 }
 
 async function install(paths: string[]): Promise<void> {
+  if (installing) return
+  installing = true
+  notify()
   const id = toast.progress('Installing fonts…')
   try {
     const added = await installFonts(paths)
     apply(await listFonts())
-    const names = added.map((f) => f.family).join(', ')
-    updateToast(id, { message: `Installed ${names}`, variant: 'success', duration: 3000 })
+    if (added.length === 0) {
+      updateToast(id, { message: 'No new fonts found in that file.', variant: 'info', duration: 4000 })
+    } else {
+      const message =
+        added.length <= 3
+          ? `Installed ${added.map((f) => f.family).join(', ')}`
+          : `Installed ${plural(added.length, 'font')}`
+      updateToast(id, { message, variant: 'success', duration: 3000 })
+    }
   } catch (err) {
-    updateToast(id, { message: `Font install failed: ${String(err)}`, variant: 'error', duration: 5000 })
+    logEvent('error', 'fonts', 'font install failed', { error: err })
+    updateToast(id, { message: "Couldn't install those fonts. Check they're valid font files.", variant: 'error', duration: 5000 })
+  } finally {
+    installing = false
+    notify()
   }
 }
 
@@ -58,7 +76,8 @@ async function remove(id: string): Promise<void> {
     await removeFont(id)
     apply(await listFonts())
   } catch (err) {
-    toast.error(`Failed to remove font: ${String(err)}`)
+    logEvent('error', 'fonts', 'font remove failed', { error: err })
+    toast.error("Couldn't remove that font. Try again.")
   }
 }
 
@@ -69,6 +88,8 @@ function subscribe(listener: () => void): () => void {
 
 export interface UseInstalledFontsApi {
   fonts: InstalledFont[]
+  /** True while an install is running. */
+  installing: boolean
   install: (paths: string[]) => Promise<void>
   remove: (id: string) => Promise<void>
   refresh: () => Promise<void>
@@ -80,8 +101,13 @@ export function useInstalledFonts(): UseInstalledFontsApi {
     () => fonts,
     () => fonts,
   )
+  const busy = useSyncExternalStore(
+    subscribe,
+    () => installing,
+    () => installing,
+  )
   useEffect(() => {
     void hydrate()
   }, [])
-  return { fonts: list, install, remove, refresh: () => listFonts().then(apply) }
+  return { fonts: list, installing: busy, install, remove, refresh: () => listFonts().then(apply) }
 }

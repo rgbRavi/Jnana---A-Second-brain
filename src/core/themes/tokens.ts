@@ -87,8 +87,8 @@ export const EASES: { id: string; label: string }[] = [
   { id: 'linear', label: 'Linear' },
 ]
 
-/** compact|cozy|comfortable -> spacing multiplier. Not yet consumed by any
- *  CSS — the Design tab writes `--density`, wiring it up is a later pass. */
+/** compact|cozy|comfortable -> spacing multiplier, emitted as `--density`;
+ *  main.css scales the whole `--space-*` scale by it. */
 export const DENSITY_SCALE: Record<string, number> = { compact: 0.82, cozy: 1, comfortable: 1.18 }
 
 export const READING_SCALE_MIN = 0.85

@@ -7,6 +7,8 @@
 
 import { invoke } from './ipc'
 import type { SavedTheme, Theme } from '../types'
+import { logEvent } from '../lib/logger'
+import { sanitizeUserTheme } from './themes/sanitize'
 
 interface ThemeRow {
   id: string
@@ -16,13 +18,28 @@ interface ThemeRow {
   createdAt: number
 }
 
-function toSaved(row: ThemeRow): SavedTheme {
-  return { id: row.id, name: row.name, theme: JSON.parse(row.json) as Theme, isBuiltin: row.isBuiltin, createdAt: row.createdAt }
+/** One bad row must not take the whole list down: it parses to null and is skipped. */
+function toSaved(row: ThemeRow): SavedTheme | null {
+  try {
+    const theme = sanitizeUserTheme(row.json)
+    if (!theme) return null
+    return { id: row.id, name: String(row.name).slice(0, 80), theme, isBuiltin: row.isBuiltin, createdAt: row.createdAt }
+  } catch {
+    return null
+  }
 }
 
 export async function listThemes(): Promise<SavedTheme[]> {
   const rows = await invoke<ThemeRow[]>('list_themes')
-  return rows.map(toSaved)
+  const out: SavedTheme[] = []
+  let skipped = 0
+  for (const r of rows) {
+    const s = toSaved(r)
+    if (s) out.push(s)
+    else skipped++
+  }
+  if (skipped > 0) logEvent('warn', 'themes', `Skipped ${skipped} unreadable saved theme(s)`)
+  return out
 }
 
 export async function saveTheme(saved: SavedTheme): Promise<void> {
@@ -42,7 +59,7 @@ export async function deleteTheme(id: string): Promise<void> {
 
 export async function getActiveTheme(): Promise<Theme | null> {
   const json = await invoke<string | null>('get_active_theme')
-  return json ? (JSON.parse(json) as Theme) : null
+  return json ? sanitizeUserTheme(json) : null
 }
 
 export async function setActiveTheme(theme: Theme): Promise<void> {

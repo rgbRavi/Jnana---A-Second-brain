@@ -15,8 +15,10 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { ImagePlus, Trash2 } from 'lucide-react'
 import { assetUrl, importFile } from '../../../core/notes'
 import { toast } from '../../../lib/toast'
+import { logEvent } from '../../../lib/logger'
 import type { UseThemeApi } from '../../../hooks/useTheme'
-import { Segmented, SliderField } from './controls'
+import { SegmentedField, SliderField, StudioField } from './controls'
+import { SettingButton, SettingSection } from '../SettingLayout'
 import styles from './Appearance.module.css'
 
 const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'bmp']
@@ -35,46 +37,51 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
         filters: [{ name: 'Images', extensions: IMAGE_EXTS }],
       })
       if (typeof picked !== 'string') return
+      // ponytail: no size cap — the TS side has no fs/stat access and import_file
+      // (Rust) reads the whole file; cap it there (~15 MB) if huge images bite.
+      // Likewise no delete-asset command exists, so a replaced/removed wallpaper's
+      // copied file stays in the assets dir.
       const asset = await importFile(picked)
       // Keep whatever the user had already tuned; only the image changes.
       setWallpaper({ fit: 'cover', dim: 0.4, blur: 0, ...(wallpaper ?? {}), asset })
-      toast.success('Wallpaper set')
+      toast.success('Wallpaper set.')
     } catch (err) {
-      toast.error('Could not use that image')
-      console.error('[WallpaperField] choose failed', err)
+      toast.error("Couldn't use that image. Try a PNG, JPEG or WebP file.")
+      logEvent('error', 'theme', 'wallpaper import failed', { error: err })
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className={styles.field}>
-      <label>Wallpaper</label>
-      {preview && (
-        <div
-          className={styles.wallpaperPreview}
-          style={{ backgroundImage: `url("${preview}")` }}
-          role="img"
-          aria-label="Current wallpaper"
-        />
-      )}
-      <div className={styles.wallpaperActions}>
-        <button type="button" className={styles.primaryBtn} disabled={busy} onClick={() => void choose()}>
-          <ImagePlus size={14} /> {wallpaper?.asset ? 'Change image…' : 'Choose image…'}
-        </button>
-        {wallpaper?.asset && (
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={() => {
-              setWallpaper(null)
-              toast('Wallpaper removed')
-            }}
-          >
-            <Trash2 size={14} /> Remove
-          </button>
-        )}
-      </div>
+    <SettingSection title="Wallpaper">
+      <StudioField label="Image" htmlFor="wallpaper-choose">
+        <div id="wallpaper-choose" className={styles.wallpaperControl}>
+          {preview && (
+            <div
+              className={styles.wallpaperPreview}
+              style={{ backgroundImage: `url("${preview}")` }} // preview is assetUrl(): encodeURIComponent already escapes quotes
+              role="img"
+              aria-label="Current wallpaper"
+            />
+          )}
+          <div className={styles.wallpaperActions}>
+            <SettingButton variant="primary" disabled={busy} onClick={() => void choose()}>
+              <ImagePlus size={14} /> {wallpaper?.asset ? 'Change image…' : 'Choose image…'}
+            </SettingButton>
+            {wallpaper?.asset && (
+              <SettingButton
+                onClick={() => {
+                  setWallpaper(null)
+                  toast('Wallpaper removed.')
+                }}
+              >
+                <Trash2 size={14} /> Remove
+              </SettingButton>
+            )}
+          </div>
+        </div>
+      </StudioField>
       <p className={styles.hint}>
         A picture behind the app. The file is copied into Jnana, so moving or deleting the original
         won&rsquo;t break it. While a wallpaper is set it takes precedence over any backdrop a plugin
@@ -83,9 +90,8 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
 
       {wallpaper?.asset && (
         <>
-          <div className={styles.field}>
-            <label>Fit</label>
-            <Segmented
+          <SegmentedField
+              label="Fit"
               value={wallpaper.fit ?? 'cover'}
               onChange={(v) => setWallpaper({ ...wallpaper, fit: v })}
               options={[
@@ -94,13 +100,13 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
                 { value: 'tile', label: 'Tile' },
               ]}
             />
-          </div>
           <SliderField
             label="Dim"
             value={Math.round((wallpaper.dim ?? 0.4) * 100)}
             min={0}
             max={100}
             suffix="%"
+            hintVisible
             hint="Blends the image toward your background colour. This is what keeps text readable over a busy photo — turn it all the way down and contrast is on you."
             onChange={(v) => setWallpaper({ ...wallpaper, dim: v / 100 })}
           />
@@ -115,6 +121,6 @@ export function WallpaperField({ api }: { api: UseThemeApi }) {
           />
         </>
       )}
-    </div>
+    </SettingSection>
   )
 }

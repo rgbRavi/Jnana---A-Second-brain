@@ -176,6 +176,9 @@ const TOKEN_RULES: Record<keyof ThemeTokens, (v: string) => boolean> = {
   '--motion-ease': isEasing,
 }
 
+/** Every token name Theme Studio stores — the only custom properties a theme may set. */
+export const THEME_TOKEN_KEYS = Object.keys(TOKEN_RULES) as (keyof ThemeTokens)[]
+
 /** Keep only token entries that exist and parse. Never throws. */
 export function sanitizeTokens(input: unknown): Partial<ThemeTokens> {
   if (!input || typeof input !== 'object') return {}

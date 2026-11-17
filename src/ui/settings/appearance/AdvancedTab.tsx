@@ -6,6 +6,7 @@ import { auditContrast } from '../../../core/themes/apply'
 import type { ThemeTokens } from '../../../types'
 import type { UseThemeApi } from '../../../hooks/useTheme'
 import { ColorField, SliderField } from './controls'
+import { SettingSection } from '../SettingLayout'
 import styles from './Appearance.module.css'
 
 export function AdvancedTab({ api }: { api: UseThemeApi }) {
@@ -15,13 +16,13 @@ export function AdvancedTab({ api }: { api: UseThemeApi }) {
 
   return (
     <div className={styles.tabPane}>
-      <section className={styles.section}>
-        <div className={styles.contrastHead}>
-          <p className={styles.sectionLabel}>Contrast guardrail</p>
-          <span className={failing === 0 ? styles.contrastOk : styles.contrastFail}>
-            {failing === 0 ? 'All pass' : `${failing} failing`}
-          </span>
-        </div>
+      <SettingSection
+        title="Readability check"
+        intro="Checks that text stays easy to read against its background (WCAG contrast ratios)."
+      >
+        <span role="status" className={failing === 0 ? styles.contrastOk : styles.contrastFail}>
+          {failing === 0 ? 'All pass' : `${failing} failing`}
+        </span>
         <ul className={styles.contrastList}>
           {pairs.map((p) => (
             <li key={p.label} className={styles.contrastRow}>
@@ -33,10 +34,10 @@ export function AdvancedTab({ api }: { api: UseThemeApi }) {
             </li>
           ))}
         </ul>
-      </section>
+      </SettingSection>
 
-      <section className={styles.section}>
-        <p className={styles.sectionLabel}>Raw tokens</p>
+      <SettingSection title="All colour values" intro="Every theme colour and size, for fine-tuning. Changes apply live.">
+        <div className={styles.rawGroups}>
         {TOKEN_GROUPS.filter((g) => g.id !== 'motion').map((g) => (
           <div key={g.id} className={styles.rawGroup}>
             <p className={styles.rawGroupLabel}>{g.label}</p>
@@ -58,7 +59,8 @@ export function AdvancedTab({ api }: { api: UseThemeApi }) {
             })}
           </div>
         ))}
-      </section>
+        </div>
+      </SettingSection>
     </div>
   )
 }
