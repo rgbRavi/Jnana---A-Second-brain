@@ -69,7 +69,7 @@ export function Dashboard() {
         }
         const config = await loadAiConfig().catch(() => null)
         if (!config?.enabled) {
-          toast.info('Turn on AI in Settings → AI Providers to index your notes.')
+          toast.info('Turn on AI in Settings → AI setup to index your notes.')
           return
         }
         indexingRef.current = true

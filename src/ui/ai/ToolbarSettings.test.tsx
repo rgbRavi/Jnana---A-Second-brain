@@ -14,16 +14,16 @@ beforeEach(() => {
 describe('ToolbarSettings', () => {
   it('toggling a row updates the store', () => {
     render(<ToolbarSettings />)
-    const sw = screen.getByRole('switch', { name: 'Show More' })
+    const sw = screen.getByRole('switch', { name: 'More' })
     expect(sw.getAttribute('aria-checked')).toBe('true')
     fireEvent.click(sw)
-    expect(screen.getByRole('switch', { name: 'Show More' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'More' }).getAttribute('aria-checked')).toBe('false')
     const { result } = renderHook(() => useComposerToolbar())
     expect(result.current[0].hidden).toEqual(['more'])
   })
   it('arrow keys on a handle reorder; Reset restores', () => {
     render(<ToolbarSettings />)
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder Preset switcher' }), { key: 'ArrowDown' })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder Saved setup switcher' }), { key: 'ArrowDown' })
     const { result } = renderHook(() => useComposerToolbar())
     expect(result.current[0].order.slice(0, 2)).toEqual(['attach', 'preset'])
     fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
@@ -31,7 +31,7 @@ describe('ToolbarSettings', () => {
   })
   it('keyboard reorder keeps focus on the moved handle', () => {
     render(<ToolbarSettings />)
-    const h = () => screen.getByRole('button', { name: 'Reorder Preset switcher' })
+    const h = () => screen.getByRole('button', { name: 'Reorder Saved setup switcher' })
     h().focus()
     fireEvent.keyDown(h(), { key: 'ArrowDown' })
     expect(document.activeElement).toBe(h())
@@ -42,7 +42,7 @@ describe('ToolbarSettings', () => {
   it('drag moves only while the same pointer holds the button; lost capture ends it', () => {
     render(<ToolbarSettings />)
     const { result } = renderHook(() => useComposerToolbar())
-    const h = screen.getByRole('button', { name: 'Reorder Preset switcher' })
+    const h = screen.getByRole('button', { name: 'Reorder Saved setup switcher' })
     fireEvent.pointerMove(h, { pointerId: 1, buttons: 1 }) // no drag started
     expect(result.current[0].order[0]).toBe('preset')
     fireEvent.pointerDown(h, { pointerId: 1, buttons: 1 })

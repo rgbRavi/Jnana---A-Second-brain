@@ -3,6 +3,7 @@
 
 import { applyAiPreset, isModified, updateAiPreset } from '../../core/ai/presets'
 import { showChoiceDialog, showConfirmDialog } from '../../lib/dialog'
+import { log } from '../../lib/logger'
 import { toast } from '../../lib/toast'
 import type { AiConfig, AiSection } from '../../types'
 
@@ -51,6 +52,7 @@ export async function switchPreset(
     await applyAiPreset(section, id)
     if (reindex) opts.onReindex?.()
   } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
+    log.error('[ai] switching saved setup failed', e)
+    toast.error("Couldn't switch to that setup. Try again.")
   }
 }

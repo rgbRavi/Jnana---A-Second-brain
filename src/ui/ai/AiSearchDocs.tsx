@@ -81,7 +81,7 @@ export function AiSearchDocs({ notes, onOpenNote }: AiSearchDocsProps) {
           letterSpacing: '0.1em',
         }}
       >
-        {!available && 'AI search unavailable — enable an AI provider and index notes in Settings → AI Providers'}
+        {!available && 'AI search unavailable — enable an AI provider and index notes in Settings → AI setup'}
         {available && status === 'searching' && 'Searching…'}
         {available && status === 'done' && `${results.length} result${results.length === 1 ? '' : 's'}`}
         {available && status === 'idle' && 'Type a question to search by meaning'}

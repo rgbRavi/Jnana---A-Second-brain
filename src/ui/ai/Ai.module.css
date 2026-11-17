@@ -50,92 +50,10 @@
 
 .statusOn { color: var(--accent); }
 
-.fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
-  margin-top: 1rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.fieldWide { grid-column: 1 / -1; }
-
-.label {
-  font-size: 0.72rem;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.input,
-.select {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-1);
-  padding: var(--space-sm) 0.6rem;
-  font-size: 0.875rem;
-  font-family: var(--font-body);
-}
-
-.input:focus,
-.select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.presetBar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-top: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.presetSelect { min-width: 12rem; }
-
-.textarea {
-  resize: vertical;
-  min-height: 4rem;
-  line-height: 1.4;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-top: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.875rem;
-  color: var(--text-2);
-  cursor: pointer;
-}
-
-.statsLine {
-  font-size: 0.75rem;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  margin-left: auto;
-}
-
 /* ─── Buttons ─── */
 .btn {
   appearance: none;
-  outline: none;
-  background: color-mix(in srgb, var(--surface-2) var(--fx-alpha-light), transparent);
-  backdrop-filter: var(--fx-blur);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-1);
   border-radius: var(--radius-sm);
@@ -143,13 +61,13 @@
   font-size: 0.875rem;
   font-family: var(--font-body);
   cursor: pointer;
-  transition: all var(--dur-base) var(--motion-ease);
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease),
+    border-color var(--dur-fast) var(--motion-ease);
 }
 
-.btn:hover:not(:disabled) { 
+.btn:hover:not(:disabled) {
   border-color: var(--border-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  background: var(--surface-hover);
 }
 
 .btnPrimary {
@@ -480,20 +398,6 @@
 
 
 
-
-/* ─── Provider settings sections ─── */
-.providerSection {
-  margin-top: 1.25rem;
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border);
-}
-
-.subhead {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-1);
-  margin: 0 0 0.5rem;
-}
 
 /* ─── Scope bar ─── */
 .scopeBar {

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { invoke } from '../ipc'
+import { eventBus } from '../../lib/eventBus'
 import type { AiConfig, AiProviderKind, TranscriptionProviderKind } from '../../types'
 
 /** Pre-Rust-storage location of the config; cleared on load. */
@@ -172,6 +173,28 @@ export async function loadAiConfig(): Promise<AiConfig> {
   return fromStoredConfig(await invoke<Partial<AiConfig>>('get_ai_config'))
 }
 
+// The most recent save, so anything that reads the Rust-side config (a
+// connection test right after a Base URL blur) can wait for it to land first.
+let lastSave: Promise<void> = Promise.resolve()
+
 export async function saveAiConfig(config: AiConfig): Promise<void> {
-  await invoke('set_ai_config', { config })
+  const p = invoke<void>('set_ai_config', { config })
+  lastSave = p.then(
+    () => undefined,
+    () => undefined,
+  )
+  await p
+}
+
+/** Resolves once every save started so far has settled (success or failure). */
+export function aiConfigSettled(): Promise<void> {
+  return lastSave
+}
+
+export type KeyTarget = 'chat' | 'embedding' | 'transcription' | 'deepResearch' | 'webSearch'
+
+/** Delete the saved API key for one section (Rust blanks it), then tell every `useRag` copy to reload. */
+export async function clearAiKey(target: KeyTarget): Promise<void> {
+  await invoke('clear_ai_key', { target })
+  eventBus.emit('ai:configChanged', undefined)
 }

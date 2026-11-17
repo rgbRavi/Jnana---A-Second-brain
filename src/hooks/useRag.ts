@@ -6,6 +6,7 @@ import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
 import { useActiveVaultId } from './useVaults'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
+import { toast } from '../lib/toast'
 import {
   defaultConfig,
   loadAiConfig,
@@ -18,6 +19,14 @@ import {
   getIndexTimes,
   staleNotes,
 } from '../core/ai'
+
+const BLANK_KEYS = {
+  chatApiKey: '',
+  embeddingApiKey: '',
+  transcriptionApiKey: '',
+  deepResearchApiKey: '',
+  webSearchApiKey: '',
+}
 
 /**
  * Orchestrates the local RAG layer for the UI:
@@ -36,10 +45,14 @@ export function useRag() {
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null)
   const [stale, setStale] = useState<Note[]>([])
 
+  const editSeq = useRef(0)
+
   // Config lives on the Rust side — load it once on mount.
   useEffect(() => {
+    const editsAtStart = editSeq.current
     loadAiConfig()
-      .then(setConfig)
+      // An edit made before this resolved is newer than what we read: don't overwrite it.
+      .then((c) => editSeq.current === editsAtStart && setConfig(c))
       .catch((err) => log.error('[useRag] failed to load AI config', err))
   }, [])
 
@@ -65,10 +78,13 @@ export function useRag() {
   // Keep a ref so event handlers always see the latest config without resubscribing.
   const configRef = useRef(config)
   configRef.current = config
+  const saveSeq = useRef(0)
 
-  const updateConfig = useCallback((next: AiConfig) => {
+  // Resolves true once Rust stored it, false if the save failed (already toasted).
+  const updateConfig = useCallback((next: AiConfig): Promise<boolean> => {
     // Mirror the Rust-side key rules locally so the UI updates without a
     // reload: a typed key sets presence; changing baseUrl/provider drops it.
+    editSeq.current++
     setConfig((prev) => {
       const sameChat = next.chatBaseUrl === prev.chatBaseUrl && next.chatProvider === prev.chatProvider
       const sameEmbed =
@@ -77,18 +93,43 @@ export function useRag() {
       const sameTx =
         next.transcriptionBaseUrl === prev.transcriptionBaseUrl &&
         next.transcriptionProvider === prev.transcriptionProvider
+      const sameDr =
+        next.deepResearchBaseUrl === prev.deepResearchBaseUrl &&
+        next.deepResearchProvider === prev.deepResearchProvider
+      const sameWeb =
+        next.webSearchBaseUrl === prev.webSearchBaseUrl && next.webSearchProvider === prev.webSearchProvider
       return {
         ...next,
+        hasWebSearchApiKey: next.webSearchApiKey ? true : sameWeb && !!prev.hasWebSearchApiKey,
         hasChatApiKey: next.chatApiKey ? true : sameChat && !!prev.hasChatApiKey,
         hasEmbeddingApiKey: next.embeddingApiKey ? true : sameEmbed && !!prev.hasEmbeddingApiKey,
         hasTranscriptionApiKey: next.transcriptionApiKey
           ? true
           : sameTx && !!prev.hasTranscriptionApiKey,
+        hasDeepResearchApiKey: next.deepResearchApiKey ? true : sameDr && !!prev.hasDeepResearchApiKey,
       }
     })
-    void saveAiConfig(next)
-      .then(() => eventBus.emit('ai:configChanged', { source: instanceToken }))
-      .catch((err) => log.error('[useRag] failed to save AI config', err))
+    const seq = ++saveSeq.current
+    return saveAiConfig(next).then(
+      () => {
+        // Plaintext keys must not outlive the save (state, later `{...config}` saves).
+        setConfig((c) => ({ ...c, ...BLANK_KEYS }))
+        eventBus.emit('ai:configChanged', { source: instanceToken })
+        return true
+      },
+      (err) => {
+        log.error('[useRag] failed to save AI config', err)
+        // A newer save is already in flight (typing in a prompt field): let that one
+        // report, so a failing disk doesn't spam toasts or reload over live typing.
+        if (seq !== saveSeq.current) return false
+        toast.error("Couldn't save AI settings. Try again in a moment.")
+        // Don't leave the screen claiming a save that didn't happen: show what's actually stored.
+        loadAiConfig()
+          .then(setConfig)
+          .catch((e) => log.error('[useRag] failed to reload AI config', e))
+        return false
+      },
+    )
   }, [instanceToken])
 
   // Stats follow the active vault, so switching vaults re-reads them (the

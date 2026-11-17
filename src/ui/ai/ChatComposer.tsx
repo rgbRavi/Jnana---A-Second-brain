@@ -348,8 +348,8 @@ function MoreContent(props: {
   const webHint =
     props.webMode === 'hybrid' && props.canWebSearch ? 'Agent with web tools — the model decides'
       : props.webMode === 'always'
-        ? props.canWebSearch ? 'Searches the web before every reply' : 'Reads pasted links only — set up web search in Settings → AI'
-        : props.canWebSearch ? 'Search the web for answers' : 'Pasted links are read; set up web search in Settings → AI to search'
+        ? props.canWebSearch ? 'Searches the web before every reply' : 'Reads pasted links only — set up web search in Settings → AI setup'
+        : props.canWebSearch ? 'Search the web for answers' : 'Pasted links are read; set up web search in Settings → AI setup to search'
   return (
     <>
       <MenuRow

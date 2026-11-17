@@ -58,7 +58,7 @@ const textOf = (attempt: QuizAttempt, i: number): string => {
 const EMPTY_COPY: Partial<Record<QuizEmptyReason, string>> = {
   'nothing-verified': "Your sources didn't support any answerable questions.",
   'no-pages': 'None of those pages could be read.',
-  'no-search': 'Add a web search provider in Settings → AI, or paste links.',
+  'no-search': 'Add a web search provider in Settings → AI setup, or paste links.',
   'unknown-topic': "The AI doesn't know enough about that topic to quiz you on it.",
 }
 
@@ -453,7 +453,7 @@ export function QuizRunner({ attempt, settings: current, config, reason, onChang
                       disabled={rechecking !== null || (!hasWebSearch(config) && !q.source)}
                       title={
                         !hasWebSearch(config) && !q.source
-                          ? 'Set up a web search provider in Settings → AI to recheck this answer'
+                          ? 'Set up a web search provider in Settings → AI setup to recheck this answer'
                           : 'Look this answer up on the web'
                       }
                       onClick={() => void recheck(i)}
