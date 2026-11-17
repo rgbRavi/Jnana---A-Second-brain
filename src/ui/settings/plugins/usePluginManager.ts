@@ -69,6 +69,10 @@ export function setCatalogUrl(url: string): void {
   catalogListeners.forEach((l) => l())
 }
 
+export function getCatalogUrl(): string {
+  return catalogUrl
+}
+
 export function useCatalogUrl(): string {
   return useSyncExternalStore(
     (l) => {

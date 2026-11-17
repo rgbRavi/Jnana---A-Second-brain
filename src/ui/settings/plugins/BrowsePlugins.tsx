@@ -1,91 +1,111 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { FileArchive, Search, Download, Check, ShieldCheck, ExternalLink } from 'lucide-react'
 import {
   readZipManifest,
-  previewPluginDownload,
   installPlugin,
   loadInstalledPlugin,
   listInstalledPlugins,
+  type InstalledPlugin,
 } from '../../../core/plugins/loader'
 import {
   fetchPluginCatalog,
-  verifyCatalogPackage,
   isNewerVersion,
   DEFAULT_CATALOG_URL,
   type CatalogEntry,
 } from '../../../core/plugins/catalog'
+import { checkPluginUpdates } from '../../../core/plugins/updates'
 import { confirmPluginInstall } from './consent'
+import { upgradePlugin, isHttpUrl } from './pluginActions'
 import { setPluginSubview, useCatalogUrl, setCatalogUrl } from './usePluginManager'
 import { toast } from '../../../lib/toast'
+import { log } from '../../../lib/logger'
+import { SettingButton, settingInputClass } from '../SettingLayout'
 import Styles from './PluginsPanel.module.css'
 
 export function BrowsePlugins() {
   const catalogUrl = useCatalogUrl()
+  // Typing edits a local draft; the stored address (which drives update checks) only
+  // changes on Fetch / Enter / blur, so half-typed hosts are never requested.
+  const [draft, setDraft] = useState(catalogUrl)
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null)
+  const [installing, setInstalling] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [installedVersions, setInstalledVersions] = useState<Record<string, string>>({})
+  const [installedMap, setInstalledMap] = useState<Record<string, InstalledPlugin>>({})
+  const requestRef = useRef(0)
+  const busy = installing !== null || importing
 
   const refreshInstalled = useCallback(() => {
-    void listInstalledPlugins().then((list) =>
-      setInstalledVersions(Object.fromEntries(list.map((p) => [p.id, p.version]))),
-    )
+    listInstalledPlugins()
+      .then((list) => setInstalledMap(Object.fromEntries(list.map((p) => [p.id, p]))))
+      .catch((err) => log.error('list installed plugins failed', err))
   }, [])
 
   useEffect(() => {
     refreshInstalled()
   }, [refreshInstalled])
 
-  const fetchCatalog = async () => {
-    if (!catalogUrl.trim()) return
+  const fetchCatalog = async (url = draft) => {
+    const next = url.trim()
+    if (!next || loading) return
+    const changed = next !== catalogUrl.trim()
+    if (next !== catalogUrl) setCatalogUrl(next)
+    const token = ++requestRef.current
     setLoading(true)
     setError(null)
     try {
-      setEntries(await fetchPluginCatalog(catalogUrl.trim()))
+      const list = await fetchPluginCatalog(next)
+      if (token !== requestRef.current) return
+      setEntries(list)
+      if (changed) void checkPluginUpdates(next, true)
     } catch (err) {
-      setError(String(err))
+      if (token !== requestRef.current) return
+      log.error('plugin catalog fetch failed', err)
+      setError(
+        String(err).includes('Invalid catalog JSON')
+          ? "That address isn't a Jnana plugin catalog."
+          : 'Check the address and your connection, then try again.',
+      )
       setEntries(null)
     } finally {
-      setLoading(false)
+      if (token === requestRef.current) setLoading(false)
     }
   }
 
   // Auto-load the (default) registry once when Browse opens, so approved plugins
   // appear without the user pressing Fetch.
   useEffect(() => {
-    if (catalogUrl.trim() && entries === null && !loading) void fetchCatalog()
+    if (catalogUrl.trim() && entries === null && !loading) void fetchCatalog(catalogUrl)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Commit on blur only when the field actually changed.
+  const commitDraft = () => {
+    if (draft.trim() && draft.trim() !== catalogUrl.trim()) void fetchCatalog(draft)
+  }
+
   const install = async (entry: CatalogEntry) => {
+    if (busy) return
+    setInstalling(entry.id)
     try {
-      // Download + inspect first: the consent prompt must show the *package's* own
-      // manifest, and the package must be the one this entry advertised.
-      const pkg = await previewPluginDownload(entry.downloadUrl)
-      const problem = verifyCatalogPackage(entry, pkg)
-      if (problem) {
-        toast.error(problem)
-        return
-      }
-      if (!(await confirmPluginInstall(pkg))) return
-      const info = await installPlugin(pkg.consentToken)
-      const ok = await loadInstalledPlugin(info)
-      toast.success(ok ? `Installed ${info.name}.` : `Installed ${info.name}, but it failed to load (see Developer → console).`)
-      refreshInstalled()
-    } catch (err) {
-      toast.error('Install failed: ' + String(err))
+      if ((await upgradePlugin(entry, installedMap[entry.id], { alwaysConfirm: true })) === 'done') refreshInstalled()
+    } finally {
+      setInstalling(null)
     }
   }
 
   const importZip = async () => {
-    const zip = await open({ filters: [{ name: 'Plugin package', extensions: ['zip'] }] })
-    if (typeof zip !== 'string') return
+    if (busy) return
+    setImporting(true)
     try {
+      const zip = await open({ filters: [{ name: 'Plugin package', extensions: ['zip'] }] })
+      if (typeof zip !== 'string') return
       const manifest = await readZipManifest(zip)
       if (!(await confirmPluginInstall(manifest))) return
       const info = await installPlugin(manifest.consentToken)
@@ -93,36 +113,58 @@ export function BrowsePlugins() {
       toast.success(ok ? `Installed ${info.name}.` : `Installed ${info.name}, but it failed to load.`)
       setPluginSubview('installed')
     } catch (err) {
-      toast.error('Install failed: ' + String(err))
+      log.error('plugin zip install failed', err)
+      toast.error("Couldn't install this package. Make sure it is a valid plugin .zip.")
+    } finally {
+      setImporting(false)
     }
+  }
+
+  const openHomepage = (url: string) => {
+    if (!isHttpUrl(url)) return
+    openUrl(url.trim()).catch((err) => {
+      log.error('open plugin homepage failed', err)
+      toast.error("Couldn't open the plugin's homepage.")
+    })
   }
 
   return (
     <div className={Styles.browse}>
       <div className={Styles.urlRow}>
+        <label htmlFor="plugin-catalog-url" className={Styles.fieldLabel}>Catalog address</label>
         <input
-          className={Styles.urlInput}
-          placeholder="Catalog URL (https://… or a local catalog.json path)"
-          value={catalogUrl}
-          onChange={(e) => setCatalogUrl(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && fetchCatalog()}
+          id="plugin-catalog-url"
+          aria-describedby="plugin-catalog-url-hint"
+          className={`${settingInputClass} ${Styles.urlInput}`}
+          placeholder="https://… or a local catalog.json path"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitDraft}
+          onKeyDown={(e) => e.key === 'Enter' && void fetchCatalog()}
         />
-        <button className={Styles.subnavItem} onClick={fetchCatalog} disabled={loading || !catalogUrl.trim()}>
+        <SettingButton onClick={() => void fetchCatalog()} busy={loading} disabled={!draft.trim()}>
           <Search size={15} /> {loading ? 'Fetching…' : 'Fetch'}
-        </button>
-        <button className={Styles.subnavItem} onClick={importZip} title="Install from a local .zip">
+        </SettingButton>
+        <SettingButton onClick={() => void importZip()} busy={importing} disabled={busy} title="Install from a local .zip">
           <FileArchive size={15} /> Import .zip
-        </button>
-        {catalogUrl !== DEFAULT_CATALOG_URL && (
+        </SettingButton>
+        {draft !== DEFAULT_CATALOG_URL && (
           <button
             className={Styles.linkBtn}
-            onClick={() => setCatalogUrl(DEFAULT_CATALOG_URL)}
+            onClick={() => {
+              setDraft(DEFAULT_CATALOG_URL)
+              void fetchCatalog(DEFAULT_CATALOG_URL)
+            }}
             title="Use the official JnanaApp registry"
           >
             Reset to default
           </button>
         )}
       </div>
+
+      <p id="plugin-catalog-url-hint" className={Styles.hint}>
+        A catalog is a JSON index of plugins. Leave the default to use the official registry.
+      </p>
 
       {error && <p className={Styles.errorText}>Couldn't load catalog: {error}</p>}
 
@@ -137,11 +179,11 @@ export function BrowsePlugins() {
 
       {entries && entries.length > 0 && (
         <div className={Styles.list}>
-          {entries.map((entry) => {
-            const have = installedVersions[entry.id]
+          {entries.map((entry, i) => {
+            const have = installedMap[entry.id]?.version
             const upgradable = have && isNewerVersion(entry.version, have)
             return (
-              <div key={entry.id} className={Styles.card}>
+              <div key={`${entry.id}#${i}`} className={Styles.card}>
                 <div className={Styles.cardMain}>
                   <div className={Styles.cardHead}>
                     <span className={Styles.cardName}>{entry.name}</span>
@@ -157,14 +199,18 @@ export function BrowsePlugins() {
                     {entry.author && <span className={Styles.muted}>· {entry.author}</span>}
                   </div>
                   <div className={Styles.cardMeta}>
-                    {entry.description && <span>{entry.description}</span>}
+                    {entry.description && (
+                      <span className={Styles.clamp3} title={entry.description}>
+                        {entry.description}
+                      </span>
+                    )}
                     {entry.permissions.length > 0 && (
                       <span className={Styles.muted}>· Asks to: {entry.permissions.join(', ')}</span>
                     )}
-                    {entry.homepage && (
+                    {isHttpUrl(entry.homepage) && (
                       <button
                         className={Styles.linkBtn}
-                        onClick={() => void openUrl(entry.homepage as string)}
+                        onClick={() => openHomepage(entry.homepage as string)}
                         title={entry.homepage}
                       >
                         <ExternalLink size={12} /> Source
@@ -178,9 +224,9 @@ export function BrowsePlugins() {
                       <Check size={14} /> Installed
                     </span>
                   ) : (
-                    <button className={Styles.installBtn} onClick={() => install(entry)}>
+                    <SettingButton variant="primary" busy={installing === entry.id} disabled={busy} onClick={() => void install(entry)}>
                       <Download size={14} /> {upgradable ? 'Update' : 'Install'}
-                    </button>
+                    </SettingButton>
                   )}
                 </div>
               </div>

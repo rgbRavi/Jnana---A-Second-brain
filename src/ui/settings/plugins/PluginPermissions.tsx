@@ -11,6 +11,7 @@ import {
 import { SettingToggle } from '../SettingControls'
 import { showConfirmDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
+import { log } from '../../../lib/logger'
 import Styles from './PluginsPanel.module.css'
 
 const LABELS: Record<string, string> = {
@@ -63,7 +64,8 @@ export function PluginPermissions({
       }
       onChanged()
     } catch (err) {
-      toast.error('Could not change permissions: ' + String(err))
+      log.error('plugin permission change failed', err)
+      toast.error(`Couldn't change ${plugin.name}'s permissions. Try again.`)
     } finally {
       setBusy(false)
     }
@@ -71,30 +73,27 @@ export function PluginPermissions({
 
   return (
     <div className={Styles.permissionPane}>
-      <span className="section-label">Permissions</span>
+      <h4 className={Styles.subHeading}>Permissions</h4>
       {declared.map((permission) => {
         const on = plugin.granted.includes(permission)
         const label = LABELS[permission] ?? permission
         const hosts = permission === 'network' && plugin.hosts?.length ? plugin.hosts.join(', ') : null
         return (
-          <div key={permission} className={Styles.settingsRow}>
-            <div className={Styles.settingsLabel}>
-              <span>{label}</span>
-              <small className={Styles.muted}>
-                {on
-                  ? hosts ?? 'Allowed — switch off to take it away'
-                  : 'Revoked — the plugin cannot do this'}
-              </small>
-            </div>
-            <div className={Styles.settingsControl}>
-              <SettingToggle
-                checked={on}
-                disabled={busy}
-                ariaLabel={`${label} — ${plugin.name}`}
-                onChange={(next) => void toggle(permission, next)}
-              />
-            </div>
-          </div>
+          <SettingToggle
+            key={permission}
+            checked={on}
+            disabled={busy}
+            label={label}
+            hintVisible
+            hint={
+              on
+                ? hosts
+                  ? `allowed to reach ${hosts}`
+                  : 'allowed — switch off to take it away'
+                : 'revoked — the plugin cannot do this'
+            }
+            onChange={(next) => void toggle(permission, next)}
+          />
         )
       })}
     </div>

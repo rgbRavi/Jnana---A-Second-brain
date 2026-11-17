@@ -3,24 +3,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, RefreshCw, ArrowUpCircle } from 'lucide-react'
-import {
-  listInstalledPlugins,
-  loadInstalledPlugin,
-  previewPluginDownload,
-  installPlugin,
-  type InstalledPlugin,
-} from '../../../core/plugins/loader'
-import {
-  fetchPluginCatalog,
-  verifyCatalogPackage,
-  isNewerVersion,
-  type CatalogEntry,
-} from '../../../core/plugins/catalog'
-import { confirmPluginInstall } from './consent'
-import { setOutdatedPlugins, invalidateUpdateCheck } from '../../../core/plugins/updates'
-import { pluginRegistry } from '../../../lib/pluginRegistry'
+import { listInstalledPlugins, type InstalledPlugin } from '../../../core/plugins/loader'
+import { fetchPluginCatalog, isNewerVersion, type CatalogEntry } from '../../../core/plugins/catalog'
+import { SettingButton } from '../SettingLayout'
+import { setOutdatedPlugins } from '../../../core/plugins/updates'
 import { useCatalogUrl } from './usePluginManager'
-import { toast } from '../../../lib/toast'
+import { upgradePlugin } from './pluginActions'
+import { log } from '../../../lib/logger'
+import { plural } from '../../../lib/plural'
 import Styles from './PluginsPanel.module.css'
 
 interface Upgrade {
@@ -33,6 +23,8 @@ export function PluginUpdates() {
   const [upgrades, setUpgrades] = useState<Upgrade[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Plugin id being updated, or '*' for Update all — one consent/install flow at a time.
+  const [busy, setBusy] = useState<string | null>(null)
 
   const check = useCallback(async () => {
     if (!catalogUrl.trim()) {
@@ -56,7 +48,8 @@ export function PluginUpdates() {
       // Keep the nav badge honest with what this tab is showing.
       setOutdatedPlugins(found.map((u) => u.installed.id))
     } catch (err) {
-      setError(String(err))
+      log.error('plugin update check failed', err)
+      setError("Check the catalog address and your connection, then try again.")
       setUpgrades(null)
     } finally {
       setLoading(false)
@@ -67,32 +60,30 @@ export function PluginUpdates() {
     void check()
   }, [check])
 
-  const update = async (u: Upgrade) => {
+  const update = async (u: Upgrade): Promise<void> => {
+    if (busy) return
+    setBusy(u.installed.id)
     try {
-      const pkg = await previewPluginDownload(u.entry.downloadUrl)
-      const problem = verifyCatalogPackage(u.entry, pkg)
-      if (problem) {
-        toast.error(problem)
-        return
-      }
-      // A quiet update must not widen what the plugin may do: if the new version
-      // declares a capability the installed one didn't, ask again.
-      const widened = pkg.permissions.filter((p) => !u.installed.granted.includes(p))
-      if (widened.length > 0 && !(await confirmPluginInstall(pkg))) return
-
-      pluginRegistry.unregister(u.installed.id)
-      const info = await installPlugin(pkg.consentToken)
-      await loadInstalledPlugin(info)
-      toast.success(`Updated ${info.name} to v${info.version}.`)
-      invalidateUpdateCheck()
-      void check()
-    } catch (err) {
-      toast.error('Update failed: ' + String(err))
+      if ((await upgradePlugin(u.entry, u.installed)) === 'done') void check()
+    } finally {
+      setBusy(null)
     }
   }
 
   const updateAll = async () => {
-    for (const u of upgrades ?? []) await update(u)
+    if (busy) return
+    setBusy('*')
+    try {
+      let any = false
+      for (const u of upgrades ?? []) {
+        const r = await upgradePlugin(u.entry, u.installed)
+        if (r === 'done') any = true
+        if (r === 'failed') break
+      }
+      if (any) void check()
+    } finally {
+      setBusy(null)
+    }
   }
 
   if (!catalogUrl.trim()) {
@@ -109,17 +100,25 @@ export function PluginUpdates() {
   }
 
   if (loading && upgrades === null) return <p className={Styles.footNote}>Checking for updates…</p>
-  if (error) return <p className={Styles.errorText}>Couldn't check updates: {error}</p>
+  if (error)
+    return (
+      <div className={Styles.empty}>
+        <p className={Styles.errorText}>Couldn't check for updates. {error}</p>
+        <SettingButton onClick={() => void check()} busy={loading}>
+          <RefreshCw size={14} /> Retry
+        </SettingButton>
+      </div>
+    )
 
   if (!upgrades || upgrades.length === 0) {
     return (
       <div className={Styles.empty}>
         <CheckCircle2 size={28} className={Styles.emptyIcon} />
         <h3>Everything is up to date</h3>
-        <p>No installed plugins have a newer version in the catalog.</p>
-        <button className={Styles.subnavItem} onClick={() => void check()}>
+        <p>Everything is up to date.</p>
+        <SettingButton onClick={() => void check()}>
           <RefreshCw size={14} /> Check again
-        </button>
+        </SettingButton>
       </div>
     )
   }
@@ -127,16 +126,16 @@ export function PluginUpdates() {
   return (
     <div className={Styles.list}>
       <div className={Styles.consoleHead}>
-        <span className="section-label">{upgrades.length} update{upgrades.length === 1 ? '' : 's'} available</span>
-        <button className={Styles.linkBtn} onClick={updateAll}>
+        <h3 className={Styles.subHeading}>{plural(upgrades.length, 'update')} available</h3>
+        <SettingButton onClick={() => void updateAll()} busy={busy === '*'} disabled={busy !== null}>
           Update all
-        </button>
+        </SettingButton>
       </div>
       {upgrades.map((u) => (
         <div key={u.installed.id} className={Styles.card}>
           <div className={Styles.cardMain}>
             <div className={Styles.cardHead}>
-              <span className={Styles.cardName}>{u.installed.name}</span>
+              <h4 className={Styles.cardName}>{u.installed.name}</h4>
               <span className={Styles.version}>
                 v{u.installed.version} → v{u.entry.version}
               </span>
@@ -144,9 +143,9 @@ export function PluginUpdates() {
             {u.entry.description && <div className={Styles.cardMeta}>{u.entry.description}</div>}
           </div>
           <div className={Styles.cardActions}>
-            <button className={Styles.installBtn} onClick={() => update(u)}>
+            <SettingButton variant="primary" busy={busy === u.installed.id} disabled={busy !== null} onClick={() => void update(u)}>
               <ArrowUpCircle size={14} /> Update
-            </button>
+            </SettingButton>
           </div>
         </div>
       ))}

@@ -73,6 +73,7 @@ export function PluginShortcuts({ pluginId }: { pluginId: string }) {
 
   return (
     <div className={Styles.settingsPane}>
+      <h4 className={Styles.subHeading}>Shortcuts</h4>
       {commands.map((command) => {
         const chord = effectiveChord(command.id, command.hotkey)
         const overridden = hasHotkeyOverride(command.id)
