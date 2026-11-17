@@ -14,7 +14,7 @@ import { openComposer } from "./editor/NoteCreator"
 import { ContextMenu } from "./ContextMenu"
 import { useWorkingLayout, useNotesSubView, setNotesSubView } from "../views/notes/working/useWorkingLayout"
 import { allOpenNoteIds } from "../views/notes/working/layout"
-import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftDashed, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass } from "lucide-react"
+import { Home, PenLine, PanelsTopLeft, Library, Search, Network, Sparkles, Settings, FolderTree, ChevronDown, Folder, PanelLeftClose, PanelLeftDashed, PanelLeftOpen, X, ChevronUp, Check, AlertTriangle, Hourglass, Trash2 } from "lucide-react"
 import SidebarStyles from "./Sidebar.module.css"
 
 const ICONS = {
@@ -26,6 +26,7 @@ const ICONS = {
   ai: <Sparkles size={18} strokeWidth={1.8} />,
   settings: <Settings size={18} strokeWidth={1.8} />,
   workspaces: <FolderTree size={18} strokeWidth={1.8} />,
+  trash: <Trash2 size={18} strokeWidth={1.8} />,
   chevron: <ChevronDown size={14} strokeWidth={2} />,
 }
 
@@ -153,7 +154,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {openCount > 0 && (notesExpanded || collapsed) && (
+        {(openCount === 0 || notesExpanded || collapsed) && (
           <div className={SidebarStyles.wsSub}>
             <NavLink
               to="/notes"
@@ -167,9 +168,11 @@ export function Sidebar() {
               <span className={SidebarStyles.navIcon} aria-hidden="true"><PanelsTopLeft size={16} /></span>
               <span className={`${SidebarStyles.label} ${SidebarStyles.workingLabel}`}>
                 Working Notes
-                <span className={SidebarStyles.workingBadge}>
-                  {openCount}
-                </span>
+                {openCount > 0 && (
+                  <span className={SidebarStyles.workingBadge}>
+                    {openCount}
+                  </span>
+                )}
               </span>
             </NavLink>
           </div>
@@ -291,6 +294,10 @@ export function Sidebar() {
           </div>
         )}
 
+        <NavLink to="/trash" data-anchor="trash" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Trash" : undefined}>
+          <span className={SidebarStyles.navIcon}>{ICONS.trash}</span>
+          <span className={SidebarStyles.label}>Trash</span>
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => itemClass(isActive)} title={collapsed ? "Settings" : undefined}>
           <span className={SidebarStyles.navIcon}>{ICONS.settings}</span>
           <span className={SidebarStyles.label}>Settings</span>

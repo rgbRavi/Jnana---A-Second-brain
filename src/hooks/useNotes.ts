@@ -13,6 +13,7 @@ import { getGeneralSettings } from './useGeneralSettings'
 import { showConfirmDialog } from '../lib/dialog'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
+import { toast } from '../lib/toast'
 
 // Bump when link resolution changes so stored edges are rebuilt once: v1 made
 // links vault-scoped (and live-notes-only) and gave canvases real links.
@@ -45,8 +46,10 @@ export function useNotes() {
   notesRef.current = notes
   const syncedTitles = useRef(new Map<string, string>())
 
-  // Load all notes on mount
-  useEffect(() => {
+  // Load all notes (on mount, and again from `reload` after a failure)
+  const reload = useCallback(() => {
+    setError(null)
+    setLoading(true)
     getAllNotes()
       .then((fetched) => {
         setNotes(fetched)
@@ -61,6 +64,10 @@ export function useNotes() {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
 
   // Stay in sync when any note is saved — optimistic update already applied
   // locally, but this handles saves from other parts of the app too.
@@ -201,7 +208,10 @@ export function useNotes() {
     []
   )
 
-  const remove = useCallback(async (id: string, opts?: { confirm?: boolean }): Promise<boolean> => {
+  /** Move a note to Trash. Resolves `false` (never throws) when the user cancels
+   *  or the write fails; on failure the note is put back and, unless `quiet`, a
+   *  toast says so — `quiet` lets a bulk caller report one summary instead. */
+  const remove = useCallback(async (id: string, opts?: { confirm?: boolean; quiet?: boolean }): Promise<boolean> => {
     const needConfirm = (opts?.confirm ?? true) && getGeneralSettings().confirmBeforeDelete
     if (needConfirm) {
       const ok = await showConfirmDialog({
@@ -215,9 +225,27 @@ export function useNotes() {
     // Before the optimistic removal: the card is still on screen, so a motion
     // plugin can copy it. Synchronous — nothing here waits for an animation.
     eventBus.emit('note:trashing', { id })
-    // Optimistic — remove immediately
+    // Optimistic — remove immediately, remembering where it was so a failed
+    // write can put it back instead of showing a delete that didn't happen.
+    // (Read from notesRef, not inside the updater: React may run updaters lazily.)
+    const index = notesRef.current.findIndex((n) => n.id === id)
+    const removed = index === -1 ? null : notesRef.current[index]
     setNotes((prev) => prev.filter((n) => n.id !== id))
-    await trashNote(id)
+    try {
+      await trashNote(id)
+    } catch (err) {
+      log.error('Move to Trash failed', err)
+      if (removed) {
+        setNotes((prev) => {
+          if (prev.some((n) => n.id === id)) return prev
+          const next = [...prev]
+          next.splice(Math.min(index, next.length), 0, removed)
+          return next
+        })
+      }
+      if (!opts?.quiet) toast.error("Couldn't move the note to Trash. Please try again.")
+      return false
+    }
     // trashNote already emits 'note:deleted' in core/notes.ts —
     // we don't emit again here to avoid double-fire.
     return true
@@ -246,7 +274,7 @@ export function useNotes() {
   // every useNotesContext() consumer to re-render for no reason. `notes` itself
   // still changes (by design) whenever a note is actually created/updated/removed.
   return useMemo(
-    () => ({ notes, loading, error, create, update, updateTags, remove }),
-    [notes, loading, error, create, update, updateTags, remove],
+    () => ({ notes, loading, error, reload, create, update, updateTags, remove }),
+    [notes, loading, error, reload, create, update, updateTags, remove],
   )
 }

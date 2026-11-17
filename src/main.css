@@ -44,6 +44,16 @@
   --shadow-xl:    0 20px 60px rgba(0, 0, 0, 0.5);
   --shadow-2xl:   0 24px 70px rgba(0, 0, 0, 0.55);
 
+  /* Stacking scale — values mirror what shipped, so adopting a token never
+     re-stacks anything. Small local stacking (1-10) stays a literal. */
+  --z-overlay:    1000; /* modal backdrop, toasts */
+  --z-modal:      1001;
+  --z-popover:    1002; /* editor popups over a modal */
+  --z-dialog:     1100; /* show*Dialog host, pickers */
+  --z-drag:       2000; /* drag ghosts */
+  --z-menu:       10000; /* context menus */
+  --z-tooltip:    10001;
+
   /* Derived accent variants — Theme Studio (apply.ts resolveVars) overwrites
      these with explicit hex once a theme applies; these color-mix() defaults
      just keep things sane on first paint / for any consumer that mounts
@@ -91,7 +101,7 @@
   --motion-duration-fast: 120ms;
   --motion-duration-base: 220ms;
   --motion-duration-slow: 420ms;
-  --motion-ease: var(--motion-ease);
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-fast: calc(var(--motion-duration-fast) * var(--motion-scale));
   --dur-base: calc(var(--motion-duration-base) * var(--motion-scale));
   --dur-slow: calc(var(--motion-duration-slow) * var(--motion-scale));
@@ -298,9 +308,9 @@ select:focus-visible {
   *,
   *::before,
   *::after {
-    animation-duration: 0.var(--dur-fast) !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.var(--dur-fast) !important;
+    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState } from 'react'
-import { ArrowLeft, Plus, PanelRight, PanelBottom, X } from 'lucide-react'
+import { ArrowLeft, Plus, PanelRight, PanelBottom, PanelRightClose, X } from 'lucide-react'
 import { useNotesContext } from '../../../context/NotesContext'
 import { ContextMenu } from '../../../ui/ContextMenu'
 import { pluginNoteMenuItems } from '../../../ui/pluginNoteMenu'
@@ -99,7 +99,8 @@ export function TabStrip({
           title={backLabel || 'Back'}
           aria-label={backLabel || 'Back'}
         >
-          <ArrowLeft size={15} />
+          <ArrowLeft size={16} aria-hidden="true" />
+          {backLabel && <span className={Styles.stripBackLabel}>{backLabel}</span>}
         </button>
       )}
       <div className={Styles.tabs} role="tablist">
@@ -108,11 +109,36 @@ export function TabStrip({
             key={id}
             data-tab={id}
             role="tab"
-            tabIndex={0}
+            tabIndex={(group.tabs.includes(group.activeTab ?? '') ? group.activeTab : group.tabs[0]) === id ? 0 : -1}
             aria-selected={group.activeTab === id}
+            aria-description="Delete to close"
             className={`${Styles.tab} ${group.activeTab === id ? Styles.tabActive : ''}`}
             onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return // the close button handles its own keys
+              if (e.target !== e.currentTarget) return
+              // Roving tabindex: arrows move focus and activate; Home/End jump.
+              const i = group.tabs.indexOf(id)
+              const n = group.tabs.length
+              const target =
+                e.key === 'ArrowRight' ? (i + 1) % n
+                : e.key === 'ArrowLeft' ? (i - 1 + n) % n
+                : e.key === 'Home' ? 0
+                : e.key === 'End' ? n - 1
+                : -1
+              if (target >= 0) {
+                e.preventDefault()
+                const next = group.tabs[target]
+                setWorkingActiveTab(group.id, next)
+                ;(e.currentTarget.parentElement?.children[target] as HTMLElement | undefined)?.focus()
+                return
+              }
+              if (e.key === 'Delete') {
+                e.preventDefault()
+                // Hand focus to a neighbour first so it isn't lost when this tab unmounts.
+                const sib = e.currentTarget.parentElement?.children[i < n - 1 ? i + 1 : i - 1] as HTMLElement | undefined
+                sib?.focus()
+                closeWorkingTab(id, group.id)
+                return
+              }
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
                 setWorkingActiveTab(group.id, id)
@@ -138,12 +164,13 @@ export function TabStrip({
             <span className={Styles.tabLabel}>{titleFor(id)}</span>
             <button
               className={Styles.tabClose}
+              tabIndex={-1}
+              aria-hidden="true"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
                 closeWorkingTab(id, group.id)
               }}
-              aria-label="Close tab"
               title="Close tab"
             >
               <X size={14} />
@@ -158,7 +185,7 @@ export function TabStrip({
           aria-label="New note"
           title="New note"
         >
-          <Plus size={16} />
+          <Plus size={16} aria-hidden="true" />
         </button>
         <button
           className={Styles.tabActionBtn}
@@ -166,7 +193,7 @@ export function TabStrip({
           aria-label="Split right"
           title="Split right"
         >
-          <PanelRight size={16} />
+          <PanelRight size={16} aria-hidden="true" />
         </button>
         <button
           className={Styles.tabActionBtn}
@@ -174,7 +201,7 @@ export function TabStrip({
           aria-label="Split down"
           title="Split down"
         >
-          <PanelBottom size={16} />
+          <PanelBottom size={16} aria-hidden="true" />
         </button>
         {multiPane && (
           <button
@@ -183,7 +210,7 @@ export function TabStrip({
             aria-label="Close pane"
             title="Close pane"
           >
-            <X size={16} />
+            <PanelRightClose size={16} aria-hidden="true" />
           </button>
         )}
       </div>

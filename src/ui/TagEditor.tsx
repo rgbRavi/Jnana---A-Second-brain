@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useRef, KeyboardEvent } from 'react'
+import { X } from 'lucide-react'
 import { isAutoTag } from '../core/tags'
 import TagStyles from './TagEditor.module.css'
 
@@ -11,14 +12,16 @@ interface Props {
   /** Called when the user adds or removes a tag — receives only user tags */
   onChange: (userTags: string[]) => void
   disabled?: boolean
+  /** Don't render the read-only auto-tag chips (the peek hides internal keys). */
+  hideAutoTags?: boolean
 }
 
-export function TagEditor({ tags, onChange, disabled }: Props) {
+export function TagEditor({ tags, onChange, disabled, hideAutoTags }: Props) {
   const [input, setInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const userTags = tags.filter((t) => !isAutoTag(t))
-  const autoTags = tags.filter(isAutoTag)
+  const autoTags = hideAutoTags ? [] : tags.filter(isAutoTag)
 
   const addTag = (raw: string) => {
     const tag = raw.trim().toLowerCase().replace(/\s+/g, '-')
@@ -62,8 +65,9 @@ export function TagEditor({ tags, onChange, disabled }: Props) {
               className={`${TagStyles.tagChipRemove}`}
               onClick={(e) => { e.stopPropagation(); removeTag(tag) }}
               aria-label={`Remove tag ${tag}`}
+              title={`Remove tag ${tag}`}
             >
-              ×
+              <X size={12} aria-hidden="true" />
             </button>
           )}
         </span>
