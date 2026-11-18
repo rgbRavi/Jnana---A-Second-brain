@@ -9,7 +9,7 @@ import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
 import { nodesWithinHops } from './neighbourhood'
-import { timeRange, visibleIds } from './timeline'
+import { buildTimelineSteps, linkKey, visibleAtStep } from './timeline'
 import { TimelineBar } from './TimelineBar'
 import { pickDirectional, startNode } from './keyNav'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
@@ -401,8 +401,11 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [regionFocused, setRegionFocused] = useState(false)
   const [kbAnnounce, setKbAnnounce] = useState('')
-  // Timeline scrub position (ms), or null when the timeline is closed. Transient.
-  const [timelineAt, setTimelineAt] = useState<number | null>(null)
+  // Steps revealed by the timeline (0..steps.length), or null when it is closed. Transient.
+  const [timelineStep, setTimelineStep] = useState<number | null>(null)
+  // id / link key -> performance.now() when it was revealed, for the fade-in.
+  const revealedAt = useRef(new Map<string, number>())
+  const prevRevealed = useRef<Set<string> | null>(null)
   // Off (default): selecting dims non-neighbours. On: the graph filters to the 1-hop neighbourhood.
   const [neighbourhoodOnly, setNeighbourhoodOnly] = usePersistentViewState('graph.neighbourhoodOnly', false)
   // How many links out selection emphasis / "Neighbourhood only" reach (hover stays 1).
@@ -540,8 +543,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Esc peels back one layer at a time: a pending connection or menu, then the
   // selection, then list view (back to the graph).
   useEscapeKey(() => {
-    if (timelineAt !== null) {
-      setTimelineAt(null)
+    if (timelineStep !== null) {
+      setTimelineStep(null)
     } else if (connectingFrom || contextMenu || pickFrom || pathFrom) {
       setConnectingFrom(null)
       setContextMenu(null)
@@ -776,11 +779,41 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const shownCount = useMemo(() => forceData.nodes.filter((n: any) => !n.isPseudo).length, [forceData])
 
   // Timeline: read-only over forceData, so scrubbing never rebuilds the simulation.
-  const tlRange = useMemo(() => timeRange(forceData.nodes as any[]), [forceData])
-  const tlVisible = useMemo(
-    () => (timelineAt === null ? null : visibleIds(forceData.nodes as any[], forceData.links as any[], timelineAt)),
-    [forceData, timelineAt],
-  )
+  const tlSteps = useMemo(() => buildTimelineSteps(forceData.nodes as any[], forceData.links as any[]), [forceData])
+  const tlStep = timelineStep === null ? null : Math.min(timelineStep, tlSteps.length)
+  const tl = useMemo(() => (tlStep === null ? null : visibleAtStep(tlSteps, tlStep)), [tlSteps, tlStep])
+  const tlVisible = tl?.nodes ?? null
+  // Stamp newly revealed ids/links (they fade in); forget hidden ones so they fade in again.
+  // Items already shown when the timeline opens are stamped 0 (fully faded in).
+  useMemo(() => {
+    const m = revealedAt.current
+    if (!tl) {
+      m.clear()
+      prevRevealed.current = null
+      return
+    }
+    const now = prevRevealed.current ? performance.now() : 0
+    const keys = new Set([...tl.nodes, ...tl.links])
+    for (const k of keys) if (!m.has(k)) m.set(k, now)
+    for (const k of [...m.keys()]) if (!keys.has(k)) m.delete(k)
+    prevRevealed.current = keys
+  }, [tl])
+  // The canvas repaints each frame anyway; nudge in case the engine was paused.
+  useEffect(() => {
+    if (tl && !reducedMotion) (fgRef.current as any)?.resumeAnimation?.()
+  }, [tl])
+  const FADE_MS = 400
+  const fadeOf = (key: string): number => {
+    if (reducedMotion) return 1
+    const t = revealedAt.current.get(key)
+    return t === undefined ? 1 : Math.min(1, (performance.now() - t) / FADE_MS)
+  }
+  /** Scale an rgba() colour's alpha (falls back to resolveColor for other forms). */
+  const fadeColor = (c: string, f: number): string => {
+    if (f >= 1) return c
+    const m = c.match(/^rgba\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)$/)
+    return m ? `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${+m[4] * f})` : resolveColor(c, f) ?? c
+  }
 
   // id -> neighbour ids, for hover/selection dimming. Links are ids here (the
   // sim mutates them to objects later), but tolerate both.
@@ -849,14 +882,16 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const dimFor = (id: string): number =>
     tlVisible && !tlVisible.has(id)
       ? 0
-      : pathSet
+      : (tlVisible ? fadeOf(id) : 1) *
+        (pathSet
       ? pathSet.has(id) ? 1 : 0.15
       : !emphasisId
         ? 1
         : hoverNodeId || !selectionRange
           ? id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
-          : selectionRange.has(id) ? 1 : dimAlpha
-  const linkColorFor = (l: any): string => {
+          : selectionRange.has(id) ? 1 : dimAlpha)
+  const linkKeyOf = (l: any) => linkKey(idOfEnd(l.source), idOfEnd(l.target))
+  const baseLinkColor = (l: any): string => {
     if (pathSet) return isPathLink(l) ? FOCUS_COLOR : LINK_FADED_COLOR
     if (!emphasisId) return LINK_COLOR
     const a = typeof l.source === 'object' ? l.source.id : l.source
@@ -864,6 +899,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     if (!hoverNodeId && selectionRange) return selectionRange.has(a) && selectionRange.has(b) ? LINK_STRONG_COLOR : LINK_FADED_COLOR
     return a === emphasisId || b === emphasisId ? LINK_STRONG_COLOR : LINK_FADED_COLOR
   }
+  const linkColorFor = (l: any): string => (tl ? fadeColor(baseLinkColor(l), fadeOf(linkKeyOf(l))) : baseLinkColor(l))
   // One radius for both paint and hit-testing (hubs, orphans, Node size slider).
   const nodeRadius = (node: any): number => {
     if (node.isPseudo) return 5 * nodeSize
@@ -1542,8 +1578,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           spotlight={spotlight}
           onSpotlight={setGraphSpotlight}
           onExport={() => void exportGraphPng(containerRef.current)}
-          timelineOpen={timelineAt !== null}
-          onTimeline={() => setTimelineAt((t) => (t !== null ? null : tlRange ? tlRange.max : null))}
+          timelineOpen={timelineStep !== null}
+          onTimeline={() => setTimelineStep((t) => (t !== null ? null : tlSteps.length ? tlSteps.length : null))}
           capture={captureSnapshot}
           apply={applySnapshot}
         />
@@ -1617,7 +1653,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       </div>
 
       {/* Bottom-left stack: group legend, then the right-click hint (graph mode only) */}
-      <div className={`${styles.corner} ${timelineAt !== null ? styles.aboveTimeline : ''}`}>
+      <div className={`${styles.corner} ${timelineStep !== null ? styles.aboveTimeline : ''}`}>
         {colorBy === 'clusters' ? (
           clusterInfo.legend.length > 0 && (
             <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Cluster colours">
@@ -1655,7 +1691,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       </div>
 
       {filterActive && (
-        <div className={`${styles.filterChip} ${timelineAt !== null ? styles.aboveTimeline : ''}`} role="status">
+        <div className={`${styles.filterChip} ${timelineStep !== null ? styles.aboveTimeline : ''}`} role="status">
           <span>{`Filtered · ${shownCount} of ${scopedNodes.length} notes`}</span>
           <button type="button" onClick={clearFilters}>
             Clear
@@ -1939,23 +1975,22 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 400, 60)
         }}
         linkColor={linkColorFor}
-        linkVisibility={(l: any) => !tlVisible || (tlVisible.has(idOfEnd(l.source)) && tlVisible.has(idOfEnd(l.target)))}
+        linkVisibility={(l: any) => !tl || tl.links.has(linkKeyOf(l))}
         linkWidth={(l: any) => (isPathLink(l) ? Math.max(linkThickness * 2.5, 3) : linkThickness)}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
         backgroundColor={rippleBackground ? 'rgba(0,0,0,0)' : canvasBg}
       />
 
-      {timelineAt !== null && tlRange && (
+      {tlStep !== null && (
         <TimelineBar
-          min={tlRange.min}
-          max={tlRange.max}
-          value={Math.min(tlRange.max, Math.max(tlRange.min, timelineAt))}
+          count={tlSteps.length}
+          step={tlStep}
+          at={tlStep > 0 ? tlSteps[tlStep - 1].at : null}
           shown={tlVisible ? [...tlVisible].filter((id) => !(forceData.nodes as any[]).find((n) => n.id === id)?.isPseudo).length : shownCount}
           total={shownCount}
-          reducedMotion={reducedMotion}
-          onChange={setTimelineAt}
-          onClose={() => setTimelineAt(null)}
+          onChange={setTimelineStep}
+          onClose={() => setTimelineStep(null)}
         />
       )}
 

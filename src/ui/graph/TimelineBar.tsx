@@ -4,71 +4,64 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play, X } from 'lucide-react'
 import { SettingSlider } from '../settings/SettingControls'
+import { stepDelayMs } from './timeline'
 import styles from './TimelineBar.module.css'
 
-const SWEEP_MS = 10_000
 const fmt = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+const SPEEDS = [1, 2, 4]
 
 interface Props {
-  min: number
-  max: number
-  value: number
+  /** Total steps (notes + links). */
+  count: number
+  /** Steps revealed so far, 0..count. */
+  step: number
+  /** Date of the last revealed step, or null at 0. */
+  at: number | null
   shown: number
   total: number
-  reducedMotion: boolean
-  onChange: (t: number) => void
+  onChange: (step: number) => void
   onClose: () => void
   className?: string
 }
 
-/** Bottom bar: scrub or play through note creation order. */
-export function TimelineBar({ min, max, value, shown, total, reducedMotion, onChange, onClose, className }: Props) {
+/** Bottom bar: scrub or play the graph being built one note/link at a time. */
+export function TimelineBar({ count, step, at, shown, total, onChange, onClose, className }: Props) {
   const [playing, setPlaying] = useState(false)
-  const span = Math.max(1, max - min)
-  const valueRef = useRef(value)
-  valueRef.current = value
+  const [speed, setSpeed] = useState(1)
+  const speedRef = useRef(speed)
+  speedRef.current = speed
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
+  // One step per tick; the delay is read each step, so a speed change lands on the next one.
+  // Stepping is not motion, so it runs under reduced motion too (only the fade is off).
   useEffect(() => {
     if (!playing) return
-    // Resume from where the handle is; restart from the start when already at the end.
-    const from = valueRef.current >= max ? min : valueRef.current
-    const t0 = performance.now()
-    let raf = 0
-    const tick = (now: number) => {
-      const t = Math.min(max, from + ((now - t0) / SWEEP_MS) * span)
-      onChangeRef.current(t)
-      if (t >= max) setPlaying(false)
-      else raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [playing, min, max, span])
+    if (step >= count) return setPlaying(false)
+    const t = setTimeout(() => onChangeRef.current(step + 1), stepDelayMs(speedRef.current))
+    return () => clearTimeout(t)
+  }, [playing, step, count])
 
   const togglePlay = () => {
     if (playing) return setPlaying(false)
-    if (reducedMotion) return onChange(max)
+    if (step >= count) onChange(0)
     setPlaying(true)
   }
+
+  const speedTitle = `Playback speed: ${speed}×, click to change`
 
   return (
     <div className={`${styles.bar} ${className ?? ''}`} role="group" aria-label="Timeline">
       <button type="button" className={styles.btn} onClick={togglePlay} title={playing ? 'Pause' : 'Play'} aria-label={playing ? 'Pause timeline' : 'Play timeline'}>
         {playing ? <Pause size={14} /> : <Play size={14} />}
       </button>
+      <button type="button" className={styles.btn} onClick={() => setSpeed((v) => SPEEDS[(SPEEDS.indexOf(v) + 1) % SPEEDS.length])} title={speedTitle} aria-label={speedTitle}>
+        {speed}×
+      </button>
       <div className={styles.slider} onPointerDown={() => setPlaying(false)}>
-        <SettingSlider
-          value={Math.min(max, Math.max(min, value))}
-          min={min}
-          max={max > min ? max : min + 1}
-          step={Math.max(1, Math.floor(span / 200))}
-          onChange={onChange}
-          ariaLabel="Timeline date"
-          formatValue={fmt}
-        />
+        <SettingSlider value={step} min={0} max={Math.max(1, count)} step={1} onChange={onChange} ariaLabel="Timeline step" formatValue={(v) => `${v} of ${count}`} />
       </div>
-      <span className={styles.label} aria-live="polite">{`${fmt(value)} · ${shown} of ${total} notes`}</span>
+      <span className={styles.label} aria-live="polite">{at === null ? 'No notes yet' : `${fmt(at)} · ${shown} of ${total} notes`}</span>
       <button type="button" className={styles.btn} onClick={onClose} title="Close timeline" aria-label="Close timeline">
         <X size={14} />
       </button>
