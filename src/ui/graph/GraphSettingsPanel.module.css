@@ -246,3 +246,15 @@
 .tagOptionOn { color: var(--text-1); }
 .tagCheck { display: inline-flex; width: 12px; flex: none; color: var(--accent); }
 .invalid { margin: 0; font-size: 0.75rem; color: var(--danger); }
+
+.missingCount {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.missingCount:hover { color: var(--text-1); text-decoration: underline; }
