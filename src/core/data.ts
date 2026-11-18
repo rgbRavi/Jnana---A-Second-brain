@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { open } from '@tauri-apps/plugin-dialog'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import type { Note } from '../types'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
+import { flushBeforeClose } from './closeGuard'
 import { importMedia, registerMediaRef } from './media'
 import { saveNote } from './notes'
 import { inferTags } from './tags'
@@ -43,23 +45,21 @@ export function formatBytes(bytes: number): string {
 export async function exportAssets(): Promise<number | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder for assets' })
   if (!dir || typeof dir !== 'string') return null
-  return invoke<number>('export_assets', { dir })
+  return log.span('data', 'Export assets', () => invoke<number>('export_assets', { dir }), { event: 'export', data: { dir } })
 }
 
 /** Write a full-vault backup .zip (DB + assets) into a chosen folder. Returns the path or null. */
 export async function exportFullVault(): Promise<string | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder for the vault backup' })
   if (!dir || typeof dir !== 'string') return null
-  return invoke<string>('create_backup', { destDir: dir })
+  return log.span('data', 'Export full vault', () => invoke<string>('create_backup', { destDir: dir }), { event: 'export', data: { dir } })
 }
 
 // ─── Backup / restore ─────────────────────────────────────────────────────--
 
 /** Create a backup in the app's default backups folder. Returns the file path. */
 export async function createBackup(): Promise<string> {
-  const path = await invoke<string>('create_backup', { destDir: null })
-  log.info('Backup created', path)
-  return path
+  return log.span('data', 'Create backup', () => invoke<string>('create_backup', { destDir: null }), { event: 'backup' })
 }
 
 /** Pick a backup .zip and stage it for restore (applied on next launch). */
@@ -70,20 +70,54 @@ export async function restoreBackup(): Promise<boolean> {
     filters: [{ name: 'Backup', extensions: ['zip'] }],
   })
   if (!file || typeof file !== 'string') return false
-  await invoke('restore_backup', { zipPath: file })
-  log.info('Backup staged for restore', file)
+  await log.span('data', 'Stage backup for restore', () => invoke('restore_backup', { zipPath: file }), { event: 'restore', data: { file } })
   return true
+}
+
+/** Relaunch Jnana — applies a staged restore. `app.restart()` never fires the
+ *  window's close-requested, so run the close guard's pending-save flush first. */
+export async function restartApp(): Promise<void> {
+  await flushBeforeClose()
+  return invoke<void>('restart_app')
+}
+
+/** Show a file in the OS file manager (opener:default grants reveal-item-in-dir). */
+export function revealInFolder(path: string): Promise<void> {
+  return revealItemInDir(path)
+}
+
+/** Reveal the log folder (jnana.log) in the OS file manager. */
+/** Absolute path of the folder holding jnana.db and the assets. */
+export function getDataDir(): Promise<string> {
+  return invoke<string>('get_data_dir')
+}
+
+export function openLogsDir(): Promise<void> {
+  return invoke<void>('open_logs_dir')
 }
 
 // ─── Import ─────────────────────────────────────────────────────────────────
 
-/** Pick a folder of `.md` files and import each as a note. Returns count or null. */
-export async function importMarkdownFolder(): Promise<number | null> {
+/** Pick a folder of `.md` files and import each as a note. Returns count or null.
+ *  Rust imports the whole folder in one call, so progress here covers only the
+ *  `note:saved` fan-out. That emits one event per note on purpose — link/mirror
+ *  sync hang off it (see useNotes); don't batch it. */
+export async function importMarkdownFolder(onProgress?: (done: number, total: number) => void): Promise<number | null> {
   const dir = await open({ directory: true, multiple: false, title: 'Choose a folder of markdown files' })
   if (!dir || typeof dir !== 'string') return null
-  const created = await invoke<Note[]>('import_markdown_dir', { dir })
-  for (const n of created) eventBus.emit('note:saved', n)
-  log.info(`Imported ${created.length} note(s) from markdown folder`, dir)
+  const created = await log.span('data', 'Import markdown folder', () => invoke<Note[]>('import_markdown_dir', { dir }), { event: 'import', data: { dir } })
+  let done = 0
+  for (const n of created) {
+    try {
+      eventBus.emit('note:saved', n)
+    } catch (err) {
+      log.error('note:saved handler failed during markdown import', err)
+    }
+    onProgress?.(++done, created.length)
+    // Yield now and then so a folder of thousands doesn't freeze the UI.
+    if (done % 50 === 0) await new Promise((r) => setTimeout(r, 0))
+  }
+  log.info(`Imported ${created.length} note(s) from markdown folder`)
   return created.length
 }
 
@@ -104,10 +138,17 @@ const MEDIA_EXTS = [
   'mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'opus',
 ]
 
-function mediaMarkdown(kind: MediaKind, filename: string, label: string): string {
+/** Make a file name safe inside `[label](…)`: no brackets/parens/backslashes/newlines, capped. */
+export function sanitizeLabel(label: string): string {
+  const clean = label.replace(/[\r\n\t]+/g, ' ').replace(/[[\]()\\]/g, '').replace(/\s+/g, ' ').trim()
+  return (clean || 'file').slice(0, 200)
+}
+
+export function mediaMarkdown(kind: MediaKind, filename: string, label: string): string {
+  const l = sanitizeLabel(label)
   switch (kind) {
     case 'image':
-      return `![${label}](jnana-asset://${filename})`
+      return `![${l}](jnana-asset://${filename})`
     case 'video':
       return `![video](jnana-asset://${filename})`
     case 'audio':
@@ -115,7 +156,7 @@ function mediaMarkdown(kind: MediaKind, filename: string, label: string): string
     case 'pdf':
       return `![pdf](jnana-asset://${filename})`
     default:
-      return `[${label}](jnana-asset://${filename})`
+      return `[${l}](jnana-asset://${filename})`
   }
 }
 
@@ -129,7 +170,7 @@ async function importOneFileAsNote(path: string): Promise<void> {
   const now = Date.now()
   const note: Note = {
     id,
-    title: base.replace(/\.[^.]+$/, ''),
+    title: base.replace(/\.[^.]+$/, '').slice(0, 200),
     content: mediaMarkdown(kind, filename, base),
     tags: [],
     createdAt: now,
@@ -142,8 +183,17 @@ async function importOneFileAsNote(path: string): Promise<void> {
   if (tags.length) await saveNote({ ...note, tags })
 }
 
-/** Pick documents or media files and import each as its own note. Returns count or null. */
-export async function importFilesAsNotes(kind: 'documents' | 'media'): Promise<number | null> {
+export interface ImportFilesResult {
+  imported: number
+  failed: number
+}
+
+/** Pick documents or media files and import each as its own note. A file that
+ *  fails is counted and skipped so the rest still import. Null = cancelled. */
+export async function importFilesAsNotes(
+  kind: 'documents' | 'media',
+  onProgress?: (done: number, total: number) => void,
+): Promise<ImportFilesResult | null> {
   const extensions = kind === 'documents' ? DOCUMENT_EXTS : MEDIA_EXTS
   const selected = await open({
     multiple: true,
@@ -151,14 +201,27 @@ export async function importFilesAsNotes(kind: 'documents' | 'media'): Promise<n
     filters: [{ name: kind, extensions }],
   })
   if (!selected) return null
-  const paths = Array.isArray(selected) ? selected : [selected]
-  let count = 0
-  for (const path of paths) {
-    if (typeof path !== 'string') continue
-    await importOneFileAsNote(path)
-    count++
-  }
-  return count
+  const paths = (Array.isArray(selected) ? selected : [selected]).filter((p): p is string => typeof p === 'string')
+  return log.span(
+    'data',
+    `Import ${kind}`,
+    async () => {
+      let imported = 0
+      let failed = 0
+      for (const path of paths) {
+        try {
+          await importOneFileAsNote(path)
+          imported++
+        } catch (err) {
+          failed++
+          log.error('Import of one file failed', err)
+        }
+        onProgress?.(imported + failed, paths.length)
+      }
+      return { imported, failed }
+    },
+    { event: 'import', data: { files: paths.length } },
+  )
 }
 
 // ─── Export / backup history (localStorage, no DB migration) ─────────────────

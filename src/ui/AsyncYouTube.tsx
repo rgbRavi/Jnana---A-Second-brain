@@ -2,7 +2,16 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useEffect, useRef } from 'react'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import Styles from './AsyncYouTube.module.css'
+
+/**
+ * YouTube refuses embeds from pages without a regular http(s) address (its
+ * "Error 153"). Windows' WebView serves the app from http://tauri.localhost and
+ * plays fine; macOS and Linux serve it from tauri://localhost, where the player
+ * may refuse, so those get a way to watch in the browser.
+ */
+const embedMayBeRefused = () => typeof navigator !== 'undefined' && !/Windows/i.test(navigator.userAgent)
 
 export interface YouTubePlayerHandle {
   seekTo: (seconds: number) => void
@@ -116,6 +125,15 @@ export function AsyncYouTube({ videoId, title = 'YouTube Video', className, lazy
           onLoad={handleIframeLoad}
         />
       </div>
+      {embedMayBeRefused() && (
+        <button
+          type="button"
+          className={Styles.watchExternal}
+          onClick={() => void openUrl(`https://www.youtube.com/watch?v=${videoId}`)}
+        >
+          Not playing? Watch on YouTube ↗
+        </button>
+      )}
     </div>
   )
 }

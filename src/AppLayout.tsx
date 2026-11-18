@@ -4,8 +4,9 @@
 import { useEffect, useRef, Suspense } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { eventBus } from "./lib/eventBus";
-import { log } from "./lib/logger";
+import { log, logEvent } from "./lib/logger";
 import { purgeExpiredTrash } from "./core/notes";
+import { installCloseGuard } from "./core/closeGuard";
 import { openNoteInWorking, useNotesSubView, getNotesSubView, setNotesSubView } from "./views/notes/working/useWorkingLayout";
 import type { Note } from "./types";
 import { toast } from "./lib/toast";
@@ -32,6 +33,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useInstalledFonts } from "./hooks/useInstalledFonts";
 import { usePdfTextIndex } from "./hooks/usePdfTextIndex";
 import { usePdfAnnotationIndex } from "./hooks/usePdfAnnotationIndex";
+import { useMarkdownMirror } from "./hooks/useMarkdownMirror";
 import { useViewState, setViewState } from "./hooks/useViewState";
 import { decideGate } from "./core/onboarding/gate";
 import { getOnboardingState, markLaunch, openOnboarding } from "./hooks/useOnboarding";
@@ -53,6 +55,8 @@ const initialRoute = (() => {
     }
 })()
 
+const isSettingsPath = (p: string) => p === "/settings" || p.startsWith("/settings/")
+
 function AppInner() {
     useSaveLastOpened()
     // Reconciles the localStorage boot mirror against the SQLite-stored active
@@ -66,6 +70,7 @@ function AppInner() {
     // then) so PDF contents are searchable in keyword + AI search.
     usePdfTextIndex()
     usePdfAnnotationIndex()
+    useMarkdownMirror()
     const { pathname } = useLocation()
     const navigate = useNavigate()
     const { create, update, notes } = useNotesContext()
@@ -82,6 +87,11 @@ function AppInner() {
     useEffect(() => {
         if (restoredRef.current) return
         restoredRef.current = true
+        logEvent('info', 'lifecycle', 'App ready', {
+            event: 'startup',
+            durationMs: performance.now(),
+            data: { route: pathname, userAgent: navigator.userAgent },
+        })
         const startup = getGeneralSettings().startupView
         const target = startup === 'last' ? initialRoute : startup
         if (target && target !== pathname) {
@@ -97,6 +107,8 @@ function AppInner() {
         )
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+    // Flush pending autosaves before the window closes (see core/closeGuard).
+    useEffect(() => installCloseGuard(), [])
     // Count this boot and decide whether the first-run wizard opens. markLaunch
     // is idempotent per process, so StrictMode's double-invoke can't double-count.
     useEffect(() => {
@@ -123,9 +135,10 @@ function AppInner() {
     }, [])
     // Remember the current route for next launch.
     useEffect(() => {
+        logEvent('debug', 'nav', `Route ${pathname}`, { event: 'route' })
         eventBus.emit('route:changed', { path: pathname })
         try {
-            if (pathname !== "/settings") localStorage.setItem(LAST_ROUTE_KEY, pathname)
+            if (!isSettingsPath(pathname)) localStorage.setItem(LAST_ROUTE_KEY, pathname)
         } catch {
             /* storage unavailable */
         }
@@ -135,7 +148,7 @@ function AppInner() {
     // button returns there. Central so no entry point has to remember to do it.
     const prevPathRef = useRef(pathname)
     useEffect(() => {
-        if (pathname === "/settings" && prevPathRef.current !== "/settings") {
+        if (isSettingsPath(pathname) && !isSettingsPath(prevPathRef.current)) {
             setViewState<string>("settings.returnTo", prevPathRef.current)
         }
         prevPathRef.current = pathname
@@ -205,7 +218,7 @@ function AppInner() {
         (pathname === "/" || pathname === "/notes" || pathname.startsWith("/workspaces/")) &&
         !onCanvasTab &&
         !onWorkingDesk
-    const inSettings = pathname === "/settings"
+    const inSettings = isSettingsPath(pathname)
     return (
         <div className={AppStyles.appShell}>
             {/* First child, so the backdrop (the user's wallpaper, or a plugin's)

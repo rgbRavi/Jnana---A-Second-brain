@@ -15,6 +15,8 @@ const ICON: Record<string, string> = {
 }
 
 function label(step: AgentStep): string {
+  // Web steps are stored as a short label ("Searched: …" / "Read page n — host"); show it.
+  if (step.tool === 'web_search' || step.tool === 'read_page') return step.result.slice(0, 80)
   const a = step.args || {}
   const hint = (a.query ?? a.note ?? a.title ?? a.from ?? '') as string
   return hint ? `${step.tool}: ${String(hint).slice(0, 48)}` : step.tool

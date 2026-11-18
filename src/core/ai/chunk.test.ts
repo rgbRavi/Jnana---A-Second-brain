@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { describe, it, expect } from 'vitest'
-import { chunkNote } from './chunk'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { chunkNote, hasEmbeddableText } from './chunk'
+import { registerNoteType, unregisterNoteType } from '../../lib/noteTypes'
+import { quizPlugin } from '../../plugins/quiz'
 import type { Note } from '../../types'
 
 function makeNote(content: string, title = 'My Note'): Note {
@@ -103,5 +105,31 @@ describe('surrogate pairs (astral characters)', () => {
     const chunks = chunkNote(makeNote(`text \uD835 more text`))
     expect(hasLoneSurrogate(chunks[0].chunkText)).toBe(false)
     expect(chunks[0].chunkText).toContain('�')
+  })
+})
+
+describe('saved quizzes and grounding', () => {
+  const quiz = (origin: string): Note => ({
+    ...makeNote(
+      JSON.stringify({
+        origin,
+        questions: [{ kind: 'recall', format: 'descriptive', question: 'What is a tensor?', answer: 'x', explanation: '', marks: 1 }],
+      }),
+      'Quiz',
+    ),
+    kind: 'quiz',
+  })
+  beforeAll(() => {
+    quizPlugin.init?.({ log: undefined, registerNoteType } as never)
+  })
+  afterAll(() => unregisterNoteType('quiz'))
+
+  it('chunkNote yields nothing for a saved web quiz', () => {
+    expect(chunkNote(quiz('web'))).toEqual([])
+    expect(hasEmbeddableText(quiz('web'))).toBe(false)
+  })
+  it('a saved notes quiz is still embedded', () => {
+    expect(chunkNote(quiz('notes')).length).toBeGreaterThan(0)
+    expect(hasEmbeddableText(quiz('notes'))).toBe(true)
   })
 })

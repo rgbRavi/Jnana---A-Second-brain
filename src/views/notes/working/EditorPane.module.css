@@ -7,7 +7,6 @@
   padding: 1.75rem 2.5rem;
   gap: 1.2rem;
   overflow: hidden;
-  background: radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 3%, transparent) 0%, transparent 40%);
 }
 
 /* The one divider on the surface: a hairline between title and body. */
@@ -23,7 +22,7 @@
   flex: 1;
   min-width: 0;
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text-1);
   background: transparent;
@@ -36,6 +35,10 @@
   outline: none;
 }
 
+.titleInput:focus-visible {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
 .headerActions {
   display: flex;
   align-items: center;
@@ -45,28 +48,46 @@
 
 .status {
   font-size: 0.75rem;
-  font-weight: 600;
   font-family: var(--font-mono);
-  padding: 0.3rem 0.8rem;
-  border-radius: 999px;
+  min-width: 7.5rem; /* fits the longest label so neighbours never shift */
+  text-align: right;
+  white-space: nowrap;
   user-select: none;
-  transition: all var(--dur-base) var(--motion-ease);
   margin-right: 0.5rem;
+  color: var(--text-2);
+  transition: color var(--dur-base) var(--motion-ease), opacity var(--dur-base) var(--motion-ease);
 }
 
-.status[data-state='saved'] {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-}
-
-.status[data-state='dirty'] {
+.status[data-state='overdue'] {
   color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
-.status[data-state='saving'] {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+.status[data-state='failed'] {
+  color: var(--danger);
+}
+
+/* The failed pill is the one interactive status: a ghost button, retry now. */
+.statusBtn {
+  height: 32px;
+  padding: 0 var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.statusBtn:hover {
+  background: var(--surface-hover-strong);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .iconBtn {
@@ -75,23 +96,40 @@
   color: var(--text-2);
   font-size: 1.125rem;
   cursor: pointer;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
-  transition: all var(--dur-base) var(--motion-ease);
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-base) var(--motion-ease), color var(--dur-base) var(--motion-ease);
 }
 
 .iconBtn:hover {
   background: var(--surface-hover-strong);
   color: var(--text-1);
-  transform: translateY(-1px);
 }
 
-.iconBtn:active {
-  transform: translateY(1px);
+.toolsBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 32px;
+  padding: 0 var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-base) var(--motion-ease), color var(--dur-base) var(--motion-ease);
+}
+
+.toolsBtn:hover {
+  background: var(--surface-hover-strong);
+  color: var(--text-1);
 }
 
 .iconBtnOn {
@@ -126,6 +164,9 @@
 }
 
 .recording {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   font-size: 0.8125rem;
   color: var(--danger);
   font-family: var(--font-mono);
@@ -137,6 +178,10 @@
   0% { opacity: 1; }
   50% { opacity: 0.5; }
   100% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording { animation: none; }
 }
 
 /* A typed-note editor (e.g. the canvas board) that manages its own space —
@@ -180,7 +225,7 @@
   display: block;
   font-size: 0.8125rem;
   font-family: var(--font-mono);
-  color: var(--text-3);
+  color: var(--text-2);
   margin-top: 2rem;
   padding-top: var(--space-lg);
   border-top: 1px dashed var(--border);
@@ -191,67 +236,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-3);
+  color: var(--text-2);
   font-size: 0.9375rem;
   font-weight: 500;
-}
-
-/* Dropdown Menu Styles */
-.dropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.4rem;
-  box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
-  z-index: 1002;
-  min-width: 200px;
-  backdrop-filter: blur(8px);
-  animation: dropdownFadeIn var(--dur-base) var(--motion-ease);
-}
-
-.dropdownRight {
-  right: 0;
-  left: auto;
-}
-
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.dropdownItem {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  color: var(--text-2);
-  padding: 0.6rem 0.8rem;
-  font-size: 0.875rem;
-  font-family: var(--font-body);
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: all var(--dur-fast) var(--motion-ease);
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.dropdownItem:hover {
-  background: var(--surface-hover);
-  color: var(--text-1);
-}
-
-.dropdownItemDanger,
-.dropdownItemDanger:hover {
-  color: var(--danger);
 }

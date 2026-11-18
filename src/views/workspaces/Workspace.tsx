@@ -74,7 +74,13 @@ function Workspace() {
       danger: true,
     })
     if (!ok) return
-    await deleteWorkspace(id)
+    try {
+      await deleteWorkspace(id)
+    } catch (e) {
+      console.error(e)
+      toast.error(`Couldn't delete “${workspace.name}”.`)
+      return
+    }
     closeWorkspace(id)
     navigate('/workspaces')
   }

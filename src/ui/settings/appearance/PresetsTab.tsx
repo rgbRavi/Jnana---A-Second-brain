@@ -5,6 +5,8 @@ import { useState, useSyncExternalStore } from 'react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { showConfirmDialog, showPromptDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
+import { logEvent } from '../../../lib/logger'
+import { MAX_THEME_JSON, MAX_THEME_NAME, themeFingerprint } from '../../../core/themes/sanitize'
 import { PRESETS, themeFromPreset } from '../../../core/themes/presets'
 import {
   applyPluginTheme,
@@ -13,7 +15,10 @@ import {
   subscribePluginThemes,
 } from '../../../lib/pluginThemes'
 import { pluginRegistry } from '../../../lib/pluginRegistry'
-import type { UseThemeApi } from '../../../hooks/useTheme'
+import { switchThemeWithUndo, type UseThemeApi } from '../../../hooks/useTheme'
+import { X } from 'lucide-react'
+import { SettingButton, SettingField, SettingSection, settingInputClass } from '../SettingLayout'
+import { StudioField } from './controls'
 import styles from './Appearance.module.css'
 
 export function PresetsTab({ api }: { api: UseThemeApi }) {
@@ -22,6 +27,9 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
   const [importError, setImportError] = useState<string | null>(null)
 
   const customThemes = savedThemes.filter((s) => !s.isBuiltin)
+  // "Active" = identical content, not identical name: duplicates can't both
+  // light up by name, and a tweaked theme stops being Active.
+  const currentPrint = themeFingerprint(theme)
 
   // Themes contributed by loaded plugins. They live in the registry, not the DB:
   // unloading the plugin takes its themes with it, and the user's active theme is
@@ -35,13 +43,28 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
       placeholder: 'Theme name',
       defaultValue: theme.presetId ? '' : theme.name,
     })
-    if (!name) return
+    const trimmed = name?.trim()
+    if (!trimmed) return
+    if (trimmed.length > MAX_THEME_NAME) {
+      toast.error(`Names can be up to ${MAX_THEME_NAME} characters.`)
+      return
+    }
+    const dupe = customThemes.find((s) => s.name.trim().toLowerCase() === trimmed.toLowerCase())
+    if (dupe) {
+      const ok = await showConfirmDialog({
+        title: 'Replace theme',
+        message: `You already have a theme called "${dupe.name}". Replace it with the current look?`,
+        confirmLabel: 'Replace',
+        danger: true,
+      })
+      if (!ok) return
+    }
     try {
-      await saveCurrent(name)
-      toast.success(`Saved "${name}"`)
+      await saveCurrent(trimmed, dupe?.id)
+      toast.success(`Saved "${trimmed}".`)
     } catch (err) {
-      toast.error('Failed to save theme')
-      console.error('[PresetsTab] saveCurrent failed', err)
+      toast.error("Couldn't save the theme. Try again.")
+      logEvent('error', 'theme', 'saveCurrent failed', { error: err })
     }
   }
 
@@ -54,32 +77,37 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
     if (!ok) return
     try {
       await deleteSaved(id)
-      toast.success(`Deleted "${name}"`)
+      toast.success(`Deleted "${name}".`)
     } catch (err) {
-      toast.error('Failed to delete theme')
-      console.error('[PresetsTab] deleteSaved failed', err)
+      toast.error("Couldn't delete that theme. Try again.")
+      logEvent('error', 'theme', 'deleteSaved failed', { error: err })
     }
   }
 
   async function handleExport() {
     try {
       await writeText(JSON.stringify(theme, null, 2))
-      toast.success('Copied theme JSON to clipboard')
+      toast.success('Theme copied. Paste it anywhere to share it.')
     } catch (err) {
-      toast.error('Failed to copy to clipboard')
-      console.error('[PresetsTab] export failed', err)
+      toast.error("Couldn't copy to the clipboard. Try again.")
+      logEvent('error', 'theme', 'theme export failed', { error: err })
     }
   }
 
   function handleImport() {
-    try {
-      const parsed = JSON.parse(importText)
-      importTheme(parsed)
+    if (importText.length > MAX_THEME_JSON) {
+      setImportError('That text is too large to be a theme.')
+      return
+    }
+    let ok = false
+    const undoShown = switchThemeWithUndo(() => { ok = importTheme(importText) })
+    if (ok) {
       setImportError(null)
       setImportText('')
-      toast.success('Theme imported')
-    } catch {
-      setImportError("Invalid JSON — check the pasted theme and try again.")
+      // The undo toast already says what happened; don't stack a second one.
+      if (!undoShown) toast.success('Theme applied.')
+    } else {
+      setImportError("That isn’t a Jnana theme. Paste the full text copied with “Copy theme as text”.")
     }
   }
 
@@ -102,8 +130,8 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
                 <span style={{ background: p.swatch[2], flex: 1 }} />
               </div>
               <div className={styles.presetCardFooter}>
-                <span className={styles.presetName}>{p.name}</span>
-                {active && <span className={styles.activeBadge}>ACTIVE</span>}
+                <span className={styles.presetName} title={p.name}>{p.name}</span>
+                {active && <span className={styles.activeBadge}>Active</span>}
               </div>
             </button>
           )
@@ -111,8 +139,10 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
       </div>
 
       {pluginThemes.length > 0 && (
-        <section className={styles.section}>
-          <p className={styles.sectionLabel}>From plugins</p>
+        <SettingSection
+          title="From plugins"
+          intro="Provided by a plugin. Applying one copies it into your theme — save it under “Your themes” to keep it after the plugin is removed."
+        >
           <div className={styles.presetGrid}>
             {pluginThemes.map((t) => {
               const owner = pluginRegistry.get(t.pluginId)?.name ?? t.pluginId
@@ -121,13 +151,14 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
                 t.tokens['--accent'] ?? 'var(--accent)',
                 t.tokens['--text-1'] ?? 'var(--text-1)',
               ]
-              const active = theme.name === t.name && theme.presetId === null
+              const pluginTheme = applyPluginTheme(themeFromPreset(t.base === 'light' ? 'light' : 'dark'), t)
+              const active = theme.presetId === null && themeFingerprint(pluginTheme) === currentPrint
               return (
                 <button
                   key={t.key}
                   type="button"
                   className={`${styles.presetCard} ${active ? styles.presetCardActive : ''}`}
-                  onClick={() => importTheme(applyPluginTheme(themeFromPreset(t.base === 'light' ? 'light' : 'dark'), t))}
+                  onClick={() => switchThemeWithUndo(() => importTheme(pluginTheme))}
                   title={`${t.name} — from ${owner}`}
                 >
                   <div className={styles.presetSwatchStrip}>
@@ -136,67 +167,80 @@ export function PresetsTab({ api }: { api: UseThemeApi }) {
                     <span style={{ background: swatch[2], flex: 1 }} />
                   </div>
                   <div className={styles.presetCardFooter}>
-                    <span className={styles.presetName}>{t.name}</span>
-                    {active && <span className={styles.activeBadge}>ACTIVE</span>}
+                    <span className={styles.presetName} title={t.name}>{t.name}</span>
+                    {active && <span className={styles.activeBadge}>Active</span>}
                   </div>
                 </button>
               )
             })}
           </div>
-          <p className={styles.hint}>
-            Provided by a plugin. Applying one copies it into your theme — save it under
-            “Your themes” to keep it after the plugin is removed.
-          </p>
-        </section>
+        </SettingSection>
       )}
 
-      <section className={styles.section}>
-        <p className={styles.sectionLabel}>Your themes</p>
+      <SettingSection title="Your themes">
         {customThemes.length === 0 ? (
           <p className={styles.hint}>Save your current tweaks to build a library of custom themes.</p>
         ) : (
           <ul className={styles.savedList}>
-            {customThemes.map((s) => (
+            {customThemes.map((s) => {
+              const active = theme.presetId === null && themeFingerprint(s.theme) === currentPrint
+              return (
               <li key={s.id} className={styles.savedRow}>
-                <button type="button" className={styles.savedName} onClick={() => loadSaved(s.id)}>
+                <button
+                  type="button"
+                  className={styles.savedName}
+                  aria-current={active ? 'true' : undefined}
+                  title={s.name}
+                  onClick={() => loadSaved(s.id)}
+                >
                   {s.name}
                 </button>
+                {active && <span className={styles.activeBadge}>Active</span>}
                 <button
                   type="button"
                   className={styles.savedDelete}
-                  aria-label={`Delete ${s.name}`}
+                  title={`Delete ${s.name}`} aria-label={`Delete ${s.name}`}
                   onClick={() => void handleDelete(s.id, s.name)}
                 >
-                  ✕
+                  <X size={14} aria-hidden />
                 </button>
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
-        <button type="button" className={styles.primaryBtn} onClick={() => void handleSaveCurrent()}>
+        <SettingButton variant="primary" onClick={() => void handleSaveCurrent()}>
           Save current as new theme
-        </button>
-      </section>
+        </SettingButton>
+      </SettingSection>
 
-      <section className={styles.section}>
-        <p className={styles.sectionLabel}>Portability</p>
-        <button type="button" className={styles.primaryBtn} onClick={() => void handleExport()}>
-          Export · copy JSON
-        </button>
-        <textarea
-          className={styles.importTextarea}
-          placeholder="Paste theme JSON here…"
-          value={importText}
-          onChange={(e) => {
-            setImportText(e.target.value)
-            setImportError(null)
-          }}
-        />
-        {importError && <p className={styles.errorText}>{importError}</p>}
-        <button type="button" className={styles.secondaryBtn} disabled={!importText.trim()} onClick={handleImport}>
-          Import theme
-        </button>
-      </section>
+      <SettingSection title="Portability">
+        <StudioField label="Share this theme" htmlFor="theme-export">
+          {/* id on a wrapper, not the button, so the label doesn't rename it */}
+          <div id="theme-export">
+            <SettingButton onClick={() => void handleExport()}>Copy theme as text</SettingButton>
+          </div>
+        </StudioField>
+        <SettingField label="Paste a theme" htmlFor="theme-import" stacked>
+          <textarea
+            id="theme-import"
+            aria-invalid={importError ? true : undefined}
+            className={`${settingInputClass} ${styles.importTextarea}`}
+            placeholder="Paste theme JSON here…"
+            value={importText}
+            onChange={(e) => {
+              setImportText(e.target.value)
+              setImportError(null)
+            }}
+          />
+        </SettingField>
+        {importError && <p role="alert" className={styles.errorText}>{importError}</p>}
+        <div>
+          <SettingButton disabled={!importText.trim()} onClick={handleImport}>
+            Import theme
+          </SettingButton>
+        </div>
+      </SettingSection>
     </div>
   )
 }

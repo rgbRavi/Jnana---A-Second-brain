@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { mix, deriveAccent, resolveVars, contrastRatio, contrastGrade, auditContrast } from './apply'
-import { themeFromPreset } from './presets'
+import { themeFromPreset, PRESETS } from './presets'
 
 describe('apply.ts', () => {
   describe('mix', () => {
@@ -69,6 +69,15 @@ describe('apply.ts', () => {
       const vars = resolveVars(themeFromPreset('light'))
       expect(vars['--wash-rgb']).toBe('0, 0, 0')
       expect(vars['--scrim']).toBe('rgba(15, 18, 24, 0.4)')
+    })
+  })
+
+  describe('--border-control', () => {
+    it.each(PRESETS.map((p) => p.id))('preset %s meets 3:1 vs --bg and --surface', (id) => {
+      const t = themeFromPreset(id)
+      const c = resolveVars(t)['--border-control']
+      expect(contrastRatio(c, t.tokens['--bg'])).toBeGreaterThanOrEqual(3)
+      expect(contrastRatio(c, t.tokens['--surface'])).toBeGreaterThanOrEqual(3)
     })
   })
 

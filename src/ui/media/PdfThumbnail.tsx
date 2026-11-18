@@ -11,11 +11,8 @@ import * as pdfjsLib from 'pdfjs-dist'
 import styles from './PdfThumbnail.module.css'
 
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { assetUrl } from '../../core/notes'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
-}
 
 const THUMB_WIDTH = 216
 const THUMB_HEIGHT = 192

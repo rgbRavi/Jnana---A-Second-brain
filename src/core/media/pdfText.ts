@@ -3,13 +3,9 @@
 
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { assetUrl } from '../notes'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-
-// Same asset host the thumbnail/viewer use — pdf.js fetches bytes over it.
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
-}
 
 // A PDF's extracted text never changes; cache by filename so a re-index or a
 // second import of the same file skips the parse.

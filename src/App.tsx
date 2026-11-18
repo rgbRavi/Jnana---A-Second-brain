@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import {HashRouter, Routes, Route} from "react-router-dom";
+import {HashRouter, Routes, Route, Navigate} from "react-router-dom";
 import { lazy } from "react";
 import AppLayout from "./AppLayout";
 import ErrorBoundary from "./ui/ErrorBoundary";
@@ -11,7 +11,6 @@ import Home from "./views/home/Home"
 // default boot view, and lazy-loading it would flash on the most common landing.
 const NotesView = lazy(() => import('./views/notes/NotesView'))
 const Graph = lazy(() => import("./views/graph/Graph"))
-const Search = lazy(() => import("./views/search/Search"))
 const Ai = lazy(() => import("./views/ai/Ai"))
 const Settings = lazy(() => import("./views/settings/Settings"))
 const TrashView = lazy(() => import("./views/trash/TrashView"))
@@ -29,13 +28,16 @@ function App() {
                                     <Route path = "/" element = {<Home />} />
                                     <Route path = "/notes" element = {<NotesView />} />
                                     <Route path = "/graph" element = {<Graph />}/>
-                                    <Route path = "/search" element = {<Search />}/>
                                     <Route path = "/ai" element = {<Ai />}/>
                                     <Route path = "/workspaces" element = {<Workspaces />}/>
                                     <Route path = "/workspaces/:id" element = {<Workspace />}/>
                                     <Route path = "/settings" element = {<Settings />}/>
-                                    <Route path = "/settings/ai" element = {<Settings />}/>
+                                    {/* Deep links to a tab (/settings/plugins, …) — see settingsTabs.ts. */}
+                                    <Route path = "/settings/*" element = {<Settings />}/>
                                     <Route path = "/trash" element = {<TrashView />}/>
+                                    {/* Unknown path (stale restored route, bad deep link) → Home,
+                                        never a blank shell with nothing to click. */}
+                                    <Route path = "*" element = {<Navigate to="/" replace />}/>
                             </Route>
                         </Routes>
                     </HashRouter>

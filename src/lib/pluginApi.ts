@@ -201,6 +201,20 @@ export interface PluginNetApi {
 }
 
 /**
+ * Write-only plugin logging. Lines land in the app log tagged with the plugin's id
+ * (Settings → Developer → Developer Log, and the Plugin Console); `warn`/`error`
+ * also reach the rotating log file. `data` is structured context — it is redacted
+ * (secrets, note bodies) and clipped. Counted against the plugin's call budget, so
+ * don't log in a hot loop. Plugins can't read or clear the log.
+ */
+export interface PluginLogApi {
+  debug(message: string, data?: unknown): void
+  info(message: string, data?: unknown): void
+  warn(message: string, data?: unknown): void
+  error(message: string, data?: unknown): void
+}
+
+/**
  * The sandboxed context handed to an inline plugin's `init(ctx)`. Everything a
  * first-party plugin needs without reaching into `core/` directly: the event bus,
  * scoped storage, a scoped notes API, and note-type registration.
@@ -225,6 +239,8 @@ export interface PluginContext {
    *  first-party plugins); never in the worker runtime — it has no DOM. Everything
    *  made through it is torn down when the plugin unloads. */
   motion?: MotionApi
+  /** Write-only logging (always present; no permission needed). */
+  log: PluginLogApi
   /** Register a custom note type (custom view + editor over a note). */
   registerNoteType: (def: NoteTypeDefinition) => void
   /** Contribute UI (widgets, commands). */

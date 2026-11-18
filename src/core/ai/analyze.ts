@@ -15,8 +15,8 @@ import { buildNoteContext, DEFAULT_CONTEXT_TOKENS, maxNotesFor } from './noteCon
 
 /** Options shared by the grounded actions (Analyze / Ask / Quiz). */
 export interface GroundingOpts {
-  /** How many tokens of note text the model may read (Settings → Advanced AI
-   *  generation). Defaults to DEFAULT_CONTEXT_TOKENS. */
+  /** How many tokens of note text the model may read (Settings → How the
+   *  AI answers). Defaults to DEFAULT_CONTEXT_TOKENS. */
   contextTokens?: number
 }
 const MAX_HISTORY_TURNS = 6
@@ -126,8 +126,9 @@ function emptyContextMessage(input: AnalyzeInput): string {
   }
 }
 
-/** Tolerantly extract a JSON object from a model response (handles code fences/prose). */
-export function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> {
+/** Tolerantly extract a JSON object from a model response (handles code fences/prose).
+ *  `offTopic` is set only when the model declined a topic its notes don't cover. */
+export function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> & { offTopic?: true } {
   let text = raw.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
@@ -138,6 +139,7 @@ export function parseAnalysis(raw: string): Omit<AnalysisResult, 'sourceNotes'> 
     Array.isArray(v) ? v.map((x) => String(x)).filter(Boolean) : []
 
   return {
+    ...(obj.offTopic === true ? { offTopic: true as const } : {}),
     summary: typeof obj.summary === 'string' ? obj.summary : '',
     keyConcepts: toList(obj.keyConcepts),
     openQuestions: toList(obj.openQuestions),
@@ -176,9 +178,12 @@ export async function analyze(
     config,
     query: input.mode === 'topic' ? input.query : undefined,
   })
+  // Topic retrieval always returns the *nearest* notes, however unrelated — so
+  // let the model decline rather than analyze whatever else the vault holds.
   const focus =
     input.mode === 'topic'
-      ? `The user wants to understand what they've learned about: "${input.query}".`
+      ? `The user wants to understand what they've learned about: ${JSON.stringify(input.query.trim())}. ` +
+        `If none of the notes below are about that, respond with exactly {"offTopic": true} instead.`
       : input.mode === 'note'
         ? `The user wants an analysis of ${noteSubject(sourceNotes.slice(0, input.noteIds.length))}${
             contextNotes.length > input.noteIds.length ? ' together with the notes linked to them (their threads)' : ''
@@ -191,8 +196,9 @@ export async function analyze(
     { system: SYSTEM_PROMPT, temperature: 0.2, images },
   )
 
+  let parsed: ReturnType<typeof parseAnalysis>
   try {
-    return { ...parseAnalysis(raw), sourceNotes }
+    parsed = parseAnalysis(raw)
   } catch {
     // Model didn't return clean JSON — degrade gracefully rather than crash.
     return {
@@ -203,6 +209,17 @@ export async function analyze(
       sourceNotes,
     }
   }
+  if (parsed.offTopic) {
+    const topic = input.mode === 'topic' ? ` “${input.query.trim()}”` : ' that'
+    return {
+      summary: `None of your notes in this vault cover${topic}, so there's nothing to analyze.`,
+      keyConcepts: [],
+      openQuestions: [],
+      weakSpots: [],
+      sourceNotes: [],
+    }
+  }
+  return { ...parsed, sourceNotes }
 }
 
 /** One question/answer exchange in a grounded follow-up conversation. */

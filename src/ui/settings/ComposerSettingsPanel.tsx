@@ -3,28 +3,26 @@
 
 import { useComposerOptions } from '../../hooks/useComposerOptions'
 import { SettingSelect, SettingSlider, SettingToggle, type SelectOption } from './SettingControls'
-import styles from './ComposerSettingsPanel.module.css'
+import { SettingField, SettingPanel, SettingSection, hintId } from './SettingLayout'
 
 const TABLE_MODE_OPTIONS: SelectOption[] = [
   { value: 'widget', label: 'Live table (grid with Edit button)' },
   { value: 'inline', label: 'Raw CSV block' },
 ]
 
-/** Settings → Composer: appearance & behavior of the floating note composer. */
+/** Settings → Quick note (route id `composer`): appearance & behavior of the floating note composer. */
 export function ComposerSettingsPanel() {
   const [opts, setOpts] = useComposerOptions()
 
   return (
-    <div className={styles.panel}>
-      <p className={styles.intro}>
-        Controls the floating “Click to take a note” composer on the Home and Notes views.
-      </p>
-
-      <div className={styles.field}>
-        <div className={styles.fieldHead}>
-          <label htmlFor="composer-transparency">Transparency</label>
-          <span className={styles.value}>{opts.transparency}%</span>
-        </div>
+    <SettingPanel intro="The “Click to take a note” box on Home and Notes.">
+      <SettingSection title="Look">
+      <SettingField
+        label="Transparency"
+        htmlFor="composer-transparency"
+        value={`${opts.transparency}%`}
+        hint="How see-through the collapsed box is: 0 is solid, 100 is fully clear."
+      >
         <SettingSlider
           id="composer-transparency"
           min={0}
@@ -34,39 +32,42 @@ export function ComposerSettingsPanel() {
           ariaLabel="Transparency"
           onChange={(transparency) => setOpts({ transparency })}
         />
-        <span className={styles.hint}>How see-through the collapsed pill is (0 = solid, 100 = clear).</span>
-      </div>
+      </SettingField>
 
+      {/* Composer-only: the app-wide glass effects toggle is Appearance → Design. */}
       <SettingToggle
         checked={opts.glass}
         onChange={(glass) => setOpts({ glass })}
-        label="Glass effect"
-        hint="frost/blur whatever is behind the pill"
-        ariaLabel="Glass effect"
+        label="Pill glass effect"
+        hint="blurs whatever is behind the collapsed box (glass for the whole app is in Appearance → Design)"
+        ariaLabel="Pill glass effect"
       />
+      </SettingSection>
+
+      <SettingSection title="Behaviour">
 
       <SettingToggle
         checked={opts.rememberState}
         onChange={(rememberState) => setOpts({ rememberState })}
-        label="Remember last state"
-        hint="reopen expanded or collapsed as you left it"
+        label="Reopen it the way you left it"
+        hint="opens expanded or collapsed, whichever it was last time"
         ariaLabel="Remember last state"
       />
 
-      <div className={styles.field}>
-        <div className={styles.fieldHead}>
-          <label htmlFor="composer-table-mode">Tables while editing</label>
-        </div>
+      <SettingField
+        label="Tables while editing"
+        htmlFor="composer-table-mode"
+        hint="How a table looks in the editor. Read view always shows a rendered table either way."
+      >
         <SettingSelect
           id="composer-table-mode"
           value={opts.tableEditMode}
           options={TABLE_MODE_OPTIONS}
+          ariaDescribedBy={hintId('composer-table-mode')}
           onChange={(v) => setOpts({ tableEditMode: v as typeof opts.tableEditMode })}
         />
-        <span className={styles.hint}>
-          How a table looks in the editor. Read view always shows a rendered table either way.
-        </span>
-      </div>
-    </div>
+      </SettingField>
+      </SettingSection>
+    </SettingPanel>
   )
 }

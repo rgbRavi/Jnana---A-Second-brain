@@ -69,6 +69,30 @@ pub fn import_media(
     Ok(filename)
 }
 
+/// Where LibreOffice's converter may live, tried in order. PATH names first, then
+/// each platform's standard install, because a GUI app often doesn't inherit the
+/// shell PATH: the Windows installer doesn't add LibreOffice to it, macOS apps
+/// opened from Finder get a minimal PATH, and some Linux distros (and Flatpak)
+/// only expose `libreoffice`. A path that doesn't exist on this OS just fails to
+/// spawn and the next one is tried.
+const SOFFICE_CANDIDATES: &[&str] = &[
+    "soffice",
+    "libreoffice",
+    r"C:\Program Files\LibreOffice\program\soffice.exe",
+    r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/var/lib/flatpak/exports/bin/org.libreoffice.LibreOffice",
+];
+
+/// Pandoc: a Homebrew install if there is one (Apple Silicon, then Intel) —
+/// Finder-launched macOS apps don't see Homebrew on PATH — otherwise PATH.
+fn pandoc_program() -> &'static str {
+    ["/opt/homebrew/bin/pandoc", "/usr/local/bin/pandoc"]
+        .into_iter()
+        .find(|p| Path::new(p).exists())
+        .unwrap_or("pandoc")
+}
+
 #[tauri::command]
 pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     let source_path = Path::new(&file_path);
@@ -85,15 +109,8 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     let out_file = out_dir.join(out_name);
     let mut success = false;
 
-    // 1. Try LibreOffice — check PATH first, then common Windows install locations.
-    //    soffice is not always on PATH even when LibreOffice is installed.
-    let soffice_candidates: &[&str] = &[
-        "soffice",
-        r"C:\Program Files\LibreOffice\program\soffice.exe",
-        r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-    ];
-
-    for candidate in soffice_candidates {
+    // 1. Try LibreOffice (PATH, then standard install locations).
+    for candidate in SOFFICE_CANDIDATES {
         let mut cmd = Command::new(candidate);
         // Pass paths as OsStr via .arg() rather than to_str().unwrap() so a
         // non-UTF-8 temp path can't panic the converter.
@@ -114,7 +131,7 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
     // 2. Pandoc fallback — explicitly request the libreoffice PDF engine so
     //    Pandoc never falls through to pdflatex/MikTeX which prompts for package installs.
     if !success || !out_file.exists() {
-        let mut pdf_cmd = Command::new("pandoc");
+        let mut pdf_cmd = Command::new(pandoc_program());
         pdf_cmd
             .arg(&file_path)
             .arg("-o")
@@ -137,7 +154,7 @@ pub async fn convert_to_pdf(file_path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn extract_text(file_path: String) -> Result<String, String> {
-    let mut cmd = Command::new("pandoc");
+    let mut cmd = Command::new(pandoc_program());
     cmd.args(["-t", "plain", &file_path]);
 
     match cmd.output() {
@@ -190,13 +207,8 @@ pub async fn read_table_file(file_path: String) -> Result<String, String> {
         let out_file = out_dir.join(&out_name);
         let _ = std::fs::remove_file(&out_file); // clear any stale conversion
 
-        let soffice_candidates: &[&str] = &[
-            "soffice",
-            r"C:\Program Files\LibreOffice\program\soffice.exe",
-            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-        ];
         let mut success = false;
-        for candidate in soffice_candidates {
+        for candidate in SOFFICE_CANDIDATES {
             let mut cmd = Command::new(candidate);
             cmd.arg("--headless")
                 .arg("--convert-to")
@@ -272,4 +284,30 @@ pub fn get_media_types(
     let conn = state.lock().map_err(|e| format!("DB lock error: {}", e))?;
     crate::db::queries::fetch_media_types(&conn, &note_id, content.as_deref())
         .map_err(|e| format!("Failed to fetch media refs: {}", e))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A GUI app often doesn't inherit the shell PATH (macOS apps opened from
+    /// Finder never see Homebrew; the Windows installer doesn't add LibreOffice
+    /// to PATH), so conversion probes each platform's standard install too.
+    #[test]
+    fn soffice_candidates_cover_every_platform() {
+        for expected in [
+            "soffice",
+            "libreoffice",
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        ] {
+            assert!(SOFFICE_CANDIDATES.contains(&expected), "missing {expected}");
+        }
+    }
+
+    #[test]
+    fn pandoc_falls_back_to_path_when_no_homebrew_install_exists() {
+        if !Path::new("/opt/homebrew/bin/pandoc").exists() && !Path::new("/usr/local/bin/pandoc").exists() {
+            assert_eq!(pandoc_program(), "pandoc");
+        }
+    }
 }

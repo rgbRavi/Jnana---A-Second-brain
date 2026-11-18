@@ -58,3 +58,17 @@ describe('motion events', () => {
     expect(heard).toEqual([{ id: 'real' }])
   })
 })
+
+describe('EventBus listener isolation', () => {
+  it('a throwing app listener does not stop the others or throw into the emitter', () => {
+    const bus = new EventBus()
+    const second = vi.fn()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    bus.on('note:saved', () => {
+      throw new Error('view broke')
+    })
+    bus.on('note:saved', second)
+    expect(() => bus.emit('note:saved', {})).not.toThrow()
+    expect(second).toHaveBeenCalled()
+  })
+})

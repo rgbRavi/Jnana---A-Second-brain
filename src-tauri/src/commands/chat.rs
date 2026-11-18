@@ -23,6 +23,9 @@ pub struct ConversationRow {
     pub vault_id: String,
     /// JSON array of rule ids applied to this conversation (v21), or null.
     pub rule_ids: Option<String>,
+    /// Per-conversation system prompt (v22), or null.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }

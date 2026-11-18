@@ -32,6 +32,15 @@ const MEDIA_EXTENSIONS: Record<MediaKind, string[]> = {
 export const extensionOf = (name: string) =>
   name.includes('.') ? (name.split('.').pop() ?? '').toLowerCase() : ''
 
+/** File extension for a mic recording, from the MIME type the WebView's
+ *  MediaRecorder produced: WebM/Opus on Windows (WebView2), MP4/AAC on macOS and
+ *  Linux (WebKit). A mislabelled clip won't play or transcribe. */
+export function recordingExtension(mimeType: string): string {
+  const type = mimeType.split(';')[0].trim().toLowerCase()
+  const byType: Record<string, string> = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/wav': 'wav' }
+  return byType[type] ?? 'webm'
+}
+
 /** The last segment of a path, handling both separators (Windows gives `\`). */
 export const basenameOf = (path: string) => path.split(/[\\/]/).pop() || path
 

@@ -4,7 +4,7 @@
 // src/core/aiWorkspace.ts
 // Styles & Skills ("presets") — reusable instructions that augment the system
 // prompt. Backed by the Rust ai_presets table.
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { extractText, getAssetPath } from './media'
 import type { AiPreset, AiProject, Note, PresetKind, ProjectKnowledge } from '../types'
 

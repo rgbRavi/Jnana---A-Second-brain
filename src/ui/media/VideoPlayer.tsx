@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Options as PlyrOptions } from 'plyr'
 import * as PlyrModule from 'plyr'
+import { assetUrl } from '../../core/notes'
 import 'plyr/dist/plyr.css'
 
 const PlyrConstructor = ((PlyrModule as any).default ?? PlyrModule) as typeof import('plyr').default
@@ -14,10 +15,6 @@ interface Props {
   className?: string
   lazy?: boolean
   onReady?: (player: InstanceType<typeof PlyrConstructor>) => void
-}
-
-function assetUrl(filename: string): string {
-  return `http://jnana-asset.localhost/${filename}`
 }
 
 const PLYR_OPTIONS: PlyrOptions = {
@@ -63,7 +60,7 @@ export function VideoPlayer({ filename, className, lazy = true, onReady }: Props
   //   paint, at which point the modal has its final dimensions.
   //
   // WHY src on the element, not a <source> child:
-  //   WebView2 custom protocol URLs (jnana-asset.localhost) cause Plyr to
+  //   WebView2 custom-protocol URLs (see assetUrl) cause Plyr to
   //   read readyState=0 from a <source> child and treat the media as
   //   unloaded. Setting src directly and calling load() forces a fetch
   //   before Plyr initialises.

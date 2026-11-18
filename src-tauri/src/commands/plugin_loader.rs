@@ -467,7 +467,7 @@ pub fn preview_plugin_grant(
         token.clone(),
         PendingGrant { plugin_id, permissions: allowed, issued_at: now },
     );
-    Ok(ManifestPreview { manifest, consent_token: token, sha256: None })
+    Ok(ManifestPreview { manifest, consent_token: token, sha256: None, emits_logs: None })
 }
 
 /// Apply a confirmed widening. One-shot, expiring, and still bounded by the
@@ -507,6 +507,50 @@ pub struct ManifestPreview {
     pub manifest: PluginManifest,
     pub consent_token: String,
     pub sha256: Option<String>,
+    /// Whether the entry module calls `ctx.log` (see `emits_logs`). `None` when the
+    /// code wasn't inspected (a permission re-grant, an unreadable entry file).
+    pub emits_logs: Option<bool>,
+}
+
+/// Biggest entry module we scan for logging calls; past this we don't guess.
+const MAX_SCAN_BYTES: u64 = 20 * 1024 * 1024;
+
+/// Does this plugin's code write to the log? A text heuristic over the entry
+/// module: minifiers rename `ctx` but keep property names, so `x.log.info(` (or a
+/// destructured `log.info(`, or `log?.warn(`) survives bundling. Only feeds an
+/// install-time note — it never gates anything.
+fn emits_logs(code: &str) -> bool {
+    ["debug", "info", "warn", "error"].iter().any(|lvl| {
+        code.contains(&format!("log.{}(", lvl)) || code.contains(&format!("log?.{}(", lvl))
+    })
+}
+
+/// Scan a zip's entry module (`manifest.main`) without extracting.
+fn zip_emits_logs(zip_path: &Path, main: &str) -> Option<bool> {
+    if !safe_relative(main) {
+        return None;
+    }
+    let file = fs::File::open(zip_path).ok()?;
+    let mut archive = zip::ZipArchive::new(file).ok()?;
+    let entry = archive.by_name(main).ok()?;
+    if entry.size() > MAX_SCAN_BYTES {
+        return None;
+    }
+    let mut code = String::new();
+    entry.take(MAX_SCAN_BYTES).read_to_string(&mut code).ok()?;
+    Some(emits_logs(&code))
+}
+
+/// Scan an unpacked folder's entry module.
+fn folder_emits_logs(dir: &Path, main: &str) -> Option<bool> {
+    if !safe_relative(main) {
+        return None;
+    }
+    let path = dir.join(main);
+    if fs::metadata(&path).ok()?.len() > MAX_SCAN_BYTES {
+        return None;
+    }
+    fs::read_to_string(path).ok().map(|code| emits_logs(&code))
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -532,8 +576,9 @@ pub fn read_zip_manifest(zip_path: String) -> Result<ManifestPreview, String> {
     let path = PathBuf::from(&zip_path);
     let manifest = manifest_from_zip(&path)?;
     check_app_version(&manifest)?;
+    let emits_logs = zip_emits_logs(&path, &manifest.main);
     let consent_token = issue_consent(&manifest, ConsentSource::Zip(path), false);
-    Ok(ManifestPreview { manifest, consent_token, sha256: None })
+    Ok(ManifestPreview { manifest, consent_token, sha256: None, emits_logs })
 }
 
 /// Peek an unpacked folder's manifest (for Load Local Plugin consent).
@@ -544,8 +589,9 @@ pub fn read_local_manifest(dir: String) -> Result<ManifestPreview, String> {
         .map_err(|_| "Folder has no manifest.json.".to_string())?;
     let manifest = parse_manifest(&bytes)?;
     check_app_version(&manifest)?;
+    let emits_logs = folder_emits_logs(&src, &manifest.main);
     let consent_token = issue_consent(&manifest, ConsentSource::Folder(src), false);
-    Ok(ManifestPreview { manifest, consent_token, sha256: None })
+    Ok(ManifestPreview { manifest, consent_token, sha256: None, emits_logs })
 }
 
 #[command]
@@ -931,15 +977,18 @@ pub async fn plugin_fetch(
     let info = read_installed(&install_dir_for(&plugin_id))
         .map_err(|_| "That plugin is not installed.".to_string())?;
     if !info.granted.iter().any(|p| p == "network") {
+        log::warn!("plugin_fetch: denied — {} has no network permission", plugin_id);
         return Err(format!("\"{}\" was not granted network access.", info.name));
     }
 
     let parsed = reqwest::Url::parse(&url).map_err(|_| format!("Invalid URL: {}", url))?;
     if parsed.scheme() != "https" {
+        log::warn!("plugin_fetch: denied — {} used a non-https URL", plugin_id);
         return Err("Plugin requests must use https://.".into());
     }
     let host = parsed.host_str().unwrap_or_default().to_string();
     if !host_allowed(&info.hosts, &host) {
+        log::warn!("plugin_fetch: denied — {} may not contact {}", plugin_id, host);
         return Err(format!(
             "\"{}\" may not contact {} — it declared {}.",
             info.name,
@@ -949,8 +998,15 @@ pub async fn plugin_fetch(
     }
 
     claim_fetch_slot(&plugin_id)?;
+    let started = std::time::Instant::now();
+    // Host only — the path/query can carry tokens, and headers/bodies are never logged.
     let result = do_fetch(parsed, method, headers, body).await;
     release_fetch_slot(&plugin_id);
+    let ms = started.elapsed().as_millis();
+    match &result {
+        Ok(r) => log::debug!("plugin_fetch: {} → {} {} in {} ms", plugin_id, host, r.status, ms),
+        Err(e) => log::warn!("plugin_fetch: {} → {} failed after {} ms: {}", plugin_id, host, ms, e),
+    }
     result
 }
 
@@ -1233,13 +1289,22 @@ pub async fn preview_plugin_download(download_url: String) -> Result<ManifestPre
             return Err(e);
         }
     };
+    let emits_logs = zip_emits_logs(&tmp, &manifest.main);
     let consent_token = issue_consent(&manifest, ConsentSource::Zip(tmp), true);
-    Ok(ManifestPreview { manifest, consent_token, sha256: Some(digest) })
+    Ok(ManifestPreview { manifest, consent_token, sha256: Some(digest), emits_logs })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn emits_logs_spots_minified_and_destructured_calls() {
+        assert!(emits_logs("init(e){e.log.info(\"ready\")}"));
+        assert!(emits_logs("const{log:t}=c;log.warn('x')"));
+        assert!(emits_logs("e.log?.error(err)"));
+        assert!(!emits_logs("console.log('hi');Math.log(2)"));
+    }
 
     #[test]
     fn valid_id_rejects_traversal_and_separators() {

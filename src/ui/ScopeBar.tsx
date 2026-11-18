@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, Folder } from 'lucide-react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useWorkspaces } from '../hooks/useWorkspaces'
 import { getActiveWorkspaceId } from '../hooks/useActiveWorkspace'
-import { useAiScope, setScopeMode, setScopeWorkspace } from '../hooks/useAiScope'
+import { useAiScope, setScopeMode, setScopeWorkspace, type AiScope } from '../hooks/useAiScope'
+import type { Workspace } from '../types'
 import styles from './ScopeBar.module.css'
 
 /**
- * Scope selector shared by the AI and Search views: range over the whole vault
- * or a single workspace. Writes the persisted AI-scope store; each view reads it
- * (via useScopedNoteIds) and applies the scope in its own way.
+ * Compact "from: Entire vault ▾" scope picker for the AI composer: range over
+ * the whole vault or a single workspace. Writes the persisted AI-scope store,
+ * which the AI view reads via useScopedNoteIds.
  */
 export function ScopeBar() {
   const scope = useAiScope()
@@ -26,87 +29,130 @@ export function ScopeBar() {
     }
   }, [scope.mode, scope.workspaceId, workspaces])
 
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [modePickerOpen, setModePickerOpen] = useState(false)
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  const current = scope.mode === 'workspace' ? workspaces.find((w) => w.id === scope.workspaceId) : null
+  const label = scope.mode === 'vault' ? 'Entire vault' : current?.name ?? 'Workspace'
+
+  const menu = open && (
+    <ScopeMenu
+      anchor={btnRef}
+      workspaces={workspaces}
+      scope={scope}
+      onClose={() => setOpen(false)}
+    />
+  )
 
   return (
-    <div className={styles.bar}>
-      <span className={styles.label}>Source</span>
-      <div style={{ position: 'relative' }}>
+    <span className={styles.compact}>
+      <button
+        ref={btnRef}
+        type="button"
+        className={styles.compactBtn}
+        title="Which notes grounded answers use"
+        aria-label={`Notes source: ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        from: <span className={styles.compactValue}>{label}</span> <ChevronDown size={12} aria-hidden />
+      </button>
+      {menu}
+    </span>
+  )
+}
+
+/** Portaled menu listing the vault and each workspace; opens upward (the trigger sits above the composer). */
+function ScopeMenu({
+  anchor,
+  workspaces,
+  scope,
+  onClose,
+}: {
+  anchor: RefObject<HTMLButtonElement | null>
+  workspaces: Workspace[]
+  scope: AiScope
+  onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null)
+  useEscapeKey(onClose)
+
+  useLayoutEffect(() => {
+    if (!anchor.current) return
+    const r = anchor.current.getBoundingClientRect()
+    // The trigger sits above the composer near the viewport bottom, so open upward.
+    setPos({ left: r.left, bottom: window.innerHeight - r.top + 4 })
+  }, [anchor])
+
+  useEffect(() => {
+    window.addEventListener('resize', onClose)
+    return () => window.removeEventListener('resize', onClose)
+  }, [onClose])
+
+  // Focus the checked item (or first) on open; hand focus back to the trigger on close.
+  useEffect(() => {
+    if (!pos) return
+    const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]')
+    const target = menuRef.current?.querySelector<HTMLElement>('[aria-checked="true"]') ?? items?.[0]
+    target?.focus()
+  }, [pos])
+  useEffect(() => {
+    const trigger = anchor.current
+    return () => trigger?.focus()
+  }, [anchor])
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [])
+    if (items.length === 0) return
+    e.preventDefault()
+    const i = items.indexOf(document.activeElement as HTMLElement)
+    const next = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length
+    items[next].focus()
+  }
+
+  if (!pos) return null
+  const vaultOn = scope.mode === 'vault'
+  return createPortal(
+    <>
+      <div className={styles.backdrop} onMouseDown={onClose} />
+      <div
+        ref={menuRef}
+        className={styles.menu}
+        role="menu"
+        onKeyDown={onKeyDown}
+        style={{ left: pos.left, bottom: pos.bottom }}
+      >
         <button
-          className={styles.select}
-          onClick={() => setModePickerOpen(!modePickerOpen)}
+          type="button"
+          role="menuitemradio"
+          aria-checked={vaultOn}
+          className={`${styles.menuItem} ${vaultOn ? styles.menuItemOn : ''}`}
+          onClick={() => { setScopeMode('vault'); onClose() }}
         >
-          {scope.mode === 'vault' ? 'Entire vault' : 'Workspace'} <ChevronDown size={14} style={{ opacity: 0.5, marginLeft: '4px' }} />
+          Entire vault
         </button>
-        {modePickerOpen && (
-          <div style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            zIndex: 60,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-            minWidth: '160px',
-            display: 'flex',
-            flexDirection: 'column',
-          }}>
+        {workspaces.length === 0 && <div className={styles.menuEmpty}>No workspaces yet</div>}
+        {workspaces.map((w) => {
+          const on = scope.mode === 'workspace' && scope.workspaceId === w.id
+          return (
             <button
-              style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: scope.mode === 'vault' ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer' }}
-              onClick={() => { setScopeMode('vault'); setModePickerOpen(false) }}
+              key={w.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={on}
+              className={`${styles.menuItem} ${on ? styles.menuItemOn : ''}`}
+              onClick={() => { setScopeWorkspace(w.id); setScopeMode('workspace'); onClose() }}
             >
-              Entire vault
+              {w.icon ? <span aria-hidden>{w.icon}</span> : <Folder size={14} aria-hidden />}
+              <span className={styles.menuText}>{w.name}</span>
             </button>
-            <button
-              style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: scope.mode === 'workspace' ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer' }}
-              onClick={() => { setScopeMode('workspace'); setModePickerOpen(false) }}
-              disabled={workspaces.length === 0}
-              title={workspaces.length === 0 ? 'Create a workspace first' : 'Restrict to one workspace'}
-            >
-              Workspace
-            </button>
-          </div>
-        )}
+          )
+        })}
       </div>
-      {scope.mode === 'workspace' && (
-        <div style={{ position: 'relative' }}>
-          <button
-            className={styles.select}
-            onClick={() => setPickerOpen(!pickerOpen)}
-          >
-            {workspaces.length === 0 ? 'No workspaces' : workspaces.find(w => w.id === scope.workspaceId)?.name || 'Workspace'} <ChevronDown size={14} style={{ opacity: 0.5, marginLeft: '4px' }} />
-          </button>
-          {pickerOpen && (
-            <div style={{
-              position: 'absolute',
-              top: 'calc(100% + 4px)',
-              left: 0,
-              zIndex: 60,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              boxShadow: '0 10px 28px rgba(0,0,0,0.4)',
-              minWidth: '160px',
-              maxHeight: '220px',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              {workspaces.map((w) => (
-                <button
-                  key={w.id}
-                  style={{ padding: '0.5rem 0.7rem', textAlign: 'left', background: w.id === scope.workspaceId ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent', border: 'none', color: 'var(--text-1)', fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  onClick={() => { setScopeWorkspace(w.id); setPickerOpen(false) }}
-                >
-                  {(w.icon || '📁') + ' ' + w.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </>,
+    document.body,
   )
 }

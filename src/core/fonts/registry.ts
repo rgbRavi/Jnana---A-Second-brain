@@ -7,15 +7,15 @@
 // empty at boot (installed families fall back until the store hydrates).
 
 import type { InstalledFont } from '../fonts'
-import { familyStack } from './loadFaces'
+import { cleanFamily, familyStack } from './loadFaces'
 
 let stacks = new Map<string, string>()
 
 export function setInstalledStacks(fonts: InstalledFont[]): void {
-  stacks = new Map(fonts.map((f) => [f.family, familyStack(f)]))
+  stacks = new Map(fonts.map((f) => [cleanFamily(f.family), familyStack(f)]))
 }
 
 /** CSS stack for an installed family id, or undefined if not installed. */
 export function installedStack(id: string): string | undefined {
-  return stacks.get(id)
+  return stacks.get(cleanFamily(id))
 }

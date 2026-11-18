@@ -68,6 +68,12 @@
 .dividerH:hover {
   background: var(--accent-soft);
 }
+.dividerV:focus-visible,
+.dividerH:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
 
 /* ---- group ---- */
 
@@ -104,7 +110,7 @@
 /* Floating tab-drag ghost (portaled to <body>). */
 .ghost {
   position: fixed;
-  z-index: 2000;
+  z-index: var(--z-drag);
   pointer-events: none;
   max-width: 220px;
   overflow: hidden;
@@ -128,6 +134,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
   min-height: 38px;
+  container-type: inline-size;
 }
 
 /* Sits inside the strip (not in a row above it), so showing it never shifts the
@@ -136,14 +143,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  gap: var(--space-xs);
+  min-width: 34px;
+  padding: 0 var(--space-sm);
   flex-shrink: 0;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
   background: none;
   border: none;
   border-right: 1px solid var(--border);
   color: var(--text-3);
   cursor: pointer;
   transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+
+/* Label shows when the strip has room; icon-only (title/aria-label remain) when narrow. */
+.stripBackLabel {
+  white-space: nowrap;
+}
+@container (max-width: 520px) {
+  .stripBackLabel { display: none; }
 }
 
 .stripBack:hover {
@@ -165,7 +184,7 @@
   align-items: center;
   gap: 0.4rem;
   max-width: 200px;
-  padding: 0 0.35rem 0 0.7rem;
+  padding: 0 0.15rem 0 0.7rem;
   border-right: 1px solid var(--border);
   color: var(--text-2);
   font-size: 0.8125rem;
@@ -198,8 +217,9 @@
   color: var(--text-3);
   cursor: pointer;
   font-size: 0.75rem;
-  width: 18px;
-  height: 18px;
+  /* 24x24 hit area (WCAG 2.5.8) around a 14px glyph; sits inside the tab height. */
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -209,12 +229,7 @@
 
 .tabClose:hover {
   background: var(--surface-hover);
-  color: var(--danger);
-}
-
-.tabDropEnd {
-  flex: 1;
-  min-width: 24px;
+  color: var(--text-1);
 }
 
 .tabActions {
@@ -231,8 +246,8 @@
   color: var(--text-2);
   cursor: pointer;
   font-size: 0.9375rem;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -253,7 +268,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  color: var(--text-3);
+  color: var(--text-2);
   text-align: center;
   padding: var(--space-xl);
 }
@@ -266,7 +281,7 @@
 
 .emptyHint {
   font-size: 0.8125rem;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .empty {
@@ -292,7 +307,45 @@
 
 .emptySub {
   font-size: 0.875rem;
-  color: var(--text-3);
+  color: var(--text-2);
   line-height: 1.6;
   margin: 0;
+}
+
+.emptyActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.emptyPrimary,
+.emptySecondary {
+  height: 2rem;
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.emptyPrimary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+}
+
+.emptyPrimary:hover {
+  background: var(--accent-hover);
+}
+
+.emptySecondary {
+  background: transparent;
+  color: var(--text-1);
+  border: 1px solid var(--border-control);
+}
+
+.emptySecondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-control-hover);
 }

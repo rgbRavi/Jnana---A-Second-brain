@@ -7,7 +7,7 @@
 // opaque (frontend-owned shape), same treatment as canvas `data`/theme `json`.
 
 import type { CSSProperties } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 
 export type MediaAlignment = 'left' | 'center' | 'right'
 

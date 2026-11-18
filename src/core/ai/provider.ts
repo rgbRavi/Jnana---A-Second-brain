@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke, Channel } from '@tauri-apps/api/core'
+import { Channel } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
 import type { AiConfig, AiProviderKind } from '../../types'
 import { isThinkingModel } from './capabilities'
 
@@ -151,6 +152,8 @@ export interface StreamChatOpts {
   signal?: AbortSignal
   /** Override the endpoint/model (e.g. a dedicated deep-research endpoint). */
   route?: StreamRoute
+  /** Reasoning-model "thinking" text, streamed separately from the reply (never part of it). */
+  onReasoning?: (delta: string) => void
 }
 
 /** Internal event shape mirrored from the Rust `StreamMsg`. */
@@ -204,24 +207,28 @@ function buildChatRequest(
 }
 
 /** Parse one framing line into a content delta. SSE for OpenAI, NDJSON for Ollama. */
-function parseDelta(line: string, kind: AiProviderKind): string {
+/** One stream line → reply text and reasoning text (DeepSeek `reasoning_content`,
+ *  OpenRouter `reasoning`, Ollama `thinking`). Reasoning never goes into the reply. */
+function parseDelta(line: string, kind: AiProviderKind): { content: string; reasoning: string } {
+  const none = { content: '', reasoning: '' }
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
   if (kind === 'openai') {
-    if (!line.startsWith('data:')) return ''
+    if (!line.startsWith('data:')) return none
     const payload = line.slice(5).trim()
-    if (payload === '[DONE]') return ''
+    if (payload === '[DONE]') return none
     try {
-      const j = JSON.parse(payload)
-      return j.choices?.[0]?.delta?.content ?? ''
+      const d = JSON.parse(payload).choices?.[0]?.delta ?? {}
+      return { content: str(d.content), reasoning: str(d.reasoning_content) || str(d.reasoning) }
     } catch {
-      return ''
+      return none
     }
   }
   // Ollama NDJSON: one JSON object per line.
   try {
-    const j = JSON.parse(line)
-    return j.message?.content ?? ''
+    const m = JSON.parse(line).message ?? {}
+    return { content: str(m.content), reasoning: str(m.thinking) }
   } catch {
-    return ''
+    return none
   }
 }
 
@@ -237,6 +244,9 @@ export async function streamChat(
   opts: StreamChatOpts,
   onToken: (delta: string) => void,
 ): Promise<string> {
+  // Stopped before the stream registered (e.g. during web gathering): a cancel sent now would
+  // be ignored by Rust and the full reply would stream anyway, so never start it.
+  if (opts.signal?.aborted) return ''
   const route: StreamRoute = opts.route ?? {
     target: 'chat',
     provider: config.chatProvider,
@@ -264,10 +274,11 @@ function streamRoute(
   const flush = (line: string) => {
     const trimmed = line.trim()
     if (!trimmed) return
-    const delta = parseDelta(trimmed, kind)
-    if (delta) {
-      full += delta
-      onToken(delta)
+    const { content, reasoning } = parseDelta(trimmed, kind)
+    if (reasoning) opts.onReasoning?.(reasoning)
+    if (content) {
+      full += content
+      onToken(content)
     }
   }
 

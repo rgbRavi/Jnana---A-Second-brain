@@ -11,6 +11,7 @@ import type { Plugin } from '../../types'
 import { EMPTY_CANVAS_CONTENT, canvasToSearchText, canvasToExportMarkdown, canvasToLinkText, canvasRenameLinks, canvasToMedia } from './canvasNote'
 import { CanvasNoteEditor } from './CanvasNoteEditor'
 import { CanvasNoteView } from './CanvasNoteView'
+import { canvasLog } from './log'
 
 export const CANVAS_PLUGIN_ID = 'jnana.canvas'
 
@@ -22,6 +23,7 @@ export const canvasPlugin: Plugin = {
   name: 'Canvas',
   version: '1.0.0',
   init(ctx) {
+    canvasLog.bind(ctx.log)
     ctx.registerNoteType({
       id: CANVAS_NOTE_KIND,
       label: 'Canvas',
@@ -35,5 +37,8 @@ export const canvasPlugin: Plugin = {
       renameLinks: (content, from, to) => canvasRenameLinks(content, from, to),
       toMedia: (note) => canvasToMedia(note.content),
     })
+  },
+  destroy() {
+    canvasLog.bind(null)
   },
 }

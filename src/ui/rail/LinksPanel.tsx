@@ -17,6 +17,7 @@ import { noteMedia } from '../../lib/noteTypes'
 import { openNoteMedia } from '../../core/media'
 import { eventBus } from '../../lib/eventBus'
 import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import styles from './RightRail.module.css'
 
 function Section({ title, count, children }: { title: string; count: number; children: ReactNode }) {
@@ -83,7 +84,10 @@ function MediaList({ media, noteId }: { media: NoteMedia[]; noteId: string }) {
                   className={`${styles.linkRow} ${styles.mediaRow}`}
                   title={`Open ${m.kind}: ${m.label}`}
                   onClick={() =>
-                    openNoteMedia(m, noteId).catch((err) => toast.error('Could not open: ' + String(err)))
+                    openNoteMedia(m, noteId).catch((err) => {
+                      log.error('Opening note media failed', err)
+                      toast.error(`Couldn't open this ${m.kind}. Please try again.`)
+                    })
                   }
                 >
                   <Icon size={14} aria-hidden="true" />

@@ -7,12 +7,13 @@ import styles from '../Dashboard.module.css'
 interface Props {
   icon: ReactNode
   label: string
+  title?: string
   onClick: () => void
 }
 
-export function QuickActionButton({ icon, label, onClick }: Props) {
+export function QuickActionButton({ icon, label, title, onClick }: Props) {
   return (
-    <button type="button" className={styles.quickAction} onClick={onClick}>
+    <button type="button" className={styles.quickAction} title={title} onClick={onClick}>
       <span className={styles.quickIcon} aria-hidden="true">
         {icon}
       </span>

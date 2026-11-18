@@ -8,7 +8,7 @@
 // toast tray while it writes, and resolves into a self-dismissing "‘name’ exported
 // to ‘dir’" notification.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { save } from '@tauri-apps/plugin-dialog'
 import { toast, updateToast, dismissToast } from '../lib/toast'
 
@@ -23,11 +23,20 @@ function splitPath(path: string): { fileName: string; dir: string } {
  * Prompt for a destination, then write `csv` there with progress + result toasts.
  * Returns the written path, or `null` if the user cancelled the dialog.
  */
-export async function saveCsvFile(defaultName: string, csv: string): Promise<string | null> {
+export function saveCsvFile(defaultName: string, csv: string): Promise<string | null> {
+  return saveTextFile(defaultName, csv, { title: 'Export table as CSV', filterName: 'CSV', extensions: ['csv'] })
+}
+
+/** Same flow for any text file (CSV, a log export, …). */
+export async function saveTextFile(
+  defaultName: string,
+  text: string,
+  opts: { title: string; filterName: string; extensions: string[] },
+): Promise<string | null> {
   const path = await save({
-    title: 'Export table as CSV',
+    title: opts.title,
     defaultPath: defaultName,
-    filters: [{ name: 'CSV', extensions: ['csv'] }],
+    filters: [{ name: opts.filterName, extensions: opts.extensions }],
   })
   if (!path) return null // cancelled
 
@@ -44,7 +53,7 @@ export async function saveCsvFile(defaultName: string, csv: string): Promise<str
   }, 90)
 
   try {
-    await invoke('write_text_file', { path, content: csv })
+    await invoke('write_text_file', { path, content: text })
     window.clearInterval(timer)
     updateToast(id, {
       message: `“${fileName}” exported to “${dir}”`,

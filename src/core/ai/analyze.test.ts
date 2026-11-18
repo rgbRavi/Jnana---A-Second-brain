@@ -41,6 +41,12 @@ describe('parseAnalysis', () => {
     expect(r.weakSpots).toEqual([])
   })
 
+  it('flags an off-topic decline, and only that', () => {
+    expect(parseAnalysis('{"offTopic": true}').offTopic).toBe(true)
+    expect(parseAnalysis(JSON.stringify(valid))).not.toHaveProperty('offTopic')
+    expect(parseAnalysis('{"offTopic": "yes"}')).not.toHaveProperty('offTopic')
+  })
+
   it('throws on input with no JSON object (caller degrades gracefully)', () => {
     expect(() => parseAnalysis('no json here at all')).toThrow()
   })

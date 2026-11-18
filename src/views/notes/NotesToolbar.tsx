@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, Pencil, Search, X } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { ArrowDown, ArrowUp, ChevronDown, Pencil, Search, X } from 'lucide-react'
+import { ContextMenu, type MenuItem } from '../../ui/ContextMenu'
 import { openComposer } from '../../ui/editor/NoteCreator'
 import { SettingSelect } from '../../ui/settings/SettingControls'
 import {
@@ -25,7 +26,7 @@ const SORT_OPTIONS: [SortBy, string][] = [
 
 const MODES: [DisplayMode, string][] = [
   ['card', 'Cards'],
-  ['comfortable', 'Comfortable'],
+  ['comfortable', 'Large cards'],
   ['compact', 'Compact'],
   ['grid', 'Grid'],
 ]
@@ -43,6 +44,8 @@ interface Props {
   newLabel?: ReactNode
   /** Override the create action (default opens the global composer). */
   onNew?: () => void
+  /** Extra entries for the create button's dropdown (after "New note"). The chevron only shows when given. */
+  newMenuItems?: MenuItem[]
 }
 
 export function NotesToolbar({
@@ -54,9 +57,14 @@ export function NotesToolbar({
   extraActions,
   newLabel = <><Pencil size={15} /> New note</>,
   onNew,
+  newMenuItems,
 }: Props) {
   const prefs = useNotesViewPrefs(prefsKey)
   const activeCount = activeFilterCount(prefs.filters)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const create = onNew ?? openComposer
+  const descending = prefs.sortOrder === 'desc'
+  const orderLabel = descending ? 'Sort descending — click for ascending' : 'Sort ascending — click for descending'
 
   return (
     <div className={Styles.toolbar}>
@@ -70,6 +78,16 @@ export function NotesToolbar({
           onChange={(e) => onSearch(e.target.value)}
           aria-label="Search notes"
         />
+        {search && (
+          <button
+            className={Styles.searchClear}
+            onClick={() => onSearch('')}
+            title="Clear search"
+            aria-label="Clear search"
+          >
+            <X size={13} />
+          </button>
+        )}
       </div>
 
       <div className={Styles.filterGroupBtns}>
@@ -94,38 +112,67 @@ export function NotesToolbar({
       </div>
 
       <div className={Styles.sort}>
+        <label className={Styles.fieldLabel} htmlFor={`${prefsKey}-sort`}>Sort</label>
         <div className={Styles.selectWrap}>
           <SettingSelect
             value={prefs.sortBy}
             onChange={(v) => setNotesViewPrefs(prefsKey, { sortBy: v as SortBy })}
             options={SORT_OPTIONS.map(([value, label]) => ({ value, label }))}
-            ariaLabel="Sort by"
+            id={`${prefsKey}-sort`}
           />
         </div>
         <button
-          className={Styles.toolBtn}
-          onClick={() => setNotesViewPrefs(prefsKey, { sortOrder: prefs.sortOrder === 'asc' ? 'desc' : 'asc' })}
-          title={prefs.sortOrder === 'asc' ? 'Ascending' : 'Descending'}
-          aria-label="Toggle sort order"
+          className={`${Styles.toolBtn} ${Styles.iconBtn}`}
+          onClick={() => setNotesViewPrefs(prefsKey, { sortOrder: descending ? 'asc' : 'desc' })}
+          title={orderLabel}
+          aria-label={orderLabel}
         >
-          {prefs.sortOrder === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+          {descending ? <ArrowDown size={15} /> : <ArrowUp size={15} />}
         </button>
       </div>
 
-      <div className={Styles.selectWrap}>
-        <SettingSelect
-          value={prefs.displayMode}
-          onChange={(v) => setNotesViewPrefs(prefsKey, { displayMode: v as DisplayMode })}
-          options={MODES.map(([value, label]) => ({ value, label }))}
-          ariaLabel="Display mode"
-        />
+      <div className={Styles.sort}>
+        <label className={Styles.fieldLabel} htmlFor={`${prefsKey}-view`}>View</label>
+        <div className={Styles.selectWrap}>
+          <SettingSelect
+            value={prefs.displayMode}
+            onChange={(v) => setNotesViewPrefs(prefsKey, { displayMode: v as DisplayMode })}
+            options={MODES.map(([value, label]) => ({ value, label }))}
+            id={`${prefsKey}-view`}
+          />
+        </div>
       </div>
 
       {extraActions}
 
-      <button className={Styles.newBtn} onClick={onNew ?? openComposer}>
-        {newLabel}
-      </button>
+      <div className={Styles.split}>
+        <button className={`${Styles.newBtn} ${newMenuItems ? Styles.newBtnMain : ''}`} onClick={create}>
+          {newLabel}
+        </button>
+        {newMenuItems && (
+          <button
+            className={Styles.newChevron}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setMenuAt({ x: r.left, y: r.bottom + 4 })
+            }}
+            title="More ways to create"
+            aria-label="More ways to create"
+            aria-haspopup="menu"
+            aria-expanded={!!menuAt}
+          >
+            <ChevronDown size={15} />
+          </button>
+        )}
+      </div>
+      {menuAt && newMenuItems && (
+        <ContextMenu
+          x={menuAt.x}
+          y={menuAt.y}
+          items={[{ label: 'New note', onClick: create }, ...newMenuItems]}
+          onClose={() => setMenuAt(null)}
+        />
+      )}
     </div>
   )
 }

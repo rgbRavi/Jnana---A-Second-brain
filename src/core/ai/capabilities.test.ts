@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Jnana Project
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { detectVision, isVisionModel } from './capabilities'
-import { setVisionOverride } from '../../lib/visionOverride'
+import { detectThinking, detectVision, isThinkingModel, isVisionModel } from './capabilities'
+import { setThinkingOverride, setVisionOverride } from '../../lib/visionOverride'
 
 describe('vision detection', () => {
   beforeEach(() => {
@@ -30,5 +30,31 @@ describe('vision detection', () => {
     expect(isVisionModel('qwen/qwen3.6-flash')).toBe(true)
     setVisionOverride('gpt-4o', false)
     expect(isVisionModel('gpt-4o')).toBe(false)
+  })
+})
+
+describe('reasoning detection', () => {
+  beforeEach(() => {
+    setThinkingOverride('deepseek-v4.1-flash-1017', undefined)
+    setThinkingOverride('qwen3:8b', undefined)
+  })
+
+  it('guesses from the name', () => {
+    expect(detectThinking('qwen3:8b')).toBe(true)
+    expect(detectThinking('deepseek-v4.1-flash-1017')).toBe(false)
+  })
+
+  it("lets the user's answer override the name guess either way", () => {
+    expect(isThinkingModel('deepseek-v4.1-flash-1017')).toBe(false)
+    setThinkingOverride('DeepSeek-V4.1-Flash-1017', true)
+    expect(isThinkingModel('deepseek-v4.1-flash-1017')).toBe(true)
+    expect(detectThinking('deepseek-v4.1-flash-1017')).toBe(false) // the guess itself is unchanged
+    setThinkingOverride('qwen3:8b', false)
+    expect(isThinkingModel('qwen3:8b')).toBe(false)
+  })
+
+  it('keeps vision and reasoning answers separate', () => {
+    setThinkingOverride('deepseek-v4.1-flash-1017', true)
+    expect(isVisionModel('deepseek-v4.1-flash-1017')).toBe(false)
   })
 })

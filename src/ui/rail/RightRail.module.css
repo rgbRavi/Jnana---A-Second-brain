@@ -71,7 +71,7 @@
   border-bottom: 1px solid var(--border);
 }
 .bodyTitle {
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-1);
 }
@@ -103,7 +103,7 @@
 }
 .empty {
   color: var(--text-3);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   padding: var(--space-sm) 0.2rem;
 }
@@ -118,7 +118,7 @@
 
 .section { display: flex; flex-direction: column; gap: 0.35rem; }
 .sectionTitle {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -136,13 +136,13 @@
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-2);
   cursor: pointer;
 }
-.toolBtn:hover:not(:disabled) { background: var(--surface-hover-strong); color: var(--text-1); }
+.toolBtn:hover:not(:disabled) { background: var(--surface-hover-strong); color: var(--text-1); border-color: var(--border-control-hover); }
 .toolBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 .toolBtnActive {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -153,14 +153,14 @@
 .toolTextBtn {
   height: 2rem;
   padding: 0 0.55rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   color: var(--text-2);
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   cursor: pointer;
 }
-.toolTextBtn:hover:not(:disabled) { background: var(--surface-hover-strong); color: var(--text-1); }
+.toolTextBtn:hover:not(:disabled) { background: var(--surface-hover-strong); color: var(--text-1); border-color: var(--border-control-hover); }
 .toolTextBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ── Links panel ── */

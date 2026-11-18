@@ -149,7 +149,7 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   faster-whisper — a ready-to-run Docker setup is included in [`whisper-server/`](whisper-server/))
 
 ### AI layer (bring-your-own-key, or fully local)
-All AI is optional, configured in **Settings → AI Providers**, and grounded strictly in your notes.
+All AI is optional, configured in **Settings → AI setup**, and grounded strictly in your notes.
 Keys are stored on the Rust side (never in browser-reachable storage) and requests are proxied
 through Rust to only the host you configured.
 
@@ -173,15 +173,29 @@ through Rust to only the host you configured.
 - **Adaptive Rules** — write reusable instructions ("Rules"), tick which apply per chat or per project
   (a project shares its rules with every chat under it), and Jnana keeps re-injecting them so the AI
   stays on-instruction deep into long conversations. How and when rules refresh — and how they're
-  selected — is configurable in **Settings → Advanced AI generation**, and all the AI-powered options
+  selected — is configurable in **Settings → How the AI answers**, and all the AI-powered options
   fall back safely to the cheap defaults when no AI is set up
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 - **One chat, grounding on demand** — a normal streaming chat, plus **Analyze / Ask / Quiz** over a
   topic, a time range, or any set of notes you tick. A line above the composer always says what Send
   will do; starters on an empty chat set up a quiz on this week's notes, a question over your notes, or
   an analysis of your last saved note
+- **Quiz from the web or the AI's own knowledge** — beyond your notes, build a quiz from pasted links, a
+  web search (bring your own Brave/Tavily/SearXNG), or the model's knowledge; answers are checked against the sources
+  when possible (labelled when not), and you can dispute any question
+- **Web access in chat** — Off, **Always search**, or **Let the model decide** (Agent with web tools);
+  search goes through your own Brave / Tavily / SearXNG setup, and replies show checked citations or
+  just the list of sources
+- **Provider presets** — save named setups for Chat, Embedding, Transcription, Deep research and Web
+  search (each keeps its own key, stored Rust-side), and switch between them in Settings or from the
+  chat composer
+- **Your own system prompt** — optional global, per-preset (replaces the global one) and per-conversation
+  (added on top) instructions for chat and Agent; Analyze / Ask / Quiz stay grounded and ignore them
+- **Shows the model's thinking** — reasoning models stream their thinking into a collapsible block
+  (tell Jnana a model reasons if it doesn't recognise it)
+- **Customisable composer** — show, hide and reorder the chat toolbar's controls in **Settings → How the AI answers**
 - **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
-  Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
+  How the AI answers**, default 32k tokens). Notes that fit go in whole (PDF text included); long
   notes send the passages that best match your question or topic
 - **Sees your images** — with a vision-capable model, images in your notes and pages of scanned PDFs
   are sent too; attach images to a chat by picking, pasting or dragging them in (and tell Jnana a model
@@ -197,6 +211,10 @@ through Rust to only the host you configured.
   outside the note — PDF highlights, canvas, workspace membership, media layout — is **not** in the
   Markdown; use **Settings → Import / Export → "Export full vault (.zip)"** for a complete, restorable
   copy of everything.
+- **Live Markdown mirror** (Settings → Import / Export → "Mirror to folder…") — every save also updates
+  a plain `.md` copy of the note in a folder you pick, laid out as `Vault/Folder/Subfolder/Note.md`
+  (renames and moves follow along), so your notes stay readable, searchable and git-able without
+  Jnana. One-way: Jnana never reads the folder back.
 
 ### Appearance (Theme Studio)
 - **Settings → Appearance** — token-level theming, not a "pick one of N themes" dropdown: tune
@@ -217,6 +235,16 @@ through Rust to only the host you configured.
   built-in **Pomodoro** timer in a floating tray), **command-palette commands** with a keyboard
   shortcut you can rebind, **right-rail panels**, and renderers for **fenced code blocks** (a
   ```` ```weather ```` block becomes whatever the plugin makes of it)
+- **Buttons where you work** — a plugin can add items to a note's right-click / ⋮ menu, the editor
+  pane header, or the end of the sidebar. Jnana draws them (a plugin never touches the page), so this
+  works for sandboxed plugins too, and an editor action saves your pending edits before it runs
+- **Motion plugins** — with the `motion` permission, a plugin can animate app moments (deleting,
+  saving, navigating) on named UI anchors. Every animation is owned by Jnana, so reduced motion, a
+  fault limit, unloading the plugin or the **`Ctrl/⌘+Alt+M`** panic chord removes it all at once; an
+  animation never delays the action itself. When two plugins want the same moment you pick the winner
+  (Appearance → Motion). Installing one offers to back up first, and a launch that didn't close
+  cleanly skips motion plugins for that session. Two built-in effects — crumple-to-bin on delete and
+  a letter flying to Notes on save — are off by default (Settings → Plugins)
 - **A real sandbox** — a plugin can declare `"runtime": "worker"` and run in a Web Worker with no
   DOM, no file access and no network of its own: every capability is answered by Jnana, and one it
   wasn't granted is refused rather than quietly missing. These carry a **Sandboxed** badge, and you
@@ -234,7 +262,20 @@ through Rust to only the host you configured.
 - **Install from anywhere** — a local `.zip`, an unpacked folder, or a **curated community catalog**
   ([JnanaApp/JnanaPlugins](https://github.com/JnanaApp/JnanaPlugins)); installs show a **permission
   consent** prompt, catalog packages are checksum- and manifest-checked before you are asked, and
-  updates surface newer catalog versions
+  updates surface newer catalog versions. The prompt also notes when a plugin never writes to the
+  log, so you know its errors may be hard to trace back to it
+- **Plugin logging** — every plugin gets a write-only `ctx.log` (both runtimes, no permission); its
+  lines are tagged with its id. Jnana also records each plugin's lifecycle, load time, permission
+  denials and failures. Canvas and Quiz log through the same API
+
+### Developer Log
+- **Settings → Developer → Developer Log** — one structured log for the app, plugins and Rust: filter
+  by level, source, category, plugin, time and keyword (including an operation id), expand entries
+  for data and stack traces, pause live updates, copy an entry or a diagnostics summary, export, clear
+- Errors and warnings are always recorded and written to a rotating log file; "Developer detail"
+  (Debug / Trace) adds IPC calls, routes, events and plugin API calls on demand
+- Secrets, note text and your OS user name are redacted before anything is stored, so an export is
+  safe to share. Guide: [docs/logging.md](docs/logging.md)
 
 ---
 
@@ -242,19 +283,17 @@ through Rust to only the host you configured.
 
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
-- **Web search in AI chat** — search through your own connection (self-hosted SearXNG, or a Brave /
-  Tavily key) and answer with cited, clickable sources; opt-in
 - **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
   highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
 - **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and
   GFM export has **shipped** ([details](TABLES.md)); still on the backlog: Tab-to-add-row, per-column
   alignment, convert-a-pasted-pipe-table, move/reorder row+column, and copy-to-clipboard
-- **Polish pass** — a shared modal component, and wiring Theme Studio's density/motion/reading-scale
-  tokens into real CSS (design tokens, in-app dialogs, the graph enhancements, Theme Studio, and the
-  markdown renderer rewrite have already landed)
+- **Polish pass** — a shared modal component (design tokens, in-app dialogs, the graph enhancements,
+  Theme Studio with its density/motion/reading-scale and font controls, and the markdown renderer
+  rewrite have already landed)
 - **Later / measure-first** — metadata-only note loading at scale, optional sync/backup, and plugin
-  hardening (granular per-permission grants, download signature verification, an optional sandbox for
-  untrusted plugins — the plugin system itself, with install-time permission consent, already ships)
+  download signature verification (revocable per-plugin permissions and the worker sandbox already
+  ship)
 
 ---
 
@@ -275,10 +314,22 @@ See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
 ## Getting started
 
+### Platforms
+- **Windows 10/11** — tested.
+- **Linux** and **macOS 12+** — build in CI and carry the platform fixes (asset URLs, recording
+  format, microphone access), but haven't been run on real hardware yet; treat them as experimental.
+  On Linux, video/audio playback uses GStreamer: the `.deb` pulls in the plugins it needs and the
+  AppImage bundles them; on Fedora, H.264/AAC also need `gstreamer1-libav` from RPM Fusion. macOS
+  builds are unsigned for now, so Gatekeeper asks you to allow them (Settings → Privacy & Security
+  → Open Anyway). YouTube may refuse to play embeds there (the app isn't served from an http
+  address); a **Watch on YouTube** link under each video opens it in your browser.
+
 ### Prerequisites
 - Node.js 18+
 - Rust + Cargo
 - Microsoft C++ Build Tools (on Windows)
+- On Linux: the [Tauri v2 system packages](https://v2.tauri.app/start/prerequisites/#linux)
+  (`libwebkit2gtk-4.1-dev` and friends)
 
 Optional, per feature:
 - **LibreOffice** / **Pandoc** — document conversion & text extraction
@@ -347,8 +398,11 @@ whisper-server/  optional local transcription server (FastAPI + faster-whisper, 
   prevent path traversal, and external opens go through a scoped `open_asset` command.
 - AI settings and keys live in a Rust-side config file; provider requests are proxied through Rust
   and constrained to the configured host (chat / embedding / transcription each independent).
+- One structured, redacted logging pipeline (`lib/logger.ts`) feeds the rotating log file and the
+  in-app Developer Log (Settings → Developer); plugins get a write-only `ctx.log`. See
+  [docs/logging.md](docs/logging.md).
 
-More detail: [PROGRESS.md](PROGRESS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [PLAN.md](PLAN.md)
+More detail: [PROGRESS.md](PROGRESS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [PLAN.md](PLAN.md) · [Logging](docs/logging.md)
 
 ---
 

@@ -10,7 +10,7 @@ import { DEFAULT_VAULT_ID, type AiProject } from '../types'
 /** Loads the AI projects list, scoped to the active vault (each vault has its own
  *  projects). Refreshable after edits. */
 export function useProjects() {
-  const [all, setAll] = useState<AiProject[]>([])
+  const [all, setAll] = useState<AiProject[] | null>(null)
   const activeVaultId = useActiveVaultId()
 
   const refresh = useCallback(async () => {
@@ -26,9 +26,10 @@ export function useProjects() {
   }, [refresh])
 
   const projects = useMemo(
-    () => all.filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
+    () => (all ?? []).filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId),
     [all, activeVaultId],
   )
 
-  return { projects, refresh }
+  /** `loaded` is false until the first list arrives — don't treat "no projects" as final before it. */
+  return { projects, refresh, loaded: all !== null }
 }

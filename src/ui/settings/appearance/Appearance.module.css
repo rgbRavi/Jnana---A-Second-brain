@@ -1,114 +1,53 @@
-.panel {
-  display: flex;
-  flex-direction: column;
-  max-width: 560px;
-}
-
-/* ── Top bar ─────────────────────────────────────────── */
-
-.topBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: var(--space-md);
-  border-bottom: 1px solid var(--border);
-}
-
-.topBarLeft {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-}
-
-.topBarRight {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
 .poppedOutNotice {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  margin-top: 1rem;
-  padding: var(--space-md) 0.9rem;
+  padding: var(--space-md) var(--space-lg);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
 }
 
 .title {
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-1);
 }
 
 .badge {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.75rem;
   color: var(--text-2);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.15rem 0.45rem;
+  padding: var(--space-3xs) var(--space-xs);
 }
 
-/* ── Tabs ────────────────────────────────────────────── */
+/* ── Tab content (the tab row itself is SettingTabs) ─── */
 
-.tabs {
-  display: flex;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--border);
-  margin: 0.75rem 0 1.25rem;
-}
-
-.tab {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-2);
-  font-size: 0.85rem;
-  padding: var(--space-sm) 0.2rem;
-  cursor: pointer;
-}
-
-.tabActive {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
-.tabContent {
-  padding-bottom: var(--space-2xl);
+/* In Settings the panel's gap spaces tabs → content; the overlay body is plain flow. */
+.overlayBody .tabContent {
+  margin-top: var(--space-lg);
 }
 
 .tabPane {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: var(--space-lg);
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border);
-}
 
-.sectionLabel {
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-2);
-}
 
 .hint {
-  font-size: 0.76rem;
-  color: var(--text-3);
+  font-size: 0.8125rem;
+  color: var(--text-2);
   line-height: 1.4;
 }
 
@@ -117,68 +56,13 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: var(--space-2xs);
 }
 
-.fieldHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
 
-.fieldHead label,
-.field > label {
-  font-size: 0.85rem;
-  color: var(--text-1);
-}
 
-.value {
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
-  color: var(--text-2);
-}
 
-.slider {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
 
-.select {
-  background: var(--surface-2);
-  color: var(--text-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem var(--space-sm);
-  font-size: 0.85rem;
-}
-
-/* ── Segmented control ──────────────────────────────── */
-
-.segmented {
-  display: flex;
-  gap: 3px;
-  background: var(--surface-2);
-  border-radius: var(--radius-md);
-  padding: 3px;
-}
-
-.segmentBtn {
-  flex: 1;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  font-size: 0.8rem;
-  padding: 0.4rem var(--space-sm);
-  cursor: pointer;
-  transition: background var(--motion-duration-base) var(--motion-ease), color var(--motion-duration-base) var(--motion-ease);
-}
-
-.segmentActive {
-  background: var(--accent);
-  color: var(--bg);
-}
 
 /* ── Color field ─────────────────────────────────────── */
 
@@ -216,15 +100,15 @@
   color: var(--text-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.4rem var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: 0.8125rem;
 }
 
 .swatchRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: var(--space-xs);
 }
 
 .miniSwatch {
@@ -240,9 +124,15 @@
   outline-offset: 1px;
 }
 
+.colorControl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
 .derivedRow {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-xs);
 }
 
 .derivedSwatch {
@@ -254,26 +144,32 @@
 
 /* ── Preset gallery ──────────────────────────────────── */
 
+/* Three per row keeps each card close to a swatch-card shape on the wide panel;
+   two on narrow windows and inside the ~360px floating overlay. */
 .presetGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
 }
+.overlayBody .presetGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .presetCard {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 10px;
+  padding: var(--space-md);
   cursor: pointer;
   text-align: left;
-  transition: border-color var(--motion-duration-base) var(--motion-ease);
+  /* --dur-base is scaled by --motion-scale, so reduced motion makes this instant. */
+  transition: border-color var(--dur-base) var(--motion-ease), background var(--dur-base) var(--motion-ease);
 }
+.presetCard:hover { border-color: var(--border-strong); background: var(--surface-hover); }
 
-.presetCardActive {
+.presetCardActive,
+.presetCardActive:hover {
   border-color: var(--accent);
   outline: 1px solid var(--accent);
 }
@@ -281,7 +177,7 @@
 .presetSwatchStrip {
   display: flex;
   height: 30px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   border: 1px solid var(--border);
 }
@@ -290,19 +186,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-xs); /* keeps a long name off the "Active" badge in the narrow column */
+  min-width: 0;
 }
 
 .presetName {
-  font-size: 0.82rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-1);
 }
 
+/* Pill, not accent-coloured text: accent on --surface-2 is ~4.2:1 (fails AA at 12px). */
 .activeBadge {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  color: var(--accent);
+  flex-shrink: 0;
+  padding: 0 var(--space-xs);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--text-1);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 /* ── Saved themes list ───────────────────────────────── */
@@ -310,7 +217,7 @@
 .savedList {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--space-2xs);
   list-style: none;
 }
 
@@ -321,26 +228,30 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+  padding: var(--space-2xs) var(--space-2xs) var(--space-2xs) var(--space-sm);
 }
 
 .savedName {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
   background: transparent;
   border: none;
   color: var(--text-1);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   cursor: pointer;
-  padding: 0.2rem 0;
+  padding: var(--space-3xs) 0;
 }
 
 .savedDelete {
   background: transparent;
   border: none;
-  color: var(--text-3);
+  color: var(--text-2);
   cursor: pointer;
-  padding: 0.3rem var(--space-sm);
+  padding: var(--space-2xs) var(--space-sm);
 }
 
 .savedDelete:hover {
@@ -349,58 +260,21 @@
 
 /* ── Buttons ──────────────────────────────────────────── */
 
-.primaryBtn {
-  align-self: flex-start;
-  background: var(--accent);
-  color: var(--bg);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.8rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.primaryBtn:hover {
-  background: var(--accent-hover);
-}
-
-.secondaryBtn {
-  background: var(--surface-2);
-  color: var(--text-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.4rem 0.7rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.secondaryBtn:hover {
-  border-color: var(--border-hover);
-}
-
-.secondaryBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* ── Import/export ────────────────────────────────────── */
 
-.importTextarea {
-  width: 100%;
+/* Element-qualified so it outranks the shared .input font regardless of CSS order. */
+textarea.importTextarea {
   min-height: 90px;
-  background: var(--surface-2);
-  color: var(--text-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
-  resize: vertical;
+  font-size: 0.8125rem;
+}
+
+.hexInputInvalid {
+  border-color: var(--danger);
 }
 
 .errorText {
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   color: var(--danger);
 }
 
@@ -413,7 +287,6 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  margin-top: 0.4rem;
 }
 
 .motionDemoBox {
@@ -433,26 +306,21 @@
 
 /* ── Contrast audit ───────────────────────────────────── */
 
-.contrastHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
 
 .contrastOk {
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   color: var(--success);
 }
 
 .contrastFail {
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   color: var(--danger);
 }
 
 .contrastList {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: var(--space-2xs);
   list-style: none;
 }
 
@@ -460,9 +328,9 @@
   display: grid;
   grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.8rem;
-  padding: 0.3rem 0;
+  gap: var(--space-sm);
+  font-size: 0.8125rem;
+  padding: var(--space-2xs) 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -473,14 +341,13 @@
 .contrastRatio {
   font-family: var(--font-mono);
   color: var(--text-2);
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
 }
 
 .gradeBadge {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.03em;
-  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  padding: var(--space-3xs) var(--space-xs);
   border-radius: var(--radius-sm);
   text-align: center;
 }
@@ -499,11 +366,11 @@
 
 .overlay {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  top: var(--space-xl);
+  right: var(--space-xl);
   width: 360px;
-  max-height: calc(100vh - 40px);
-  z-index: 70;
+  max-height: calc(100vh - 2 * var(--space-xl));
+  z-index: 70; /* below SettingSelect menus (1200) and dialogs */
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -525,14 +392,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-md) 0.9rem;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--border);
   cursor: default;
   flex-shrink: 0;
 }
 
 .overlayBody {
-  padding: 0.9rem;
+  padding: var(--space-lg);
   overflow-y: auto;
 }
 
@@ -541,23 +409,22 @@
 .rawGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-  margin-bottom: 0.9rem;
+  gap: var(--space-md);
+}
+
+.rawGroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 
 .rawGroupLabel {
-  font-size: 0.76rem;
+  font-size: 0.9375rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-3);
+  color: var(--text-1);
 }
 
 /* ── Font manager ────────────────────────────────────────────────────────── */
-.fontInstallRow {
-  display: flex;
-  gap: var(--space-sm);
-}
 .inlineLink {
   background: none;
   border: none;
@@ -590,20 +457,20 @@
   flex: 1;
   min-width: 0;
   color: var(--text-1);
-  font-size: 0.95rem;
+  font-size: 0.9375rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .fontMeta {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-family: var(--font-mono);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .fontRemove {
   background: none;
   border: none;
-  color: var(--text-3);
+  color: var(--text-2);
   cursor: pointer;
   padding: var(--space-3xs) var(--space-2xs);
   border-radius: var(--radius-sm);
@@ -617,11 +484,18 @@
 /* Wallpaper picker: the preview is the control's real feedback — a filename tells
    you nothing about whether text will be readable over it. */
 .wallpaperPreview {
-  height: 108px;
+  aspect-ratio: 16 / 10;
+  max-width: 21rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background-size: cover;
   background-position: center;
+}
+
+.wallpaperControl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
 }
 
 .wallpaperActions {
@@ -635,3 +509,43 @@
   align-items: center;
   gap: var(--space-3xs);
 }
+
+/* Overlay header: title + current theme on one line (badge truncates), compact
+   actions on the right with the collapse chevron in the corner. */
+.overlayTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.overlayTitle .title { white-space: nowrap; }
+.overlayTitle .badge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overlayActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  flex-shrink: 0;
+}
+.headerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  height: 1.875rem;
+  padding: 0 var(--space-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
+}
+.headerBtn:hover { color: var(--text-1); background: var(--surface-hover); }
+.headerIconBtn { width: 1.875rem; padding: 0; justify-content: center; }

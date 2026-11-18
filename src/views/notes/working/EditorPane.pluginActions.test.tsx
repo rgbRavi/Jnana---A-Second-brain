@@ -13,7 +13,11 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve(nul
 
 const note = { id: 'n1', title: 'T', content: 'body', tags: [] } as unknown as Note
 const notes = [note]
-const update = vi.fn(async () => undefined)
+// Persist into the note like a real save, so a flush after the debounced autosave
+// already fired (slow runs) is a no-op instead of a second update.
+const update = vi.fn(async (_id: string, title: string, content: string) => {
+  Object.assign(note, { title, content })
+})
 vi.mock('../../../context/NotesContext', () => ({
   useNotesContext: () => ({ notes, update, remove: vi.fn() }),
 }))

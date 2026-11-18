@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { useState, type ReactNode } from 'react'
+import { Star } from 'lucide-react'
 import { useNotesViewPrefs, setNotesFilter, resetNotesFilter, activeFilterCount, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import type { DatePreset, SizeBucket, StatusFilter } from './filterNotes'
 import Styles from './NotesToolbar.module.css'
+import NoteStyles from './Notes.module.css'
+
+/** Show a tag finder once the Tags row gets long. */
+const TAG_SEARCH_MIN = 20
 
 const DATE_PRESETS: [DatePreset, string][] = [
   ['all', 'All'],
@@ -20,8 +26,8 @@ const SIZES: [SizeBucket, string][] = [
   ['long', 'Long'],
 ]
 
-const STATUSES: [StatusFilter, string][] = [
-  ['fav', '★ Favourites'],
+const STATUSES: [StatusFilter, ReactNode][] = [
+  ['fav', <><Star size={13} aria-hidden="true" /> Favourites</>],
   ['images', 'Has images'],
   ['pdfs', 'Has PDFs'],
   ['videos', 'Has videos'],
@@ -37,7 +43,12 @@ function toggle<T>(arr: T[], v: T): T[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]
 }
 
-const toInput = (ms?: number) => (ms ? new Date(ms).toISOString().slice(0, 10) : '')
+const toInput = (ms?: number) => {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 const fromInput = (s: string) => (s ? new Date(`${s}T00:00:00`).getTime() : undefined)
 
 interface Props {
@@ -48,8 +59,18 @@ interface Props {
 }
 
 /** Tag chips cycle: neutral → include → exclude → neutral. */
-export function NotesFilterBar({ allTags, prefsKey = NOTES_PREFS_KEY }: Props) {
+export function NotesFilterBar({ allTags: offeredTags, prefsKey = NOTES_PREFS_KEY }: Props) {
   const { filters } = useNotesViewPrefs(prefsKey)
+  // Auto-tags aren't offered as chips any more, but a filter saved on one before
+  // that change must stay visible — otherwise "Filters · 1" counts a tag the user
+  // can't see or toggle off.
+  const allTags = [
+    ...offeredTags,
+    ...[...filters.includeTags, ...filters.excludeTags].filter((t) => !offeredTags.includes(t)),
+  ]
+  const [tagQuery, setTagQuery] = useState('')
+  const tq = tagQuery.trim().toLowerCase()
+  const shownTags = tq ? allTags.filter((t) => t.toLowerCase().includes(tq)) : allTags
 
   const cycleTag = (tag: string) => {
     if (filters.includeTags.includes(tag)) {
@@ -133,8 +154,18 @@ export function NotesFilterBar({ allTags, prefsKey = NOTES_PREFS_KEY }: Props) {
       {allTags.length > 0 && (
         <div className={Styles.filterGroup}>
           <span className={Styles.filterLabel}>Tags</span>
+          {allTags.length > TAG_SEARCH_MIN && (
+            <input
+              type="search"
+              className={NoteStyles.tagFind}
+              value={tagQuery}
+              onChange={(e) => setTagQuery(e.target.value)}
+              placeholder="Find tag…"
+              aria-label="Find tag"
+            />
+          )}
           <div className={Styles.chips}>
-            {allTags.map((tag) => {
+            {shownTags.map((tag) => {
               const inc = filters.includeTags.includes(tag)
               const exc = filters.excludeTags.includes(tag)
               return (

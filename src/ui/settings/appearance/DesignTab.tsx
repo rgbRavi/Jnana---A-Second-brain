@@ -6,7 +6,8 @@ import { deriveAccent } from '../../../core/themes/apply'
 import type { UseThemeApi } from '../../../hooks/useTheme'
 import { useInstalledFonts } from '../../../hooks/useInstalledFonts'
 import type { ThemeFonts } from '../../../types'
-import { ColorField, Segmented, SliderField } from './controls'
+import { ColorField, SegmentedField, SliderField, StudioField } from './controls'
+import { SettingSection } from '../SettingLayout'
 import { SettingSelect, SettingToggle, type SelectOption, type SelectGroup } from '../SettingControls'
 import { FontManager } from './FontManager'
 import { WallpaperField } from './WallpaperField'
@@ -20,24 +21,29 @@ const FONT_ROLES: { role: keyof ThemeFonts; label: string }[] = [
 
 export function DesignTab({ api }: { api: UseThemeApi }) {
   const { theme, setToken, setBase, setRadius, setGlassEffects, patch, setFont } = api
-  const { fonts: installed, install, remove } = useInstalledFonts()
+  const { fonts: installed, installing, install, remove } = useInstalledFonts()
   const accent = theme.tokens['--accent']
   const derived = deriveAccent(accent, theme.base)
   const radius = parseInt(theme.tokens['--radius-md'], 10) || 10
 
   return (
     <div className={styles.tabPane}>
-      <ColorField label="Accent" value={accent} swatches={ACCENT_SWATCHES} onChange={(v) => setToken('--accent', v)} />
-      <div className={styles.derivedRow}>
-        <span className={styles.derivedSwatch} style={{ background: accent }} title="Base" />
-        <span className={styles.derivedSwatch} style={{ background: derived.hover }} title="Hover" />
-        <span className={styles.derivedSwatch} style={{ background: derived.active }} title="Active" />
-      </div>
-      <p className={styles.hint}>The highlight colour for buttons, links, and selections. Hover and active shades are derived automatically (swatches above).</p>
-
-      <div className={styles.field}>
-        <label>Base mode</label>
-        <Segmented
+      <SettingSection title="Colour & shape">
+        <ColorField
+          label="Accent"
+          value={accent}
+          swatches={ACCENT_SWATCHES}
+          derived={[
+            ['Base', accent],
+            ['Hover', derived.hover],
+            ['Active', derived.active],
+          ]}
+          hint="The highlight colour for buttons, links, and selections. Hover and active shades are derived automatically."
+          onChange={(v) => setToken('--accent', v)}
+        />
+        <SegmentedField
+          label="Light or dark"
+          hint="The starting point for every background and text colour; your accent stays the same."
           value={theme.base}
           onChange={setBase}
           options={[
@@ -45,12 +51,10 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
             { value: 'light', label: 'Light' },
           ]}
         />
-        <p className={styles.hint}>Light or dark foundation for every surface and text colour.</p>
-      </div>
 
-      <div className={styles.field}>
-        <label>Density</label>
-        <Segmented
+        <SegmentedField
+          label="Density"
+          hint="Scales padding and gaps across the app."
           value={theme.density}
           onChange={(v) => patch({ density: v })}
           options={[
@@ -59,8 +63,6 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
             { value: 'comfortable', label: 'Comfortable' },
           ]}
         />
-        <p className={styles.hint}>Scales padding and gaps across the app.</p>
-      </div>
 
       <SliderField
         label="Corner radius"
@@ -72,19 +74,26 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         onChange={setRadius}
       />
 
-      <div className={styles.field}>
-        <SettingToggle
-          checked={!!theme.glassEffects}
-          onChange={setGlassEffects}
-          label="Glass & gradient effects"
-          hint="frosted, translucent panels and a soft accent gradient behind the AI view. Off keeps surfaces solid and calm."
-        />
-      </div>
+      <SettingToggle
+        checked={!!theme.glassEffects}
+        onChange={setGlassEffects}
+        label="Glass & gradient effects"
+        hint="Frosted, translucent panels and a soft accent gradient behind the AI view. Off keeps surfaces solid and calm."
+      />
+      </SettingSection>
 
       <WallpaperField api={api} />
 
-      <p className={styles.hint}>Interface = menus, lists, and controls. Reading = note reader body text. Monospace = code blocks.</p>
+      <SettingSection
+        title="Fonts"
+        intro="Interface = menus, lists, and controls. Reading = note reader body text. Monospace = code blocks."
+      >
       {FONT_ROLES.map(({ role, label }) => {
+        const builtinIds = FONTS[role].map((f) => f.id)
+        const stored = theme.fonts[role]
+        // A stored family that was since removed would leave the select blank —
+        // show the role's default instead (the CSS already falls back to it).
+        const known = builtinIds.includes(stored) || installed.some((f) => f.family === stored)
         const fontOptions: (SelectOption | SelectGroup)[] = [
           {
             label: 'Built-in',
@@ -95,20 +104,22 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
             : []),
         ]
         return (
-          <div key={role} className={styles.field}>
-            <label>{label} font</label>
+          <StudioField key={role} label={`${label} font`} htmlFor={`font-${role}`}>
             <SettingSelect
+              id={`font-${role}`}
               ariaLabel={`${label} font`}
-              value={theme.fonts[role]}
+              value={known ? stored : builtinIds[0]}
               options={fontOptions}
               onChange={(v) => setFont(role, v)}
             />
-          </div>
+          </StudioField>
         )
       })}
 
-      <FontManager installed={installed} onInstall={install} onRemove={remove} />
+      <FontManager installed={installed} installing={installing} onInstall={install} onRemove={remove} />
+      </SettingSection>
 
+      <SettingSection title="Reading">
       <SliderField
         label="Reading scale"
         value={theme.readingScale}
@@ -119,6 +130,7 @@ export function DesignTab({ api }: { api: UseThemeApi }) {
         hint="Text size in the note reader only (Interface stays fixed). Pairs with the Reading font above."
         onChange={(v) => patch({ readingScale: v })}
       />
+      </SettingSection>
     </div>
   )
 }

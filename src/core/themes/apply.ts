@@ -7,6 +7,9 @@
 import type { Theme } from '../../types'
 import { DENSITY_SCALE, FONTS } from './tokens'
 import { installedStack } from '../fonts/registry'
+import { THEME_TOKEN_KEYS } from '../../lib/pluginThemes'
+
+const KNOWN_VARS = new Set<string>(THEME_TOKEN_KEYS)
 
 /** Font id → CSS stack for a role: built-in catalog, then user-installed families,
  *  then the role's default. */
@@ -27,6 +30,7 @@ export interface Rgb {
 }
 
 export function hexToRgb(hex: string): Rgb | null {
+  if (typeof hex !== 'string') return null
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim())
   if (!m) return null
   return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) }
@@ -74,13 +78,19 @@ export function deriveAccent(accent: string, base: 'dark' | 'light'): DerivedAcc
 /** Resolved vars = stored tokens + derived accent variants + density/reading-scale
  *  + --surface-rgb. Font stacks are deliberately omitted (deferred to a later phase). */
 export function resolveVars(theme: Theme): Record<string, string> {
+  // Defence in depth: only known `--` theme tokens are ever emitted, so a bad
+  // theme object can't reach an arbitrary CSS property (`display`, …).
+  const tokens: Record<string, string> = {}
+  for (const [k, v] of Object.entries(theme.tokens ?? {})) {
+    if (k.startsWith('--') && KNOWN_VARS.has(k) && typeof v === 'string') tokens[k] = v
+  }
   const acc = deriveAccent(theme.tokens['--accent'], theme.base)
   const density = DENSITY_SCALE[theme.density] ?? 1
   const surfaceRgb = hexToRgb(theme.tokens['--surface'])
   const dark = theme.base === 'dark'
   const accent = theme.tokens['--accent']
   return {
-    ...theme.tokens,
+    ...tokens,
     '--accent-hover': acc.hover,
     '--accent-active': acc.active,
     '--accent-soft': acc.soft,
@@ -95,6 +105,7 @@ export function resolveVars(theme: Theme): Record<string, string> {
     // (sites supply their own alpha via rgba(var(--wash-rgb), α)). The
     // primitive-following state tokens (--surface-hover, --control-grip, …) stay
     // as var() aliases in main.css and need no per-theme value here.
+    '--border-control': deriveBorderControl(theme.tokens),
     '--wash-rgb': dark ? '255, 255, 255' : '0, 0, 0',
     '--scrim': dark ? 'rgba(0, 0, 0, 0.6)' : 'rgba(15, 18, 24, 0.4)',
     '--reading-scale': String(theme.readingScale),
@@ -109,6 +120,15 @@ export function resolveVars(theme: Theme): Record<string, string> {
   }
 }
 
+/** Resting stroke for form controls (WCAG 1.4.11, >= 3:1 vs --bg and --surface):
+ *  starts at --border-hover and steps toward --text-2 until it passes. */
+export function deriveBorderControl(t: Theme['tokens']): string {
+  const ok = (c: string) => Math.min(contrastRatio(c, t['--bg']), contrastRatio(c, t['--surface'])) >= 3
+  let c = t['--border-hover']
+  for (let i = 1; i <= 20 && !ok(c); i++) c = mix(t['--border-hover'], t['--text-2'], i / 20)
+  return ok(c) ? c : t['--text-2']
+}
+
 /** Write every resolved var onto `el.style` — no React re-render for the repaint
  *  itself. Forces --motion-scale to 0 under prefers-reduced-motion regardless
  *  of the stored value. */
@@ -118,7 +138,7 @@ export function applyVars(el: HTMLElement | null, theme: Theme): void {
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     vars['--motion-scale'] = '0'
   }
-  for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v)
+  for (const [k, v] of Object.entries(vars)) if (k.startsWith('--')) el.style.setProperty(k, v)
   el.dataset.base = theme.base
   // main.css maps this to the --fx-* effect vars (solid when off).
   el.dataset.glass = theme.glassEffects ? 'on' : 'off'

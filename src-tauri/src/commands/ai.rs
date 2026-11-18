@@ -9,6 +9,35 @@ use std::sync::{Arc, Mutex};
 use tauri::ipc::Channel;
 use tauri::{command, State};
 
+/// Mask anything in a provider's error body that looks like a credential before
+/// it is logged: some gateways echo the key back ("invalid key sk-…"). A token is
+/// a run of letters, digits and `_-~+/=` at least 20 long that mixes letters and digits —
+/// broad on purpose (it also hides long ids), since this text only feeds logs.
+pub fn redact_secrets(s: &str) -> String {
+    fn is_tok(c: char) -> bool {
+        c.is_ascii_alphanumeric() || "_-~+/=".contains(c)
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut String| {
+        let secret = run.len() >= 20
+            && run.chars().any(|c| c.is_ascii_digit())
+            && run.chars().any(|c| c.is_ascii_alphabetic());
+        out.push_str(if secret { "[redacted]" } else { run.as_str() });
+        run.clear();
+    };
+    for c in s.chars() {
+        if is_tok(c) {
+            run.push(c);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
 /// Render an error with its full source chain, so a generic reqwest message
 /// like "error sending request" surfaces the real cause (Connection refused,
 /// proxy failure, dns error, …).
@@ -71,6 +100,71 @@ pub struct AiConfig {
     pub deep_research_base_url: String,
     pub deep_research_api_key: String,
     pub deep_research_model: String,
+    // Web search (quiz-from-web): "brave" | "tavily" | "searxng"; empty = brave.
+    pub web_search_provider: String,
+    pub web_search_base_url: String,
+    pub web_search_api_key: String,
+    // System prompts (chat-only / global) and saved provider presets per section.
+    // Presets hold their own keys; they never leave Rust (see `AiPresetPublic`).
+    pub chat_system_prompt: String,
+    pub global_system_prompt: String,
+    pub chat_presets: Vec<AiPreset>,
+    pub embedding_presets: Vec<AiPreset>,
+    pub transcription_presets: Vec<AiPreset>,
+    pub deep_research_presets: Vec<AiPreset>,
+    pub web_search_presets: Vec<AiPreset>,
+    /// section -> id of the preset last saved/applied for it.
+    pub active_presets: HashMap<String, String>,
+}
+
+/// A saved provider configuration for one section. `system_prompt` is chat-only.
+#[derive(Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiPreset {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: String,
+    pub system_prompt: String,
+}
+
+/// A preset as exposed to the frontend: no key, only its presence.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiPresetPublic {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub system_prompt: String,
+    pub has_api_key: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetsPublic {
+    pub chat: Vec<AiPresetPublic>,
+    pub embedding: Vec<AiPresetPublic>,
+    pub transcription: Vec<AiPresetPublic>,
+    pub deep_research: Vec<AiPresetPublic>,
+    pub web_search: Vec<AiPresetPublic>,
+}
+
+fn presets_public(v: &[AiPreset]) -> Vec<AiPresetPublic> {
+    v.iter()
+        .map(|p| AiPresetPublic {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            provider: p.provider.clone(),
+            base_url: p.base_url.clone(),
+            model: p.model.clone(),
+            system_prompt: p.system_prompt.clone(),
+            has_api_key: !p.api_key.is_empty(),
+        })
+        .collect()
 }
 
 /// Managed-state wrapper holding the live AI config.
@@ -100,6 +194,13 @@ pub struct AiConfigPublic {
     pub deep_research_base_url: String,
     pub deep_research_model: String,
     pub has_deep_research_api_key: bool,
+    pub web_search_provider: String,
+    pub web_search_base_url: String,
+    pub has_web_search_api_key: bool,
+    pub chat_system_prompt: String,
+    pub global_system_prompt: String,
+    pub active_presets: HashMap<String, String>,
+    pub presets: PresetsPublic,
 }
 
 impl From<&AiConfig> for AiConfigPublic {
@@ -124,6 +225,19 @@ impl From<&AiConfig> for AiConfigPublic {
             deep_research_base_url: c.deep_research_base_url.clone(),
             deep_research_model: c.deep_research_model.clone(),
             has_deep_research_api_key: !c.deep_research_api_key.is_empty(),
+            web_search_provider: c.web_search_provider.clone(),
+            web_search_base_url: c.web_search_base_url.clone(),
+            has_web_search_api_key: !c.web_search_api_key.is_empty(),
+            chat_system_prompt: c.chat_system_prompt.clone(),
+            global_system_prompt: c.global_system_prompt.clone(),
+            active_presets: c.active_presets.clone(),
+            presets: PresetsPublic {
+                chat: presets_public(&c.chat_presets),
+                embedding: presets_public(&c.embedding_presets),
+                transcription: presets_public(&c.transcription_presets),
+                deep_research: presets_public(&c.deep_research_presets),
+                web_search: presets_public(&c.web_search_presets),
+            },
         }
     }
 }
@@ -165,7 +279,7 @@ pub fn load_config_from_disk() -> AiConfig {
     }
 }
 
-fn persist(config: &AiConfig) -> Result<(), String> {
+pub(crate) fn persist(config: &AiConfig) -> Result<(), String> {
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(crate::db::data_dir()).ok();
     std::fs::write(config_path(), json).map_err(|e| format!("Failed to save AI config: {}", e))
@@ -175,6 +289,61 @@ fn persist(config: &AiConfig) -> Result<(), String> {
 pub fn get_ai_config(state: State<'_, AiState>) -> Result<AiConfigPublic, String> {
     let config = state.0.lock().map_err(|e| format!("AI config lock error: {}", e))?;
     Ok(AiConfigPublic::from(&*config))
+}
+
+/// Pure core of `set_ai_config`: normalise base URLs and apply the write-only key rules.
+/// Presets and `active_presets` are owned by Rust (the WebView never carries their keys),
+/// so they are always kept from `current`.
+pub(crate) fn merge_config(current: &AiConfig, incoming: AiConfig) -> AiConfig {
+    let mut next = incoming;
+    // Store base URLs without a pasted endpoint path, so the settings show what's actually
+    // used and "did the base URL change?" below compares like with like.
+    next.chat_base_url = normalize_base_url(&next.chat_base_url);
+    next.embedding_base_url = normalize_base_url(&next.embedding_base_url);
+    next.transcription_base_url = normalize_base_url(&next.transcription_base_url);
+    next.deep_research_base_url = normalize_base_url(&next.deep_research_base_url);
+    let same = |a: &str, b: &str| normalize_base_url(a) == normalize_base_url(b);
+    // Keys are write-only: an empty key keeps the stored one, unless that
+    // provider's base URL/provider changed (then it's dropped so a key can't be
+    // redirected to a host it wasn't entered for).
+    if next.chat_api_key.is_empty()
+        && same(&next.chat_base_url, &current.chat_base_url)
+        && next.chat_provider == current.chat_provider
+    {
+        next.chat_api_key = current.chat_api_key.clone();
+    }
+    if next.embedding_api_key.is_empty()
+        && same(&next.embedding_base_url, &current.embedding_base_url)
+        && next.embedding_provider == current.embedding_provider
+    {
+        next.embedding_api_key = current.embedding_api_key.clone();
+    }
+    if next.transcription_api_key.is_empty()
+        && same(&next.transcription_base_url, &current.transcription_base_url)
+        && next.transcription_provider == current.transcription_provider
+    {
+        next.transcription_api_key = current.transcription_api_key.clone();
+    }
+    if next.deep_research_api_key.is_empty()
+        && same(&next.deep_research_base_url, &current.deep_research_base_url)
+        && next.deep_research_provider == current.deep_research_provider
+    {
+        next.deep_research_api_key = current.deep_research_api_key.clone();
+    }
+    if next.web_search_api_key.is_empty()
+        && crate::commands::web_search::searxng_base(&next.web_search_base_url)
+            == crate::commands::web_search::searxng_base(&current.web_search_base_url)
+        && next.web_search_provider == current.web_search_provider
+    {
+        next.web_search_api_key = current.web_search_api_key.clone();
+    }
+    next.chat_presets = current.chat_presets.clone();
+    next.embedding_presets = current.embedding_presets.clone();
+    next.transcription_presets = current.transcription_presets.clone();
+    next.deep_research_presets = current.deep_research_presets.clone();
+    next.web_search_presets = current.web_search_presets.clone();
+    next.active_presets = current.active_presets.clone();
+    next
 }
 
 /// Update the config. The API key is write-only: an empty `apiKey` keeps the
@@ -187,36 +356,31 @@ pub fn set_ai_config(
     config: AiConfig,
 ) -> Result<AiConfigPublic, String> {
     let mut current = state.0.lock().map_err(|e| format!("AI config lock error: {}", e))?;
+    let next = merge_config(&current, config);
+    persist(&next)?;
+    *current = next;
+    Ok(AiConfigPublic::from(&*current))
+}
 
-    let mut next = config;
-    // Keys are write-only: an empty key keeps the stored one, unless that
-    // provider's base URL/provider changed (then it's dropped so a key can't be
-    // redirected to a host it wasn't entered for).
-    if next.chat_api_key.is_empty()
-        && next.chat_base_url == current.chat_base_url
-        && next.chat_provider == current.chat_provider
-    {
-        next.chat_api_key = current.chat_api_key.clone();
+/// Blank the stored API key for one section. Pure core of `clear_ai_key`; unknown targets are refused.
+pub(crate) fn clear_key(config: &mut AiConfig, target: &str) -> Result<(), String> {
+    match target {
+        "chat" => config.chat_api_key.clear(),
+        "embedding" => config.embedding_api_key.clear(),
+        "transcription" => config.transcription_api_key.clear(),
+        "deepResearch" => config.deep_research_api_key.clear(),
+        "webSearch" => config.web_search_api_key.clear(),
+        _ => return Err(format!("Unknown AI key target: {}", target)),
     }
-    if next.embedding_api_key.is_empty()
-        && next.embedding_base_url == current.embedding_base_url
-        && next.embedding_provider == current.embedding_provider
-    {
-        next.embedding_api_key = current.embedding_api_key.clone();
-    }
-    if next.transcription_api_key.is_empty()
-        && next.transcription_base_url == current.transcription_base_url
-        && next.transcription_provider == current.transcription_provider
-    {
-        next.transcription_api_key = current.transcription_api_key.clone();
-    }
-    if next.deep_research_api_key.is_empty()
-        && next.deep_research_base_url == current.deep_research_base_url
-        && next.deep_research_provider == current.deep_research_provider
-    {
-        next.deep_research_api_key = current.deep_research_api_key.clone();
-    }
+    Ok(())
+}
 
+/// Explicitly remove a saved API key (an empty key in `set_ai_config` means "keep the stored one").
+#[command]
+pub fn clear_ai_key(state: State<'_, AiState>, target: String) -> Result<AiConfigPublic, String> {
+    let mut current = state.0.lock().map_err(|e| format!("AI config lock error: {}", e))?;
+    let mut next = current.clone();
+    clear_key(&mut next, &target)?;
     persist(&next)?;
     *current = next;
     Ok(AiConfigPublic::from(&*current))
@@ -233,6 +397,35 @@ pub struct AiFetchResponse {
 /// Resolve a request target (chat/embedding) to its full URL + key, applying
 /// the same URL/path/cleartext-key validation for both the one-shot `ai_request`
 /// and the streaming `ai_chat_stream`. Returns (url, api_key, is_loopback).
+/// Endpoint paths Jnana appends itself. Users often paste the full endpoint from a
+/// provider's docs (`…/api/v1/chat/completions`); strip it so the request isn't sent to
+/// `…/chat/completions/chat/completions` (a 404).
+const ENDPOINT_SUFFIXES: &[&str] = &[
+    "/chat/completions",
+    "/completions",
+    "/embeddings",
+    "/audio/transcriptions",
+    "/api/chat",
+    "/api/embed",
+    "/api/embeddings",
+    "/api/generate",
+];
+
+/// A base URL with surrounding whitespace, trailing slashes and any pasted endpoint path removed.
+pub(crate) fn normalize_base_url(raw: &str) -> String {
+    let mut s = raw.trim().trim_end_matches('/').to_string();
+    loop {
+        let lower = s.to_ascii_lowercase();
+        match ENDPOINT_SUFFIXES.iter().find(|suf| lower.ends_with(*suf)) {
+            Some(suf) => {
+                s.truncate(s.len() - suf.len());
+                s = s.trim_end_matches('/').to_string();
+            }
+            None => return s,
+        }
+    }
+}
+
 fn resolve_target(config: &AiConfig, target: &str, path: &str) -> Result<(String, String, bool), String> {
     // Pick the provider's base URL + key based on the call site.
     let (base_url, api_key) = match target {
@@ -240,6 +433,8 @@ fn resolve_target(config: &AiConfig, target: &str, path: &str) -> Result<(String
         "deepResearch" => (config.deep_research_base_url.clone(), config.deep_research_api_key.clone()),
         _ => (config.chat_base_url.clone(), config.chat_api_key.clone()),
     };
+    // Also covers a config saved before normalisation existed.
+    let base_url = normalize_base_url(&base_url);
 
     let base = reqwest::Url::parse(&base_url).map_err(|e| format!("Invalid AI base URL: {}", e))?;
     if base.scheme() != "http" && base.scheme() != "https" {
@@ -316,7 +511,7 @@ pub async fn ai_request(
         log::warn!(
             "ai_request: provider returned {} — {}",
             status,
-            text.chars().take(300).collect::<String>()
+            redact_secrets(&text.chars().take(300).collect::<String>())
         );
     }
 
@@ -374,10 +569,7 @@ pub async fn transcribe_audio(state: State<'_, AiState>, filename: String) -> Re
         .text("model", config.transcription_model.clone())
         .part("file", part);
 
-    let url = format!(
-        "{}/audio/transcriptions",
-        config.transcription_base_url.trim_end_matches('/')
-    );
+    let url = format!("{}/audio/transcriptions", normalize_base_url(&config.transcription_base_url));
     // Transcription is inherently long-running (a lecture on a CPU model can take
     // many minutes), so allow up to an hour before giving up.
     let client = http_client(3600, is_loopback)?;
@@ -511,7 +703,7 @@ async fn stream_body(
         log::warn!(
             "ai_chat_stream: provider returned {} — {}",
             status.as_u16(),
-            text.chars().take(300).collect::<String>()
+            redact_secrets(&text.chars().take(300).collect::<String>())
         );
         return Err(format!(
             "AI provider returned {}: {}",
@@ -560,4 +752,63 @@ pub fn ai_chat_cancel(cancels: State<'_, StreamCancels>, request_id: String) -> 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{clear_key, normalize_base_url, redact_secrets, resolve_target, AiConfig};
+
+    #[test]
+    fn clear_key_blanks_only_the_named_target() {
+        let mut c = AiConfig::default();
+        c.chat_api_key = "a".into();
+        c.embedding_api_key = "b".into();
+        clear_key(&mut c, "chat").unwrap();
+        assert!(c.chat_api_key.is_empty());
+        assert_eq!(c.embedding_api_key, "b");
+        assert!(clear_key(&mut c, "nope").is_err());
+    }
+
+    #[test]
+    fn base_url_accepts_the_full_endpoint_users_paste() {
+        let want = "https://openrouter.ai/api/v1";
+        for raw in [
+            "https://openrouter.ai/api/v1",
+            "https://openrouter.ai/api/v1/",
+            " https://openrouter.ai/api/v1/chat/completions ",
+            "https://openrouter.ai/api/v1/chat/completions/",
+            "https://openrouter.ai/api/v1/embeddings",
+            "https://api.openai.com/v1/audio/transcriptions",
+        ] {
+            let got = normalize_base_url(raw);
+            if raw.contains("openai.com") {
+                assert_eq!(got, "https://api.openai.com/v1", "{raw}");
+            } else {
+                assert_eq!(got, want, "{raw}");
+            }
+        }
+        // Ollama endpoints pasted in full come back to the server root.
+        assert_eq!(normalize_base_url("http://localhost:11434/api/chat"), "http://localhost:11434");
+        assert_eq!(normalize_base_url("http://localhost:11434/api/embed"), "http://localhost:11434");
+        // A path that merely contains an endpoint word is left alone.
+        assert_eq!(normalize_base_url("https://host/chat/completions-proxy/v1"), "https://host/chat/completions-proxy/v1");
+    }
+
+    #[test]
+    fn a_pasted_endpoint_is_not_doubled_in_the_request_url() {
+        let cfg = AiConfig {
+            chat_base_url: "https://openrouter.ai/api/v1/chat/completions".into(),
+            ..Default::default()
+        };
+        let (url, _, _) = resolve_target(&cfg, "chat", "/chat/completions").unwrap();
+        assert_eq!(url, "https://openrouter.ai/api/v1/chat/completions");
+    }
+
+    #[test]
+    fn redacts_key_like_tokens_only() {
+        let out = redact_secrets("Incorrect API key provided: sk-proj-AbC123xyz987QweRty456. See docs.");
+        assert!(!out.contains("AbC123xyz987"), "{out}");
+        assert!(out.contains("Incorrect API key provided: [redacted]. See docs."), "{out}");
+        assert_eq!(redact_secrets("model gpt-4o not found (404)"), "model gpt-4o not found (404)");
+    }
 }

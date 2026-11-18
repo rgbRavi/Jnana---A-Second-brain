@@ -1,62 +1,112 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-// A small in-memory ring buffer of plugin lifecycle/error lines, surfaced by the
-// Plugin Manager's Developer → Console. `pluginRegistry` writes to it (in addition
-// to console) so the app has an in-app view of plugin activity without patching
-// the global console.
+// Plugin lines, as seen by the Plugin Manager's Developer → Console. Not a log of
+// its own any more: every line is an entry in the app log (lib/logger.ts) with
+// category `plugin` and a pluginId, and this module is a filtered view of it — so
+// the same lines also show up, with full context, in Settings → Developer.
 //
-// The buffer itself is a live dev aid: 300 lines, gone on restart. But anything
-// at `warn` or `error` is **also** written to the rotating log file, because
-// those are the lines someone needs the day *after* a plugin misbehaved — "it
-// broke yesterday" is unanswerable from a buffer that died with the process.
-// `info` stays in memory only: a hotkey press or a note read every few seconds
-// would drown the app log in noise nobody asked for.
+// `origin` says who wrote the line: the host describing a plugin (lifecycle,
+// rate limits — `app`), or the plugin itself through `ctx.log` / an uncaught
+// worker error (`plugin`). The Developer Log shows the difference.
+//
+// File persistence is unchanged from the old ring buffer: warn/error reach the
+// rotating log file (that's what someone needs the day *after* a plugin broke);
+// info/debug stay in memory — a hotkey press or a note read every few seconds
+// would drown the file in noise.
 
-import { log } from './logger'
+import { logEvent, clearLogEntries, getLogEntries, subscribeLog, type LogEntry, type LogSource } from './logger'
+import type { PluginLogApi } from './pluginApi'
 
-export type PluginLogLevel = 'info' | 'warn' | 'error'
+export type PluginLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 export interface PluginLogEntry {
   id: number
   ts: number
-  level: PluginLogLevel
+  level: PluginLogLevel | 'trace' | 'fatal'
   pluginId?: string
   message: string
 }
 
 const MAX = 300
-let entries: PluginLogEntry[] = []
-let seq = 0
-const listeners = new Set<() => void>()
 
-function emit(): void {
-  listeners.forEach((l) => l())
+const isPluginEntry = (e: LogEntry): boolean => e.category === 'plugin'
+
+export function pluginLog(level: PluginLogLevel, message: string, pluginId?: string, origin: LogSource = 'app'): void {
+  logEvent(level, 'plugin', message, {
+    pluginId,
+    source: origin,
+    persist: level === 'warn' || level === 'error',
+  })
 }
 
-export function pluginLog(level: PluginLogLevel, message: string, pluginId?: string): void {
-  seq += 1
-  const entry: PluginLogEntry = { id: seq, ts: Date.now(), level, pluginId, message }
-  entries = [...entries.slice(-(MAX - 1)), entry]
-  if (level !== 'info') {
-    const line = `[plugin${pluginId ? ` ${pluginId}` : ''}] ${message}`
-    if (level === 'error') log.error(line)
-    else log.warn(line)
+const PLUGIN_LEVELS: readonly PluginLogLevel[] = ['debug', 'info', 'warn', 'error']
+const MAX_PLUGIN_MESSAGE = 1000
+
+/**
+ * A line a plugin wrote itself (`ctx.log.*`, or a worker's `log` message). Both
+ * runtimes land here, so this is the trust boundary: the level is checked, the
+ * text capped, and the data redacted + clipped by the logger. Write-only — no
+ * plugin API can read, clear or rewrite the app log. Rate limiting is the
+ * caller's job (`chargePluginCall` / the worker message budget).
+ */
+export function pluginWrite(pluginId: string, level: unknown, message: unknown, data?: unknown): void {
+  const lvl = PLUGIN_LEVELS.includes(level as PluginLogLevel) ? (level as PluginLogLevel) : 'info'
+  const text = String(message ?? '').slice(0, MAX_PLUGIN_MESSAGE)
+  logEvent(lvl, 'plugin', text, {
+    pluginId,
+    source: 'plugin',
+    ...(data instanceof Error ? { error: data } : { data }),
+    persist: lvl === 'warn' || lvl === 'error',
+  })
+}
+
+export interface PluginLogSlot extends PluginLogApi {
+  /** Call with `ctx.log` in `init`, and with null in `destroy`. */
+  bind(log: PluginLogApi | null): void
+}
+
+/**
+ * For a built-in plugin whose views/editors live outside `init(ctx)`: bind
+ * `ctx.log` once at init and log from anywhere through the slot, so every line
+ * still goes through the plugin's own (budget-charged, plugin-tagged) logger.
+ * Lines while the plugin is off are dropped — nothing of it is running then.
+ */
+export function pluginLogSlot(): PluginLogSlot {
+  let current: PluginLogApi | null = null
+  const at = (level: keyof PluginLogApi) => (message: string, data?: unknown) => current?.[level](message, data)
+  return {
+    bind: (log) => {
+      current = log
+    },
+    debug: at('debug'),
+    info: at('info'),
+    warn: at('warn'),
+    error: at('error'),
   }
-  emit()
 }
 
 export function clearPluginLog(): void {
-  entries = []
-  emit()
+  clearLogEntries(isPluginEntry)
 }
 
 export function subscribePluginLog(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+  return subscribeLog(listener)
 }
 
-/** Stable snapshot (identity changes only on mutation) for useSyncExternalStore. */
+let lastAll: LogEntry[] | null = null
+let lastView: PluginLogEntry[] = []
+
+/** Stable snapshot (identity changes only when the underlying log does). */
 export function getPluginLog(): PluginLogEntry[] {
-  return entries
+  const all = getLogEntries()
+  if (all !== lastAll) {
+    lastAll = all
+    const next = all.filter(isPluginEntry).slice(-MAX)
+    // Same lines → same array, so an unrelated app entry doesn't re-render the console.
+    if (next.length !== lastView.length || next[next.length - 1]?.id !== lastView[lastView.length - 1]?.id || next[0]?.id !== lastView[0]?.id) {
+      lastView = next
+    }
+  }
+  return lastView
 }

@@ -1,78 +1,87 @@
-.bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-}
-
-.label {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-}
-
-.seg {
+.compact {
   display: inline-flex;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  backdrop-filter: blur(8px);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+  align-items: center;
 }
 
-.segBtn {
+.compactBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   background: transparent;
   border: none;
-  color: var(--text-2);
-  font-size: 0.78rem;
+  padding: 0;
   font-family: var(--font-body);
-  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text-3);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
 }
 
-.segBtn:not(:last-child) {
-  border-right: 1px solid var(--border);
+.compactBtn:hover .compactValue {
+  color: var(--accent);
 }
 
-.segBtn:hover:not(:disabled) {
-  color: var(--text-1);
+.compactValue {
+  color: var(--text-2);
 }
 
-.segBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
 }
 
-.segOn {
-  background: var(--accent);
-  color: var(--on-accent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+.menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  min-width: 180px;
+  max-width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3xs);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
 }
 
-.segOn:hover {
-  color: var(--on-accent);
-  filter: brightness(1.1);
-}
-
-.select {
-  background: color-mix(in srgb, var(--surface-2) 90%, transparent);
-  backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  font-size: 0.78rem;
   font-family: var(--font-body);
-  padding: 0.3rem var(--space-sm);
+  font-size: 0.8rem;
   cursor: pointer;
-  outline: none;
-  max-width: 180px;
-  transition: all var(--dur-base) var(--motion-ease);
+  white-space: nowrap;
 }
 
-.select:focus {
-  border-color: var(--accent);
+.menuText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menuItem:hover {
+  background: var(--surface-hover);
+}
+
+.menuItem:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.menuItemOn {
+  background: var(--surface-selected);
+}
+
+.menuEmpty {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text-3);
 }

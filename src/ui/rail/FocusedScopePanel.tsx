@@ -8,11 +8,12 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Hash, CalendarRange, NotebookPen } from 'lucide-react'
-import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import { DEFAULT_VAULT_ID, type Note, type QuizOrigin } from '../../types'
 import {
   toInputDate,
   emptyFocus,
   selectedNotesOf,
+  quizOriginOf,
   type FocusState,
   type ScopeKind,
   type SelectedNote,
@@ -26,6 +27,7 @@ import { QuizSettingsBody } from '../ai/QuizControls'
 import styles from '../ai/Ai.module.css'
 
 const DAY = 24 * 60 * 60 * 1000
+const SOURCES: [QuizOrigin, string][] = [['notes', 'My notes'], ['web', 'Web'], ['ai', 'AI knowledge']]
 
 export function FocusedScopePanel() {
   const [focus, setFocus] = useViewState<FocusState>('ai.free.focus', emptyFocus)
@@ -45,6 +47,8 @@ export function FocusedScopePanel() {
 
   if (!action) return null
   const patch = (p: Partial<FocusState>) => setFocus((f) => ({ ...f, ...p }))
+  const origin = action === 'quiz' ? quizOriginOf(focus) : 'notes'
+  const open = origin !== 'notes'
 
   return (
     <div className={styles.focusPanel}>
@@ -56,12 +60,53 @@ export function FocusedScopePanel() {
         </span>
       </div>
 
-      <div className={styles.qField}>
-        <h4 className={styles.qGroupTitle}>Scope</h4>
-        <ScopeKindTabs value={focus.scopeKind} onChange={(k) => patch({ scopeKind: k })} />
-      </div>
+      {action === 'quiz' && (
+        <div className={styles.qField}>
+          <h4 className={styles.qGroupTitle}>Source</h4>
+          <div className={styles.cSeg}>
+            {SOURCES.map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                className={`${styles.cSegBtn} ${origin === k ? styles.cSegBtnActive : ''}`}
+                onClick={() => patch({ quizOrigin: k })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {focus.scopeKind === 'topic' && (
+      {open && (
+        <>
+          <input
+            autoFocus
+            className={styles.cField}
+            placeholder={origin === 'web' ? 'Topic (optional with links)…' : 'Topic to quiz on…'}
+            value={focus.topicPhrase}
+            onChange={(e) => patch({ topicPhrase: e.target.value })}
+          />
+          {origin === 'web' && (
+            <textarea
+              className={styles.cField}
+              rows={3}
+              placeholder="Paste links (optional) — one per line"
+              value={focus.links ?? ''}
+              onChange={(e) => patch({ links: e.target.value })}
+            />
+          )}
+        </>
+      )}
+
+      {!open && (
+        <div className={styles.qField}>
+          <h4 className={styles.qGroupTitle}>Scope</h4>
+          <ScopeKindTabs value={focus.scopeKind} onChange={(k) => patch({ scopeKind: k })} />
+        </div>
+      )}
+
+      {!open && focus.scopeKind === 'topic' && (
         <input
           autoFocus
           className={styles.cField}
@@ -70,8 +115,8 @@ export function FocusedScopePanel() {
           onChange={(e) => patch({ topicPhrase: e.target.value })}
         />
       )}
-      {focus.scopeKind === 'time' && <TimeScope focus={focus} patch={patch} />}
-      {focus.scopeKind === 'note' && (
+      {!open && focus.scopeKind === 'time' && <TimeScope focus={focus} patch={patch} />}
+      {!open && focus.scopeKind === 'note' && (
         <NoteScope
           notes={vaultNotes}
           selected={selectedNotesOf(focus)}
@@ -84,7 +129,7 @@ export function FocusedScopePanel() {
 
       {action === 'quiz' && (
         <div className={styles.focusQuiz}>
-          <QuizSettingsBody vaultId={vaultId} />
+          <QuizSettingsBody vaultId={vaultId} origin={origin} />
         </div>
       )}
 

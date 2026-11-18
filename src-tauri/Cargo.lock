@@ -2256,6 +2256,7 @@ dependencies = [
  "base64 0.22.1",
  "dirs 5.0.1",
  "futures-util",
+ "glib",
  "log",
  "reqwest 0.12.28",
  "rusqlite",
@@ -2269,6 +2270,7 @@ dependencies = [
  "tauri-plugin-log",
  "tauri-plugin-opener",
  "uuid",
+ "webkit2gtk",
  "zip",
 ]
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
 import type { Plugin } from '../../types'
 import { pluginRegistry } from '../../lib/pluginRegistry'
 import { pluginLog } from '../../lib/pluginLog'
@@ -38,6 +38,8 @@ export interface PluginManifestPreview {
   consentToken: string
   /** SHA-256 of the fetched bytes (downloads only) — checked against the catalog. */
   sha256?: string
+  /** Whether its code calls `ctx.log` (heuristic scan of the entry module); null = not checked. */
+  emitsLogs?: boolean | null
 }
 
 /** An installed third-party plugin, as reported by the Rust loader. */
@@ -75,12 +77,20 @@ export function listInstalledPlugins(): Promise<InstalledPlugin[]> {
 
 /** Install the package a preview's token points at (the token carries the source
  *  and the granted permissions, so neither can be forged by a caller). */
-export function installPlugin(consentToken: string): Promise<InstalledPlugin> {
-  return invoke<InstalledPlugin>('install_plugin', { consentToken })
+export async function installPlugin(consentToken: string): Promise<InstalledPlugin> {
+  try {
+    const info = await invoke<InstalledPlugin>('install_plugin', { consentToken })
+    pluginLog('info', `Installed v${info.version} (${info.runtime ?? 'main'} runtime; granted: ${info.granted.join(', ') || 'none'})`, info.id)
+    return info
+  } catch (err) {
+    pluginLog('error', `Install failed: ${err instanceof Error ? err.message : String(err)}`)
+    throw err
+  }
 }
 
-export function removeInstalledPlugin(id: string): Promise<void> {
-  return invoke<void>('remove_plugin', { id })
+export async function removeInstalledPlugin(id: string): Promise<void> {
+  await invoke<void>('remove_plugin', { id })
+  pluginLog('info', 'Removed from disk', id)
 }
 
 export function packagePlugin(srcDir: string, destZip: string): Promise<string> {
@@ -133,6 +143,7 @@ export async function loadInstalledPlugin(info: InstalledPlugin): Promise<boolea
     return false
   }
   if (info.runtime === 'worker') return loadWorkerPlugin(info)
+  const t0 = performance.now()
   let url: string | null = null
   try {
     const raw = await readPluginMain(info.id)
@@ -144,10 +155,10 @@ export async function loadInstalledPlugin(info: InstalledPlugin): Promise<boolea
       throw new Error('did not export a default Plugin whose id matches its manifest')
     }
     pluginRegistry.register(plugin, { grantedPermissions: info.granted })
+    pluginLog('debug', `Load took ${Math.round(performance.now() - t0)} ms`, info.id)
     return true
   } catch (err) {
     pluginLog('error', `Failed to load: ${err instanceof Error ? err.message : String(err)}`, info.id)
-    console.error(`[loader] plugin "${info.id}" failed to load`, err)
     return false
   } finally {
     if (url) URL.revokeObjectURL(url)
@@ -172,7 +183,6 @@ async function loadWorkerPlugin(info: InstalledPlugin): Promise<boolean> {
     return true
   } catch (err) {
     pluginLog('error', `Failed to load: ${err instanceof Error ? err.message : String(err)}`, info.id)
-    console.error(`[loader] worker plugin "${info.id}" failed to load`, err)
     return false
   }
 }
@@ -188,6 +198,7 @@ export async function revokePluginPermissions(
     pluginId: info.id,
     keep,
   })
+  pluginLog('info', `Permissions narrowed to: ${keep.join(', ') || 'none'}`, info.id)
   pluginRegistry.unregister(info.id)
   if (isPluginEnabled(updated.id)) await loadInstalledPlugin(updated)
   return updated
@@ -204,6 +215,7 @@ export function previewPluginGrant(
 
 export async function applyPluginGrant(consentToken: string): Promise<InstalledPlugin> {
   const updated = await invoke<InstalledPlugin>('apply_plugin_grant', { consentToken })
+  pluginLog('info', `Permissions granted: ${updated.granted.join(', ') || 'none'}`, updated.id)
   pluginRegistry.unregister(updated.id)
   if (isPluginEnabled(updated.id)) await loadInstalledPlugin(updated)
   return updated
@@ -213,6 +225,7 @@ export async function applyPluginGrant(consentToken: string): Promise<InstalledP
  *  unloads it immediately (its note types appear/disappear at once). */
 export async function setInstalledPluginEnabled(info: InstalledPlugin, enabled: boolean): Promise<void> {
   setPluginEnabledState(info.id, enabled)
+  pluginLog('info', enabled ? 'Enabled' : 'Disabled', info.id)
   if (enabled) await loadInstalledPlugin(info)
   else pluginRegistry.unregister(info.id)
 }
@@ -223,13 +236,17 @@ export async function loadAllInstalledPlugins(): Promise<void> {
   try {
     installed = await listInstalledPlugins()
   } catch (err) {
-    console.error('[loader] could not list installed plugins', err)
+    pluginLog('error', `Could not list installed plugins: ${err instanceof Error ? err.message : String(err)}`)
     return
   }
+  const t0 = performance.now()
+  const enabled = installed.filter((info) => isPluginEnabled(info.id))
   // In parallel: each load is an IPC read plus a dynamic import, so a handful of
   // plugins loading one after another is boot time spent waiting. `loadInstalledPlugin`
   // never throws (it logs), so one bad plugin can't take the batch down.
-  await Promise.all(
-    installed.filter((info) => isPluginEnabled(info.id)).map((info) => loadInstalledPlugin(info)),
+  const results = await Promise.all(enabled.map((info) => loadInstalledPlugin(info)))
+  pluginLog(
+    'info',
+    `Plugins discovered: ${installed.length} installed, ${enabled.length} enabled, ${results.filter(Boolean).length} loaded in ${Math.round(performance.now() - t0)} ms`,
   )
 }

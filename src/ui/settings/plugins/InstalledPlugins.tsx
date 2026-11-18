@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { Trash2, Trash, ShieldCheck, ExternalLink, Palette, Search, X } from 'lucide-react'
+import { ShieldCheck, ChevronRight, ExternalLink, Palette, Search, X } from 'lucide-react'
 import { BUILTIN_PLUGINS, setPluginEnabled } from '../../../plugins'
 import {
   listInstalledPlugins,
   setInstalledPluginEnabled,
-  removeInstalledPlugin,
   type InstalledPlugin,
 } from '../../../core/plugins/loader'
+import { formatBytes } from '../../../core/data'
+import { plural } from '../../../lib/plural'
+import { uninstallPlugin, isHttpUrl } from './pluginActions'
 import { pluginRegistry } from '../../../lib/pluginRegistry'
 import { getNoteTypeById } from '../../../lib/noteTypes'
 import {
@@ -33,9 +35,12 @@ import {
 } from '../../../lib/pluginPolicy'
 import { reloadAllPlugins } from '../../../plugins'
 import { subscribePluginActivity, getPluginActivity } from '../../../lib/pluginActivity'
-import { subscribeContributions, getContributionsVersion } from '../../../lib/pluginContributions'
+import { subscribeContributions, getContributionsVersion, listCommands, getSettingsDefinition } from '../../../lib/pluginContributions'
 import { showChoiceDialog, showConfirmDialog } from '../../../lib/dialog'
 import { toast } from '../../../lib/toast'
+import { log } from '../../../lib/logger'
+import { SettingButton, SettingSection, settingInputClass } from '../SettingLayout'
+import { SettingSegmented } from '../SettingNav'
 import Styles from './PluginsPanel.module.css'
 
 interface Row {
@@ -70,37 +75,30 @@ function OrphanStorage({ rows, onClear }: { rows: PluginStorageOwner[]; onClear:
     <div className={Styles.card}>
       <div className={Styles.cardMain}>
         <div className={Styles.cardHead}>
-          <span className={Styles.cardName}>Leftover plugin data</span>
+          <h4 className={Styles.cardName}>Leftover plugin data</h4>
           <span className={Styles.muted}>{formatBytes(total)}</span>
         </div>
         <div className={Styles.cardMeta}>
           <span className={Styles.muted}>
-            {rows.length} removed plugin{rows.length === 1 ? '' : 's'} still store data here, and it
+            {plural(rows.length, 'removed plugin')} still store data here, and it
             rides every backup: {rows.map((r) => r.pluginId).join(', ')}
           </span>
         </div>
       </div>
       <div className={Styles.cardActions}>
         {rows.map((r) => (
-          <button
+          <SettingButton
             key={r.pluginId}
-            className={Styles.iconBtn}
+            variant="danger"
             title={`Delete ${r.pluginId}'s leftover data (${formatBytes(r.bytes)})`}
-            aria-label={`Delete leftover data from ${r.pluginId}`}
             onClick={() => onClear(r.pluginId)}
           >
-            <Trash size={15} />
-          </button>
+            Delete {r.pluginId} data
+          </SettingButton>
         ))}
       </div>
     </div>
   )
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function InstalledPlugins() {
@@ -115,15 +113,19 @@ export function InstalledPlugins() {
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [sortBy, setSortBy] = useState<SortBy>('name')
+  const [reloading, setReloading] = useState(false)
   const sandboxOnly = useSyncExternalStore(subscribeSandboxOnly, getSandboxOnlySnapshot)
 
   const refreshInstalled = useCallback(() => {
     void listInstalledPlugins()
       .then(setInstalled)
-      .catch((e) => console.error('list installed plugins failed', e))
+      .catch((e) => {
+        log.error('list installed plugins failed', e)
+        toast.error("Couldn't load your installed plugins.")
+      })
     void pluginStorageOwners()
       .then(setOwners)
-      .catch((e) => console.error('list plugin storage owners failed', e))
+      .catch((e) => log.error('list plugin storage owners failed', e))
   }, [])
 
   const rows: Row[] = [
@@ -181,11 +183,23 @@ export function InstalledPlugins() {
           { key: 'theme' as const, label: 'Themes', rows: themes },
           { key: 'utility' as const, label: 'Utility', rows: utilities },
         ].filter((g) => g.rows.length > 0)
-      : [{ key: typeFilter, label: '', rows: typeFilter === 'theme' ? themes : utilities }]
+      : [{ key: typeFilter, label: typeFilter === 'theme' ? 'Themes' : 'Utility', rows: typeFilter === 'theme' ? themes : utilities }]
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const refreshUsage = useCallback((ids: string[]) => {
     for (const id of ids) {
-      void pluginStorageUsage(id).then((u) => setUsage((prev) => ({ ...prev, [id]: u })))
+      pluginStorageUsage(id)
+        .then((u) => {
+          if (mountedRef.current) setUsage((prev) => ({ ...prev, [id]: u }))
+        })
+        .catch((err) => log.error('plugin storage usage failed', err))
     }
   }, [])
 
@@ -199,8 +213,13 @@ export function InstalledPlugins() {
   }, [installed])
 
   const toggle = async (row: Row, enabled: boolean) => {
-    if (row.installed) await setInstalledPluginEnabled(row.installed, enabled)
-    else setPluginEnabled(row.id, enabled)
+    try {
+      if (row.installed) await setInstalledPluginEnabled(row.installed, enabled)
+      else setPluginEnabled(row.id, enabled)
+    } catch (err) {
+      log.error('plugin enable toggle failed', err)
+      toast.error(`Couldn't ${enabled ? 'turn on' : 'turn off'} ${row.name}. Try again.`)
+    }
   }
 
   const uninstall = async (row: Row) => {
@@ -210,10 +229,11 @@ export function InstalledPlugins() {
     const choice = keys
       ? await showChoiceDialog({
           title: `Uninstall ${row.name}?`,
-          message: `This removes the plugin from disk. It has ${keys} stored key${keys === 1 ? '' : 's'} (${formatBytes(usage[row.id].bytes)}) — once it's uninstalled there's no way to clear that from here.`,
+          message: `This removes the plugin from disk. It has ${plural(keys, 'stored key')} (${formatBytes(usage[row.id].bytes)}) — if you keep it, you can still delete it later under "Leftover plugin data".`,
           options: [
-            { value: 'purge', label: 'Uninstall and delete its data', primary: true },
-            { value: 'keep', label: 'Uninstall, keep its data', description: 'Reinstalling later picks it back up.' },
+            // The safe, reversible choice is the default (focused) one; the purge can't be undone.
+            { value: 'keep', label: 'Uninstall, keep its data', description: 'Reinstalling later picks it back up.', primary: true },
+            { value: 'purge', label: 'Uninstall and delete its data', description: 'Permanently deletes what the plugin stored.' },
           ],
         })
       : (await showConfirmDialog({
@@ -225,15 +245,17 @@ export function InstalledPlugins() {
         ? 'keep'
         : null
     if (!choice) return
-    try {
-      pluginRegistry.unregister(row.id)
-      await removeInstalledPlugin(row.id)
-      if (choice === 'purge') await clearPluginStorage(row.id)
-      toast.success(`Uninstalled ${row.name}.`)
-      refreshInstalled()
-    } catch (err) {
-      toast.error('Uninstall failed: ' + String(err))
+    const res = await uninstallPlugin(row.id, choice === 'purge')
+    if (!res.removed) {
+      toast.error(`Couldn't uninstall ${row.name}. Try again.`)
+      return
     }
+    if (res.purgeFailed) {
+      toast.error(`Uninstalled ${row.name}, but couldn't delete its data. You can delete it under "Leftover plugin data".`)
+    } else {
+      toast.success(`Uninstalled ${row.name}.`)
+    }
+    refreshInstalled()
   }
 
   // Rows whose plugin is neither installed nor built in — nothing else in the UI
@@ -242,6 +264,13 @@ export function InstalledPlugins() {
     const live = new Set([...BUILTIN_PLUGINS.map((p) => p.id), ...installed.map((p) => p.id)])
     return owners.filter((o) => !live.has(o.pluginId) && o.keys > 0)
   }, [owners, installed])
+
+  const openHomepage = (url: string) => {
+    openUrl(url.trim()).catch((err) => {
+      log.error('open plugin homepage failed', err)
+      toast.error("Couldn't open the plugin's homepage.")
+    })
+  }
 
   const clearOrphan = async (pluginId: string) => {
     const ok = await showConfirmDialog({
@@ -256,7 +285,8 @@ export function InstalledPlugins() {
       toast.success('Leftover data deleted.')
       refreshInstalled()
     } catch (err) {
-      toast.error('Failed to delete: ' + String(err))
+      log.error('delete leftover plugin data failed', err)
+      toast.error("Couldn't delete that data. Try again.")
     }
   }
 
@@ -273,7 +303,8 @@ export function InstalledPlugins() {
       toast.success(`Cleared ${name}'s stored data.`)
       refreshUsage([id])
     } catch (err) {
-      toast.error('Failed to clear data: ' + String(err))
+      log.error('clear plugin data failed', err)
+      toast.error(`Couldn't clear ${name}'s data. Try again.`)
     }
   }
 
@@ -283,7 +314,7 @@ export function InstalledPlugins() {
         <div className={Styles.searchWrap}>
           <Search size={14} className={Styles.searchIcon} />
           <input
-            className={Styles.searchInput}
+            className={`${settingInputClass} ${Styles.searchInput}`}
             type="search"
             placeholder="Search plugins by name, id, permission…"
             aria-label="Search installed plugins"
@@ -309,75 +340,75 @@ export function InstalledPlugins() {
       </div>
 
       <div className={Styles.filterRow}>
-        <div className={Styles.segmented} role="group" aria-label="Filter plugins by type">
-          {TYPE_FILTERS.map((f) => {
+        <SettingSegmented
+          value={typeFilter}
+          onChange={setTypeFilter}
+          ariaLabel="Filter plugins by type"
+          options={TYPE_FILTERS.map((f) => {
             const count = f.value === 'all' ? sorted.length : f.value === 'theme' ? themes.length : utilities.length
-            return (
-              <button
-                key={f.value}
-                type="button"
-                className={`${Styles.segment} ${typeFilter === f.value ? Styles.segmentActive : ''}`}
-                aria-pressed={typeFilter === f.value}
-                onClick={() => setTypeFilter(f.value)}
-              >
-                {f.label} <span className={Styles.segmentCount}>{count}</span>
-              </button>
-            )
+            return { value: f.value, label: <>{f.label} <span className={Styles.segmentCount}>{count}</span></> }
           })}
-        </div>
-        <SettingSelect
-          value={sortBy}
+        />
+        <div className={Styles.sortSelect}>
+          <SettingSelect
+            value={sortBy}
           onChange={(v) => setSortBy(v as SortBy)}
           options={[
             { value: 'name', label: 'Name (A–Z)' },
             { value: 'recent', label: 'Recently installed' },
           ]}
-          ariaLabel="Sort plugins"
-        />
+            ariaLabel="Sort plugins"
+          />
+        </div>
       </div>
 
-      <div className={Styles.policyRow}>
-        <div className={Styles.settingsLabel}>
-          <span>Only run sandboxed plugins</span>
-          <small className={Styles.muted}>
-            Refuse third-party plugins that run on the main thread. Sandboxed ones can only do what
-            they asked for; main-thread ones have the app's own access. Built-ins are unaffected.
-          </small>
-        </div>
-        <SettingToggle
-          checked={sandboxOnly}
-          ariaLabel="Only run sandboxed plugins"
-          onChange={(v) => {
-            setSandboxOnly(v)
-            // Applies to what is already loaded, not just the next install.
-            void reloadAllPlugins().then(() => {
+      <SettingToggle
+        checked={sandboxOnly}
+        label="Only run sandboxed plugins"
+        hintVisible
+        hint="refuse third-party plugins that run on the main thread. Sandboxed ones can only do what they asked for; main-thread ones have the app's own access. Built-ins are unaffected."
+        disabled={reloading}
+        onChange={(v) => {
+          if (reloading) return
+          const prev = sandboxOnly
+          setSandboxOnly(v)
+          setReloading(true)
+          // Applies to what is already loaded, not just the next install.
+          void reloadAllPlugins()
+            .then(() => {
               refreshInstalled()
               toast.success(v ? 'Main-thread plugins unloaded.' : 'Plugins reloaded.')
             })
-          }}
-        />
-      </div>
+            .catch((err) => {
+              log.error('plugin reload failed', err)
+              setSandboxOnly(prev)
+              toast.error("Couldn't reload plugins, so the setting was put back. Restart Jnana if something looks off.")
+            })
+            .finally(() => {
+              if (mountedRef.current) setReloading(false)
+            })
+        }}
+      />
 
       {sorted.length === 0 && (
         <p className={Styles.footNote}>
-          {query ? `No plugins match "${query}".` : 'Nothing here yet.'}
+          {query ? `No plugins match "${query}".` : 'No plugins installed yet. Find some under Browse.'}
         </p>
       )}
 
       {groups.map((group) => (
-        <div key={group.key} className={Styles.group}>
-          {group.label && (
-            <p className={Styles.sectionLabel}>
-              {group.label} <span className={Styles.segmentCount}>{group.rows.length}</span>
-            </p>
-          )}
+        <SettingSection
+          key={group.key}
+          title={<>{group.label} <span className={Styles.segmentCount}>{group.rows.length}</span></>}
+        >
           {group.rows.length === 0 && (
             <p className={Styles.footNote}>
               {group.key === 'theme'
-                ? 'No theme plugins installed. A theme declares "type": "theme" in its manifest.'
-                : 'No utility plugins installed.'}
+                ? 'No theme plugins installed. Theme plugins add colour themes you can pick in Appearance.'
+                : 'No utility plugins installed. Find some under Browse.'}
             </p>
           )}
+          <div className={Styles.group}>
           {group.rows.map((row) => {
         const enabled = !disabled.has(row.id)
         const contributions = pluginRegistry
@@ -386,10 +417,10 @@ export function InstalledPlugins() {
         const u = usage[row.id]
 
         return (
-          <div key={row.id} className={Styles.card}>
+          <div key={`${row.sourceLabel === 'Built-in' ? 'b' : 'i'}:${row.id}`} className={Styles.card}>
             <div className={Styles.cardMain}>
               <div className={Styles.cardHead}>
-                <span className={Styles.cardName}>{row.name}</span>
+                <h4 className={Styles.cardName}>{row.name}</h4>
                 {row.type === 'theme' && (
                   <span className={Styles.typeTag} title="Declares itself a theme — it changes how Jnana looks">
                     <Palette size={12} /> Theme
@@ -408,16 +439,16 @@ export function InstalledPlugins() {
               </div>
               <div className={Styles.cardMeta}>
                 {enabled && contributions.length > 0 && (
-                  <span>Provides: {contributions.join(', ')} (note type{contributions.length === 1 ? '' : 's'})</span>
+                  <span>Provides: {contributions.join(', ')} ({contributions.length === 1 ? 'note type' : 'note types'})</span>
                 )}
                 {!enabled && <span className={Styles.muted}>Disabled</span>}
                 {isSandboxOnly() && row.installed && row.installed.runtime !== 'worker' && (
                   <span className={Styles.blocked}>· Blocked: not sandboxed</span>
                 )}
-                {row.installed?.homepage && (
+                {isHttpUrl(row.installed?.homepage) && (
                   <button
                     className={Styles.linkBtn}
-                    onClick={() => void openUrl(row.installed!.homepage)}
+                    onClick={() => openHomepage(row.installed!.homepage)}
                     title={row.installed.homepage}
                   >
                     <ExternalLink size={12} /> Source
@@ -425,7 +456,7 @@ export function InstalledPlugins() {
                 )}
                 {u && u.keys > 0 && (
                   <span className={Styles.muted}>
-                    · {u.keys} stored key{u.keys === 1 ? '' : 's'} ({formatBytes(u.bytes)})
+                    · {plural(u.keys, 'stored key')} ({formatBytes(u.bytes)})
                   </span>
                 )}
                 {(() => {
@@ -434,70 +465,75 @@ export function InstalledPlugins() {
                   const a = activity[row.id]
                   if (!a || a.reads + a.writes + a.requests + a.ui === 0) return null
                   const parts = [
-                    a.reads ? `${a.reads} read${a.reads === 1 ? '' : 's'}` : null,
-                    a.writes ? `${a.writes} write${a.writes === 1 ? '' : 's'}` : null,
-                    a.requests ? `${a.requests} request${a.requests === 1 ? '' : 's'}` : null,
+                    a.reads ? plural(a.reads, 'read') : null,
+                    a.writes ? plural(a.writes, 'write') : null,
+                    a.requests ? plural(a.requests, 'request') : null,
                     // UI declarations are cheap one at a time; a large number here
                     // is the shape of a plugin redeclaring in a loop.
-                    a.ui ? `${a.ui} UI update${a.ui === 1 ? '' : 's'}` : null,
+                    a.ui ? plural(a.ui, 'UI update') : null,
                   ].filter(Boolean)
                   return (
-                    <span className={Styles.activity} title="What this plugin has done since Jnana started (details in Developer → Plugin console)">
+                    <span className={Styles.activity} title="What this plugin has done since Jnana started (full details in Plugins → Plugin development, with developer options on)">
                       · {parts.join(', ')}
                     </span>
                   )
                 })()}
               </div>
-              {row.installed && (
-                <PluginPermissions plugin={row.installed} onChanged={refreshInstalled} />
-              )}
-              {enabled && <PluginShortcuts pluginId={row.id} />}
-              {enabled && <PluginSettingsPane pluginId={row.id} />}
+              {(() => {
+                const nPerms = row.installed?.permissions?.length ?? 0
+                const ids = pluginRegistry.commandIdsOf(row.id)
+                const nKeys = enabled ? listCommands().filter((c) => ids.includes(c.id)).length : 0
+                const nSettings = enabled ? (getSettingsDefinition(row.id)?.fields.length ?? 0) : 0
+                const parts = [
+                  nPerms ? plural(nPerms, 'permission') : null,
+                  nKeys ? plural(nKeys, 'shortcut') : null,
+                  nSettings ? plural(nSettings, 'setting') : null,
+                ].filter(Boolean)
+                if (parts.length === 0) return null
+                return (
+                  <details className={Styles.details}>
+                    <summary>
+                      <ChevronRight size={14} className={Styles.chevron} aria-hidden />
+                      {parts.join(' · ')}
+                    </summary>
+                    {row.installed && <PluginPermissions plugin={row.installed} onChanged={refreshInstalled} />}
+                    {enabled && <PluginShortcuts pluginId={row.id} />}
+                    {enabled && <PluginSettingsPane pluginId={row.id} pluginName={row.name} />}
+                  </details>
+                )
+              })()}
             </div>
 
             <div className={Styles.cardActions}>
               {u && u.keys > 0 && (
-                <button
-                  className={Styles.iconBtn}
-                  title="Clear stored data"
-                  aria-label="Clear stored data"
-                  onClick={() => clearData(row.id, row.name)}
-                >
-                  <Trash size={15} />
-                </button>
+                <SettingButton onClick={() => void clearData(row.id, row.name)} title="Delete everything this plugin has stored. Your notes are not affected.">
+                  Clear data
+                </SettingButton>
               )}
               {row.installed && (
-                <button
-                  className={Styles.iconBtn}
-                  title="Uninstall plugin"
-                  aria-label="Uninstall plugin"
-                  onClick={() => uninstall(row)}
-                >
-                  <Trash2 size={15} />
-                </button>
+                <SettingButton variant="danger" onClick={() => void uninstall(row)} title="Remove this plugin from disk">
+                  Uninstall
+                </SettingButton>
               )}
-              <button
-                role="switch"
-                aria-checked={enabled}
-                aria-label={enabled ? `Disable ${row.name}` : `Enable ${row.name}`}
-                title={enabled ? 'Enabled' : 'Disabled'}
-                className={`${Styles.switch} ${enabled ? Styles.switchOn : ''}`}
-                onClick={() => void toggle(row, !enabled)}
-              >
-                <span className={Styles.switchKnob} />
-              </button>
+              <SettingToggle
+                checked={enabled}
+                ariaLabel={`Enable ${row.name}`}
+                onChange={(v) => void toggle(row, v)}
+              />
             </div>
           </div>
         )
           })}
-        </div>
+          </div>
+        </SettingSection>
       ))}
 
       {!query && <OrphanStorage rows={orphans} onClear={(id) => void clearOrphan(id)} />}
 
       <p className={Styles.footNote}>
         Built-in plugins can be disabled but not removed. Install third-party plugins from Browse (a
-        <code> .zip</code>) or Developer (a local folder).
+        <code> .zip</code>). Developers can load a plugin from a folder: turn on General → Show developer
+        options, then Plugins → Plugin development.
       </p>
     </div>
   )

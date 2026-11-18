@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -48,9 +48,9 @@ jobs:
       # Tauri v2's Linux runtime/build dependencies (webkit2gtk 4.1, ayatana app
       # indicator, rsvg, patchelf for AppImage). No-op on Windows/macOS.
       # NOTE: use libayatana-appindicator3-dev only — the old libappindicator3-dev
-      # (Tauri v1) Conflicts with it and breaks `apt-get install` on ubuntu-latest.
+      # (Tauri v1) Conflicts with it and breaks `apt-get install` on Ubuntu.
       - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y \

@@ -110,6 +110,18 @@ export function isRailHidden(): boolean {
   return railHidden
 }
 
+export function getOpenRailPanel(): string {
+  return openId
+}
+
+/** Id of the open rail panel ('' = collapsed). */
+export const useOpenRailPanel = useOpenPanel
+
+/** False while the whole rail is hidden. */
+export function useRailVisible(): boolean {
+  return !useRailHidden()
+}
+
 function useRailHidden(): boolean {
   return useSyncExternalStore(
     (l) => {

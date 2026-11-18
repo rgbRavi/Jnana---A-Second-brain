@@ -118,3 +118,31 @@
 .collapseBtn:active {
   transform: scale(0.92);
 }
+
+.collapseBtn[aria-pressed='true'] { color: var(--accent); background: var(--accent-soft); }
+
+/* ─── Auto-hide mode ───
+   A thin strip beside the nav sidebar is the hover target; the panel overlays the page.
+   Closed, it is transparent (not slid away — nothing clips it here, so it would cover the nav
+   sidebar) but stays focusable, so Tab still reaches (and opens) it. */
+.edge {
+  position: relative;
+  z-index: 40;
+  flex: none;
+  width: 10px;
+  background: var(--surface-2);
+  border-right: 1px solid var(--border);
+}
+.float {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+  box-shadow: var(--shadow-lg);
+  transition: opacity var(--dur-base) var(--motion-ease), transform var(--dur-base) var(--motion-ease);
+}
+.floatOpen { opacity: 1; transform: none; pointer-events: auto; }

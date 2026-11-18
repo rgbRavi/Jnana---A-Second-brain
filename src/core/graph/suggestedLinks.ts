@@ -7,7 +7,7 @@
 // pairs through lib/suggestedLinks, so the tile's number always matches the
 // lines on screen.
 //
-// Two sources, picked by the user in Settings → Dashboard:
+// Two sources, picked by the user in Settings → General → Home dashboard:
 //   tags — shared user tag. Synchronous, works with AI off.
 //   ai   — semantic neighbours from the local vector index. Needs AI enabled
 //          and an index; bounded below so a big vault can't melt.

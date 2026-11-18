@@ -5,7 +5,7 @@
 // Mutations emit stringly-typed bus events so the explorer, vault switcher, and
 // scoped notes views re-sync without prop-drilling (mirrors core/folders.ts).
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import type { Vault } from '../types'
 import { eventBus } from '../lib/eventBus'
 

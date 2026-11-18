@@ -22,6 +22,7 @@ import {
 import type { EraserMode } from './useCanvasPrefs'
 import type { CanvasBackground } from '../../../core/canvas'
 import { CANVAS_PALETTE } from './palette'
+import { formatChord } from '../../../lib/pluginHotkeys'
 import styles from './canvas.module.css'
 
 export type CanvasMode = 'select' | 'pan' | 'draw'
@@ -95,8 +96,8 @@ export function CanvasToolbar({
 
   return (
     <div className={styles.toolbar}>
-      <button className={styles.toolBtn} onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={16} /></button>
-      <button className={styles.toolBtn} onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo2 size={16} /></button>
+      <button className={styles.toolBtn} onClick={onUndo} disabled={!canUndo} title={`Undo (${formatChord('mod+z')})`} aria-label="Undo"><Undo2 size={16} /></button>
+      <button className={styles.toolBtn} onClick={onRedo} disabled={!canRedo} title={`Redo (${formatChord('mod+shift+z')})`} aria-label="Redo"><Redo2 size={16} /></button>
 
       <span className={styles.toolSep} />
 

@@ -6,6 +6,7 @@ import type { AiConfig, IndexStats, Note, RetrievalHit } from '../types'
 import { useActiveVaultId } from './useVaults'
 import { eventBus } from '../lib/eventBus'
 import { log } from '../lib/logger'
+import { toast } from '../lib/toast'
 import {
   defaultConfig,
   loadAiConfig,
@@ -19,6 +20,14 @@ import {
   staleNotes,
 } from '../core/ai'
 
+const BLANK_KEYS = {
+  chatApiKey: '',
+  embeddingApiKey: '',
+  transcriptionApiKey: '',
+  deepResearchApiKey: '',
+  webSearchApiKey: '',
+}
+
 /**
  * Orchestrates the local RAG layer for the UI:
  * - owns the AI config (provider/keys/models)
@@ -31,24 +40,51 @@ import {
 export function useRag() {
   const vaultId = useActiveVaultId()
   const [config, setConfig] = useState<AiConfig>(() => defaultConfig())
+  const [instanceToken] = useState(() => Symbol('useRag'))
   const [stats, setStats] = useState<IndexStats>({ chunkCount: 0, indexedNoteCount: 0 })
   const [indexing, setIndexing] = useState<{ done: number; total: number } | null>(null)
   const [stale, setStale] = useState<Note[]>([])
 
+  const editSeq = useRef(0)
+
   // Config lives on the Rust side — load it once on mount.
   useEffect(() => {
+    const editsAtStart = editSeq.current
     loadAiConfig()
-      .then(setConfig)
+      // An edit made before this resolved is newer than what we read: don't overwrite it.
+      .then((c) => editSeq.current === editsAtStart && setConfig(c))
       .catch((err) => log.error('[useRag] failed to load AI config', err))
   }, [])
+
+  // Settings and AI chat each own a useRag copy; this event keeps them in sync
+  // (and replaces stale draft state after a preset command). Own saves are ignored.
+  useEffect(() => {
+    const onChanged = (p?: { config?: AiConfig; source?: symbol }) => {
+      if (p?.source === instanceToken) return
+      if (p?.config) {
+        // Update the ref now too, so a caller that acts right after the event
+        // (e.g. re-index after applying a preset) doesn't see the pre-render config.
+        configRef.current = p.config
+        setConfig(p.config)
+      } else
+        loadAiConfig()
+          .then(setConfig)
+          .catch((err) => log.error('[useRag] failed to reload AI config', err))
+    }
+    eventBus.on('ai:configChanged', onChanged)
+    return () => eventBus.off('ai:configChanged', onChanged)
+  }, [instanceToken])
 
   // Keep a ref so event handlers always see the latest config without resubscribing.
   const configRef = useRef(config)
   configRef.current = config
+  const saveSeq = useRef(0)
 
-  const updateConfig = useCallback((next: AiConfig) => {
+  // Resolves true once Rust stored it, false if the save failed (already toasted).
+  const updateConfig = useCallback((next: AiConfig): Promise<boolean> => {
     // Mirror the Rust-side key rules locally so the UI updates without a
     // reload: a typed key sets presence; changing baseUrl/provider drops it.
+    editSeq.current++
     setConfig((prev) => {
       const sameChat = next.chatBaseUrl === prev.chatBaseUrl && next.chatProvider === prev.chatProvider
       const sameEmbed =
@@ -57,19 +93,44 @@ export function useRag() {
       const sameTx =
         next.transcriptionBaseUrl === prev.transcriptionBaseUrl &&
         next.transcriptionProvider === prev.transcriptionProvider
+      const sameDr =
+        next.deepResearchBaseUrl === prev.deepResearchBaseUrl &&
+        next.deepResearchProvider === prev.deepResearchProvider
+      const sameWeb =
+        next.webSearchBaseUrl === prev.webSearchBaseUrl && next.webSearchProvider === prev.webSearchProvider
       return {
         ...next,
+        hasWebSearchApiKey: next.webSearchApiKey ? true : sameWeb && !!prev.hasWebSearchApiKey,
         hasChatApiKey: next.chatApiKey ? true : sameChat && !!prev.hasChatApiKey,
         hasEmbeddingApiKey: next.embeddingApiKey ? true : sameEmbed && !!prev.hasEmbeddingApiKey,
         hasTranscriptionApiKey: next.transcriptionApiKey
           ? true
           : sameTx && !!prev.hasTranscriptionApiKey,
+        hasDeepResearchApiKey: next.deepResearchApiKey ? true : sameDr && !!prev.hasDeepResearchApiKey,
       }
     })
-    void saveAiConfig(next).catch((err) =>
-      log.error('[useRag] failed to save AI config', err),
+    const seq = ++saveSeq.current
+    return saveAiConfig(next).then(
+      () => {
+        // Plaintext keys must not outlive the save (state, later `{...config}` saves).
+        setConfig((c) => ({ ...c, ...BLANK_KEYS }))
+        eventBus.emit('ai:configChanged', { source: instanceToken })
+        return true
+      },
+      (err) => {
+        log.error('[useRag] failed to save AI config', err)
+        // A newer save is already in flight (typing in a prompt field): let that one
+        // report, so a failing disk doesn't spam toasts or reload over live typing.
+        if (seq !== saveSeq.current) return false
+        toast.error("Couldn't save AI settings. Try again in a moment.")
+        // Don't leave the screen claiming a save that didn't happen: show what's actually stored.
+        loadAiConfig()
+          .then(setConfig)
+          .catch((e) => log.error('[useRag] failed to reload AI config', e))
+        return false
+      },
     )
-  }, [])
+  }, [instanceToken])
 
   // Stats follow the active vault, so switching vaults re-reads them (the
   // callback's identity change re-runs the effect below and the bus handlers).
@@ -134,14 +195,15 @@ export function useRag() {
   /** (Re)embed the given notes — used for first-run backfill or after a model change. */
   const reindexAll = useCallback(
     async (notes: Note[]) => {
-      if (!config.enabled) return
+      const cfg = configRef.current
+      if (!cfg.enabled) return
       setIndexing({ done: 0, total: notes.length })
-      await indexNotes(notes, config, (done, total) => setIndexing({ done, total }))
+      await indexNotes(notes, cfg, (done, total) => setIndexing({ done, total }))
       setIndexing(null)
       await refreshStats()
       await refreshStaleness(notes)
     },
-    [config, refreshStats, refreshStaleness],
+    [refreshStats, refreshStaleness],
   )
 
   return {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
 import type { PluginManifestPreview } from './loader'
 
 /** The official curated registry — the Browse tab defaults here so approved

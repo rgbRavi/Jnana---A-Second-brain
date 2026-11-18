@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../ipc'
+import { eventBus } from '../../lib/eventBus'
 import type { AiConfig, AiProviderKind, TranscriptionProviderKind } from '../../types'
 
 /** Pre-Rust-storage location of the config; cleared on load. */
@@ -62,6 +63,13 @@ export function defaultConfig(): AiConfig {
     hasDeepResearchApiKey: false,
     deepResearchModel: '',
     ...DEEP_RESEARCH_DEFAULTS.openai,
+    webSearchProvider: 'brave',
+    webSearchBaseUrl: '',
+    webSearchApiKey: '',
+    chatSystemPrompt: '',
+    globalSystemPrompt: '',
+    activePresets: {},
+    presets: { chat: [], embedding: [], transcription: [], deepResearch: [], webSearch: [] },
   }
 }
 
@@ -93,6 +101,13 @@ export function hasDeepResearchEndpoint(config: AiConfig): boolean {
   return config.deepResearchModel.trim() !== '' && config.deepResearchBaseUrl.trim() !== ''
 }
 
+/** Whether web search is usable: a saved key (brave/tavily) or a base URL (searxng). */
+export function hasWebSearch(config: AiConfig): boolean {
+  return config.webSearchProvider === 'searxng'
+    ? config.webSearchBaseUrl.trim() !== ''
+    : !!config.hasWebSearchApiKey
+}
+
 /** Old localStorage config (incl. keys) is obsolete — the Rust store + its
  * file migration own the config now; just clear the stale browser copy. */
 function clearLegacyConfig(): void {
@@ -106,26 +121,80 @@ const asKind = (v: unknown): AiProviderKind => (v === 'openai' ? 'openai' : 'oll
  * write-only: they come back empty, with `has*ApiKey` reporting whether one is
  * saved.
  */
-export async function loadAiConfig(): Promise<AiConfig> {
-  clearLegacyConfig()
-  const stored = await invoke<Partial<AiConfig>>('get_ai_config')
-  // Fresh install (nothing configured) — use defaults.
-  if (!stored.chatBaseUrl && !stored.embeddingBaseUrl) return defaultConfig()
+/** Map a config payload from Rust to a full `AiConfig` (defaults, coercions, keys blanked). */
+export function fromStoredConfig(stored: Partial<AiConfig>): AiConfig {
+  const d = defaultConfig()
+  // Nothing configured: all-empty base URLs. Only truly fresh when no presets/prompts exist either.
+  if (!stored.chatBaseUrl && !stored.embeddingBaseUrl) {
+    const hasPresets = Object.values(stored.presets ?? {}).some((l) => l?.length)
+    if (!hasPresets && !stored.chatSystemPrompt && !stored.globalSystemPrompt) return d
+    // Otherwise keep the user's presets/prompts but never show '' where a default applies.
+    const chat = CHAT_DEFAULTS[asKind(stored.chatProvider)]
+    const embed = EMBED_DEFAULTS[asKind(stored.embeddingProvider)]
+    const tx = TRANSCRIPTION_DEFAULTS[stored.transcriptionProvider === 'local' ? 'local' : 'openai']
+    const dr = DEEP_RESEARCH_DEFAULTS[asKind(stored.deepResearchProvider)]
+    stored = {
+      ...stored,
+      chatBaseUrl: stored.chatBaseUrl || chat.chatBaseUrl,
+      chatModel: stored.chatModel || chat.chatModel,
+      embeddingBaseUrl: stored.embeddingBaseUrl || embed.embeddingBaseUrl,
+      embeddingModel: stored.embeddingModel || embed.embeddingModel,
+      transcriptionBaseUrl: stored.transcriptionBaseUrl || tx.transcriptionBaseUrl,
+      transcriptionModel: stored.transcriptionModel || tx.transcriptionModel,
+      deepResearchBaseUrl: stored.deepResearchBaseUrl || dr.deepResearchBaseUrl,
+    }
+  }
   return {
-    ...defaultConfig(),
+    ...d,
     ...stored,
+    presets: { ...d.presets, ...stored.presets },
+    activePresets: stored.activePresets ?? {},
+    chatSystemPrompt: stored.chatSystemPrompt ?? '',
+    globalSystemPrompt: stored.globalSystemPrompt ?? '',
     chatProvider: asKind(stored.chatProvider),
     embeddingProvider: asKind(stored.embeddingProvider),
     transcriptionProvider: stored.transcriptionProvider === 'local' ? 'local' : 'openai',
     deepResearchProvider: asKind(stored.deepResearchProvider),
+    webSearchProvider:
+      stored.webSearchProvider === 'tavily' || stored.webSearchProvider === 'searxng'
+        ? stored.webSearchProvider
+        : 'brave',
     // Keys are write-only — always blank on load.
     chatApiKey: '',
     embeddingApiKey: '',
     transcriptionApiKey: '',
     deepResearchApiKey: '',
+    webSearchApiKey: '',
   }
 }
 
+export async function loadAiConfig(): Promise<AiConfig> {
+  clearLegacyConfig()
+  return fromStoredConfig(await invoke<Partial<AiConfig>>('get_ai_config'))
+}
+
+// The most recent save, so anything that reads the Rust-side config (a
+// connection test right after a Base URL blur) can wait for it to land first.
+let lastSave: Promise<void> = Promise.resolve()
+
 export async function saveAiConfig(config: AiConfig): Promise<void> {
-  await invoke('set_ai_config', { config })
+  const p = invoke<void>('set_ai_config', { config })
+  lastSave = p.then(
+    () => undefined,
+    () => undefined,
+  )
+  await p
+}
+
+/** Resolves once every save started so far has settled (success or failure). */
+export function aiConfigSettled(): Promise<void> {
+  return lastSave
+}
+
+export type KeyTarget = 'chat' | 'embedding' | 'transcription' | 'deepResearch' | 'webSearch'
+
+/** Delete the saved API key for one section (Rust blanks it), then tell every `useRag` copy to reload. */
+export async function clearAiKey(target: KeyTarget): Promise<void> {
+  await invoke('clear_ai_key', { target })
+  eventBus.emit('ai:configChanged', undefined)
 }

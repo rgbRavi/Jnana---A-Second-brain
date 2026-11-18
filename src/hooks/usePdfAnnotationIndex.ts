@@ -21,8 +21,8 @@ const ANNOTATION_KEY = '<annotations>'
  * re-emit can't loop.
  *
  * Re-emits the *full* note (re-fetched via `getNote`), not a bare `{ id }` —
- * useSearch's `note:saved` handler replaces the whole indexed document from
- * the payload (a bare id would blank the title/content fields it indexes),
+ * `note:saved` listeners treat the payload as the whole note (a bare id would
+ * blank its title/content in the notes list the keyword index is built from),
  * and useRag's chunker reads `note.content` directly (a bare id throws inside
  * the chunker, silently failing indexing). If the fetch fails, the re-emit is
  * skipped entirely (logged) rather than emitted as a partial note — the

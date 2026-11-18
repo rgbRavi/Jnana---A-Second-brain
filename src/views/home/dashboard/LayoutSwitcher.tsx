@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useRef, useState } from 'react'
+import { useEscapeKey } from '../../../hooks/useEscapeKey'
 import { Check, ChevronDown, Pencil, Plus, X } from 'lucide-react'
 import styles from './Dashboard.module.css'
 import { useDashboardPrefs } from './useDashboardPrefs'
@@ -18,16 +19,12 @@ export function LayoutSwitcher() {
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
     document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
     }
   }, [open])
+  useEscapeKey(() => setOpen(false))
 
   const active = prefs.layouts.find((l) => l.id === prefs.activeId)
 
@@ -62,9 +59,9 @@ export function LayoutSwitcher() {
       <button
         type="button"
         className={styles.layoutBtn}
-        title="Widget Presets"
+        title="Layouts"
+        aria-label={`Layouts: ${active?.name ?? 'Layout'}`}
         onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
         aria-expanded={open}
       >
         <span className={styles.layoutBtnLabel}>{active?.name ?? 'Layout'}</span>
@@ -72,12 +69,13 @@ export function LayoutSwitcher() {
       </button>
 
       {open && (
-        <div className={styles.layoutMenu} role="menu">
+        <div className={styles.layoutMenu} role="group" aria-label="Layouts">
           {prefs.layouts.map((l) => (
             <div key={l.id} className={`${styles.layoutItem} ${l.id === prefs.activeId ? styles.layoutItemActive : ''}`}>
               <button
                 type="button"
                 className={styles.layoutItemMain}
+                aria-current={l.id === prefs.activeId ? 'true' : undefined}
                 onClick={() => {
                   prefs.switchLayout(l.id)
                   setOpen(false)
@@ -87,7 +85,7 @@ export function LayoutSwitcher() {
                   {l.id === prefs.activeId ? <Check size={14} /> : ''}
                 </span>
                 {l.name}
-                {l.builtin && <span className={styles.layoutTag}>preset</span>}
+                {l.builtin && <span className={styles.layoutTag}><span className={styles.gridLive}>, </span>preset</span>}
               </button>
               {!l.builtin && (
                 <span className={styles.layoutItemActions}>

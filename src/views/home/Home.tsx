@@ -4,7 +4,7 @@
 import HomeStyle from "./Home.module.css"
 import {useState} from "react"
 import HomeNewVisitorContent from "./HomeNewVisitorContent"
-import HomeReturningVisitorContent from "./HomeReturningVisitorContent"
+import { Dashboard } from "./dashboard/Dashboard"
 import { useScrollMemory } from "../../hooks/useScrollMemory"
 
 
@@ -26,7 +26,7 @@ function Home(){
 
     return(
         <div className={HomeStyle.homeContainer} ref={ref} onScroll={onScroll}>
-            {hasVisited ? <HomeReturningVisitorContent /> : <HomeNewVisitorContent />}
+            {hasVisited ? <Dashboard /> : <HomeNewVisitorContent />}
         </div>
     )
 }

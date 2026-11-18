@@ -2,20 +2,26 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronsLeft, ChevronsRight, Pencil, Plus, X, FolderKanban, ChevronDown, MessageSquare } from 'lucide-react'
-import { showConfirmDialog } from '../../lib/dialog'
+import { ChevronsLeft, ChevronsRight, Plus, FolderKanban, ChevronDown, MessageSquare, PanelLeftDashed, X } from 'lucide-react'
 import { eventBus } from '../../lib/eventBus'
-import { listConversations, deleteConversation, renameConversation } from '../../core/chat'
+import { listConversations } from '../../core/chat'
 import { useViewState } from '../../hooks/useViewState'
-import { requestChatAction } from '../../hooks/useChatHistory'
+import { requestChatAction, deleteChats, renameChat } from '../../hooks/useChatHistory'
 import { useActiveVaultId } from '../../hooks/useVaults'
+import { setSidebarPrefs, useSidebarPrefs } from '../../hooks/useSidebarPrefs'
+import { useProjects } from '../../hooks/useProjects'
+import { useHoverReveal } from '../../hooks/useHoverReveal'
+import { goToAiMode } from '../../hooks/aiNav'
 import type { ConversationMeta } from '../../types'
+import { ContextMenu } from '../ContextMenu'
+import { relativeTime } from '../../views/home/dashboard/format'
 import styles from './Ai.module.css'
 
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
 
-const fmt = (t: number) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+const fullDate = (t: number) =>
+  new Date(t).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** Left-hand history drawer shared by both AI modes; coordinates with the active
  *  chat component purely through the eventBus. */
@@ -27,16 +33,30 @@ export function ChatHistory({ mode }: { mode: string }) {
   const [activeId] = useViewState<string>(`ai.conv.${mode}.${activeVaultId}`, newId)
   const [collapsed, setCollapsed] = useViewState('ai.history.collapsed', false)
   // In AI Chat, the drawer is scoped to the active project (Claude-style grouping).
-  const [activeProjectId] = useViewState('ai.free.projectId', '')
+  const [activeProjectId, setActiveProjectId] = useViewState('ai.free.projectId', '')
+  const { projects, loaded: projectsLoaded } = useProjects()
+  // Before the list loads, trust the stored tag (avoids a flash of the wrong chats).
+  const activeProject = projects.find((p) => p.id === activeProjectId)
+  const inVault = (id: string | null | undefined) => !!id && (!projectsLoaded || projects.some((p) => p.id === id))
+  // The active project must belong to the active vault (it survives a vault switch in view
+  // state); otherwise the list filters to a project this vault can't show and looks empty.
+  useEffect(() => {
+    if (projectsLoaded && activeProjectId && !projects.some((p) => p.id === activeProjectId)) setActiveProjectId('')
+  }, [projectsLoaded, projects, activeProjectId, setActiveProjectId])
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameText, setRenameText] = useState('')
   const [expandedChats, setExpandedChats] = useState(false)
-  const [aiMode, setAiMode] = useViewState('ai.mode', 'chat')
+  const [menu, setMenu] = useState<{ x: number; y: number; c: ConversationMeta } | null>(null)
+  const { aiHistoryAutoHide: autoHide } = useSidebarPrefs()
+  const reveal = useHoverReveal(!!menu || renamingId !== null)
+  const [aiMode] = useViewState('ai.mode', 'chat')
   const inProjects = aiMode === 'projects'
+  const inChatsList = aiMode === 'chats'
   const [, setForceOpenProject] = useViewState('ai.projects.openId', '')
 
   const allVisible =
-    mode === 'chat' ? list.filter((c) => (c.projectId ?? '') === (activeProjectId ?? '')) : list
+    // A chat tagged with a project from another vault counts as unassigned, so it stays reachable.
+    mode === 'chat' ? list.filter((c) => (inVault(c.projectId) ? c.projectId : '') === (activeProjectId ?? '')) : list
   const visible = expandedChats ? allVisible : allVisible.slice(0, 5)
 
   const refresh = useCallback(() => {
@@ -64,16 +84,16 @@ export function ChatHistory({ mode }: { mode: string }) {
   // Both work from Projects too: queue the action, then show the chat.
   const newChat = () => {
     requestChatAction(mode, { type: 'new' })
-    setAiMode('chat')
+    goToAiMode('chat')
   }
   const load = (id: string) => {
     requestChatAction(mode, { type: 'load', id })
-    setAiMode('chat')
+    goToAiMode('chat')
   }
-  const showChats = () => setAiMode('chat')
+  const showChats = () => goToAiMode('chats')
   const showProjects = () => {
     setForceOpenProject('')
-    setAiMode('projects')
+    goToAiMode('projects')
   }
 
   const iconBtn: React.CSSProperties = {
@@ -93,7 +113,7 @@ export function ChatHistory({ mode }: { mode: string }) {
   }
 
   // Collapsed: a thin rail with expand + new-chat icons.
-  if (collapsed) {
+  if (collapsed && !autoHide) {
     return (
       <div
         style={{
@@ -114,7 +134,7 @@ export function ChatHistory({ mode }: { mode: string }) {
           <Plus size={16} />
         </button>
         <div style={{ width: '100%', height: '1px', background: 'var(--border)', margin: '4px 0' }} />
-        <button onClick={showChats} title="Chats" aria-label="Chats" aria-current={!inProjects ? 'page' : undefined} style={{ ...iconBtn, background: !inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: !inProjects ? 'var(--accent)' : 'var(--text-2)' }}>
+        <button onClick={showChats} title="Chats" aria-label="Chats" aria-current={inChatsList ? 'page' : undefined} style={{ ...iconBtn, background: inChatsList ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: inChatsList ? 'var(--accent)' : 'var(--text-2)' }}>
           <MessageSquare size={16} />
         </button>
         <button onClick={showProjects} title="Projects" aria-label="Projects" aria-current={inProjects ? 'page' : undefined} style={{ ...iconBtn, background: inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--surface-2)', color: inProjects ? 'var(--accent)' : 'var(--text-2)' }}>
@@ -124,28 +144,27 @@ export function ChatHistory({ mode }: { mode: string }) {
     )
   }
 
-  const remove = async (id: string, title: string) => {
-    const ok = await showConfirmDialog({
-      title: 'Delete chat',
-      message: `“${title || 'Untitled'}” and all its messages will be deleted. This can't be undone.`,
-      confirmLabel: 'Delete',
-      danger: true,
-    })
-    if (!ok) return
-    await deleteConversation(id).catch((e) => console.error(e))
-    if (id === activeId) requestChatAction(mode, { type: 'new' }) // reset the open chat
-    eventBus.emit('ai:conversationDeleted', { mode })
-  }
+  const remove = (id: string, title: string) => deleteChats(mode, [{ id, title }])
 
   const commitRename = async (id: string) => {
     const title = renameText.trim()
     setRenamingId(null)
-    if (!title) return
-    await renameConversation(id, title, Date.now()).catch((e) => console.error(e))
-    refresh()
+    if (title) await renameChat(mode, id, title)
   }
 
-  return (
+  const autoHideToggle = (
+    <button
+      onClick={() => setSidebarPrefs({ aiHistoryAutoHide: !autoHide })}
+      title={autoHide ? 'Auto-hide is on — click to keep the side toolbar open' : 'Auto-hide side toolbar (show on hover at the left edge)'}
+      aria-label="Auto-hide side toolbar"
+      aria-pressed={autoHide}
+      style={autoHide ? { ...iconBtn, color: 'var(--accent)', background: 'var(--accent-soft)', borderColor: 'color-mix(in srgb, var(--accent) 40%, transparent)' } : iconBtn}
+    >
+      <PanelLeftDashed size={15} />
+    </button>
+  )
+
+  const panel = (
     <div
       style={{
         width: '230px',
@@ -158,10 +177,18 @@ export function ChatHistory({ mode }: { mode: string }) {
         minHeight: 0,
       }}
     >
+      {/* Normal: drawer controls (collapse · auto-hide) on their own row above New chat.
+          Auto-hide has no collapse button, so the toggle joins New chat's row instead of
+          sitting alone on an otherwise empty one. */}
+      {!autoHide && (
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <button onClick={() => setCollapsed(true)} title="Collapse side toolbar" aria-label="Collapse side toolbar" style={iconBtn}>
+            <ChevronsLeft size={16} />
+          </button>
+          <span style={{ marginLeft: 'auto' }}>{autoHideToggle}</span>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <button onClick={() => setCollapsed(true)} title="Collapse side toolbar" aria-label="Collapse side toolbar" style={iconBtn}>
-          <ChevronsLeft size={16} />
-        </button>
         <button
           onClick={newChat}
           className={styles.btnPrimary}
@@ -178,29 +205,30 @@ export function ChatHistory({ mode }: { mode: string }) {
         >
           <Plus size={15} /> New chat
         </button>
+        {autoHide && autoHideToggle}
       </div>
 
       <div style={{ marginTop: '0.2rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
         <button
           onClick={showChats}
-          aria-current={!inProjects ? 'page' : undefined}
+          aria-current={inChatsList ? 'page' : undefined}
           style={{
             width: '100%',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             padding: '0.5rem 0.6rem',
-            background: !inProjects ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
+            background: inChatsList ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'transparent',
             border: 'none',
             borderRadius: 'var(--radius-sm)',
-            color: !inProjects ? 'var(--text-1)' : 'var(--text-2)',
+            color: inChatsList ? 'var(--text-1)' : 'var(--text-2)',
             cursor: 'pointer',
             fontSize: '0.85rem',
-            fontWeight: !inProjects ? 600 : 500,
+            fontWeight: inChatsList ? 600 : 500,
             textAlign: 'left',
           }}
         >
-          <MessageSquare size={16} color={!inProjects ? 'var(--accent)' : 'var(--text-2)'} /> Chats
+          <MessageSquare size={16} color={inChatsList ? 'var(--accent)' : 'var(--text-2)'} /> Chats
         </button>
         <button
           onClick={showProjects}
@@ -224,20 +252,35 @@ export function ChatHistory({ mode }: { mode: string }) {
           <FolderKanban size={16} color={aiMode === 'projects' ? 'var(--accent)' : 'var(--text-2)'} /> Projects
         </button>
       </div>
-      
-      <div style={{ margin: '0.5rem 0 0.2rem', padding: '0 0.2rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Recent Chats
-      </div>
+
+      {/* The list below follows the active project; say so, with a way out. Leaving starts a
+          fresh project-less chat — clearing the id alone would re-file the open chat on its next save. */}
+      {mode === 'chat' && activeProject && (
+        <div className={styles.historyScope}>
+          <FolderKanban size={13} aria-hidden />
+          <span className={styles.historyScopeName} title={`Showing chats in ${activeProject.name}`}>In {activeProject.name}</span>
+          <button
+            type="button"
+            className={styles.historyScopeClear}
+            onClick={newChat}
+            title="Leave project — start a chat outside it and show all chats"
+            aria-label={`Leave project ${activeProject.name}`}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px', minHeight: 0 }}>
         {visible.length === 0 && (
           <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', padding: '0.4rem 0.2rem' }}>No saved chats yet.</p>
         )}
         {visible.map((c) => {
-          const active = !inProjects && c.id === activeId
+          const active = aiMode === 'chat' && c.id === activeId
           return (
             <div
               key={c.id}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, c }) }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -289,29 +332,10 @@ export function ChatHistory({ mode }: { mode: string }) {
                   <div style={{ fontSize: '0.82rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {c.title || 'Untitled'}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{fmt(c.updatedAt)}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{relativeTime(c.updatedAt)}</div>
                 </button>
               )}
 
-              <button
-                onClick={() => {
-                  setRenamingId(c.id)
-                  setRenameText(c.title)
-                }}
-                title="Rename"
-                aria-label="Rename chat"
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '2px', display: 'inline-flex' }}
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                onClick={() => remove(c.id, c.title)}
-                title="Delete"
-                aria-label="Delete chat"
-                style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', padding: '2px', display: 'inline-flex' }}
-              >
-                <X size={14} />
-              </button>
             </div>
           )
         })}
@@ -340,6 +364,33 @@ export function ChatHistory({ mode }: { mode: string }) {
           </button>
         )}
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            // Deferred: the menu hands focus back to its opener as it closes, which would blur
+            // (and so commit) a rename box mounted in the same render.
+            { label: 'Rename', onClick: () => { const c = menu.c; setTimeout(() => { setRenamingId(c.id); setRenameText(c.title) }) } },
+            { label: 'Info', children: [{ label: `Last active ${fullDate(menu.c.updatedAt)}` }] },
+            { label: 'Delete', danger: true, separator: true, onClick: () => void remove(menu.c.id, menu.c.title) },
+          ]}
+        />
+      )}
+    </div>
+  )
+
+  if (!autoHide) return panel
+  // Auto-hide: a thin hot strip at the view's left edge; the drawer overlays the chat while
+  // hovered, and stays while its menu or rename box is in use.
+  return (
+    <div
+      className={styles.historyEdge}
+      {...reveal.bind}
+    >
+      <div className={`${styles.historyFloat} ${reveal.show ? styles.historyFloatOpen : ''}`}>{panel}</div>
     </div>
   )
 }

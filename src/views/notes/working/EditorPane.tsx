@@ -15,14 +15,28 @@ import { NoteView, NoteTypeEditor } from '../../../ui/editor/NoteRenderer'
 import { getNoteType } from '../../../lib/noteTypes'
 import { LiveEditor, type LiveEditorHandle } from '../../../ui/editor/LiveEditor'
 import { useFavourites } from '../../../hooks/useFavourites'
-import { MoreVertical, BookOpen, PenLine, Star, Download, LayoutDashboard, Trash2 } from 'lucide-react'
-import { setActiveNote, clearActiveNote, mayPublishActiveNote } from '../../../lib/activeNote'
+import { MoreVertical, SlidersHorizontal, Circle, BookOpen, PenLine } from 'lucide-react'
+import { ContextMenu, type MenuItem } from '../../../ui/ContextMenu'
+import { log } from '../../../lib/logger'
+import { eventBus } from '../../../lib/eventBus'
+import { openRailPanel, isRailHidden, getOpenRailPanel, useOpenRailPanel, useRailVisible } from '../../../ui/rail/RightRail'
+import { setActiveNote, clearActiveNote, mayPublishActiveNote, useOwnsActiveNote } from '../../../lib/activeNote'
 import { useLinkRename } from '../../../hooks/useLinkRename'
 import { usePluginActions } from '../../../hooks/usePluginActions'
 import { runPluginAction, type StoredAction } from '../../../lib/pluginActions'
 import Styles from './EditorPane.module.css'
+import { registerCloseFlush } from '../../../core/closeGuard'
 
 const AUTOSAVE_MS = 800
+/** A change unsaved this long means a save is overdue — only then do we warn. */
+const OVERDUE_MS = 3000
+const TOOLS_AUTO_KEY = 'jnana.noteTools.autoOpened.v1'
+/** Wait before the nth automatic retry of a failed save (last value repeats). */
+const RETRY_MS = [5000, 15000, 60000]
+
+type Mode = 'edit' | 'read'
+/** Read/Edit per note, so a tab switch (which unmounts the pane) doesn't reset it. */
+const modeByNote = new Map<string, Mode>()
 
 function sameUserTags(a: string[], b: string[]): boolean {
   const ua = a.filter((t) => !isAutoTag(t))
@@ -43,6 +57,11 @@ export function EditorPane({ noteId }: { noteId: string }) {
   // Set once "Delete note" is confirmed — stops any later autosave/unmount flush.
   const deletedRef = useRef(false)
   const note = notes.find((n) => n.id === noteId)
+  // flushSave is memoized on [noteId, update] and also captured by the debounce
+  // timer and the unmount flush, so it must read the *current* notes through a
+  // ref — a closed-over `notes` would compare the draft against a stale copy.
+  const notesRef = useRef(notes)
+  notesRef.current = notes
   // What this pane last wrote (or seeded) — tells our own saves apart from
   // changes made to the note elsewhere.
   const lastSavedRef = useRef({ title: note?.title ?? '', content: note?.content ?? '' })
@@ -50,13 +69,22 @@ export function EditorPane({ noteId }: { noteId: string }) {
   const titleAtFocusRef = useRef('')
   const offerLinkRename = useLinkRename()
 
-  const [mode, setMode] = useState<'edit' | 'read'>('edit')
+  const [mode, setModeState] = useState<Mode>(() => modeByNote.get(noteId) ?? 'edit')
+  const setMode = (m: Mode) => {
+    modeByNote.set(noteId, m)
+    setModeState(m)
+  }
+  const failsRef = useRef(0)
   const [title, setTitle] = useState(note?.title ?? '')
   const [content, setContent] = useState(note?.content ?? '')
   const [tags, setTags] = useState<string[]>(note?.tags ?? [])
-  const [status, setStatus] = useState<'saved' | 'dirty' | 'saving'>('saved')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [status, setStatus] = useState<'saved' | 'dirty' | 'saving' | 'failed'>('saved')
+  const [overdue, setOverdue] = useState(false)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  // The menu closes on any outside pointerdown, including the button's own;
+  // remember that so the following click doesn't reopen it.
+  const menuWasOpenRef = useRef(false)
+  const saveFailToastedRef = useRef(false)
   const toolbarActions = usePluginActions('editor.toolbar')
   const menuActions = usePluginActions('note.menu')
 
@@ -69,23 +97,23 @@ export function EditorPane({ noteId }: { noteId: string }) {
     }
   }, [noteId])
 
-  // Close the actions menu on outside pointerdown / Escape — matching the app's
-  // other menus (ContextMenu, NoteModal dropdown).
+  // Stay in step when the gallery/peek toggles this same note.
   useEffect(() => {
-    if (!menuOpen) return
-    const onDown = (e: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    const h = (p: { id: string; on: boolean }) => {
+      if (p.id === noteId) setIsFavourite(p.on)
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
+    eventBus.on('favourite:changed', h)
+    return () => eventBus.off('favourite:changed', h)
+  }, [noteId])
+
+  // Overdue = still unsaved/saving 3 s after the last edit. The timer restarts on
+  // every edit, so steady typing (normal debounce) never turns the pill amber.
+  useEffect(() => {
+    setOverdue(false)
+    if (status !== 'dirty' && status !== 'saving') return
+    const t = window.setTimeout(() => setOverdue(true), OVERDUE_MS)
+    return () => window.clearTimeout(t)
+  }, [status, title, content, tags])
 
   const editorRef = useRef<LiveEditorHandle>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -110,7 +138,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
   })
 
   const flushSave = useCallback(async () => {
-    const n = notes.find((x) => x.id === noteId)
+    const n = notesRef.current.find((x) => x.id === noteId)
     if (!n || deletedRef.current) return
     const { title: t, content: c, tags: tg } = draftRef.current
     if (t === n.title && c === (n.content || '') && sameUserTags(tg, n.tags)) {
@@ -121,14 +149,38 @@ export function EditorPane({ noteId }: { noteId: string }) {
     try {
       await update(noteId, t.trim(), c.trim(), tg.filter((x) => !isAutoTag(x)))
       lastSavedRef.current = { title: t.trim(), content: c.trim() }
+      saveFailToastedRef.current = false
+      failsRef.current = 0
       setStatus('saved')
     } catch (err) {
-      console.error('Autosave failed:', err)
-      toast.error('Failed to save note.')
-      setStatus('dirty')
+      log.error('Autosave failed', err)
+      // One toast per failure streak, not one per keystroke-driven retry.
+      if (!saveFailToastedRef.current) {
+        saveFailToastedRef.current = true
+        toast.error("Couldn't save this note. Your changes are still here; retrying automatically.")
+      }
+      failsRef.current += 1
+      setStatus('failed')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, update])
+
+  // Window close doesn't unmount React, so the unmount flush below never runs —
+  // flush through the close guard too. Ref keeps the latest flushSave.
+  const flushRef = useRef(flushSave)
+  flushRef.current = flushSave
+  useEffect(() => registerCloseFlush(() => flushRef.current()), [])
+
+  // Timed retry while a save is failing: 5s, 15s, then every 60s. Any status
+  // change (an edit going dirty, a success, a manual retry) or unmount cancels it.
+  useEffect(() => {
+    if (status !== 'failed') return
+    const t = window.setTimeout(
+      () => void flushRef.current(),
+      RETRY_MS[Math.min(failsRef.current - 1, RETRY_MS.length - 1)] ?? RETRY_MS[0],
+    )
+    return () => window.clearTimeout(t)
+  }, [status])
 
   // Seed drafts when the pane switches to a different note. Deliberately keyed
   // on noteId only (not note identity) so our own autosave — which gives the
@@ -141,6 +193,8 @@ export function EditorPane({ noteId }: { noteId: string }) {
     seededFor.current = noteId
     lastSavedRef.current = { title: note.title, content: note.content || '' }
     setStatus('saved')
+    failsRef.current = 0
+    setModeState(modeByNote.get(noteId) ?? 'edit')
     maxProgressRef.current = 0
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId])
@@ -193,6 +247,25 @@ export function EditorPane({ noteId }: { noteId: string }) {
   })
   useEffect(() => () => clearActiveNote(toolToken), [toolToken])
 
+  // First ever pane: open Note tools once so they're discoverable. The one-time
+  // flag means a user who closes the panel is never overruled.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(TOOLS_AUTO_KEY) || isRailHidden() || getOpenRailPanel() !== '') return
+      localStorage.setItem(TOOLS_AUTO_KEY, '1')
+      openRailPanel('note-tools')
+    } catch {
+      /* storage unavailable: skip the nudge */
+    }
+  }, [])
+
+  const openPanel = useOpenRailPanel()
+  const railVisible = useRailVisible()
+  // Ownership via useOwnsActiveNote (a boolean snapshot), not useActiveNote():
+  // this pane re-publishes every render, so subscribing to the state would loop.
+  const ownsTools = useOwnsActiveNote(toolToken)
+  const toolsOpen = railVisible && openPanel === 'note-tools' && ownsTools
+
   const handleBodyScroll = () => {
     const el = bodyRef.current
     if (!el) return
@@ -204,6 +277,15 @@ export function EditorPane({ noteId }: { noteId: string }) {
   if (!note) {
     return <div className={Styles.missing}>This note is no longer available.</div>
   }
+
+  const saveView =
+    status === 'failed'
+      ? { state: 'failed', text: "Couldn't save", title: "Couldn't save — retry now" }
+      : overdue
+        ? { state: 'overdue', text: 'Not saved yet', title: 'Changes are taking a while to save' }
+        : status === 'saved'
+          ? { state: 'saved', text: 'Saved', title: 'All changes saved' }
+          : { state: 'saving', text: 'Saving…', title: 'Saving…' }
 
   const preview: Note = { ...note, title, content, tags }
   const noteType = getNoteType(note)
@@ -236,6 +318,81 @@ export function EditorPane({ noteId }: { noteId: string }) {
     runPluginAction(a, { noteId })
   }
 
+  const toggleFavourite = async () => {
+    const next = !isFavourite
+    setIsFavourite(next)
+    try {
+      if (next) await addToFavourites(note.id)
+      else await removeFromFavourites(note.id)
+    } catch (err) {
+      setIsFavourite(!next)
+      log.error('Toggling favourite failed', err)
+      toast.error("Couldn't update favourites. Please try again.")
+    }
+  }
+
+  const menuItems: MenuItem[] = [
+    { label: isFavourite ? 'Remove from favourites' : 'Add to favourites', onClick: () => void toggleFavourite() },
+    {
+      label: 'Export',
+      onClick: () =>
+        void (async () => {
+          try {
+            toastExported(await exportNotes([{ ...note, title, content }]))
+          } catch (err) {
+            log.error('Export failed', err)
+            toast.error("Couldn't export this note. Please try again.")
+          }
+        })(),
+    },
+    // Only a blank plain note can become a canvas: nothing to lose.
+    ...(!noteType && content.trim() === ''
+      ? [
+          {
+            label: 'Convert to canvas',
+            onClick: () =>
+              void (async () => {
+                window.clearTimeout(saveTimer.current)
+                try {
+                  await flushSave()
+                  if (await convertNoteKind(noteId, CANVAS_NOTE_KIND, EMPTY_CANVAS_CONTENT)) {
+                    setContent(EMPTY_CANVAS_CONTENT)
+                    if (!title.trim()) setTitle('Canvas')
+                  } else {
+                    toast.error('Only a blank note can be converted to a canvas.')
+                  }
+                } catch (err) {
+                  log.error('Convert to canvas failed', err)
+                  toast.error("Couldn't convert this note. Please try again.")
+                }
+              })(),
+          },
+        ]
+      : []),
+    ...menuActions.map((a) => ({ label: a.label, onClick: () => void runAfterSave(a) })),
+    {
+      label: 'Delete note',
+      danger: true,
+      separator: true,
+      onClick: () =>
+        void (async () => {
+          window.clearTimeout(saveTimer.current)
+          // Save pending edits first so a restore from Trash has them; then
+          // block every later save, since the tab unmounts once the note leaves
+          // the list and its flush must not resurrect it.
+          await flushSave()
+          deletedRef.current = true
+          try {
+            if (!(await remove(noteId))) deletedRef.current = false
+          } catch (err) {
+            deletedRef.current = false
+            log.error('Delete note failed', err)
+            toast.error("Couldn't delete this note. Please try again.")
+          }
+        })(),
+    },
+  ]
+
   return (
     <div
       data-anchor="editor"
@@ -257,10 +414,37 @@ export function EditorPane({ noteId }: { noteId: string }) {
             if (e.key === 'Enter') e.currentTarget.blur()
           }}
           placeholder="Title (optional)"
+          aria-label="Note title"
           spellCheck={false}
         />
         <div className={Styles.headerActions}>
-          {isRecording && <span className={Styles.recording}>● recording…</span>}
+          {isRecording && (
+            <span className={Styles.recording} role="status">
+              <Circle size={10} fill="currentColor" aria-hidden="true" /> Recording…
+            </span>
+          )}
+          <button
+            className={`${Styles.toolsBtn} ${toolsOpen ? Styles.iconBtnOn : ''}`}
+            aria-pressed={toolsOpen}
+            title="Tags, formatting, AI suggestions and media"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              publishRef.current()
+              openRailPanel(toolsOpen ? '' : 'note-tools')
+            }}
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            Tags &amp; tools
+          </button>
+          <button
+            className={`${Styles.iconBtn} ${mode === 'read' ? Styles.iconBtnOn : ''}`}
+            aria-pressed={mode === 'read'}
+            aria-label="Reading view"
+            title={mode === 'read' ? 'Edit' : 'Reading view'}
+            onClick={() => setMode(mode === 'edit' ? 'read' : 'edit')}
+          >
+            {mode === 'read' ? <PenLine size={16} aria-hidden="true" /> : <BookOpen size={16} aria-hidden="true" />}
+          </button>
           {toolbarActions.map((a) => (
             <button
               key={`${a.pluginId}:${a.id}`}
@@ -272,133 +456,43 @@ export function EditorPane({ noteId }: { noteId: string }) {
               <span aria-hidden="true">{a.icon}</span>
             </button>
           ))}
-          <span
-            className={Styles.status}
-            data-state={status}
-            title={status === 'saving' ? 'Saving…' : status === 'dirty' ? 'Unsaved changes' : 'All changes saved'}
-          >
-            {status === 'saving' ? 'Saving…' : status === 'dirty' ? 'Unsaved' : 'Saved'}
-          </span>
-          <div ref={menuRef} style={{ position: 'relative' }}>
+          {status === 'failed' ? (
             <button
-              className={Styles.iconBtn}
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="More options"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              title="More options"
+              className={`${Styles.status} ${Styles.statusBtn}`}
+              data-state="failed"
+              title={saveView.title}
+              aria-label="Retry now"
+              onClick={() => void flushSave()}
             >
-              <MoreVertical size={18} />
+              {saveView.text}
             </button>
-            {menuOpen && (
-              <div className={`${Styles.dropdown} ${Styles.dropdownRight}`} role="menu">
-                <button
-                  className={Styles.dropdownItem}
-                  role="menuitem"
-                  onClick={() => {
-                    setMode((m) => (m === 'edit' ? 'read' : 'edit'))
-                    setMenuOpen(false)
-                  }}
-                >
-                  {mode === 'edit' ? <BookOpen size={16} /> : <PenLine size={16} />}
-                  {mode === 'edit' ? 'Reading view' : 'Editing view'}
-                </button>
-                <button
-                  className={Styles.dropdownItem}
-                  role="menuitem"
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    if (isFavourite) {
-                      await removeFromFavourites(note.id)
-                      setIsFavourite(false)
-                    } else {
-                      await addToFavourites(note.id)
-                      setIsFavourite(true)
-                    }
-                  }}
-                >
-                  <Star size={16} fill={isFavourite ? 'currentColor' : 'none'} />
-                  {isFavourite ? 'Remove from favourites' : 'Add to favourites'}
-                </button>
-                <button
-                  className={Styles.dropdownItem}
-                  role="menuitem"
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    try {
-                      toastExported(await exportNotes([{ ...note, title, content }]))
-                    } catch (err) {
-                      toast.error('Export failed: ' + String(err))
-                    }
-                  }}
-                >
-                  <Download size={16} />
-                  Download / Export
-                </button>
-                {/* Only a blank plain note can become a canvas — nothing to lose. */}
-                {!noteType && content.trim() === '' && (
-                  <button
-                    className={Styles.dropdownItem}
-                    role="menuitem"
-                    onClick={async () => {
-                      setMenuOpen(false)
-                      window.clearTimeout(saveTimer.current)
-                      try {
-                        await flushSave()
-                        if (await convertNoteKind(noteId, CANVAS_NOTE_KIND, EMPTY_CANVAS_CONTENT)) {
-                          setContent(EMPTY_CANVAS_CONTENT)
-                          if (!title.trim()) setTitle('Canvas')
-                        } else {
-                          toast.error('Only a blank note can be converted to a canvas.')
-                        }
-                      } catch (err) {
-                        toast.error('Convert failed: ' + String(err))
-                      }
-                    }}
-                  >
-                    <LayoutDashboard size={16} />
-                    Convert to canvas
-                  </button>
-                )}
-                {menuActions.map((a) => (
-                  <button
-                    key={`${a.pluginId}:${a.id}`}
-                    className={Styles.dropdownItem}
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      void runAfterSave(a)
-                    }}
-                  >
-                    <span aria-hidden="true">{a.icon}</span>
-                    {a.label}
-                  </button>
-                ))}
-                <button
-                  className={`${Styles.dropdownItem} ${Styles.dropdownItemDanger}`}
-                  role="menuitem"
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    window.clearTimeout(saveTimer.current)
-                    // Save pending edits first so a restore from Trash has them;
-                    // then block every later save — the tab unmounts once the note
-                    // leaves the list, and its flush must not resurrect it.
-                    await flushSave()
-                    deletedRef.current = true
-                    try {
-                      if (!(await remove(noteId))) deletedRef.current = false
-                    } catch (err) {
-                      deletedRef.current = false
-                      toast.error('Delete failed: ' + String(err))
-                    }
-                  }}
-                >
-                  <Trash2 size={16} />
-                  Delete note
-                </button>
-              </div>
-            )}
-          </div>
+          ) : (
+            <span className={Styles.status} data-state={saveView.state} title={saveView.title}>
+              {saveView.text}
+            </span>
+          )}
+          {/* Only a failure is announced; cleared on the next success. */}
+          <span className={Styles.srOnly} role="alert">
+            {status === 'failed' ? "Couldn't save this note." : ''}
+          </span>
+          <button
+            className={Styles.iconBtn}
+            onPointerDown={() => {
+              menuWasOpenRef.current = menuAt !== null
+            }}
+            onClick={(e) => {
+              if (menuWasOpenRef.current) return setMenuAt(null)
+              const r = e.currentTarget.getBoundingClientRect()
+              setMenuAt({ x: r.right - 200, y: r.bottom + 4 })
+            }}
+            aria-label="More options"
+            aria-haspopup="menu"
+            aria-expanded={menuAt !== null}
+            title="More options"
+          >
+            <MoreVertical size={16} aria-hidden="true" />
+          </button>
+          {menuAt && <ContextMenu x={menuAt.x} y={menuAt.y} items={menuItems} onClose={() => setMenuAt(null)} />}
         </div>
       </div>
 
@@ -413,7 +507,7 @@ export function EditorPane({ noteId }: { noteId: string }) {
           <LiveEditor
             ref={editorRef}
             className={Styles.editor}
-            placeholder="Note content..."
+            placeholder="Note content…"
             value={content}
             onChange={setContent}
             onSubmit={() => void flushSave()}

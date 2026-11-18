@@ -6,7 +6,7 @@
 // note-cards reference notes by id; freehand `drawings` are an extension) stored
 // in `Canvas.data`. Mirrors core/workspaces.ts.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 
 export type CanvasNodeType = 'text' | 'note' | 'media' | 'link'
 export type Side = 'top' | 'right' | 'bottom' | 'left'

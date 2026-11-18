@@ -4,6 +4,7 @@
 import { showConfirmDialog, showChoiceDialog } from '../../../lib/dialog'
 import { createBackup } from '../../../core/data'
 import { toast } from '../../../lib/toast'
+import { log } from '../../../lib/logger'
 import type { PluginManifestPreview } from '../../../core/plugins/loader'
 
 /** Human labels for known permission ids (falls back to the raw id). */
@@ -18,8 +19,8 @@ const PERMISSION_LABELS: Record<string, string> = {
  *  shows them next to the permission instead of leaving "the network" abstract. */
 function permissionLine(permission: string, hosts: string[]): string {
   const label = PERMISSION_LABELS[permission] ?? permission
-  if (permission !== 'network') return `  • ${label}`
-  return hosts.length ? `  • ${label}: ${hosts.join(', ')}` : `  • ${label} (no hosts declared)`
+  if (permission !== 'network') return `• ${label}`
+  return hosts.length ? `• ${label}: ${hosts.join(', ')}` : `• ${label} (no hosts declared)`
 }
 
 /**
@@ -46,7 +47,8 @@ async function confirmMotionRisk(name: string): Promise<boolean> {
       const path = await createBackup()
       toast.success(`Backup saved to ${path}`)
     } catch (err) {
-      toast.error('Backup failed, so nothing was installed: ' + String(err))
+      log.error('plugin install: backup failed', err)
+      toast.error("Couldn't back up your data, so nothing was installed.")
       return false
     }
   }
@@ -69,7 +71,7 @@ export async function confirmPluginInstall(manifest: PluginManifestPreview): Pro
   const perms = manifest.permissions ?? []
   const sandboxed = manifest.runtime === 'worker'
   const permLines = perms.length
-    ? 'It asks to:\n' + perms.map((p) => permissionLine(p, manifest.hosts ?? [])).join('\n')
+    ? 'It asks permission to:\n' + perms.map((p) => permissionLine(p, manifest.hosts ?? [])).join('\n')
     : 'It asks for no special capabilities.'
 
   // The two runtimes deserve genuinely different warnings: one is a boundary, the
@@ -91,12 +93,18 @@ export async function confirmPluginInstall(manifest: PluginManifestPreview): Pro
         ? `\n\nIt is listed as a theme, but also asks for ${perms.join(' and ')} — a theme does not need that. Install it only if you know why.`
         : '\n\nThis is a theme: it changes how Jnana looks, and asks for nothing else.'
   const source = manifest.homepage ? `\n\nSource: ${manifest.homepage}` : ''
+  // Only a note, never a gate: a plugin that never calls ctx.log can still fail in
+  // ways the log blames on something else. `null`/missing = we didn't look.
+  const logNote =
+    manifest.emitsLogs === false
+      ? `\n\nNote: ${manifest.name} doesn't write to Jnana's log, so if it causes an error you might not be able to tell it was this plugin.`
+      : ''
 
   const ok = await showConfirmDialog({
     title: `Install ${manifest.name}?`,
     message:
-      `${manifest.name} v${manifest.version}${manifest.author ? ` by ${manifest.author}` : ''}. ` +
-      `${trust}\n\n${permLines}${typeNote}${source}`,
+      `${manifest.name} v${manifest.version}${manifest.author ? ` by ${manifest.author}` : ''}\n\n` +
+      `${trust}\n\n${permLines}${typeNote}${logNote}${source}`,
     confirmLabel: 'Install',
     danger: !sandboxed,
   })

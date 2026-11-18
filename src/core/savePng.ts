@@ -4,7 +4,7 @@
 // Save a PNG Blob to a user-chosen file via the native Save-As dialog + a Rust
 // binary write, with a progress→success toast. Mirrors core/saveCsv.ts.
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './ipc'
 import { save } from '@tauri-apps/plugin-dialog'
 import { toast, updateToast, dismissToast } from '../lib/toast'
 
