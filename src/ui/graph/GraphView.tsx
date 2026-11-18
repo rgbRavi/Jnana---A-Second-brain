@@ -7,6 +7,7 @@ import { Link2, List, Network, Scan, SlidersHorizontal, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
+import { nodesWithinHops } from './neighbourhood'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { GraphListView } from './GraphListView'
@@ -389,6 +390,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
   // Off (default): selecting dims non-neighbours. On: the graph filters to the 1-hop neighbourhood.
   const [neighbourhoodOnly, setNeighbourhoodOnly] = usePersistentViewState('graph.neighbourhoodOnly', false)
+  // How many links out selection emphasis / "Neighbourhood only" reach (hover stays 1).
+  const [rawDepth, setDepth] = usePersistentViewState('graph.depth', 1)
+  const depth = rawDepth === 2 || rawDepth === 3 ? rawDepth : 1
 
   // Connect-to-node: chosen from a node's right-click menu. While set, a
   // rubber-band line follows the cursor and the next node clicked is linked.
@@ -648,11 +652,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     // Otherwise the filter set decides what's visible. Both stay within scope.
     const visibleNodes = neighbourhoodFocusId
       ? (() => {
-          const neighbors = new Set<string>([neighbourhoodFocusId])
+          const adj = new Map<string, Set<string>>()
+          const link = (a: string, b: string) => (adj.get(a) ?? adj.set(a, new Set()).get(a)!).add(b)
           graphData.edges.forEach((e) => {
-            if (e.source === neighbourhoodFocusId) neighbors.add(e.target)
-            if (e.target === neighbourhoodFocusId) neighbors.add(e.source)
+            link(e.source, e.target)
+            link(e.target, e.source)
           })
+          const neighbors = nodesWithinHops(adj, neighbourhoodFocusId, depth)
           return graphData.nodes.filter((n) => neighbors.has(n.id) && inScope(n.id))
         })()
       : graphData.nodes.filter(passesFilter)
@@ -721,6 +727,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     graphData.nodes,
     graphData.edges,
     neighbourhoodFocusId,
+    depth,
     filterText,
     activeFilterTags,
     filterSince,
@@ -758,12 +765,22 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Hover wins over selection; selection dims only when not filtering to the neighbourhood.
   const emphasisId = hoverNodeId ?? (neighbourhoodOnly ? null : focusNodeId)
   const dimAlpha = hoverNodeId ? 0.35 : 0.15
+  // Selection emphasis reaches `depth` links; computed once per selection/depth/data.
+  const selectionRange = useMemo(
+    () => (focusNodeId && !neighbourhoodOnly ? nodesWithinHops(adjacency, focusNodeId, depth) : null),
+    [adjacency, focusNodeId, neighbourhoodOnly, depth],
+  )
   const dimFor = (id: string): number =>
-    !emphasisId || id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
+    !emphasisId
+      ? 1
+      : hoverNodeId || !selectionRange
+        ? id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
+        : selectionRange.has(id) ? 1 : dimAlpha
   const linkColorFor = (l: any): string => {
     if (!emphasisId) return LINK_COLOR
     const a = typeof l.source === 'object' ? l.source.id : l.source
     const b = typeof l.target === 'object' ? l.target.id : l.target
+    if (!hoverNodeId && selectionRange) return selectionRange.has(a) && selectionRange.has(b) ? LINK_STRONG_COLOR : LINK_FADED_COLOR
     return a === emphasisId || b === emphasisId ? LINK_STRONG_COLOR : LINK_FADED_COLOR
   }
   // One radius for both paint and hit-testing (hubs, orphans, Node size slider).
@@ -1137,8 +1154,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setPerpetualMotion(false)
     setRippleBackground(false)
     setNeighbourhoodOnly(false)
+    setDepth(1)
     resetForces()
-  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly])
+  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly, setDepth])
 
   const confirmResetAll = useCallback(async () => {
     const ok = await showConfirmDialog({
@@ -1631,6 +1649,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             onRemoveGroup={removeGroup}
             neighbourhoodOnly={neighbourhoodOnly}
             setNeighbourhoodOnly={setNeighbourhoodOnly}
+            depth={depth}
+            setDepth={setDepth}
             directed={directed}
             setDirected={setDirected}
             highlightStructure={highlightStructure}

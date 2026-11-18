@@ -33,6 +33,12 @@ export function nextGroupColor(used: string[]): string {
 export type DatePreset = 'all' | 'week' | 'month' | 'year'
 export type SectionKey = 'filters' | 'groups' | 'display' | 'advanced'
 
+const DEPTH_OPTIONS = [
+  { value: '1', label: '1 link away' },
+  { value: '2', label: '2 links away' },
+  { value: '3', label: '3 links away' },
+]
+
 const DATE_OPTIONS = [
   { value: 'all', label: 'Any time' },
   { value: 'week', label: 'Past week' },
@@ -69,6 +75,8 @@ export interface GraphSettingsPanelProps {
 
   neighbourhoodOnly: boolean
   setNeighbourhoodOnly: (v: boolean) => void
+  depth: number
+  setDepth: (v: number) => void
   directed: boolean
   setDirected: (v: boolean) => void
   highlightStructure: boolean
@@ -418,6 +426,7 @@ function GroupRow({
 
 export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
   const dateId = useId()
+  const depthId = useId()
   const { forces } = p
   const closeRef = useRef<HTMLButtonElement>(null)
   // Keyboard focus lands on the close button when the panel opens (the opener unmounts).
@@ -494,6 +503,9 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
 
       <Section title="Display" open={p.openSections.display} onToggle={() => p.onToggleSection('display')}>
         <SettingToggle label="Neighbourhood only" hint="selecting a note hides all but its links" checked={p.neighbourhoodOnly} onChange={p.setNeighbourhoodOnly} />
+        <SettingField label="Neighbourhood depth" htmlFor={depthId} stacked>
+          <SettingSelect id={depthId} value={String(p.depth)} onChange={(v) => p.setDepth(Number(v))} options={DEPTH_OPTIONS} />
+        </SettingField>
         <SettingToggle label="Arrows" hint="show link direction" checked={p.directed} onChange={p.setDirected} />
         <SettingToggle label="Highlight unlinked and well-linked notes" hint="colour notes with no links or many links" checked={p.highlightStructure} onChange={p.setHighlightStructure} />
         <SettingToggle label="Pin dragged nodes" hint="keep dragged notes where you drop them" checked={p.pinOnDrag} onChange={p.onTogglePin} />
