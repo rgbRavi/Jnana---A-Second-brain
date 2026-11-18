@@ -13,7 +13,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { toast, updateToast, dismissToast } from '../lib/toast'
 
 /** Split an absolute path into its file name and containing directory. */
-function splitPath(path: string): { fileName: string; dir: string } {
+export function splitPath(path: string): { fileName: string; dir: string } {
   const fileName = path.split(/[\\/]/).pop() || path
   const dir = path.slice(0, path.length - fileName.length).replace(/[\\/]+$/, '')
   return { fileName, dir }

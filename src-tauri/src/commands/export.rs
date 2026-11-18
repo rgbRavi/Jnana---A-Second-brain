@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use tauri::command;
+use tauri::ipc::{InvokeBody, Request};
 
 /// One markdown file to write during export.
 #[derive(Deserialize)]
@@ -170,10 +171,59 @@ pub fn write_binary_file(path: String, bytes: Vec<u8>) -> Result<(), String> {
     fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path, e))
 }
 
+/// Percent-decode a header value (the TS side sends `encodeURIComponent(path)` so
+/// non-ASCII paths survive the ASCII-only header rule).
+fn percent_decode(s: &str) -> Result<String, String> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = s.get(i + 1..i + 3).ok_or("Bad path encoding")?;
+            out.push(u8::from_str_radix(hex, 16).map_err(|_| "Bad path encoding")?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| "Bad path encoding".to_string())
+}
+
+/// Raw-body twin of `write_binary_file`: bytes ride as the IPC body (not a JSON
+/// number array) and the destination path in the percent-encoded `x-path` header.
+#[command]
+pub fn write_binary_file_raw(request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("write_binary_file_raw expects a raw byte body".to_string());
+    };
+    if bytes.is_empty() {
+        return Err("Nothing to write".to_string());
+    }
+    let header = request.headers().get("x-path").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let path = percent_decode(header)?;
+    if path.is_empty() {
+        return Err("Missing destination path".to_string());
+    }
+    fs::write(&path, bytes).map_err(|e| format!("Failed to write {}: {}", path, e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn write_binary_decodes_path_and_writes() {
+        let s = scratch();
+        let enc = format!("{}/g%C3%A9%20graph.png", s.to_str().unwrap().replace('\\', "/"));
+        let path = percent_decode(&enc).unwrap();
+        assert!(path.ends_with("gé graph.png"));
+        fs::write(&path, [1u8, 2, 3]).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), vec![1, 2, 3]);
+        assert!(percent_decode("%zz").is_err());
+        assert!(percent_decode("%4").is_err());
+    }
 
     fn scratch() -> PathBuf {
         let d = std::env::temp_dir().join(format!("jnana-test-{}", uuid::Uuid::new_v4()));
