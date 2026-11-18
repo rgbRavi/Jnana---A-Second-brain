@@ -31,6 +31,8 @@ import { eventBus } from '../../lib/eventBus'
 import { resolveColor } from '../../lib/themeColor'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { sizeScale, type SizeBy } from './nodeSize'
+import { ViewsMenu } from './ViewsMenu'
+import type { GraphViewSnapshot } from './savedViews'
 import styles from './GraphView.module.css'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -1202,6 +1204,52 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setGraphForces(FORCE_PRESETS[name])
   }, [])
 
+  // Saved views: snapshot / restore of filters, groups, display, forces and camera.
+  // Missing fields (views saved before a setting existed) are left as they are.
+  const captureSnapshot = (): GraphViewSnapshot => {
+    let camera: GraphViewSnapshot['camera'] = null
+    const fg = fgRef.current
+    const el = containerRef.current
+    if (fg && el) {
+      try {
+        const c = fg.screen2GraphCoords(el.clientWidth / 2, el.clientHeight / 2)
+        camera = { k: fg.zoom(), x: c.x, y: c.y }
+      } catch {
+        /* graph not ready */
+      }
+    }
+    return {
+      filterText, filterTags: [...filterTags], datePreset, orphansOnly, groups,
+      neighbourhoodOnly, depth, directed, highlightStructure, pinOnDrag, showMissing, sizeBy,
+      textFade, nodeSize, linkThickness, forces: { ...forces }, camera,
+    }
+  }
+  const applySnapshot = (s: GraphViewSnapshot) => {
+    if (s.filterText !== undefined) setFilterText(s.filterText)
+    if (s.filterTags !== undefined) setFilterTags(new Set(s.filterTags))
+    if (s.datePreset !== undefined) setDatePreset(s.datePreset as DatePreset)
+    if (s.orphansOnly !== undefined) setOrphansOnly(s.orphansOnly)
+    if (s.groups !== undefined) setGroups(() => migrateGroups(s.groups))
+    if (s.neighbourhoodOnly !== undefined) setNeighbourhoodOnly(s.neighbourhoodOnly)
+    if (typeof s.depth === 'number') setDepth(s.depth)
+    if (s.directed !== undefined) setDirected(s.directed)
+    if (s.highlightStructure !== undefined) setHighlightStructure(s.highlightStructure)
+    if (s.pinOnDrag !== undefined) togglePin(s.pinOnDrag)
+    if (typeof s.showMissing === 'boolean') setShowMissing(s.showMissing)
+    if (s.sizeBy === 'same' || s.sizeBy === 'links' || s.sizeBy === 'edited') setSizeBy(s.sizeBy)
+    if (s.textFade !== undefined) setTextFade(s.textFade)
+    if (s.nodeSize !== undefined) setNodeSize(s.nodeSize)
+    if (s.linkThickness !== undefined) setLinkThickness(s.linkThickness)
+    if (s.forces) setGraphForces(s.forces)
+    const cam = s.camera
+    const fg = fgRef.current
+    if (cam && fg) {
+      const ms = reducedMotion ? 0 : 400
+      fg.centerAt(cam.x, cam.y, ms)
+      fg.zoom(cam.k, ms)
+    }
+  }
+
   const fitView = useCallback(() => {
     ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 400, 60)
   }, [])
@@ -1402,6 +1450,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         <button type="button" className={styles.toolbarBtn} onClick={() => void exportGraphPng(containerRef.current)} title="Export graph as image" aria-label="Export graph as image">
           <ImageDown size={15} />
         </button>
+        <ViewsMenu className={styles.toolbarBtn} capture={captureSnapshot} apply={applySnapshot} />
         <span id="graph-list-hint" className={styles.srOnly}>
           A list view of these notes is available with the List button next to the search box.
         </span>
