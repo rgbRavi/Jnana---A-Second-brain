@@ -11,6 +11,7 @@ import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
 import { nodesWithinHops } from './neighbourhood'
 import { timeRange, visibleIds } from './timeline'
 import { TimelineBar } from './TimelineBar'
+import { pickDirectional, startNode } from './keyNav'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { GraphListView } from './GraphListView'
@@ -396,6 +397,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
+  // Keyboard cursor on the canvas (only meaningful while the region has focus).
+  const [cursorId, setCursorId] = useState<string | null>(null)
+  const [regionFocused, setRegionFocused] = useState(false)
+  const [kbAnnounce, setKbAnnounce] = useState('')
   // Timeline scrub position (ms), or null when the timeline is closed. Transient.
   const [timelineAt, setTimelineAt] = useState<number | null>(null)
   // Off (default): selecting dims non-neighbours. On: the graph filters to the 1-hop neighbourhood.
@@ -1060,6 +1065,66 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [nodeCacheStore],
   )
 
+  // Keyboard navigation: real, filter-passing, timeline-visible notes only.
+  const kbNodes = useCallback(
+    () => (forceData.nodes as any[]).filter((n) => !n.isPseudo && (!tlVisible || tlVisible.has(n.id))),
+    [forceData, tlVisible],
+  )
+  const moveCursor = useCallback(
+    (id: string) => {
+      const nodes = kbNodes()
+      const n = nodes.find((x) => x.id === id)
+      if (!n) return
+      setCursorId(id)
+      const ids = new Set(nodes.map((x) => x.id))
+      const linked = [...(adjacency.get(id) ?? [])].filter((o) => ids.has(o)).map((o) => nodes.find((x) => x.id === o)?.title || 'Untitled')
+      const t = n.title || 'Untitled'
+      setKbAnnounce(
+        linked.length === 0
+          ? `${t}, no links`
+          : `${t}, ${linked.length} link${linked.length === 1 ? '' : 's'}, linked to: ${linked.slice(0, 5).join(', ')}${linked.length > 5 ? `, and ${linked.length - 5} more` : ''}`,
+      )
+      const c = nodeCacheStore.get(id)
+      if (c && Number.isFinite(c.x) && Number.isFinite(c.y)) (fgRef.current as any)?.centerAt(c.x, c.y, reducedMotion ? 0 : 300)
+    },
+    [kbNodes, adjacency, nodeCacheStore],
+  )
+  const startCursor = useCallback(() => {
+    const nodes = kbNodes()
+    const id = startNode(nodes.map((n) => ({ id: n.id, degree: degrees.get(n.id) ?? 0 })), focusNodeId)
+    if (id) moveCursor(id)
+  }, [kbNodes, degrees, focusNodeId, moveCursor])
+  const handleKeyNav = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return
+    const dir = ({ ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' } as const)[e.key as 'ArrowUp']
+    if (dir) {
+      e.preventDefault()
+      if (!cursorId) return startCursor()
+      const nodes = kbNodes()
+      const from = nodeCacheStore.get(cursorId)
+      if (!from) return
+      const pos = (ids: Iterable<string>) =>
+        [...ids].flatMap((id) => {
+          const c = id === cursorId ? null : nodeCacheStore.get(id)
+          return c && Number.isFinite(c.x) && Number.isFinite(c.y) ? [{ id, x: c.x, y: c.y }] : []
+        })
+      const visible = new Set(nodes.map((n) => n.id))
+      const linked = pos([...(adjacency.get(cursorId) ?? [])].filter((id) => visible.has(id)))
+      const next = pickDirectional(from, linked, dir) ?? pickDirectional(from, pos(visible), dir)
+      if (next) moveCursor(next)
+    } else if (e.key === 'Enter' && cursorId) {
+      e.preventDefault()
+      selectNode(cursorId)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      startCursor()
+    }
+  }
+  // The canvas only repaints on demand; nudge it when the cursor ring changes.
+  useEffect(() => {
+    ;(fgRef.current as any)?.refresh?.()
+  }, [cursorId, regionFocused])
+
   // Resolve a path over real notes only (an unresolved [[title]] pseudo-node isn't a connection).
   const completePath = useCallback(
     (from: string, to: string) => {
@@ -1423,7 +1488,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }
 
   return (
-    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" onMouseMove={handleMouseMove} className={styles.root}>
+    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget || !e.currentTarget.matches(':focus-visible')) return; setRegionFocused(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) setRegionFocused(false) }} onMouseMove={handleMouseMove} className={styles.root}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {/* One empty state at a time: in list mode GraphListView owns it. */}
@@ -1482,6 +1547,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           capture={captureSnapshot}
           apply={applySnapshot}
         />
+        <span className={styles.srOnly} aria-live="polite">{regionFocused ? kbAnnounce : ''}</span>
         <span id="graph-list-hint" className={styles.srOnly}>
           A list view of these notes is available with the List button next to the search box.
         </span>
@@ -1815,6 +1881,14 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           if (hoverNodeId === node.id || isConnectSource || isHub || isOrphan) {
             ctx.strokeStyle = isConnectSource ? CONNECT_COLOR : isOrphan ? ORPHAN_COLOR : LABEL_COLOR
             ctx.lineWidth = (isConnectSource || isHub ? 2 : 1) / globalScale
+            ctx.stroke()
+          }
+
+          if (regionFocused && node.id === cursorId) {
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, radius + 4 / globalScale, 0, 2 * Math.PI, false)
+            ctx.lineWidth = 2 / globalScale
+            ctx.strokeStyle = FOCUS_COLOR
             ctx.stroke()
           }
 
