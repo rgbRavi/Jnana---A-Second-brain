@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import styles from './ContextMenu.module.css'
 
@@ -13,6 +13,8 @@ export interface MenuItem {
   /** Draw a divider above this item. */
   separator?: boolean
   disabled?: boolean
+  /** When defined, the item is a menuitemcheckbox showing a check (or an aligned blank) for on/off. */
+  checked?: boolean
   /** One level of flyout — hovering, clicking or ArrowRight opens it instead of firing onClick. */
   children?: MenuItem[]
 }
@@ -146,7 +148,8 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
         >
           <button
             type="button"
-            role="menuitem"
+            role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+            aria-checked={item.checked}
             data-index={i}
             aria-haspopup={item.children ? 'menu' : undefined}
             aria-expanded={item.children ? openSubmenu === i : undefined}
@@ -163,6 +166,9 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
               onClose()
             }}
           >
+            {item.checked !== undefined && (
+              <span className={styles.checkSlot} aria-hidden="true">{item.checked && <Check size={14} />}</span>
+            )}
             <span className={styles.itemLabel}>{item.label}</span>
             {item.children && <span className={styles.submenuArrow} aria-hidden="true"><ChevronRight size={14} /></span>}
           </button>
@@ -172,11 +178,15 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
                 <button
                   key={j}
                   type="button"
-                  role="menuitem"
+                  role={sub.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                  aria-checked={sub.checked}
                   className={`${styles.contextItem} ${sub.danger ? styles.contextItemDanger : ''} ${sub.separator ? styles.contextSep : ''}`}
                   disabled={sub.disabled}
                   onClick={() => { sub.onClick?.(); onClose() }}
                 >
+                  {sub.checked !== undefined && (
+                    <span className={styles.checkSlot} aria-hidden="true">{sub.checked && <Check size={14} />}</span>
+                  )}
                   {sub.label}
                 </button>
               ))}

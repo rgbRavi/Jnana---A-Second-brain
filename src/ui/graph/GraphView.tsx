@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 // src/ui/graph/GraphView.tsx
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect, useId } from 'react'
 import { exportGraphPng } from '../../core/graph/exportPng'
 import { Link2, List, Network, Route, Scan, SlidersHorizontal, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
@@ -435,6 +435,12 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   // Right-click context menu (per node).
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  // One-time tip: gone once a node menu has been opened or the user dismisses it.
+  const [tipSeen, setTipSeen] = usePersistentViewState('graph.tipSeen', false)
+  useEffect(() => { if (contextMenu && !tipSeen) setTipSeen(true) }, [contextMenu, tipSeen, setTipSeen])
+  const listHintId = useId()
+  // Wide enough for the note panel to dock beside the settings panel instead of covering it.
+  const [wide, setWide] = useState(true)
 
   // ── Spotlight (requested by the dashboard's insight tiles) ──
   // 'orphans' haloes unlinked notes; 'suggested' draws dashed lines between
@@ -528,6 +534,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setWide(e.contentRect.width >= 900))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   // Whether the viewport has been restored for this mount (restore only once).
   const viewportRestored = useRef(false)
   // Auto-fit runs once per mount, and only when no viewport was saved.
@@ -1539,7 +1552,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }
 
   return (
-    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget) return; setRegionFocused(true); if (!e.currentTarget.matches(':focus-visible')) return; setKbActive(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) { setRegionFocused(false); setKbActive(false) } }} onPointerDown={() => setKbActive(false)} onMouseMove={handleMouseMove} className={styles.root} style={{ '--graph-timeline-h': timelineStep !== null && tlBarH ? `calc(${tlBarH}px + var(--space-sm))` : '0px' } as React.CSSProperties}>
+    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby={listHintId} tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget) return; setRegionFocused(true); if (!e.currentTarget.matches(':focus-visible')) return; setKbActive(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) { setRegionFocused(false); setKbActive(false) } }} onPointerDown={() => setKbActive(false)} onMouseMove={handleMouseMove} className={`${styles.root} ${wide ? styles.wide : ''} ${focusedNoteForPanel ? styles.noteOpen : ''} ${showPanel ? styles.settingsOpen : ''}` } style={{ '--graph-timeline-h': timelineStep !== null && tlBarH ? `calc(${tlBarH}px + var(--space-sm))` : '0px' } as React.CSSProperties}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {/* One empty state at a time: in list mode GraphListView owns it. */}
@@ -1599,7 +1612,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           apply={applySnapshot}
         />
         <span className={styles.srOnly} aria-live="polite">{regionFocused ? kbAnnounce : ''}</span>
-        <span id="graph-list-hint" className={styles.srOnly}>
+        <span id={listHintId} className={styles.srOnly}>
           A list view of these notes is available with the List button next to the search box.
         </span>
        </div>
@@ -1727,7 +1740,14 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             )}
           </ul>
         ) : null}
-        {viewMode !== 'list' && <div className={styles.hint}>Right-click a note for more</div>}
+        {viewMode !== 'list' && !tipSeen && (
+          <div className={styles.hint}>
+            Right-click a note for more
+            <button type="button" className={styles.hintClose} onClick={() => setTipSeen(true)} title="Dismiss tip" aria-label="Dismiss tip">
+              <X size={12} />
+            </button>
+          </div>
+        )}
       </div>
 
       {viewMode === 'list' && (
@@ -2061,9 +2081,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         />
       )}
 
-      {/* Settings panel (top-right). Hidden while the note panel is open. */}
-      {!focusedNoteForPanel &&
-        (showPanel ? (
+      {/* Settings panel (top-right). Coexists with the note panel (docks beside it when wide). */}
+      {(showPanel ? (
           <GraphSettingsPanel
             openSections={openSections}
             onToggleSection={toggleSection}

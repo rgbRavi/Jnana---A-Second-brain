@@ -51,6 +51,14 @@
   color: var(--danger);
 }
 
+.checkSlot {
+  flex: none;
+  display: inline-flex;
+  width: 14px;
+  margin-right: calc(-1 * var(--space-2xs));
+  color: var(--accent);
+}
+
 .itemLabel {
   overflow: hidden;
   text-overflow: ellipsis;

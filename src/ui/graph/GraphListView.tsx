@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import styles from './GraphListView.module.css'
 
@@ -48,6 +48,7 @@ export function GraphListView({
   /** Omitted where creating a note here wouldn't land in this scope. */
   onNewNote?: () => void
 }) {
+  const missingId = useId()
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
 
   const { notes, missing, neighbours, byId } = useMemo(() => {
@@ -183,8 +184,8 @@ export function GraphListView({
       </ul>
 
       {missing.length > 0 && (
-        <section aria-labelledby="graph-missing-h">
-          <h3 id="graph-missing-h" className={styles.groupHead}>
+        <section aria-labelledby={missingId}>
+          <h3 id={missingId} className={styles.groupHead}>
             Missing notes
           </h3>
           <ul className={styles.list}>

@@ -102,9 +102,11 @@
   white-space: nowrap;
 }
 
-/* Local z-scale: canvas overlays 2, toolbars/pills 3, settings + note panel 4.
-   Portaled menus, dialogs and toasts sit above all of these. */
+/* Local z-scale: canvas overlays 2, toolbars/pills 3, settings panel 4, note panel 5
+   (overlays settings when narrow). Portaled menus, dialogs and toasts sit above all of these. */
 .root {
+  --graph-settings-w: 320px;
+  --graph-note-w: 400px;
   position: relative;
   width: 100%;
   height: 100%;
@@ -278,9 +280,22 @@
 }
 
 .hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
   font-size: 0.75rem;
   color: var(--text-2);
 }
+.hintClose {
+  display: flex;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xs);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.hintClose:hover { color: var(--text-1); }
 
 .openPanelBtn {
   position: absolute;
@@ -301,7 +316,11 @@
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--motion-ease);
 }
+.noteOpen .openPanelBtn { right: calc(var(--space-lg) + var(--graph-note-w) + var(--space-sm)); }
 .openPanelBtn:hover { background: var(--surface-hover); color: var(--text-1); border-color: var(--border-control-hover); }
+
+/* Wide window with the settings panel open: the note panel docks to its left. */
+.wide.settingsOpen .notePanel { right: calc(var(--space-lg) + var(--graph-settings-w) + var(--space-sm)); }
 
 .noteHead {
   position: sticky;
@@ -328,8 +347,8 @@
   position: absolute;
   top: var(--space-lg);
   right: var(--space-lg);
-  z-index: 4;
-  width: 400px;
+  z-index: 5;
+  width: var(--graph-note-w);
   max-width: calc(100% - 2 * var(--space-lg));
   max-height: 90%;
   overflow-y: auto;

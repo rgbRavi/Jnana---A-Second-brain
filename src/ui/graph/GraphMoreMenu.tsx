@@ -76,14 +76,16 @@ export function GraphMoreMenu({ className, spotlight, onSpotlight, onExport, tim
 
   const items: MenuItem[] = [
     {
-      label: spotlight === 'suggested' ? 'Hide suggested links' : 'Suggest links I might have missed',
+      label: 'Suggest links',
+      checked: spotlight === 'suggested',
       onClick: () => onSpotlight(spotlight === 'suggested' ? null : 'suggested'),
     },
     {
-      label: spotlight === 'orphans' ? 'Stop highlighting unlinked notes' : 'Highlight unlinked notes',
+      label: 'Highlight unlinked notes',
+      checked: spotlight === 'orphans',
       onClick: () => onSpotlight(spotlight === 'orphans' ? null : 'orphans'),
     },
-    { label: timelineOpen ? 'Hide timeline' : 'Show timeline', onClick: onTimeline },
+    { label: 'Timeline', checked: timelineOpen, onClick: onTimeline },
     { label: 'Saved views', separator: true, children: viewItems },
     { label: 'Export graph as image…', onClick: onExport },
   ]

@@ -574,6 +574,8 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
           </button>
         </div>
       </Section>
+
+      <p className={styles.shortcuts}>Keyboard: Tab to the graph · arrows move · Enter opens · Esc steps back</p>
     </aside>
   )
 }

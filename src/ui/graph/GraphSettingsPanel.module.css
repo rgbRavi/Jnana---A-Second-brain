@@ -7,7 +7,7 @@
   top: var(--space-lg);
   right: var(--space-lg);
   z-index: 4;
-  width: 320px;
+  width: var(--graph-settings-w, 320px);
   max-width: calc(100% - 2 * var(--space-lg));
   max-height: calc(100% - 2 * var(--space-lg));
   overflow-y: auto;
@@ -16,6 +16,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
+}
+
+.shortcuts {
+  margin: 0;
+  padding: var(--space-sm) 0;
+  font-size: 0.75rem;
+  color: var(--text-2);
 }
 
 .header {
