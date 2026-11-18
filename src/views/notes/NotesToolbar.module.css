@@ -1,8 +1,10 @@
-/* ── Toolbar (search · filters · sort · display · count · new) ── */
+/* ── Toolbar (search · filters · sort · view · new) ──
+   Every control is 2rem tall, --radius-sm, --border-control — the same box as
+   SettingSelect, so the row reads as one set. */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: var(--space-sm);
   padding: 0.7rem var(--space-2xl);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -20,38 +22,77 @@
 .searchIcon {
   position: absolute;
   left: 0.6rem;
+  display: flex;
   color: var(--text-3);
-  font-size: 1rem;
   pointer-events: none;
 }
 
 .search {
   width: 100%;
+  height: 2rem;
+  box-sizing: border-box;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  padding: 0.4rem 0.7rem 0.4rem 1.8rem;
-  font-size: 0.85rem;
+  padding: 0 0.7rem 0 1.9rem;
+  font-size: 0.875rem;
   font-family: var(--font-body);
-  outline: none;
   transition: border-color var(--dur-fast) var(--motion-ease);
 }
 
-.search:focus {
-  border-color: var(--accent);
+.search:hover {
+  border-color: var(--border-control-hover);
+}
+
+.search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.search::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
+
+.search:not(:placeholder-shown) {
+  padding-right: 2rem;
+}
+
+.searchClear {
+  position: absolute;
+  right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.searchClear:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
 }
 
 .toolBtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.3rem;
+  height: 2rem;
+  box-sizing: border-box;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   color: var(--text-2);
   border-radius: var(--radius-sm);
-  padding: 0.4rem 0.7rem;
-  font-size: 0.82rem;
+  padding: 0 var(--space-md);
+  font-size: 0.875rem;
   font-family: var(--font-body);
   cursor: pointer;
   transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
@@ -60,7 +101,8 @@
 
 .toolBtn:hover {
   color: var(--text-1);
-  border-color: var(--border-hover);
+  border-color: var(--border-control-hover);
+  background: var(--surface-hover-strong);
 }
 
 .toolBtnActive {
@@ -69,19 +111,34 @@
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
+.iconBtn {
+  width: 2rem;
+  padding: 0;
+}
+
 /* Filters and its clear button sit together as one control. */
 .filterGroupBtns {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-xs);
   flex-shrink: 0;
 }
 
+/* A short visible label + its select, so "Cards" is never an unlabelled value. */
 .sort {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-xs);
   flex-shrink: 0;
+}
+
+.fieldLabel {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--text-2);
 }
 
 /* SettingSelect fills its container, so the toolbar gives it a width instead of
@@ -91,27 +148,62 @@
   flex-shrink: 0;
 }
 
-.newBtn {
+.selectWrap button {
+  height: 2rem;
+  line-height: 1.25;
+  padding-block: 0;
+}
+
+/* Create button: one split control pushed to the far right. */
+.split {
+  display: inline-flex;
+  align-items: stretch;
   margin-left: auto;
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.85rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  font-family: var(--font-body);
-  cursor: pointer;
-  transition: opacity var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
   flex-shrink: 0;
 }
 
-.newBtn:hover {
-  opacity: 0.9;
+.newBtn,
+.newChevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2rem;
+  box-sizing: border-box;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--motion-ease), transform var(--dur-fast) var(--motion-ease);
 }
 
-.newBtn:active {
-  transform: scale(0.97);
+.newBtn {
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-md);
+}
+
+.newBtnMain {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.newChevron {
+  width: 2rem;
+  padding: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-left-color: color-mix(in srgb, var(--on-accent) 30%, transparent);
+}
+
+.newBtn:hover,
+.newChevron:hover {
+  background: var(--accent-hover);
+}
+
+.newBtn:active,
+.newChevron:active {
+  background: var(--accent-active);
 }
 
 /* ── Filter bar (collapsible) ── */
@@ -133,12 +225,12 @@
 }
 
 .filterLabel {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-3);
-  width: 48px;
+  color: var(--text-2);
+  min-width: 3rem;
   flex-shrink: 0;
 }
 
@@ -150,12 +242,15 @@
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   color: var(--text-2);
   border-radius: 999px;
   padding: var(--space-2xs) 0.65rem;
-  font-size: 0.76rem;
+  font-size: 0.8125rem;
   font-family: var(--font-body);
   cursor: pointer;
   transition: color var(--dur-fast) var(--motion-ease), border-color var(--dur-fast) var(--motion-ease), background var(--dur-fast) var(--motion-ease);
@@ -163,7 +258,7 @@
 
 .chip:hover {
   color: var(--text-1);
-  border-color: var(--border-hover);
+  border-color: var(--border-control-hover);
 }
 
 .chipOn {
@@ -175,7 +270,7 @@
 .chipExcluded {
   color: var(--danger);
   border-color: var(--danger);
-  background: rgba(224, 82, 82, 0.12);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   text-decoration: line-through;
 }
 
@@ -187,17 +282,41 @@
 
 .dateInput {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   color: var(--text-1);
   border-radius: var(--radius-sm);
-  padding: var(--space-2xs) 0.4rem;
-  font-size: 0.76rem;
+  height: 2rem;
+  box-sizing: border-box;
+  padding: 0 var(--space-sm);
+  font-size: 0.8125rem;
   font-family: var(--font-body);
-  outline: none;
+}
+
+.dateInput:hover {
+  border-color: var(--border-control-hover);
+}
+
+.dateInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+
+.dateInput {
+  color-scheme: light dark;
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+
+.dateInput::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 .dateSep {
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .clearBtn {
@@ -205,7 +324,7 @@
   background: transparent;
   border: none;
   color: var(--text-2);
-  font-size: 0.76rem;
+  font-size: 0.8125rem;
   font-family: var(--font-body);
   cursor: pointer;
   text-decoration: underline;

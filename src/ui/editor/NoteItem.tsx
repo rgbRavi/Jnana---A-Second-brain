@@ -1,20 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { memo, useState, useRef, useEffect } from 'react'
+import { memo, useRef, useLayoutEffect } from 'react'
 import { MarkdownLite } from './MarkdownLite'
-import { NoteTypeEditor } from './NoteRenderer'
 import { getNoteType, noteSearchText } from '../../lib/noteTypes'
 import { truncateMarkdown } from '../../core/markdown/preview'
 import type { Note } from '../../types'
-import { useComposer } from '../../hooks/useComposer'
-import { useNotesContext } from '../../context/NotesContext'
-import { TagEditor } from '../TagEditor'
-import { ComposerSuggestions } from '../ai/ComposerSuggestions'
 import { isAutoTag } from '../../core/tags'
-import { ComposerToolbar } from './ComposerToolbar'
-import { FormatToolbar } from './FormatToolbar'
-import { LiveEditor, type LiveEditorHandle } from './LiveEditor'
+import { eventBus } from '../../lib/eventBus'
 import { Pin, PinOff, Star, FolderPlus, PenLine, Trash2, Image, Film, Headphones, FileText, Link, Globe } from 'lucide-react'
 import Styles from './NoteItem.module.css'
 
@@ -58,149 +51,9 @@ const MEDIA_CHIPS: [string, React.ReactNode, string][] = [
   ['has:webpage', <Globe size={12} />, 'Web page'],
 ]
 
-/**
- * The editing form for a note card. Split out from `NoteItem` deliberately:
- * it's the only part that needs `useNotesContext()` (for `ComposerSuggestions`'
- * `allNotes`), and that context's value object is recreated on every note
- * save (see useNotes.ts) — any component calling it re-renders on every save,
- * bypassing memo. Mounting/unmounting this only while a card is actually being
- * edited keeps that subscription off the common read-mode path, so the
- * (memoized) card list below doesn't pay for it on every unrelated save.
- */
-function NoteItemEditForm({
-  note,
-  onUpdate,
-  onDone,
-}: {
-  note: Note
-  onUpdate: Props['onUpdate']
-  onDone: () => void
-}) {
-  const [title, setTitle] = useState(note.title)
-  const [content, setContent] = useState(note.content || '')
-  const [tags, setTags] = useState<string[]>(note.tags)
-  const [saving, setSaving] = useState(false)
-  const { notes } = useNotesContext()
-  const editorRef = useRef<LiveEditorHandle>(null)
-  // Media/embeds insert at the editor's cursor (where the insertion bar is), not
-  // appended to the end — so importing next to a table/paragraph lands there.
-  // Falls back to appending only if the editor isn't mounted.
-  const { uploading, isRecording, toolbarProps } = useComposer({
-    noteId: note.id,
-    appendMarkdown: (md) => {
-      const handle = editorRef.current
-      if (handle) handle.insertAtCursor(md)
-      else setContent((prev) => prev + md)
-    },
-    focusTextarea: () => editorRef.current?.focus(),
-  })
-
-  useEffect(() => {
-    setTitle(note.title || '')
-    setContent(note.content || '')
-    setTags(note.tags)
-  }, [note.title, note.content, note.tags])
-
-  const handleSave = async () => {
-    if (saving) return
-    const newTitle = title.trim()
-    const newContent = content.trim()
-    if (!newContent && !newTitle) {
-      onDone()
-      return
-    }
-    setSaving(true)
-    await onUpdate(note.id, newTitle, newContent, tags.filter(t => !isAutoTag(t)))
-    setSaving(false)
-    onDone()
-  }
-
-  const handleCancel = () => onDone()
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') handleCancel()
-  }
-
-  const noteType = getNoteType(note)
-
-  return (
-    <div className={Styles.noteCardEditing}>
-      <input
-        className={Styles.composerTitleBorderless}
-        type="text"
-        placeholder="Title (optional)"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={handleKeyDown}
-        autoFocus
-      />
-      <TagEditor
-        tags={tags}
-        onChange={(newUserTags) => setTags([...tags.filter(isAutoTag), ...newUserTags])}
-      />
-      {!noteType && (
-        <ComposerSuggestions
-          note={{ ...note, title, content, tags }}
-          allNotes={notes}
-          currentTags={tags.filter((t) => !isAutoTag(t))}
-          onAddTag={(tag) => setTags((prev) => (prev.includes(tag) ? prev : [...prev, tag]))}
-          onAddLink={(linkTitle) => {
-            const wl = `[[${linkTitle}]]`
-            setContent((prev) => (prev.includes(wl) ? prev : `${prev.trimEnd()}\n\n${wl}\n`))
-          }}
-        />
-      )}
-      {noteType ? (
-        <NoteTypeEditor note={note} value={content} onChange={setContent} />
-      ) : (
-        <LiveEditor
-          ref={editorRef}
-          className={Styles.composerBodyBorderlessEditor}
-          placeholder="What do you want to remember?"
-          value={content}
-          onChange={setContent}
-          onSubmit={() => void handleSave()}
-          onCancel={handleCancel}
-          notes={notes}
-          noteId={note.id}
-          allowNavigate={false}
-          importHandlers={toolbarProps}
-        />
-      )}
-      <div className={Styles.composerFooterBorderlessFooter}>
-        <div className={Styles.composerActions}>
-          {!noteType && <ComposerToolbar {...toolbarProps} disabled={saving || uploading} />}
-          {!noteType && <FormatToolbar editorRef={editorRef} disabled={saving || uploading} />}
-          <button
-            className={Styles.composerCancel}
-            onClick={handleCancel}
-            disabled={saving || uploading}
-          >
-            Cancel
-          </button>
-          <span
-            style={{ display: 'inline-flex' }}
-            title={isRecording ? 'Finish recording before save' : undefined}
-          >
-            <button
-              className={Styles.composerSave}
-              onClick={handleSave}
-              disabled={saving || uploading || isRecording || (!content.trim() && !title.trim())}
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </span>
-        </div>
-        <span className={Styles.composerHint}>⌘ enter to save</span>
-      </div>
-    </div>
-  )
-}
-
 function NoteItemImpl({
   note,
-  onUpdate,
+  onUpdate: _onUpdate,
   onRemove,
   onExpand,
   variant = 'card',
@@ -213,16 +66,13 @@ function NoteItemImpl({
   selected,
   onSelect,
 }: Props) {
-  const [isEditing, setIsEditing] = useState(false)
-
-  if (isEditing) {
-    return <NoteItemEditForm note={note} onUpdate={onUpdate} onDone={() => setIsEditing(false)} />
-  }
-
-  const userTags = note.tags.filter((t) => !isAutoTag(t))
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const compact = variant === 'compact'
+  const allUserTags = note.tags.filter((t) => !isAutoTag(t))
+  const userTags = compact ? allUserTags.slice(0, 3) : allUserTags
   const mediaChips = MEDIA_CHIPS.filter(([tag]) => note.tags.includes(tag))
   const noteType = getNoteType(note)
-  const showBody = variant !== 'compact' && !!note.content
+  const showBody = !compact && !!note.content
   // A card is a preview, not the full note (that's the modal) — cap the body so
   // long notes don't each parse their entire content through react-markdown.
   // Deterministic, so MarkdownLite's memoized parse still holds across renders.
@@ -231,13 +81,19 @@ function NoteItemImpl({
   // type's interactive View in every card.
   const previewBody = truncateMarkdown(noteType ? noteSearchText(note) : note.content)
 
+  // A video/audio-only note renders nothing inside the body (embeds are hidden
+  // on cards), so collapse it rather than leave an empty gap.
+  useLayoutEffect(() => {
+    const el = bodyRef.current
+    if (el) el.hidden = !el.querySelector('img') && !el.textContent?.trim()
+  }, [previewBody, showBody])
+
   return (
     <div
       data-anchor="note"
       data-anchor-key={note.id}
       className={`${Styles.noteCard} ${Styles[variant]} ${selected ? Styles.noteCardSelected : ''}`}
       onClick={(e) => {
-        if (isEditing) return
         // Modifier-clicks build a selection; a plain click still opens the note.
         if (onSelect && (e.ctrlKey || e.metaKey)) {
           onSelect(note.id, 'toggle')
@@ -252,16 +108,30 @@ function NoteItemImpl({
         }
         onExpand?.(note)
       }}
-      aria-selected={selected || undefined}
     >
       <div className={Styles.noteCardHeader}>
-        <span className={Styles.noteCardTitle}>{note.title || 'Untitled'}</span>
+        {/* A real button: the keyboard path to open (Enter, via the card's click
+            handler) and select (Space; Shift+Space extends). Mouse users click the card. */}
+        <button
+          type="button"
+          className={Styles.noteCardTitle}
+          title={note.title || undefined}
+          aria-label={`${note.title || 'Untitled'}${selected ? ', selected' : ''}`}
+          onKeyDown={(e) => {
+            if (onSelect && e.key === ' ') {
+              e.preventDefault()
+              onSelect(note.id, e.shiftKey ? 'range' : 'toggle')
+            }
+          }}
+        >
+          {note.title || 'Untitled'}
+        </button>
         <div className={Styles.noteCardActions} onClick={(e) => e.stopPropagation()}>
           {onTogglePin && (
             <button
               className={`${Styles.noteCardAction} ${pinned ? Styles.noteCardFavOn : ''}`}
               onClick={() => onTogglePin(note.id)}
-              aria-label={pinned ? 'Unpin from workspace' : 'Pin in workspace'}
+              aria-label="Pin to workspace"
               aria-pressed={pinned}
               title={pinned ? 'Unpin' : 'Pin in workspace'}
             >
@@ -272,7 +142,7 @@ function NoteItemImpl({
             <button
               className={`${Styles.noteCardAction} ${isFavourite ? Styles.noteCardFavOn : ''}`}
               onClick={() => onToggleFavourite(note.id)}
-              aria-label={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+              aria-label="Favourite"
               aria-pressed={isFavourite}
               title={isFavourite ? 'Unfavourite' : 'Favourite'}
             >
@@ -291,9 +161,9 @@ function NoteItemImpl({
           )}
           <button
             className={Styles.noteCardAction}
-            onClick={() => setIsEditing(true)}
-            aria-label="Edit note"
-            title="Edit"
+            onClick={() => eventBus.emit('note:navigate', note)}
+            aria-label="Edit in Working Notes"
+            title="Edit in Working Notes"
           >
             <PenLine size={14} />
           </button>
@@ -308,20 +178,21 @@ function NoteItemImpl({
         </div>
       </div>
       {showBody && (
-        <div className={Styles.noteCardBody}>
+        <div ref={bodyRef} className={Styles.noteCardBody}>
           <MarkdownLite content={previewBody} noteId={note.id} />
         </div>
       )}
       <div className={Styles.noteCardMeta}>
         {noteType && (
-          <span className={Styles.noteChip} title={noteType.label} aria-label={noteType.label}>
+          <span className={Styles.noteChip} role="img" title={noteType.label} aria-label={noteType.label}>
             {noteType.icon ? <noteType.icon size={12} /> : null}
             {noteType.label}
           </span>
         )}
         {mediaChips.map(([tag, glyph, label]) => (
-          <span key={tag} className={Styles.noteChip} title={label} aria-label={label}>
+          <span key={tag} className={Styles.noteChip} role="img" title={label} aria-label={label}>
             {glyph}
+            {!compact && label}
           </span>
         ))}
         {userTags.map((t) => (
@@ -329,6 +200,16 @@ function NoteItemImpl({
             {t}
           </span>
         ))}
+        {pinned && (
+          <span className={Styles.noteState} title="Pinned" role="img" aria-label="Pinned">
+            <Pin size={12} />
+          </span>
+        )}
+        {isFavourite && (
+          <span className={Styles.noteState} title="Favourite" role="img" aria-label="Favourite">
+            <Star size={12} fill="currentColor" />
+          </span>
+        )}
         <time className={Styles.noteCardTime}>{new Date(note.updatedAt).toLocaleDateString()}</time>
       </div>
     </div>

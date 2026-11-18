@@ -60,6 +60,27 @@ export function SplitContainer({
     window.addEventListener('pointerup', onUp)
   }
 
+  // Keyboard resize: same clamp + commit as the pointer drag's release.
+  const onDividerKey = (index: number) => (e: React.KeyboardEvent) => {
+    const base = split.sizes
+    const pair = base[index] + base[index + 1]
+    const step = e.shiftKey ? 0.01 : 0.05
+    const dec = horizontal ? 'ArrowLeft' : 'ArrowUp'
+    const inc = horizontal ? 'ArrowRight' : 'ArrowDown'
+    let first: number
+    if (e.key === dec) first = base[index] - step * pair
+    else if (e.key === inc) first = base[index] + step * pair
+    else if (e.key === 'Home') first = MIN_FRACTION
+    else if (e.key === 'End') first = pair - MIN_FRACTION
+    else return
+    e.preventDefault()
+    first = Math.min(Math.max(first, MIN_FRACTION), pair - MIN_FRACTION)
+    const next = base.slice()
+    next[index] = first
+    next[index + 1] = pair - first
+    setWorkingSplitSizes(split.id, next)
+  }
+
   return (
     <div
       ref={ref}
@@ -73,7 +94,13 @@ export function SplitContainer({
               className={horizontal ? Styles.dividerV : Styles.dividerH}
               onPointerDown={onDividerDown(i)}
               role="separator"
+              tabIndex={0}
+              aria-label="Resize panes"
               aria-orientation={horizontal ? 'vertical' : 'horizontal'}
+              aria-valuenow={Math.round(((sizes[i] ?? 1) / ((sizes[i] ?? 1) + (sizes[i + 1] ?? 1))) * 100)}
+              aria-valuemin={Math.round((MIN_FRACTION / ((sizes[i] ?? 1) + (sizes[i + 1] ?? 1))) * 100)}
+              aria-valuemax={Math.round((1 - MIN_FRACTION / ((sizes[i] ?? 1) + (sizes[i + 1] ?? 1))) * 100)}
+              onKeyDown={onDividerKey(i)}
             />
           )}
         </div>

@@ -368,7 +368,7 @@ declare namespace Jnana {
 
   /**
    * Write-only logging, in both runtimes, no permission needed. Lines show up in
-   * Settings → Developer → Developer Log (filter by your plugin id) and in the
+   * Settings → Developer → Developer Log (filter by your plugin id; the tab appears once General → Show developer options is on) and in the
    * Plugin Console; `warn`/`error` are also written to the app's log file.
    * `data` is structured context — secrets and note bodies are redacted, long
    * values clipped, messages capped at 1000 chars. Every call counts against your

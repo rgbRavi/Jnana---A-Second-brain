@@ -75,6 +75,12 @@ export function buildLinkCounts(edges: [string, string][]): Map<string, number> 
   return counts
 }
 
+function endOfLocalDay(ms: number): number {
+  const d = new Date(ms)
+  d.setHours(23, 59, 59, 999)
+  return d.getTime()
+}
+
 /** Resolve a filter's date preset to inclusive [from, to] ms bounds, or null for "all". */
 export function dateRange(filter: NotesFilter, now: number = Date.now()): [number, number] | null {
   switch (filter.datePreset) {
@@ -94,7 +100,9 @@ export function dateRange(filter: NotesFilter, now: number = Date.now()): [numbe
       return [new Date(d.getFullYear(), d.getMonth(), 1).getTime(), now]
     }
     case 'custom':
-      return [filter.dateFrom ?? 0, filter.dateTo ?? now]
+      // dateTo is stored as local midnight of the end day (what the date input
+      // yields); the range runs to the end of that day so the day is inclusive.
+      return [filter.dateFrom ?? 0, filter.dateTo !== undefined ? endOfLocalDay(filter.dateTo) : now]
   }
 }
 

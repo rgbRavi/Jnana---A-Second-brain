@@ -161,7 +161,7 @@ export function WorkspaceInsights({ workspaceId }: Props) {
         <section className={styles.panel}>
           <h3 className={styles.panelTitle}>🧠 Needs indexing · {needsIndexing.length}</h3>
           {indexed === 0 ? (
-            <p className={styles.panelEmpty}>Semantic indexing isn’t set up — enable it in Settings → AI.</p>
+            <p className={styles.panelEmpty}>Semantic indexing isn’t set up — enable it in Settings → AI setup.</p>
           ) : needsIndexing.length === 0 ? (
             <p className={styles.panelEmpty}>All notes are up to date in the index. ✨</p>
           ) : (

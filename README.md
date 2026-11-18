@@ -149,7 +149,7 @@ Repository: https://github.com/rgbRavi/Jnana---A-Second-brain
   faster-whisper — a ready-to-run Docker setup is included in [`whisper-server/`](whisper-server/))
 
 ### AI layer (bring-your-own-key, or fully local)
-All AI is optional, configured in **Settings → AI Providers**, and grounded strictly in your notes.
+All AI is optional, configured in **Settings → AI setup**, and grounded strictly in your notes.
 Keys are stored on the Rust side (never in browser-reachable storage) and requests are proxied
 through Rust to only the host you configured.
 
@@ -173,7 +173,7 @@ through Rust to only the host you configured.
 - **Adaptive Rules** — write reusable instructions ("Rules"), tick which apply per chat or per project
   (a project shares its rules with every chat under it), and Jnana keeps re-injecting them so the AI
   stays on-instruction deep into long conversations. How and when rules refresh — and how they're
-  selected — is configurable in **Settings → Advanced AI generation**, and all the AI-powered options
+  selected — is configurable in **Settings → How the AI answers**, and all the AI-powered options
   fall back safely to the cheap defaults when no AI is set up
 - **Index staleness** — flags notes edited since they were last indexed, with a one-click re-index
 - **One chat, grounding on demand** — a normal streaming chat, plus **Analyze / Ask / Quiz** over a
@@ -183,8 +183,19 @@ through Rust to only the host you configured.
 - **Quiz from the web or the AI's own knowledge** — beyond your notes, build a quiz from pasted links, a
   web search (bring your own Brave/Tavily/SearXNG), or the model's knowledge; answers are checked against the sources
   when possible (labelled when not), and you can dispute any question
+- **Web access in chat** — Off, **Always search**, or **Let the model decide** (Agent with web tools);
+  search goes through your own Brave / Tavily / SearXNG setup, and replies show checked citations or
+  just the list of sources
+- **Provider presets** — save named setups for Chat, Embedding, Transcription, Deep research and Web
+  search (each keeps its own key, stored Rust-side), and switch between them in Settings or from the
+  chat composer
+- **Your own system prompt** — optional global, per-preset (replaces the global one) and per-conversation
+  (added on top) instructions for chat and Agent; Analyze / Ask / Quiz stay grounded and ignore them
+- **Shows the model's thinking** — reasoning models stream their thinking into a collapsible block
+  (tell Jnana a model reasons if it doesn't recognise it)
+- **Customisable composer** — show, hide and reorder the chat toolbar's controls in **Settings → How the AI answers**
 - **Reads as much as your model can** — choose how much note text the AI may read (**Settings →
-  Advanced AI generation**, default 32k tokens). Notes that fit go in whole (PDF text included); long
+  How the AI answers**, default 32k tokens). Notes that fit go in whole (PDF text included); long
   notes send the passages that best match your question or topic
 - **Sees your images** — with a vision-capable model, images in your notes and pages of scanned PDFs
   are sent too; attach images to a chat by picking, pasting or dragging them in (and tell Jnana a model
@@ -272,8 +283,6 @@ through Rust to only the host you configured.
 
 See [PLAN.md](PLAN.md) for the live roadmap. Highlights:
 
-- **Web search in AI chat** — search through your own connection (self-hosted SearXNG, or a Brave /
-  Tavily key) and answer with cited, clickable sources; opt-in
 - **Code syntax highlighting** — fenced code blocks render as plain styled monospace today; a
   highlighter seam (`core/markdown/highlight.ts`) is ready for a lazy-loaded highlighter later
 - **Table follow-ons** — the CSV-backed `table` block with an inline grid editor, header colour, and

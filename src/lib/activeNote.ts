@@ -51,6 +51,20 @@ export function mayPublishActiveNote(tok: object): boolean {
   return token === null || token === tok
 }
 
+/** Whether `tok` currently owns the store. Re-renders only when ownership flips
+ *  (the snapshot is a boolean), so a publishing pane can use it without the
+ *  publish → re-render → publish loop that `useActiveNote` would cause. */
+export function useOwnsActiveNote(tok: object): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l)
+      return () => listeners.delete(l)
+    },
+    () => mayPublishActiveNote(tok),
+    () => mayPublishActiveNote(tok),
+  )
+}
+
 export function useActiveNote(): ActiveNoteState | null {
   return useSyncExternalStore(
     (l) => {

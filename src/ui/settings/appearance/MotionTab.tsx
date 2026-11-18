@@ -4,7 +4,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { EASES } from '../../../core/themes/tokens'
 import type { UseThemeApi } from '../../../hooks/useTheme'
-import { SliderField } from './controls'
+import { SliderField, StudioField } from './controls'
 import { SettingSelect } from '../SettingControls'
 import { getMomentClaims } from '../../../lib/motion/runtime'
 import {
@@ -15,6 +15,7 @@ import {
   subscribeMoments,
 } from '../../../lib/motion/moments'
 import { pluginRegistry } from '../../../lib/pluginRegistry'
+import { SettingButton, SettingSection } from '../SettingLayout'
 import styles from './Appearance.module.css'
 
 const AUTO = '__auto'
@@ -29,18 +30,18 @@ function MotionOwners() {
   const nameOf = (id: string) => pluginRegistry.getAll().find((p) => p.id === id)?.name ?? id
 
   return (
-    <div className={styles.field}>
-      <label>Who animates what</label>
-      <p className={styles.hint}>
-        One animation plays per action. Automatic prefers an installed plugin over Jnana’s own.
-      </p>
+    <SettingSection
+      title="Who animates what"
+      intro="One animation plays per action. Automatic prefers an installed plugin over Jnana’s own."
+    >
       {claims.map(({ moment, claimants }) => {
         const auto = pickOwner(claimants, undefined)
         const choice = owners[moment]
+        const id = `motion-owner-${moment}`
         return (
-          <div key={moment} className={styles.fieldHead}>
-            <span>{momentLabel(moment)}</span>
+          <StudioField key={moment} label={momentLabel(moment)} htmlFor={id}>
             <SettingSelect
+              id={id}
               ariaLabel={`Animation for ${momentLabel(moment)}`}
               value={choice ?? AUTO}
               options={[
@@ -50,10 +51,10 @@ function MotionOwners() {
               ]}
               onChange={(v) => setMomentOwner(moment, v === AUTO ? undefined : v)}
             />
-          </div>
+          </StudioField>
         )
       })}
-    </div>
+    </SettingSection>
   )
 }
 
@@ -68,23 +69,22 @@ export function MotionTab({ api }: { api: UseThemeApi }) {
 
   return (
     <div className={styles.tabPane}>
-      <p className={styles.hint}>
-        Controls how fast animations run app-wide. Your OS's "reduce motion" setting still overrides these
-        (forcing everything instant). Use the Feel demo at the bottom to preview a change.
-      </p>
-
+      <SettingSection
+        title="Speed"
+        intro="Controls how fast animations run app-wide. Your OS's “reduce motion” setting still overrides these (forcing everything instant). Use the Feel demo at the bottom to preview a change."
+      >
       <SliderField
-        label="Master scale"
+        label="Animation length"
         value={scale}
         min={0}
         max={2}
         step={0.05}
         suffix="×"
-        hint="Multiplies all three durations below at once. 1× = as set, 0× = instant, 2× = twice as slow."
+        hint="0× turns animations off, 1× as set below, 2× makes them take twice as long."
         onChange={(v) => setToken('--motion-scale', String(v))}
       />
       <SliderField
-        label="Fast"
+        label="Small motions"
         value={fast}
         min={0}
         max={400}
@@ -93,7 +93,7 @@ export function MotionTab({ api }: { api: UseThemeApi }) {
         onChange={(v) => setToken('--motion-duration-fast', `${v}ms`)}
       />
       <SliderField
-        label="Base"
+        label="Standard motions"
         value={base}
         min={0}
         max={700}
@@ -102,7 +102,7 @@ export function MotionTab({ api }: { api: UseThemeApi }) {
         onChange={(v) => setToken('--motion-duration-base', `${v}ms`)}
       />
       <SliderField
-        label="Slow"
+        label="Large motions"
         value={slow}
         min={0}
         max={1200}
@@ -111,30 +111,36 @@ export function MotionTab({ api }: { api: UseThemeApi }) {
         onChange={(v) => setToken('--motion-duration-slow', `${v}ms`)}
       />
 
-      <div className={styles.field}>
-        <label>Easing</label>
+      <StudioField
+        label="Easing"
+        htmlFor="motion-ease"
+        hint="Acceleration curve every animation follows — how it speeds up and slows down. A few playful springs (e.g. the composer pill) keep their own bounce."
+      >
         <SettingSelect
+          id="motion-ease"
           ariaLabel="Easing"
           value={theme.tokens['--motion-ease']}
           options={EASES.map((e) => ({ value: e.id, label: e.label }))}
           onChange={(v) => setToken('--motion-ease', v)}
         />
-        <p className={styles.hint}>Acceleration curve every animation follows — how it speeds up and slows down. A few playful springs (e.g. the composer pill) keep their own bounce.</p>
-      </div>
+      </StudioField>
+      </SettingSection>
 
       <MotionOwners />
 
-      <div className={styles.field}>
-        <div className={styles.fieldHead}>
-          <label>Feel demo</label>
-          <button type="button" className={styles.secondaryBtn} onClick={() => setDemoOn((v) => !v)}>
-            {demoOn ? 'Reset' : 'Play'}
-          </button>
-        </div>
+      <SettingSection title="Feel demo">
+        <StudioField label="Preview" htmlFor="motion-demo">
+          {/* id on a wrapper, not the button, so the label doesn't rename it */}
+          <div id="motion-demo">
+            <SettingButton onClick={() => setDemoOn((v) => !v)}>
+              {demoOn ? 'Play in reverse' : 'Play'}
+            </SettingButton>
+          </div>
+        </StudioField>
         <div className={styles.motionDemoLane}>
           <div className={`${styles.motionDemoBox} ${demoOn ? styles.motionDemoBoxOn : ''}`} />
         </div>
-      </div>
+      </SettingSection>
     </div>
   )
 }

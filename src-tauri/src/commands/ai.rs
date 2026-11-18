@@ -362,6 +362,30 @@ pub fn set_ai_config(
     Ok(AiConfigPublic::from(&*current))
 }
 
+/// Blank the stored API key for one section. Pure core of `clear_ai_key`; unknown targets are refused.
+pub(crate) fn clear_key(config: &mut AiConfig, target: &str) -> Result<(), String> {
+    match target {
+        "chat" => config.chat_api_key.clear(),
+        "embedding" => config.embedding_api_key.clear(),
+        "transcription" => config.transcription_api_key.clear(),
+        "deepResearch" => config.deep_research_api_key.clear(),
+        "webSearch" => config.web_search_api_key.clear(),
+        _ => return Err(format!("Unknown AI key target: {}", target)),
+    }
+    Ok(())
+}
+
+/// Explicitly remove a saved API key (an empty key in `set_ai_config` means "keep the stored one").
+#[command]
+pub fn clear_ai_key(state: State<'_, AiState>, target: String) -> Result<AiConfigPublic, String> {
+    let mut current = state.0.lock().map_err(|e| format!("AI config lock error: {}", e))?;
+    let mut next = current.clone();
+    clear_key(&mut next, &target)?;
+    persist(&next)?;
+    *current = next;
+    Ok(AiConfigPublic::from(&*current))
+}
+
 /// Minimal HTTP response surfaced to the frontend AI providers.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -732,7 +756,18 @@ pub fn ai_chat_cancel(cancels: State<'_, StreamCancels>, request_id: String) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_base_url, redact_secrets, resolve_target, AiConfig};
+    use super::{clear_key, normalize_base_url, redact_secrets, resolve_target, AiConfig};
+
+    #[test]
+    fn clear_key_blanks_only_the_named_target() {
+        let mut c = AiConfig::default();
+        c.chat_api_key = "a".into();
+        c.embedding_api_key = "b".into();
+        clear_key(&mut c, "chat").unwrap();
+        assert!(c.chat_api_key.is_empty());
+        assert_eq!(c.embedding_api_key, "b");
+        assert!(clear_key(&mut c, "nope").is_err());
+    }
 
     #[test]
     fn base_url_accepts_the_full_endpoint_users_paste() {

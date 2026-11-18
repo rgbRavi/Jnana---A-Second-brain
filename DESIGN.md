@@ -30,61 +30,61 @@ colors:
   data-orange: "#ff8c42"
 typography:
   headline:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: 1.35
     letterSpacing: "normal"
   body:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.9375rem"
     fontWeight: 400
     lineHeight: 1.6
     letterSpacing: "normal"
   caption:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   label:
-    fontFamily: "JetBrains Mono, monospace"
+    fontFamily: "DM Mono, monospace"
     fontSize: "0.7rem"
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: "0.1em"
   small:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "normal"
   compact:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   heading-sm:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   heading:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.015em"
   display:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 600
     lineHeight: 1.15
@@ -97,11 +97,15 @@ rounded:
   xl: "16px"
   pill: "999px"
 spacing:
-  xs: "0.35rem"
-  sm: "0.55rem"
-  md: "0.9rem"
-  lg: "1.25rem"
-  xl: "1.5rem"
+  # --space-* tokens, each × --density (src/main.css)
+  3xs: "2px"
+  2xs: "4px"
+  xs: "6px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  xl: "24px"
+  2xl: "32px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"

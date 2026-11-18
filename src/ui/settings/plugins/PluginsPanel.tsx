@@ -2,11 +2,13 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useEffect, useSyncExternalStore } from 'react'
-import { Boxes, Compass, RefreshCw, Wrench } from 'lucide-react'
+import { useGeneralSettings } from '../../../hooks/useGeneralSettings'
+import { SettingPanel } from '../SettingLayout'
+import { SettingTabs, settingTabId, type SettingTabItem } from '../SettingNav'
 import {
   usePluginSubview,
   setPluginSubview,
-  useCatalogUrl,
+  getCatalogUrl,
   type PluginSubview,
 } from './usePluginManager'
 import {
@@ -18,55 +20,63 @@ import { InstalledPlugins } from './InstalledPlugins'
 import { BrowsePlugins } from './BrowsePlugins'
 import { PluginUpdates } from './PluginUpdates'
 import { DeveloperTools } from './DeveloperTools'
+import { plural } from '../../../lib/plural'
 import Styles from './PluginsPanel.module.css'
 
-const NAV: { id: PluginSubview; label: string; icon: typeof Boxes }[] = [
-  { id: 'installed', label: 'Installed', icon: Boxes },
-  { id: 'browse', label: 'Browse', icon: Compass },
-  { id: 'updates', label: 'Updates', icon: RefreshCw },
-  { id: 'developer', label: 'Developer', icon: Wrench },
+const ID_PREFIX = 'plugins'
+const PANEL_ID = 'plugins-panel'
+
+const NAV: { id: PluginSubview; label: string }[] = [
+  { id: 'installed', label: 'Installed' },
+  { id: 'browse', label: 'Browse' },
+  { id: 'updates', label: 'Updates' },
+  { id: 'developer', label: 'Plugin development' },
 ]
 
 /** Settings → Plugins. A sub-nav over the four manager subviews; the active one is
  *  persisted so the panel reopens where you left it. */
 export function PluginsPanel() {
-  const subview = usePluginSubview()
-  const catalogUrl = useCatalogUrl()
+  const stored = usePluginSubview()
+  const [{ showDeveloperOptions }] = useGeneralSettings()
+  // Dev tools only show with developer options on; a stale saved choice falls back.
+  const subview = stored === 'developer' && !showDeveloperOptions ? 'installed' : stored
   const outdated = useSyncExternalStore(subscribePluginUpdates, getOutdatedPlugins)
+
+  const items: SettingTabItem<PluginSubview>[] = NAV.filter((n) => n.id !== 'developer' || showDeveloperOptions).map((n) => ({
+    ...n,
+    anchor: `plugins-${n.id}`,
+    ...(n.id === 'updates' ? { count: outdated.length, countLabel: `${plural(outdated.length, 'update')} available` } : {}),
+  }))
 
   // Opening the manager is a natural moment to check (throttled to once a day), so
   // the Updates tab advertises itself instead of waiting to be visited.
+  // Once per open; Browse re-checks (forced) when the user commits a different address.
   useEffect(() => {
-    void checkPluginUpdates(catalogUrl)
-  }, [catalogUrl])
+    void checkPluginUpdates(getCatalogUrl())
+  }, [])
 
   return (
-    <div className={Styles.panel}>
-      <nav className={Styles.subnav} aria-label="Plugin manager sections">
-        {NAV.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={`${Styles.subnavItem} ${subview === id ? Styles.subnavActive : ''}`}
-            onClick={() => setPluginSubview(id)}
-            aria-current={subview === id}
-          >
-            <Icon size={15} />
-            {label}
-            {id === 'updates' && outdated.length > 0 && (
-              <span className={Styles.navCount} aria-label={`${outdated.length} available`}>
-                {outdated.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </nav>
+    <SettingPanel>
+      <SettingTabs
+        items={items}
+        value={subview}
+        onChange={setPluginSubview}
+        ariaLabel="Plugin manager sections"
+        idPrefix={ID_PREFIX}
+        panelId={PANEL_ID}
+      />
 
-      <div className={Styles.body}>
+      <div
+        className={Styles.body}
+        id={PANEL_ID}
+        role="tabpanel"
+        aria-labelledby={settingTabId(ID_PREFIX, subview)}
+      >
         {subview === 'installed' && <InstalledPlugins />}
         {subview === 'browse' && <BrowsePlugins />}
         {subview === 'updates' && <PluginUpdates />}
         {subview === 'developer' && <DeveloperTools />}
       </div>
-    </div>
+    </SettingPanel>
   )
 }

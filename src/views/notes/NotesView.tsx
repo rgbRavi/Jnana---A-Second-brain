@@ -6,14 +6,16 @@ import Notes from './Notes'
 import { WorkingNotes } from './working/WorkingNotes'
 import { useNotesSubView } from './working/useWorkingLayout'
 import { useViewState, setViewState } from '../../hooks/useViewState'
+import { backLabelFor } from './backLabel'
 import Styles from './NotesView.module.css'
 
 /**
- * The Notes route shell: a segmented control toggling the **Notes** gallery
- * (browse/filter/sort — the library) and **Working Notes** (tabbed, splittable
- * editor — the desk). Sub-view + layout persist across restart via the module
- * store, so this is just a switch. Clicking a gallery card / a wikilink flips
- * the segment to Working Notes automatically (openNoteInWorking).
+ * The Notes route shell: the **Notes** gallery (browse/filter/sort — the library)
+ * or **Working Notes** (tabbed, splittable editor — the desk). The sub-view is
+ * switched from the Sidebar (Notes / Working Notes entries) and Ctrl+Shift+E, not
+ * from anything on this page; it and the layout persist across restart via the
+ * module store. A gallery card opens a read-only peek; the card's pencil (or a
+ * wikilink) opens the note in Working Notes (openNoteInWorking).
  */
 export default function NotesView() {
   const sub = useNotesSubView()
@@ -22,9 +24,7 @@ export default function NotesView() {
   // handler). Offers a one-click return to that workspace/view.
   const [returnTo] = useViewState<string | null>('notes.returnTo', null)
 
-  const backLabel = returnTo
-    ? `Back to ${returnTo.startsWith('/workspaces/') ? 'workspace' : returnTo}`
-    : ''
+  const backLabel = returnTo ? backLabelFor(returnTo) : ''
 
   const goBack = () => {
     const dest = returnTo ?? '/'

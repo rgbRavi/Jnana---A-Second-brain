@@ -2,8 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Download, Folder, Frame, Trash2, X } from 'lucide-react'
+import { Download, Folder, Trash2, X } from 'lucide-react'
 import { useNotesContext } from '../../context/NotesContext'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { useActiveVaultId } from '../../hooks/useVaults'
@@ -14,12 +13,15 @@ import { getAllLinks } from '../../core/notes'
 import { isAutoTag } from '../../core/tags'
 import { useViewState } from '../../hooks/useViewState'
 import { useFavourites } from '../../hooks/useFavourites'
-import { useNotesViewPrefs, NOTES_PREFS_KEY } from './useNotesViewPrefs'
+import { openComposer } from '../../ui/editor/NoteCreator'
+import { useNotesViewPrefs, resetNotesFilter, NOTES_PREFS_KEY } from './useNotesViewPrefs'
 import { applyFilters, sortNotes, buildLinkCounts } from './filterNotes'
 import { selectRange, toggleSelected } from './selection'
 import { exportNotes, toastExported } from '../../core/export'
 import { showConfirmDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { formatChord } from '../../lib/pluginHotkeys'
 import { NotesToolbar } from './NotesToolbar'
 import { NotesFilterBar } from './NotesFilterBar'
@@ -34,8 +36,14 @@ import NoteStyles from './Notes.module.css'
 // reveal more as the user scrolls to the bottom.
 const PAGE = 24
 
+/** Mounted only while a selection exists, so Esc is free otherwise. */
+function ClearOnEscape({ onClear }: { onClear: () => void }) {
+  useEscapeKey(onClear)
+  return null
+}
+
 function Notes() {
-  const { notes: allNotes, loading, error, update, remove, updateTags, create } = useNotesContext()
+  const { notes: allNotes, loading, error, reload, update, remove, updateTags, create } = useNotesContext()
   // The gallery is scoped to the active vault (Obsidian-style) — switching vaults
   // in the file explorer swaps which notes appear here.
   const activeVaultId = useActiveVaultId()
@@ -52,7 +60,11 @@ function Notes() {
   const expandedNote = notes.find((note) => note.id === expandedNoteId)
 
   const prefs = useNotesViewPrefs(NOTES_PREFS_KEY)
-  const navigate = useNavigate()
+
+  // Log the raw error; the UI shows a friendly message with a retry.
+  useEffect(() => {
+    if (error) log.error('Loading notes failed', error)
+  }, [error])
 
   const newCanvas = useCallback(async () => {
     try {
@@ -82,15 +94,25 @@ function Notes() {
     const refresh = () =>
       fetchFavourites()
         .then((ids) => { if (active) setFavSet(new Set(ids)) })
-        .catch(() => {})
+        .catch((err) => log.warn('Loading favourites failed', err))
     refresh()
     const handleSaved = (saved: Note) => {
       if (!notesRef.current.some((n) => n.id === saved.id)) refresh()
     }
+    const handleFav = ({ id, on }: { id: string; on: boolean }) =>
+      setFavSet((prev) => {
+        if (prev.has(id) === on) return prev
+        const next = new Set(prev)
+        if (on) next.add(id)
+        else next.delete(id)
+        return next
+      })
     eventBus.on('note:saved', handleSaved)
+    eventBus.on('favourite:changed', handleFav)
     return () => {
       active = false
       eventBus.off('note:saved', handleSaved)
+      eventBus.off('favourite:changed', handleFav)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -102,7 +124,7 @@ function Notes() {
     const refresh = () =>
       getAllLinks()
         .then((edges) => { if (active) setLinkCounts(buildLinkCounts(edges)) })
-        .catch(() => {})
+        .catch((err) => log.warn('Loading link counts failed', err))
     refresh()
     eventBus.on('link:created', refresh)
     eventBus.on('link:removed', refresh)
@@ -115,19 +137,27 @@ function Notes() {
     }
   }, [])
 
+  // Read the set through a ref so this callback stays stable — a new identity
+  // per toggle would re-render every memoized card.
+  const favSetRef = useRef(favSet)
+  favSetRef.current = favSet
   const toggleFavourite = useCallback(
     (id: string) => {
-      setFavSet((prev) => {
-        const next = new Set(prev)
-        if (next.has(id)) {
-          next.delete(id)
-          removeFromFavourites(id).catch(() => {})
-        } else {
-          next.add(id)
-          addToFavourites(id).catch(() => {})
-        }
-        return next
-      })
+      const adding = !favSetRef.current.has(id)
+      const apply = (on: boolean) =>
+        setFavSet((prev) => {
+          const next = new Set(prev)
+          if (on) next.add(id)
+          else next.delete(id)
+          return next
+        })
+      apply(adding)
+      ;(adding ? addToFavourites(id) : removeFromFavourites(id))
+        .catch((err) => {
+          apply(!adding)
+          log.error('Updating favourite failed', err)
+          toast.error("Couldn't update favourites. Please try again.")
+        })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -164,13 +194,18 @@ function Notes() {
     selectionAnchor.current = null
   }, [])
 
+  // One persistent live region: it exists before the text changes, so the first
+  // "1 note selected" is announced.
+  const selectionStatus = selected.size === 0 ? '' : `${selected.size} note${selected.size === 1 ? '' : 's'} selected`
+
   const selectedNotes = useMemo(() => notes.filter((n) => selected.has(n.id)), [notes, selected])
 
   const downloadSelected = useCallback(async () => {
     try {
       toastExported(await exportNotes(selectedNotes))
     } catch (err) {
-      toast.error('Export failed: ' + String(err))
+      log.error('Export of selected notes failed', err)
+      toast.error("Couldn't export the selected notes. Please try again.")
     }
   }, [selectedNotes])
 
@@ -186,32 +221,34 @@ function Notes() {
     if (!ok) return
     // confirm:false — the one dialog above stands in for all of them, instead of
     // asking once per note.
-    for (const n of selectedNotes) await remove(n.id, { confirm: false })
-    setSelected(new Set())
-    selectionAnchor.current = null
-    toast.success(`Moved ${count} note${count === 1 ? '' : 's'} to Trash.`)
-  }, [selectedNotes, remove])
+    const failed = new Set<string>()
+    // remove() never throws: it puts a failed note back, logs, and resolves false.
+    for (const n of selectedNotes) {
+      if (!(await remove(n.id, { confirm: false, quiet: true }))) failed.add(n.id)
+    }
+    const done = count - failed.size
+    if (failed.size === 0) {
+      clearSelection()
+      toast.success(`Moved ${count} note${count === 1 ? '' : 's'} to Trash.`)
+      return
+    }
+    // Keep only the failures selected so the user can retry them.
+    setSelected(failed)
+    toast.error(
+      done === 0
+        ? `Couldn't move ${count === 1 ? 'the note' : `those ${count} notes`} to Trash.`
+        : `Moved ${done} of ${count} notes to Trash; ${failed.size} couldn't be moved.`,
+    )
+  }, [selectedNotes, remove, clearSelection])
 
-  // All tags across notes (user tags first, then auto-tags), for the tag picker.
+  // All user tags across notes, for the tag picker.
   const allTags = useMemo(() => {
     const set = new Set<string>()
-    for (const n of notes) for (const t of n.tags) set.add(t)
-    return [...set].sort((a, b) => {
-      const aAuto = isAutoTag(a)
-      const bAuto = isAutoTag(b)
-      if (aAuto !== bAuto) return aAuto ? 1 : -1
-      return a.localeCompare(b)
-    })
+    // Auto-tags (has:*, long-form) are internal; Status/Size chips cover them.
+    // filterNotes still honours auto-tags in old saved include/exclude prefs.
+    for (const n of notes) for (const t of n.tags) if (!isAutoTag(t)) set.add(t)
+    return [...set].sort((a, b) => a.localeCompare(b))
   }, [notes])
-
-  useEffect(() => {
-    if (selected.size === 0) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') clearSelection()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [selected.size, clearSelection])
 
   const visible = useMemo(() => {
     const filtered = applyFilters(notes, prefs.filters, search, favSet, linkCounts)
@@ -265,38 +302,37 @@ function Notes() {
         filtersOpen={filtersOpen}
         onToggleFilters={() => setFiltersOpen((v) => !v)}
         prefsKey={NOTES_PREFS_KEY}
-        extraActions={
-          <>
-            <button
-              data-anchor="trash"
-              className={`${NoteStyles.workingBtn} ${NoteStyles.iconOnlyBtn}`}
-              onClick={() => navigate('/trash')}
-              title="Open Trash"
-              aria-label="Open Trash"
-            >
-              <Trash2 size={15} />
-            </button>
-            <button
-              className={NoteStyles.canvasBtn}
-              onClick={() => void newCanvas()}
-              title="Create a canvas note"
-            >
-              <Frame size={15} /> New canvas
-            </button>
-          </>
-        }
+        newMenuItems={[{ label: 'New canvas', onClick: () => void newCanvas() }]}
       />
       {filtersOpen && <NotesFilterBar allTags={allTags} prefsKey={NOTES_PREFS_KEY} />}
 
       <div className={NoteStyles.notesScroll} data-anchor="notes.list">
-        {loading && <p className={NoteStyles.noteEmpty}>Loading...</p>}
-        {!loading && error && <p className={NoteStyles.noteEmpty}>{error}</p>}
+        {loading && <p className={NoteStyles.noteEmpty}>Loading…</p>}
+        {!loading && error && (
+          <div className={NoteStyles.emptyState}>
+            <p>Couldn't load your notes.</p>
+            <button className={NoteStyles.emptyBtn} onClick={reload}>Try again</button>
+          </div>
+        )}
         {!loading && !error && notes.length === 0 && (
-          <p className={NoteStyles.noteEmpty}>No notes yet.</p>
+          <div className={NoteStyles.emptyState}>
+            <p>No notes in this vault yet.</p>
+            <button className={NoteStyles.emptyBtn} onClick={openComposer}>New note</button>
+          </div>
         )}
         {!loading && !error && notes.length > 0 && visible.length === 0 && (
-          <p className={NoteStyles.noteEmpty}>No notes match your filters.</p>
+          <div className={NoteStyles.emptyState}>
+            <p>No notes match your search or filters.</p>
+            <button
+              className={NoteStyles.emptyBtn}
+              onClick={() => { resetNotesFilter(NOTES_PREFS_KEY); setSearch('') }}
+            >
+              Clear filters
+            </button>
+          </div>
         )}
+
+        <span role="status" className={NoteStyles.srOnly}>{selectionStatus}</span>
 
         {/* The empty states above already say there's nothing — don't add "0 notes". */}
         {visible.length > 0 && (
@@ -307,7 +343,7 @@ function Notes() {
                 <Folder size={14} /> Add to workspace
               </button>
               <button className={NoteStyles.selectionBtn} onClick={() => void downloadSelected()}>
-                <Download size={14} /> Download
+                <Download size={14} /> Export
               </button>
               <button
                 className={`${NoteStyles.selectionBtn} ${NoteStyles.selectionBtnDanger}`}
@@ -324,7 +360,7 @@ function Notes() {
               {visible.length === notes.length
                 ? `${notes.length} note${notes.length === 1 ? '' : 's'}`
                 : `${visible.length} of ${notes.length} notes`}
-              <span className={NoteStyles.listHint}>{formatChord('mod')}-click to select</span>
+              <span className={NoteStyles.listHint}>{formatChord('mod')}-click or Space to select</span>
             </p>
           )
         )}
@@ -347,6 +383,8 @@ function Notes() {
         </div>
         {limit < visible.length && <div ref={sentinelRef} aria-hidden="true" />}
       </div>
+
+      {selected.size > 0 && <ClearOnEscape onClear={clearSelection} />}
 
       {workspaceMenuNoteIds && (
         <AddToWorkspaceMenu noteIds={workspaceMenuNoteIds} onClose={() => setWorkspaceMenuNoteIds(null)} />

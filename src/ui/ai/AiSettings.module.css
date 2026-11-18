@@ -1,0 +1,180 @@
+/* AI settings panel — layout rides on SettingLayout; this only adds the pieces it lacks
+   (text inputs, disclosure rows, the warning line). Tokens only. */
+
+.textarea { min-height: 4rem; }
+
+.warn {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--warning);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Disclosure row: one line (title + summary) that expands the provider's fields. */
+.disclosure {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-lg);
+}
+.disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius-sm);
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.chevron {
+  flex-shrink: 0;
+  color: var(--text-2);
+  transition: transform var(--dur-fast) var(--motion-ease);
+}
+.disclosure[open] > summary .chevron { transform: rotate(90deg); }
+.disclosureTitle { font-size: 0.9375rem; font-weight: 600; color: var(--text-1); }
+.disclosureSummary {
+  font-size: 0.8125rem;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.disclosure[open] > summary { margin-bottom: var(--space-md); }
+
+.statusLine { margin: 0; font-size: 0.8125rem; color: var(--text-2); }
+
+.presetBar {
+  display: flex;
+  align-items: center;
+  margin-top: var(--space-sm);
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Composer toolbar order (ToolbarSettings): grip + toggle per row. */
+.toolbarLabel { font-size: 0.875rem; color: var(--text-1); }
+.toolbarRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) 0;
+}
+/* The toggle takes the rest of the row, so its switch lines up with the other switches. */
+.toolbarRow > :last-child { flex: 1; min-width: 0; }
+.grip {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--control-grip);
+  cursor: grab;
+  touch-action: none;
+  transition: color var(--dur-fast) var(--motion-ease);
+}
+.grip:hover { color: var(--control-grip-hover); }
+.grip:active { cursor: grabbing; }
+
+/* Quick start (first enable) */
+.quickChoices { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--space-sm); }
+.quickChoice {
+  display: flex; flex-direction: column; gap: var(--space-2xs); text-align: left;
+  padding: var(--space-sm) var(--space-md); border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: transparent; color: var(--text-1); cursor: pointer; font: inherit;
+}
+.quickChoice span { font-size: 0.8125rem; color: var(--text-2); }
+.quickChoice:hover { border-color: var(--border-hover); }
+.quickChoiceOn,
+.quickChoiceOn:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: var(--accent); }
+.srOnly { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* ── Guided first-run setup (AiSetupGuide) ── */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.guideStep { margin: 0; font-size: 0.8125rem; color: var(--text-2); }
+.guideTitle {
+  margin: calc(-1 * var(--space-sm)) 0 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-1);
+  text-wrap: balance;
+}
+.guideTitle:focus { outline: none; }
+/* The radio is visually hidden inside the card; show its keyboard focus on the card. */
+.quickChoice:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quickChoice strong { font-size: 0.9375rem; }
+.checklist {
+  margin: 0;
+  padding-left: 1.25rem; /* list-marker indent */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-size: 0.875rem;
+  color: var(--text-1);
+}
+.checklist li { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2xs); }
+.checklist li::marker { color: var(--text-2); }
+.command {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-3xs) var(--space-3xs) var(--space-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.command code { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-1); overflow-wrap: anywhere; min-width: 0; }
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-xl);
+  height: var(--space-xl);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.copyBtn:hover { color: var(--text-1); background: var(--surface-hover); }
+.guideError {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--text-1);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.guideReady {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  font-size: 0.9375rem;
+  color: var(--text-1);
+}
+.guideReady svg { color: var(--success); }
+
+/* Persistent per-section connection status (connectionStatus.ts). */
+.connStatus { margin: 0; font-size: 0.8125rem; color: var(--text-2); display: flex; align-items: center; gap: var(--space-2xs); }
+.connDot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
+.connOk .connDot { background: var(--success); }
+.connFail .connDot { background: var(--danger); }
+.showAll { align-self: flex-start; }
+
+/* Status chip inside a collapsed disclosure row. */
+.summaryStatus { margin-left: auto; white-space: nowrap; flex-shrink: 0; }

@@ -5,7 +5,8 @@ import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { getViewState, useViewState } from '../../hooks/useViewState'
-import { getDialog } from '../../lib/dialog'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { useGeneralSettings } from '../../hooks/useGeneralSettings'
 import { useNotesContext } from '../../context/NotesContext'
 import { useActiveVaultId } from '../../hooks/useVaults'
 import { DEFAULT_VAULT_ID } from '../../types'
@@ -15,39 +16,66 @@ import { AdvancedAiPanel } from '../../ui/settings/AdvancedAiPanel'
 import { AppearancePanel } from '../../ui/settings/appearance/AppearancePanel'
 import { GeneralSettingsPanel } from '../../ui/settings/GeneralSettingsPanel'
 import { ComposerSettingsPanel } from '../../ui/settings/ComposerSettingsPanel'
-import { DashboardSettingsPanel } from '../../ui/settings/DashboardSettingsPanel'
 import { ImportExportPanel } from '../../ui/settings/ImportExportPanel'
 import { PluginsPanel } from '../../ui/settings/plugins/PluginsPanel'
 import { DeveloperPanel } from '../../ui/settings/DeveloperPanel'
 import { AboutPanel } from '../../ui/settings/AboutPanel'
 import { resolveSettingsTab, type SettingsTab } from './settingsTabs'
+import { SettingsSearch } from '../../ui/settings/SettingsSearch'
+import { PanelBoundary } from '../../ui/settings/PanelBoundary'
 import styles from './Settings.module.css'
 
-// Ordered by how often a user reaches for each: General & Composer first (daily
-// behaviour), Appearance & AI next (frequent tuning), Data/Plugins/About last.
-const SECTIONS: { id: SettingsTab; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'composer', label: 'Composer' },
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'ai', label: 'AI Providers' },
-  { id: 'advanced-ai', label: 'Advanced AI generation' },
-  { id: 'data', label: 'Import / Export' },
-  { id: 'plugins', label: 'Plugins' },
-  { id: 'developer', label: 'Developer' },
-  { id: 'about', label: 'About' },
+type Item = { id: SettingsTab; label: string }
+
+// Grouped by what the user is doing: tune the app, set up AI, then data/extensions/about.
+// About trails; Developer follows only when "Show developer options" is on.
+type Group = { label?: string; items: Item[] }
+const GROUPS: Group[] = [
+  {
+    label: 'App',
+    items: [
+      { id: 'general', label: 'General' },
+      { id: 'composer', label: 'Quick note' },
+      { id: 'appearance', label: 'Appearance' },
+    ],
+  },
+  {
+    label: 'AI',
+    items: [
+      { id: 'ai', label: 'AI setup' },
+      { id: 'advanced-ai', label: 'How the AI answers' },
+    ],
+  },
+  {
+    items: [
+      { id: 'data', label: 'Backup & export' },
+      { id: 'plugins', label: 'Plugins' },
+      { id: 'about', label: 'About' },
+    ],
+  },
 ]
+const DEV_GROUP: Group = { items: [{ id: 'developer', label: 'Developer' }] }
 
 function Settings() {
   const navigate = useNavigate()
   const location = useLocation()
-  // Session-sticky: reopening Settings returns to the tab you left, unless the
-  // route names one (/settings/plugins, …).
-  const [tab, setTab] = useViewState<SettingsTab>('settings.tab', resolveSettingsTab(location.pathname))
+  const [general] = useGeneralSettings()
+  const showDev = general.showDeveloperOptions
+  // The URL is the source of truth; the view-state tab only remembers where bare
+  // /settings should reopen (session-sticky).
+  const [stickyTab, setStickyTab] = useViewState<SettingsTab>('settings.tab', 'general')
+  const bare = location.pathname.replace(/\/+$/, '') === '/settings'
+  const requested = bare ? stickyTab : resolveSettingsTab(location.pathname)
+  const tab: SettingsTab = requested === 'developer' && !showDev ? 'general' : requested
 
   useEffect(() => {
-    if (location.pathname.replace(/\/+$/, '') !== '/settings') setTab(resolveSettingsTab(location.pathname))
-  }, [location.pathname, setTab])
+    if (bare) navigate('/settings/' + tab, { replace: true })
+    else setStickyTab(tab)
+  }, [bare, tab, navigate, setStickyTab])
+
+  const groups = showDev ? [...GROUPS, DEV_GROUP] : GROUPS
+  const title = groups.flatMap((g) => g.items).find((i) => i.id === tab)?.label
+
   const { notes: allNotes } = useNotesContext()
   const { config, updateConfig, stats, indexing, stale, reindexAll, refreshStaleness } = useRag()
 
@@ -66,44 +94,53 @@ function Settings() {
 
   const goBack = () => navigate(getViewState<string>('settings.returnTo') ?? '/')
 
-  // Esc = Back. Skipped when something inside already claimed the key (a menu or
-  // select calls preventDefault) or a dialog is open — its own Esc closes it.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented || getDialog()) return
-      navigate(getViewState<string>('settings.returnTo') ?? '/')
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [navigate])
+  // Esc = Back, but never while typing: a focused field just loses focus.
+  // (useEscapeKey already skips open dialogs and keys a menu/search handled.)
+  useEscapeKey(() => {
+    const el = document.activeElement as HTMLElement | null
+    if (el?.matches('input, textarea, select, [contenteditable]')) return el.blur()
+    goBack()
+  })
 
   return (
     <div className={styles.settings}>
+      {/* Same two columns as the shell below: back + title over the nav,
+          search over the content (left edge shared with the panel title). */}
       <header className={styles.header}>
-        <button type="button" className={styles.backBtn} onClick={goBack}>
-          <ArrowLeft size={16} /> Back
-        </button>
-        <p className="section-label">Settings</p>
+        <div className={styles.headNav}>
+          <button type="button" className={styles.backBtn} onClick={goBack} title="Back" aria-label="Back">
+            <ArrowLeft size={16} aria-hidden />
+          </button>
+          <h1 className={styles.title}>Settings</h1>
+        </div>
+        <SettingsSearch />
       </header>
 
       <div className={styles.shell}>
-        <nav className={styles.subNav}>
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`${styles.navItem} ${tab === s.id ? styles.navItemActive : ''}`}
-              onClick={() => setTab(s.id)}
-            >
-              {s.label}
-            </button>
+        <nav className={styles.subNav} aria-label="Settings sections">
+          {groups.map((g) => (
+            <div key={g.label ?? g.items[0].id} className={styles.group}>
+              {g.label && <p className={styles.groupLabel}>{g.label}</p>}
+              {g.items.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`${styles.navItem} ${tab === s.id ? styles.navItemActive : ''}`}
+                  aria-current={tab === s.id ? 'page' : undefined}
+                  onClick={() => navigate('/settings/' + s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
         <div className={styles.content}>
+          <h2 className={styles.panelTitle}>{title}</h2>
+          <PanelBoundary key={tab}>
           {tab === 'general' && <GeneralSettingsPanel />}
           {tab === 'composer' && <ComposerSettingsPanel />}
-          {tab === 'dashboard' && <DashboardSettingsPanel />}
           {tab === 'appearance' && <AppearancePanel />}
           {tab === 'ai' && (
             <AiSettingsPanel
@@ -116,11 +153,12 @@ function Settings() {
               onReindex={reindexAll}
             />
           )}
-          {tab === 'advanced-ai' && <AdvancedAiPanel />}
+          {tab === 'advanced-ai' && <AdvancedAiPanel config={config} updateConfig={updateConfig} />}
           {tab === 'data' && <ImportExportPanel />}
           {tab === 'plugins' && <PluginsPanel />}
           {tab === 'developer' && <DeveloperPanel />}
           {tab === 'about' && <AboutPanel />}
+          </PanelBoundary>
         </div>
       </div>
     </div>

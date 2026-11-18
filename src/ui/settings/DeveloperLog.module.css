@@ -1,27 +1,13 @@
 /* Developer Log viewer — same surfaces/controls as the other settings panels and
    the Plugin Console's log lines (PluginsPanel.module.css). */
 
-.wrap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-lg);
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--border);
-  min-width: 0;
-}
 
-.title {
-  margin: 0;
-  font-size: 0.9375rem;
-  color: var(--text-1);
-}
 
 .hint {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .hint code {
@@ -47,18 +33,7 @@
 
 .search {
   flex: 1 1 240px;
-  min-width: 0;
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-1);
-  font: inherit;
-  font-size: 0.8125rem;
-}
-
-.search:focus-visible {
-  border-color: var(--border-strong);
+  width: auto;
 }
 
 .toolbar {
@@ -75,26 +50,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.button {
-  padding: 4px var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  color: var(--text-1);
-  font-size: 0.8125rem;
-  cursor: pointer;
-  align-self: flex-start;
-  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
-}
 
-.button:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
-}
 
-.danger {
-  color: var(--danger);
-}
 
 .link {
   padding: 0;
@@ -135,10 +92,10 @@
 
 .rowHead {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2xs);
   align-items: baseline;
   width: 100%;
-  padding: 3px 6px;
+  padding: var(--space-3xs) var(--space-2xs);
   border: none;
   border-radius: var(--radius-sm);
   background: none;
@@ -160,8 +117,7 @@
 .level {
   flex-shrink: 0;
   width: 3.2em;
-  text-transform: uppercase;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-3);
 }
 
@@ -171,14 +127,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 var(--space-3xs);
   border-radius: var(--radius-sm);
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .source {
-  margin-right: 4px;
+  margin-right: var(--space-3xs);
   color: var(--text-2);
 }
 
@@ -217,13 +173,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
-  padding: var(--space-2xs) var(--space-sm) var(--space-sm) 2rem;
+  padding: var(--space-2xs) var(--space-sm) var(--space-sm) var(--space-2xl);
 }
 
 .detail dl {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 2px var(--space-sm);
+  gap: var(--space-3xs) var(--space-sm);
   margin: 0;
 }
 

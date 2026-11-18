@@ -11,19 +11,25 @@ const STYLE_ID = 'jnana-user-fonts'
 
 const GENERIC_CSS: Record<string, string> = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' }
 
+/** A family name made safe to drop between quotes in CSS: no quote, backslash,
+ *  newline or structural character can end the string or the rule. */
+export function cleanFamily(name: string): string {
+  return name.replace(/[\u0000-\u001f"'`\\;{}<>]/g, '').trim()
+}
+
 /** CSS font-family stack for an installed family: `'Family', <generic fallback>`. */
 export function familyStack(font: InstalledFont): string {
   const generic = GENERIC_CSS[font.generic] ?? 'sans-serif'
   // Quote the family so multi-word names resolve; the fallback keeps text readable
   // before the face loads (and if the file is ever missing).
-  return `'${font.family.replace(/'/g, '')}', ${generic}`
+  return `'${cleanFamily(font.family)}', ${generic}`
 }
 
 /** Build the full @font-face stylesheet for every installed face. */
 export function buildFaceCss(fonts: InstalledFont[]): string {
   const rules: string[] = []
   for (const font of fonts) {
-    const family = font.family.replace(/'/g, '')
+    const family = cleanFamily(font.family)
     for (const face of font.faces) {
       // face.src is a data: URI (see core/fonts.ts) — the browser sniffs the
       // format from its mime, so no format() hint is needed.

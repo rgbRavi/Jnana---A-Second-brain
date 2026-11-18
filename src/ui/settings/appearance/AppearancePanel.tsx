@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
+import { showConfirmDialog } from '../../../lib/dialog'
 import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../../hooks/useTheme'
-import { useViewState } from '../../../hooks/useViewState'
+import { getViewState, useViewState } from '../../../hooks/useViewState'
 import { ThemeEditor } from './ThemeEditor'
+import { SettingButton, SettingPanel } from '../SettingLayout'
 import styles from './Appearance.module.css'
 
 /** Settings → Appearance — Theme Studio. Tokens apply straight to the running
@@ -16,42 +18,51 @@ export function AppearancePanel() {
   const navigate = useNavigate()
   const api = useTheme()
   const { theme, reset } = api
+
+  async function handleReset() {
+    // A named preset is one click to get back; only custom work needs a guard.
+    if (!theme.presetId) {
+      const ok = await showConfirmDialog({
+        title: 'Reset theme',
+        message: 'Reset to the default Dark theme? Custom changes you have not saved under "Your themes" will be lost.',
+        confirmLabel: 'Reset',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    reset()
+  }
   const [overlayOpen, setOverlayOpen] = useViewState('themeStudio.overlayOpen', false)
 
   return (
-    <div className={styles.panel}>
-      <div className={styles.topBar}>
-        <div className={styles.topBarLeft}>
-          <span className={styles.title}>Theme Studio</span>
-          <span className={styles.badge}>{theme.presetId ? theme.name : 'Custom'}</span>
-        </div>
-        <div className={styles.topBarRight}>
-          <button type="button" className={styles.secondaryBtn} onClick={reset}>
-            Reset
-          </button>
-          <button
-            type="button"
-            className={styles.secondaryBtn}
-            onClick={() => {
-              setOverlayOpen(true)
-              navigate('/')
-            }}
-          >
-            Pop to overlay
-          </button>
-        </div>
-      </div>
-
+    <SettingPanel>
       {overlayOpen ? (
         <div className={styles.poppedOutNotice}>
           <p className={styles.hint}>Theme Studio is open as a floating overlay.</p>
-          <button type="button" className={styles.secondaryBtn} onClick={() => setOverlayOpen(false)}>
-            Dock back here
-          </button>
+          <SettingButton onClick={() => setOverlayOpen(false)}>
+            Dock back into Settings
+          </SettingButton>
         </div>
       ) : (
-        <ThemeEditor api={api} />
+        <ThemeEditor
+          api={api}
+          trailing={
+            <>
+              <span className={styles.badge} title={`Current theme: ${theme.presetId ? theme.name : 'Custom'}`}>Current theme: {theme.presetId ? theme.name : 'Custom'}</span>
+              <SettingButton onClick={() => void handleReset()}>Reset</SettingButton>
+              <SettingButton
+                title="Opens Theme Studio over the app so you can see changes on your notes"
+                onClick={() => {
+                  setOverlayOpen(true)
+                  navigate(getViewState<string>('settings.returnTo') ?? '/')
+                }}
+              >
+                Open in floating window
+              </SettingButton>
+            </>
+          }
+        />
       )}
-    </div>
+    </SettingPanel>
   )
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   activePreset,
   deleteAiPreset,
@@ -12,10 +12,12 @@ import {
 } from '../../core/ai/presets'
 import { showConfirmDialog, showPromptDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import type { AiConfig, AiSection } from '../../types'
 import { SettingSelect } from '../settings/SettingControls'
 import { switchPreset } from './switchPreset'
-import styles from './Ai.module.css'
+import { SettingButton, SettingField } from '../settings/SettingLayout'
+import styles from './AiSettings.module.css'
 
 interface Props {
   section: AiSection
@@ -23,13 +25,40 @@ interface Props {
   onReindex?: () => void
 }
 
+export const MAX_SETUP_NAME = 60
+
+/** Returns the trimmed name to use, or null (after telling the user why) to abort. `raw` null = dialog cancelled. */
+export async function checkSetupName(raw: string | null, others: string[]): Promise<string | null> {
+  if (raw === null) return null
+  const name = raw.trim()
+  if (!name) {
+    toast.error('Give the setup a name.')
+    return null
+  }
+  if (name.length > MAX_SETUP_NAME) {
+    toast.error(`Names can be up to ${MAX_SETUP_NAME} characters.`)
+    return null
+  }
+  if (others.some((o) => o.toLowerCase() === name.toLowerCase())) {
+    const ok = await showConfirmDialog({
+      title: 'Name already used',
+      message: `You already have a setup called "${name}". Use the same name anyway?`,
+      confirmLabel: 'Use it anyway',
+    })
+    if (!ok) return null
+  }
+  return name
+}
+
 const SECTION_LABEL: Record<AiSection, string> = {
-  chat: 'Chat', embedding: 'Embedding', transcription: 'Transcription', deepResearch: 'Deep research', webSearch: 'Web search',
+  chat: 'Chat', embedding: 'Search by meaning', transcription: 'Transcription', deepResearch: 'Deep research', webSearch: 'Web search',
 }
 
 /** Saved setups for one AI section: switch, save, update, rename, delete. */
 export function PresetBar({ section, config, onReindex }: Props) {
   const [busy, setBusy] = useState(false)
+  const [more, setMore] = useState(false)
+  const selectId = useId()
   const active = activePreset(config, section)
   const modified = isModified(config, section)
   const usesKey = section === 'webSearch' ? active?.provider !== 'searxng' : active?.provider === 'openai'
@@ -40,14 +69,15 @@ export function PresetBar({ section, config, onReindex }: Props) {
     try {
       await fn()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      log.error('[ai] saved setup action failed', e)
+      toast.error("Couldn't update your saved setups. Try again.")
     } finally {
       setBusy(false)
     }
   }
 
   const options = [
-    { value: '', label: '(none)' },
+    { value: '', label: 'None (current settings)' },
     ...(config.presets?.[section] ?? []).map((p) => ({
       value: p.id,
       label: p.id === active?.id && modified ? `${p.name} (modified)` : p.name,
@@ -55,54 +85,64 @@ export function PresetBar({ section, config, onReindex }: Props) {
   ]
 
   return (
-    <div className={styles.presetBar}>
-      <div className={styles.presetSelect}>
+    <>
+      <SettingField label="Saved setup" htmlFor={selectId}>
         <SettingSelect
-          ariaLabel={`${SECTION_LABEL[section]} preset`}
+          id={selectId}
+          ariaLabel={`${SECTION_LABEL[section]} saved setup`}
           disabled={busy}
           value={active?.id ?? ''}
           options={options}
           onChange={(id) => id && id !== active?.id && run(() => switchPreset(section, id, config, { onReindex }))}
         />
-      </div>
-      <button
-        className={styles.btn}
+      <div className={styles.presetBar}>
+      <SettingButton
         disabled={busy}
         onClick={() =>
           run(async () => {
-            const name = (await showPromptDialog({ title: 'Save preset', placeholder: 'Preset name', confirmLabel: 'Save' }))?.trim()
+            const name = await checkSetupName(
+              await showPromptDialog({ title: 'Save these settings as a setup', placeholder: 'Setup name, e.g. Local Llama', confirmLabel: 'Save setup' }),
+              (config.presets?.[section] ?? []).map((p) => p.name),
+            )
             if (name) await saveAiPreset(section, name)
           })
         }
       >
         Save as…
-      </button>
-      <button className={styles.btn} disabled={busy || !active} onClick={() => run(() => updateAiPreset(section, active!.id))}>
-        Update
-      </button>
-      <button
-        className={styles.btn}
-        disabled={busy || !active}
+      </SettingButton>
+      {active && (
+        <SettingButton aria-expanded={more} onClick={() => setMore((v) => !v)} title="Update, rename or delete this saved setup">
+          {more ? 'Less' : 'Manage'}
+        </SettingButton>
+      )}
+      {active && more && (
+        <>
+      <SettingButton disabled={busy} onClick={() => run(() => updateAiPreset(section, active.id))}>
+        Update with current settings
+      </SettingButton>
+      <SettingButton
+        disabled={busy}
         onClick={() =>
           run(async () => {
-            const name = (
-              await showPromptDialog({ title: 'Rename preset', defaultValue: active!.name, confirmLabel: 'Rename' })
-            )?.trim()
+            const name = await checkSetupName(
+              await showPromptDialog({ title: 'Rename saved setup', defaultValue: active!.name, confirmLabel: 'Rename' }),
+              (config.presets?.[section] ?? []).filter((p) => p.id !== active!.id).map((p) => p.name),
+            )
             if (name && name !== active!.name) await renameAiPreset(section, active!.id, name)
           })
         }
       >
         Rename
-      </button>
-      <button
-        className={styles.btn}
-        disabled={busy || !active}
+      </SettingButton>
+      <SettingButton
+        variant="danger"
+        disabled={busy}
         onClick={() =>
           run(async () => {
             const ok = await showConfirmDialog({
-              title: 'Delete preset',
+              title: 'Delete saved setup',
               message: `Delete "${active!.name}"? Your current settings stay as they are.`,
-              confirmLabel: 'Delete',
+              confirmLabel: 'Delete setup',
               danger: true,
             })
             if (ok) await deleteAiPreset(section, active!.id)
@@ -110,8 +150,12 @@ export function PresetBar({ section, config, onReindex }: Props) {
         }
       >
         Delete
-      </button>
-      {active && usesKey && !active.hasApiKey && <span className={styles.statsLine}>no key saved</span>}
-    </div>
+      </SettingButton>
+        </>
+      )}
+      {active && usesKey && !active.hasApiKey && <span className={styles.statusLine}>This setup has no API key saved.</span>}
+      </div>
+      </SettingField>
+    </>
   )
 }

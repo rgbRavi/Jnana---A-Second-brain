@@ -5,6 +5,7 @@
 // unreachable after launch 3) and the Developer Log viewer.
 
 import { SettingToggle } from './SettingControls'
+import { SettingActions, SettingButton, SettingPanel, SettingSection } from './SettingLayout'
 import {
   replayOnboarding,
   setOnboarding,
@@ -18,48 +19,34 @@ export function DeveloperPanel() {
   const state = useOnboardingState()
 
   return (
-    <>
-    <div className={styles.panel}>
-      <p className={styles.intro}>
-        Tools for testing Jnana itself. The first-run tour normally shows once, so this is the only
-        way back into it.
-      </p>
-
-      <div className={styles.field}>
+    <SettingPanel
+      intro="Tools for testing Jnana itself. The first-run tour normally shows once, so this is the only way back into it."
+    >
+      <SettingSection title="Onboarding">
         <SettingToggle
           checked={state.forceOnLaunch}
           onChange={(v) => setOnboarding({ forceOnLaunch: v })}
           label="Always show onboarding on launch"
           hint="test switch; overrides the normal first-run-only rule"
         />
-      </div>
+        <SettingActions>
+          <SettingButton onClick={replayOnboarding}>Replay onboarding</SettingButton>
+          <SettingButton onClick={startFreshOnboarding}>Start fresh onboarding</SettingButton>
+        </SettingActions>
+        <p className={styles.note}>Replay keeps your answers. Start fresh clears them and simulates a first launch.</p>
 
-      <div className={styles.field}>
-        <div className={styles.buttons}>
-          <button type="button" className={styles.button} onClick={replayOnboarding}>
-            Replay onboarding
-          </button>
-          <button type="button" className={styles.button} onClick={startFreshOnboarding}>
-            Start fresh onboarding
-          </button>
-        </div>
-        <p className={styles.hint}>
-          Replay keeps your answers. Start fresh clears them and simulates a first launch.
-        </p>
-      </div>
-
-      <dl className={styles.readout}>
-        <dt>status</dt>
-        <dd>{state.status}</dd>
-        <dt>launches</dt>
-        <dd>{state.launchCount}</dd>
-        <dt>role</dt>
-        <dd>{state.role ?? '—'}</dd>
-        <dt>comfort</dt>
-        <dd>{state.comfort ?? '—'}</dd>
-      </dl>
-    </div>
-    <DeveloperLog />
-    </>
+        <dl className={styles.readout}>
+          <dt>Tour status</dt>
+          <dd>{state.status}</dd>
+          <dt>Launch count</dt>
+          <dd>{state.launchCount}</dd>
+          <dt>Role</dt>
+          <dd>{state.role ?? '—'}</dd>
+          <dt>Comfort level</dt>
+          <dd>{state.comfort ?? '—'}</dd>
+        </dl>
+      </SettingSection>
+      <DeveloperLog />
+    </SettingPanel>
   )
 }

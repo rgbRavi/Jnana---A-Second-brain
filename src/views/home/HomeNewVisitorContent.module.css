@@ -3,66 +3,50 @@
   overflow-y: auto;
   /* extra bottom padding clears the floating composer pill */
   padding: var(--space-lg) var(--space-2xl) 7rem;
-  display: flex;
-  flex-direction: column;
 }
 
-.contentContainer h1 {
-    text-align: center;
-    font-size: 2em;
-    margin-bottom: 0.5em;
-    color: var(--text-1);
+/* One centred reading column instead of margin-left nudges. */
+.column {
+  max-width: 62ch;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.column h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+  color: var(--text-1);
+  margin: 0;
+}
+
+.column p {
+  margin: 0 0 var(--space-sm);
+  color: var(--text-2);
+  line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .quote {
-    border-left: 4px solid var(--accent);
-    padding-left: 1em;
-    color: var(--text-2);
-    font-style: italic;
-    margin: 1.5em 0;
+  font-style: italic;
 }
 
-.homeBrief {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-    margin-left: 5em;   
-    
-
+.section h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: balance;
+  color: var(--text-1);
+  margin: 0 0 var(--space-sm);
 }
 
-
-.homeBrief h2 {
-    margin-bottom: 0.5em;   
-    margin-left: -1em;
-    color: var(--text-1);
-}
-
-p {
-  margin-bottom: 1em;
-}
-
-
-
-.homeBrief ul {
-    margin-top: auto;
-    margin-left: 1.5em;
-    margin-bottom: 1em;
-    list-style-type: disc;
-}
-
-.homeBrief li::marker {
-    color: var(--accent);
-}
-
-
-.gettingStarted {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-    margin-left: 5em;   
-}
-
-.gettingStarted h2 {
-    margin-bottom: 0.5em;   
-    margin-left: -1em;
-    color: var(--text-2);
+.section ul {
+  margin: 0 0 var(--space-sm) 1.25em;
+  color: var(--text-2);
+  list-style-type: disc;
+  line-height: 1.6;
 }

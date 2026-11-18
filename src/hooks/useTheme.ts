@@ -11,8 +11,12 @@ import { useEffect, useSyncExternalStore } from 'react'
 import type { SavedTheme, Theme } from '../types'
 import { eventBus } from '../lib/eventBus'
 import { toast } from '../lib/toast'
+import { logEvent } from '../lib/logger'
+import { registerCloseFlush } from '../core/closeGuard'
 import { applyVars, THEME_STORAGE_KEY } from '../core/themes/apply'
 import { PRESETS, swapBase, themeFromPreset } from '../core/themes/presets'
+import { MAX_THEME_NAME, sanitizeUserTheme, themeFingerprint } from '../core/themes/sanitize'
+import { sanitizeTokens } from '../lib/pluginThemes'
 import {
   deleteTheme as persistDeleteTheme,
   getActiveTheme,
@@ -24,7 +28,8 @@ import {
 function loadMirror(): Theme {
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as Theme
+    const t = raw ? sanitizeUserTheme(raw) : null
+    if (t) return t
   } catch {
     /* corrupt mirror — fall through to default */
   }
@@ -36,6 +41,10 @@ let savedThemes: SavedTheme[] = []
 const listeners = new Set<() => void>()
 let hydrated = false
 let persistTimer: ReturnType<typeof setTimeout> | undefined
+/** Bumped on every applied theme change, so a deferred action (Reset's Undo) can
+ *  tell whether anything changed since. */
+let themeVersion = 0
+export const getThemeVersion = () => themeVersion
 
 function notify(): void {
   listeners.forEach((l) => l())
@@ -49,23 +58,46 @@ function persistMirror(t: Theme): void {
   }
 }
 
+function persistNow(t: Theme): Promise<void> {
+  return persistActiveTheme(t).catch((err) => {
+    toast.error("Couldn't save your theme. It's applied for now, but may reset when Jnana restarts.")
+    logEvent('error', 'theme', 'failed to persist active theme', { error: err })
+  })
+}
+
 function schedulePersist(t: Theme): void {
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
-    void persistActiveTheme(t).catch((err) => {
-      toast.error('Failed to save your theme')
-      console.error('[useTheme] failed to persist active theme', err)
-    })
+    persistTimer = undefined
+    void persistNow(t)
   }, 400)
 }
 
-function commit(next: Theme): void {
+// Closing the window skips unmounts, so a pending debounce would be lost.
+registerCloseFlush(async () => {
+  if (!persistTimer) return
+  clearTimeout(persistTimer)
+  persistTimer = undefined
+  await persistNow(theme)
+})
+
+/** Apply `next`; the module state only changes if applying succeeded, so a bad
+ *  theme can never poison the store. Returns whether it was applied. */
+function commit(next: Theme): boolean {
+  try {
+    applyVars(document.documentElement, next)
+  } catch (err) {
+    logEvent('error', 'theme', 'theme could not be applied', { error: err })
+    toast.error("That theme couldn't be applied. Your current theme is unchanged.")
+    return false
+  }
   theme = next
-  applyVars(document.documentElement, theme)
+  themeVersion++
   persistMirror(theme)
   eventBus.emit('theme:changed', theme)
   schedulePersist(theme)
   notify()
+  return true
 }
 
 /** First-use bootstrap: seed built-in presets (once) and reconcile with the
@@ -94,8 +126,9 @@ async function hydrate(): Promise<void> {
 
     const active = await getActiveTheme()
     if (active) {
+      applyVars(document.documentElement, active)
       theme = active
-      applyVars(document.documentElement, theme)
+      themeVersion++
       persistMirror(theme)
     } else {
       // True first run — nothing stored yet; persist the current (Midnight) theme.
@@ -103,8 +136,9 @@ async function hydrate(): Promise<void> {
     }
     notify()
   } catch (err) {
-    toast.error('Failed to load saved themes')
-    console.error('[useTheme] hydrate failed', err)
+    hydrated = false // allow a retry on the next mount
+    toast.error("Couldn't load your saved themes. Restart Jnana if they don't appear.")
+    logEvent('error', 'theme', 'hydrate failed', { error: err })
   }
 }
 
@@ -124,7 +158,11 @@ const getThemeSnapshot = () => theme
 const getSavedSnapshot = () => savedThemes
 
 function setToken(k: keyof Theme['tokens'], v: string): void {
-  commit({ ...theme, tokens: { ...theme.tokens, [k]: v }, presetId: null })
+  // Same value grammar as imports: the editors only produce valid values, but this
+  // is the store's public setter, so it enforces it rather than trusting callers.
+  const clean = sanitizeTokens({ [k]: v })[k]
+  if (clean === undefined) return
+  commit({ ...theme, tokens: { ...theme.tokens, [k]: clean }, presetId: null })
 }
 
 function patch(obj: Partial<Pick<Theme, 'density' | 'readingScale'>>): void {
@@ -166,39 +204,66 @@ function setRadius(v: number): void {
 }
 
 function pickPreset(id: string): void {
-  commit({ ...themeFromPreset(id), glassEffects: theme.glassEffects })
+  switchThemeWithUndo(() => commit({ ...themeFromPreset(id), glassEffects: theme.glassEffects }))
 }
 
-/** Merge a (possibly partial, e.g. from pasted JSON) theme object over the
- *  Midnight defaults so every token is always present. */
-function importTheme(obj: Partial<Theme>): void {
-  const base = themeFromPreset('dark')
-  commit({
-    ...base,
-    ...obj,
-    tokens: { ...base.tokens, ...obj.tokens },
-    fonts: { ...base.fonts, ...obj.fonts },
-    presetId: obj.presetId ?? null,
+/** Run `apply` (a theme switch). If it discards unsaved custom work (no preset,
+ *  and matching no saved theme) offer an Undo toast that restores it, unless the
+ *  theme changed again in the meantime. Switching presets/saved themes stays quiet. */
+/** Returns true when it showed the "Switched to …" Undo toast (callers skip their own success toast). */
+export function switchThemeWithUndo(apply: () => void): boolean {
+  const prev = theme
+  const print = themeFingerprint(prev)
+  const unsaved = !prev.presetId && !savedThemes.some((s) => themeFingerprint(s.theme) === print)
+  const before = themeVersion
+  apply()
+  if (!unsaved || themeVersion === before) return false
+  const after = themeVersion
+  toast(`Switched to ${theme.name}.`, {
+    action: {
+      label: 'Undo',
+      onClick: () => {
+        if (themeVersion !== after) toast('Undo skipped — the theme has changed since.')
+        else importTheme(prev)
+      },
+    },
   })
+  return true
+}
+
+/** Validate + merge pasted/plugin theme data over the defaults (see
+ *  core/themes/sanitize.ts). Returns false — changing nothing — if it isn't a theme. */
+function importTheme(input: unknown): boolean {
+  const t = sanitizeUserTheme(input)
+  return t ? commit(t) : false
 }
 
 function reset(): void {
-  commit({ ...themeFromPreset('dark'), glassEffects: theme.glassEffects })
+  switchThemeWithUndo(() => commit({ ...themeFromPreset('dark'), glassEffects: theme.glassEffects }))
 }
 
-async function saveCurrent(name: string): Promise<void> {
-  const trimmed = name.trim()
-  if (!trimmed) return
-  const id = crypto.randomUUID()
-  const saved: SavedTheme = { id, name: trimmed, theme: { ...theme, name: trimmed, presetId: null }, isBuiltin: false, createdAt: Date.now() }
+/** Save the current theme under `name`. `replaceId` overwrites that custom theme in place. */
+async function saveCurrent(name: string, replaceId?: string): Promise<void> {
+  const trimmed = name.trim().slice(0, MAX_THEME_NAME)
+  if (!trimmed) throw new Error('Theme name is empty')
+  const prev = replaceId ? savedThemes.find((s) => s.id === replaceId && !s.isBuiltin) : undefined
+  const saved: SavedTheme = {
+    id: prev?.id ?? crypto.randomUUID(),
+    name: trimmed,
+    theme: { ...theme, name: trimmed, presetId: null },
+    isBuiltin: false,
+    createdAt: prev?.createdAt ?? Date.now(),
+  }
   await persistSavedTheme(saved)
-  savedThemes = [...savedThemes, saved]
+  savedThemes = prev ? savedThemes.map((s) => (s.id === prev.id ? saved : s)) : [...savedThemes, saved]
   notify()
 }
 
 function loadSaved(id: string): void {
   const found = savedThemes.find((s) => s.id === id)
-  if (found) commit(found.theme)
+  const t = found && sanitizeUserTheme(found.theme)
+  if (t) switchThemeWithUndo(() => commit(t))
+  else toast.error("That theme couldn't be applied. Your current theme is unchanged.")
 }
 
 async function deleteSaved(id: string): Promise<void> {
@@ -218,9 +283,9 @@ export interface UseThemeApi {
   setWallpaper: (w: Theme['wallpaper']) => void
   patch: (obj: Partial<Pick<Theme, 'density' | 'readingScale'>>) => void
   pickPreset: (id: string) => void
-  importTheme: (obj: Partial<Theme>) => void
+  importTheme: (input: unknown) => boolean
   reset: () => void
-  saveCurrent: (name: string) => Promise<void>
+  saveCurrent: (name: string, replaceId?: string) => Promise<void>
   loadSaved: (id: string) => void
   deleteSaved: (id: string) => Promise<void>
 }

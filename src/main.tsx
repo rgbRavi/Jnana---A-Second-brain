@@ -7,6 +7,7 @@ import App from "./App";
 import { initLogging } from "./lib/logger";
 import { applyVars, THEME_STORAGE_KEY } from "./core/themes/apply";
 import { themeFromPreset } from "./core/themes/presets";
+import { sanitizeUserTheme } from "./core/themes/sanitize";
 import { registerBuiltinPlugins } from "./plugins";
 import { registerBuiltinRailPanels } from "./ui/rail/RightRail";
 import "./core/plugins/hostBridge"; // side-effect: expose host React for loaded plugins
@@ -29,7 +30,9 @@ function applyBootTheme(): void {
   let theme: Theme
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY)
-    theme = raw ? (JSON.parse(raw) as Theme) : themeFromPreset("dark")
+    // Same allowlist as importing a theme: a corrupt or tampered mirror falls back
+    // to the default instead of throwing (or applying non-token CSS) before paint.
+    theme = (raw && sanitizeUserTheme(raw)) || themeFromPreset("dark")
   } catch {
     theme = themeFromPreset("dark")
   }

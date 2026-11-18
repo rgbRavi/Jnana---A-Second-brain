@@ -4,7 +4,7 @@
 import { ScopeBar } from '../ScopeBar'
 
 /** Compact inline "from: Entire vault" scope picker for the composer status row.
- *  Writes the shared AI-scope store (same one the Search view uses). */
+ *  Writes the shared AI-scope store. */
 export function GroundingScope() {
-  return <ScopeBar compact />
+  return <ScopeBar />
 }

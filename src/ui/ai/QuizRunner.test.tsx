@@ -196,7 +196,7 @@ describe('QuizRunner', () => {
     render(
       <QuizRunner attempt={emptyAttempt([], 'Scope')} settings={baseSettings} config={config} reason="no-search" onChange={() => {}} />,
     )
-    expect(screen.getByText('Add a web search provider in Settings → AI, or paste links.')).toBeInTheDocument()
+    expect(screen.getByText('Add a web search provider in Settings → AI setup, or paste links.')).toBeInTheDocument()
   })
 
   it("finalize leaves a disputed unanswered question's mark null", () => {

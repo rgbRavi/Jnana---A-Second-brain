@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import styles from '../Dashboard.module.css'
 import type { GridItem } from '../types'
 
@@ -16,6 +16,23 @@ interface Props {
   dragHandleSelector: string
   onChange: (items: GridItem[]) => void
   renderItem: (id: string) => ReactNode
+  /** Human name for an item, used in keyboard-move announcements (defaults to the id). */
+  itemLabel?: (id: string) => string
+}
+
+/** Below this container width the grid is a derived single column (not stored). */
+const NARROW_PX = 720
+
+const byYX = (a: GridItem, b: GridItem) => a.y - b.y || a.x - b.x
+
+/** Single-column layout in visual order, heights unchanged. */
+function stack(items: GridItem[], cols: number): GridItem[] {
+  let y = 0
+  return [...items].sort(byYX).map((it) => {
+    const out = { ...it, x: 0, w: cols, y }
+    y += it.h
+    return out
+  })
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -29,7 +46,7 @@ function collides(a: GridItem, b: GridItem): boolean {
  *  fill gaps, then is pushed DOWN past anything it still overlaps — so growing
  *  or moving a card shifts its neighbours out of the way instead of overlapping.
  *  The moving item wins ties, so dragging it onto a row lands it above the row. */
-function compact(items: GridItem[], movingId?: string): GridItem[] {
+export function compact(items: GridItem[], movingId?: string): GridItem[] {
   const sorted = [...items].sort(
     (a, b) => a.y - b.y || (a.i === movingId ? -1 : b.i === movingId ? 1 : 0) || a.x - b.x,
   )
@@ -47,9 +64,11 @@ function compact(items: GridItem[], movingId?: string): GridItem[] {
 
 /** A self-contained draggable + resizable grid (no external lib). Items are
  *  absolutely positioned; the layout auto-compacts vertically with no gaps. */
-export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dragHandleSelector, onChange, renderItem }: Props) {
+export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dragHandleSelector, onChange, renderItem, itemLabel }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
+  const [live, setLive] = useState('')
+  const focusId = useRef<string | null>(null)
   const [drag, setDrag] = useState<{
     items: GridItem[]
     movingId: string
@@ -79,7 +98,20 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
     return map
   }, [items, renderItem])
 
-  const view = drag?.items ?? items
+  const narrow = width > 0 && width < NARROW_PX
+  const base = useMemo(() => (narrow ? stack(items, cols) : items), [narrow, items, cols])
+  // DOM order = visual order (committed layout only, so a drag doesn't reshuffle nodes).
+  const order = useMemo(() => [...base].sort(byYX), [base])
+  const view = drag?.items ?? base
+  const viewById = useMemo(() => new Map(view.map((it) => [it.i, it])), [view])
+
+  // Re-assert focus on a keyboard-moved grip (a DOM reorder can blur it).
+  useLayoutEffect(() => {
+    const id = focusId.current
+    if (!id) return
+    focusId.current = null
+    wrapRef.current?.querySelector<HTMLElement>(`[data-grid-id="${CSS.escape(id)}"] ${dragHandleSelector}`)?.focus()
+  }, [items, dragHandleSelector])
   const rows = view.reduce((m, it) => Math.max(m, it.y + it.h), 0)
   const height = rows > 0 ? rows * unitY - my : 0
 
@@ -89,7 +121,7 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
   const pxH = (h: number) => h * rowHeight + (h - 1) * my
 
   const begin = (e: ReactPointerEvent, item: GridItem, kind: 'drag' | 'resize', axis?: string) => {
-    if (colW <= 0) return
+    if (colW <= 0 || narrow) return
     e.preventDefault()
     const startX = e.clientX
     const startY = e.clientY
@@ -196,9 +228,58 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
     else if (t.closest(dragHandleSelector)) begin(e, item, 'drag')
   }
 
+  const onItemKeyDown = (e: ReactKeyboardEvent, item: GridItem) => {
+    if (narrow || e.target !== (e.target as HTMLElement).closest(dragHandleSelector)) return
+    const dx = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    const dy = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
+    if (!dx && !dy) return
+    e.preventDefault()
+    const label = itemLabel ? itemLabel(item.i) : item.i
+    let next: GridItem = item
+    if (e.shiftKey) {
+      if (isResizable && !isResizable(item.i)) return
+      next = {
+        ...item,
+        w: clamp(item.w + dx, item.minW ?? 1, cols - item.x),
+        h: Math.max(item.minH ?? 1, item.h + dy),
+      }
+    } else if (dx) {
+      next = { ...item, x: clamp(item.x + dx, 0, cols - item.w) }
+    } else {
+      // Swap past the nearest card above/below in an overlapping column: a plain
+      // y±1 would be pushed straight back by collision resolution.
+      const cols_ = items.filter((o) => o.i !== item.i && o.x < item.x + item.w && o.x + o.w > item.x)
+      if (dy < 0) {
+        const above = cols_.filter((o) => o.y < item.y).sort((a, b) => b.y - a.y)[0]
+        if (above) next = { ...item, y: above.y }
+      } else {
+        const below = cols_.filter((o) => o.y > item.y).sort((a, b) => a.y - b.y)[0]
+        if (below) next = { ...item, y: below.y + 1 }
+      }
+    }
+    const out = compact(items.map((i) => (i.i === item.i ? next : i)), item.i)
+    const moved = out.find((i) => i.i === item.i)
+    const before = items.find((i) => i.i === item.i)
+    if (!moved || !before) return
+    const same = out.every((o) => {
+      const p = items.find((i) => i.i === o.i)
+      return p && p.x === o.x && p.y === o.y && p.w === o.w && p.h === o.h
+    })
+    if (same) return setLive(`${label} can't move further`)
+    focusId.current = item.i
+    setLive(
+      e.shiftKey
+        ? `${label} resized to ${moved.w} by ${moved.h}`
+        : `${label} moved to column ${moved.x + 1}, row ${moved.y + 1}`,
+    )
+    onChange(out)
+  }
+
   return (
-    <div ref={wrapRef} className={styles.grid} style={{ position: 'relative', width: '100%', height }}>
-      {colW > 0 && view.map((item) => {
+    <div ref={wrapRef} className={`${styles.grid} ${narrow ? styles.gridStacked : ''}`} style={{ position: 'relative', width: '100%', height }}>
+      <div className={styles.gridLive} role="status" aria-live="polite">{live}</div>
+      {colW > 0 && order.map((o) => {
+        const item = viewById.get(o.i) ?? o
         const moving = drag?.movingId === item.i
         const resizable = isResizable ? isResizable(item.i) : true
         const rect =
@@ -208,6 +289,7 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
         return (
           <div
             key={item.i}
+            data-grid-id={item.i}
             className={`${styles.gridItem} ${moving ? styles.gridItemMoving : ''}`}
             // Position via transform (not left/top) so the reflow animation runs
             // on the compositor instead of thrashing layout — matches the
@@ -221,9 +303,10 @@ export function DashboardGrid({ items, cols, rowHeight, margin, isResizable, dra
               transform: `translate(${rect.left}px, ${rect.top}px)`,
             }}
             onPointerDown={(e) => onItemPointerDown(e, item)}
+            onKeyDown={(e) => onItemKeyDown(e, item)}
           >
             {contents[item.i]}
-            {resizable && (
+            {resizable && !narrow && (
               <>
                 <span className={`${styles.rgHandle} ${styles.rgHandle_e}`} data-rg-handle="e" aria-hidden="true" />
                 <span className={`${styles.rgHandle} ${styles.rgHandle_w}`} data-rg-handle="w" aria-hidden="true" />

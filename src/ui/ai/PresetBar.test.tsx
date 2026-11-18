@@ -69,7 +69,7 @@ function cfg(over: Partial<AiConfig> = {}): AiConfig {
 }
 
 const pick = (name: string) => {
-  fireEvent.click(screen.getByRole('button', { name: /preset$/i }))
+  fireEvent.click(screen.getByRole('combobox', { name: /saved setup/i }))
   fireEvent.pointerDown(screen.getByText(name))
 }
 
@@ -127,6 +127,7 @@ describe('PresetBar', () => {
   it('Delete confirms before deleting', async () => {
     m.showConfirmDialog.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     render(<PresetBar section="chat" config={cfg()} />)
+    fireEvent.click(screen.getByText('Manage'))
     fireEvent.click(screen.getByText('Delete'))
     await waitFor(() => expect(m.showConfirmDialog).toHaveBeenCalledTimes(1))
     expect(m.deleteAiPreset).not.toHaveBeenCalled()

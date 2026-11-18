@@ -140,4 +140,20 @@ describe('filterNotes', () => {
       expect(sortNotes(notes, 'links', 'desc', counts)[0].id).toBe('b')
     })
   })
+
+  describe('custom date range', () => {
+    const day = new Date(2026, 4, 10).getTime() // local midnight
+    it('includes a note edited late on the end day', () => {
+      const late = new Date(2026, 4, 10, 18, 0).getTime()
+      const n = note({ updatedAt: late })
+      const f = filter({ datePreset: 'custom', dateFrom: new Date(2026, 4, 1).getTime(), dateTo: day })
+      expect(applyFilters([n], f, '', noFavs, noLinks)).toHaveLength(1)
+    })
+    it('supports a single-day range and excludes the next day', () => {
+      const f = filter({ datePreset: 'custom', dateFrom: day, dateTo: day })
+      const inDay = note({ updatedAt: new Date(2026, 4, 10, 23, 30).getTime() })
+      const next = note({ updatedAt: new Date(2026, 4, 11, 0, 1).getTime() })
+      expect(applyFilters([inDay, next], f, '', noFavs, noLinks)).toEqual([inDay])
+    })
+  })
 })

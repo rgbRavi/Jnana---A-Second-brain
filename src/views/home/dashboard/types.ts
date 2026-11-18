@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 // Dashboard configuration model. The Home page renders widgets from this config
-// via react-grid-layout: each widget has a grid position+size (x,y,w,h) the user
+// via the hand-rolled DashboardGrid: each widget has a grid position+size (x,y,w,h) the user
 // can drag to move and drag any edge/corner to resize; the grid auto-compacts.
 
 import type { SuggestionSource } from '../../../core/graph/suggestedLinks'
@@ -98,8 +98,17 @@ export function defaultGrid(sections: SectionId[] = ALL_SECTIONS): GridItem[] {
   })
 }
 
+const DEFAULT_SHOWN: SectionId[] = ['continueLearning', 'favourites', 'insights', 'recentImports', 'backgroundTasks']
+
+/** Calm default: Continue reading full-width on top, the rest packed in two columns below. */
 export function makeDefaultLayout(): DashboardLayout {
-  return { id: DEFAULT_LAYOUT_ID, name: 'Default', grid: defaultGrid(), hidden: [], collapsed: [], builtin: true }
+  const [first, ...rest] = DEFAULT_SHOWN
+  const top: GridItem = { i: first, x: 0, y: 0, w: GRID_COLS, h: DEFAULT_H[first], minW: 3, minH: 3 }
+  const packed = defaultGrid(rest).map((g) => ({ ...g, y: g.y + top.h }))
+  const hiddenIds = ALL_SECTIONS.filter((id) => !DEFAULT_SHOWN.includes(id))
+  // Hidden sections keep a position (below the visible ones) for when they're shown.
+  const hiddenGrid = defaultGrid(hiddenIds).map((g) => ({ ...g, y: g.y + 100 }))
+  return { id: DEFAULT_LAYOUT_ID, name: 'Default', grid: [top, ...packed, ...hiddenGrid], hidden: hiddenIds, collapsed: [], builtin: true }
 }
 
 /** A built-in preset layout that shows only `show` (the rest hidden). */

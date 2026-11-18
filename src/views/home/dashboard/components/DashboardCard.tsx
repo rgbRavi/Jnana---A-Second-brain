@@ -1,51 +1,55 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { ChevronDown, GripVertical } from 'lucide-react'
 import styles from '../Dashboard.module.css'
 
 interface Props {
   title: string
-  icon?: string
   collapsed?: boolean
   onToggleCollapse?: () => void
   children: ReactNode
 }
 
 /** The shell every dashboard widget renders inside. Fills its grid cell; the
- *  ⠿ grip is DashboardGrid's drag handle, resize is its edge handles — so the
- *  header carries only collapse. Hiding a section lives in Customize, and
- *  refreshing is one dashboard-wide button in the header. */
-export function DashboardCard({ title, icon, collapsed, onToggleCollapse, children }: Props) {
+ *  grip button is DashboardGrid's drag handle (pointer) and its keyboard move /
+ *  resize target (arrows, Shift+arrows). Hiding a section lives in Customize,
+ *  and refreshing is one dashboard-wide button in the header. */
+export function DashboardCard({ title, collapsed, onToggleCollapse, children }: Props) {
+  const titleId = useId()
+  const helpId = useId()
   return (
-    <section className={styles.card}>
+    <section className={styles.card} aria-labelledby={titleId}>
       <header className={styles.cardHeader}>
         <div className={styles.cardHeaderLeft}>
-          <span className={`${styles.dragHandle} dashboard-drag-handle`} title="Drag to move" aria-hidden="true">
-            <GripVertical size={15} />
-          </span>
           <button
             type="button"
-            className={styles.cardTitle}
-            onClick={onToggleCollapse}
-            disabled={!onToggleCollapse}
-            title={collapsed ? 'Expand' : 'Collapse'}
+            className={`${styles.dragHandle} dashboard-drag-handle`}
+            aria-label={`Move ${title}`}
+            aria-describedby={helpId}
+            title="Drag, or use arrow keys, to move. Shift+arrows to resize"
           >
-            <span
-              className={styles.cardCaret}
-              style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
-              aria-hidden="true"
-            >
-              <ChevronDown size={15} />
-            </span>
-            {icon && (
-              <span className={styles.cardIcon} aria-hidden="true">
-                {icon}
-              </span>
-            )}
-            {title}
+            <GripVertical size={15} aria-hidden="true" />
           </button>
+          <span id={helpId} className={styles.gridLive}>
+            Arrow keys move this card. Shift plus arrow keys resize it.
+          </span>
+          <h2 className={styles.cardHeading} id={titleId}>
+            <button
+              type="button"
+              className={styles.cardTitle}
+              onClick={onToggleCollapse}
+              disabled={!onToggleCollapse}
+              aria-expanded={!collapsed}
+              title={collapsed ? 'Expand' : 'Collapse'}
+            >
+              <span className={`${styles.cardCaret} ${collapsed ? styles.cardCaretCollapsed : ''}`} aria-hidden="true">
+                <ChevronDown size={15} />
+              </span>
+              {title}
+            </button>
+          </h2>
         </div>
       </header>
       {!collapsed && <div className={styles.cardBody}>{children}</div>}

@@ -108,10 +108,15 @@ fn write_section(cfg: &mut AiConfig, s: &str, p: &AiPreset) {
     }
 }
 
+const MAX_NAME_LEN: usize = 60;
+const MAX_PRESETS: usize = 50;
+
 fn clean_name(name: &str) -> Result<String, String> {
     let n = name.trim();
     if n.is_empty() {
         Err("Give the preset a name.".into())
+    } else if n.chars().count() > MAX_NAME_LEN {
+        Err(format!("Keep the name under {MAX_NAME_LEN} characters."))
     } else {
         Ok(n.to_string())
     }
@@ -128,6 +133,9 @@ fn same_host(section: &str, a: &AiPreset, b: &AiPreset) -> bool {
 
 fn do_save(cfg: &mut AiConfig, section: &str, name: &str) -> Result<(), String> {
     let name = clean_name(name)?;
+    if presets_mut(cfg, section)?.len() >= MAX_PRESETS {
+        return Err(format!("You can keep up to {MAX_PRESETS} saved setups per section. Delete one first."));
+    }
     let mut p = section_view(cfg, section)?;
     p.id = new_id();
     p.name = name;
@@ -248,6 +256,19 @@ mod tests {
             api_key: key.into(),
             system_prompt: String::new(),
         }
+    }
+
+    #[test]
+    fn names_are_capped_and_setups_limited() {
+        assert!(clean_name("  ok  ").is_ok());
+        assert!(clean_name("   ").is_err());
+        assert!(clean_name(&"x".repeat(61)).is_err());
+        assert!(clean_name(&"x".repeat(60)).is_ok());
+        let mut cfg = AiConfig::default();
+        for _ in 0..MAX_PRESETS {
+            do_save(&mut cfg, "chat", "n").unwrap();
+        }
+        assert!(do_save(&mut cfg, "chat", "n").is_err());
     }
 
     #[test]

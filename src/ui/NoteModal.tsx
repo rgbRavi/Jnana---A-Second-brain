@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-import { useState, useRef, useEffect } from 'react'
-import { Download, Maximize2, Minimize2, MoreVertical, RotateCcw, SquarePen, Star, Trash2, X } from 'lucide-react'
+import { useState, useRef, useEffect, useId } from 'react'
+import { Maximize2, Minimize2, MoreVertical, SquarePen, X } from 'lucide-react'
+import { ContextMenu, type MenuItem } from './ContextMenu'
 import { NoteView } from './editor/NoteRenderer'
 import { getNoteType } from '../lib/noteTypes'
 import type { Note } from '../types'
@@ -18,6 +19,7 @@ import { useNotesContext } from '../context/NotesContext'
 import { ComposerSuggestions } from './ai/ComposerSuggestions'
 import { eventBus } from '../lib/eventBus'
 import { toast } from '../lib/toast'
+import { log } from '../lib/logger'
 
 interface Props {
   note: Note
@@ -46,7 +48,10 @@ interface Props {
  */
 export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trashActions }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const menuOpen = !!menuAt
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const maxProgressRef = useRef(0)
   // Guards click-to-close: only close when the press *started* on the backdrop
@@ -101,6 +106,71 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trash
     if (frac > maxProgressRef.current) maxProgressRef.current = Math.min(1, frac)
   }
 
+  const menuItems: MenuItem[] = [
+    trashActions
+      ? { label: 'Restore', onClick: trashActions.onRestore }
+      : {
+          label: isFavourite ? 'Remove from favourites' : 'Add to favourites',
+          onClick: async () => {
+            try {
+              if (isFavourite) await removeFromFavourites(note.id)
+              else await addToFavourites(note.id)
+              setIsFavourite(!isFavourite)
+            } catch (err) {
+              log.error('Favourite toggle failed', err)
+              toast.error("Couldn't update favourites. Please try again.")
+            }
+          },
+        },
+    {
+      label: 'Export',
+      onClick: async () => {
+        try {
+          toastExported(await exportNotes([note]))
+        } catch (err) {
+          log.error('Export from note preview failed', err)
+          toast.error("Couldn't export this note. Please try again.")
+        }
+      },
+    },
+    trashActions
+      ? { label: 'Delete forever', danger: true, separator: true, onClick: trashActions.onDeleteForever }
+      : {
+          label: 'Delete note',
+          danger: true,
+          separator: true,
+          // `remove` runs the confirm dialog itself (per confirmBeforeDelete) and
+          // reports whether it went ahead; only close the peek if the note went.
+          onClick: async () => {
+            if (await remove(note.id)) onClose()
+          },
+        },
+  ]
+
+  // Dialog focus: move in on open, restore to the opener on close.
+  useEffect(() => {
+    if (!isOpen) return
+    const opener = document.activeElement as HTMLElement | null
+    const root = dialogRef.current
+    ;(root?.querySelector<HTMLElement>('[data-autofocus]') ?? root)?.focus({ preventScroll: true })
+    return () => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [isOpen])
+
+  // Trap Tab inside the dialog.
+  const trapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return
+    const f = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [],
+    ).filter((el) => el.offsetParent !== null)
+    if (!f.length) return
+    const first = f[0], last = f[f.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || active === dialogRef.current)) { e.preventDefault(); last.focus() }
+    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus() }
+  }
+
   const editInWorking = () => {
     eventBus.emit('note:navigate', note)
     onClose()
@@ -118,131 +188,57 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trash
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onKeyDown={trapTab}
         data-anchor="note"
         data-anchor-key={note.id}
         className={`${NoteModalStyles.noteModalContainer}${expanded ? ' ' + NoteModalStyles.expanded : ''}`}
         style={expanded ? { left: `var(${sidebarCollapsed ? '--sidebar-collapsed-width' : '--sidebar-width'})` } : undefined}
       >
-        <div className={NoteModalStyles.noteModalTopLeftControls}>
-          <div style={{ position: 'relative' }}>
-            <button
-              className={NoteModalStyles.noteModalEditBtn}
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="More options"
-              title="More options"
-            >
-              <MoreVertical size={16} />
-            </button>
-            {menuOpen && (
-              <div className={`${NoteModalStyles.noteModalDropdown} ${NoteModalStyles.dropdownLeft}`}>
-                {trashActions ? (
-                  <button
-                    className={NoteModalStyles.noteModalDropdownItem}
-                    onClick={() => {
-                      setMenuOpen(false)
-                      trashActions.onRestore()
-                    }}
-                  >
-                    <RotateCcw size={14} /> Restore
-                  </button>
-                ) : (
-                  <button
-                    className={NoteModalStyles.noteModalDropdownItem}
-                    onClick={async () => {
-                      setMenuOpen(false)
-                      if (isFavourite) {
-                        await removeFromFavourites(note.id)
-                        setIsFavourite(false)
-                      } else {
-                        await addToFavourites(note.id)
-                        setIsFavourite(true)
-                      }
-                    }}
-                  >
-                    {isFavourite
-                      ? <><Star size={14} fill="currentColor" /> Remove from favourites</>
-                      : <><Star size={14} /> Add to favourites</>}
-                  </button>
-                )}
-                <button
-                  className={NoteModalStyles.noteModalDropdownItem}
-                  onClick={async () => {
-                    setMenuOpen(false)
-                    try {
-                      toastExported(await exportNotes([note]))
-                    } catch (err) {
-                      toast.error('Export failed: ' + String(err))
-                    }
-                  }}
-                >
-                  <Download size={14} /> Download/Export
-                </button>
-                {trashActions ? (
-                  <button
-                    className={`${NoteModalStyles.noteModalDropdownItem} ${NoteModalStyles.noteModalDropdownDanger}`}
-                    onClick={() => {
-                      setMenuOpen(false)
-                      trashActions.onDeleteForever()
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete forever
-                  </button>
-                ) : (
-                  <button
-                    className={`${NoteModalStyles.noteModalDropdownItem} ${NoteModalStyles.noteModalDropdownDanger}`}
-                    onClick={async () => {
-                      setMenuOpen(false)
-                      // `remove` runs the confirm dialog itself (per the user's
-                      // confirmBeforeDelete setting) and reports whether it went
-                      // ahead — only close the peek if the note actually went.
-                      const deleted = await remove(note.id)
-                      if (deleted) onClose()
-                    }}
-                  >
-                    <Trash2 size={14} /> Delete note
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className={NoteModalStyles.noteModalTopControls}>
-          <button
-            className={NoteModalStyles.noteModalExpand}
-            onClick={() => setExpanded((e) => !e)}
-            aria-label={expanded ? 'Restore' : 'Expand to full screen'}
-            title={expanded ? 'Restore' : 'Expand to full screen'}
-          >
-            {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-          <button className={NoteModalStyles.noteModalClose} onClick={onClose} title="Close" aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
         <div className={NoteModalStyles.noteModalContent}>
           <div className={NoteModalStyles.noteModalHeader}>
-            <div className={NoteModalStyles.noteModalTitleWrapper}>
-              <h2 className={NoteModalStyles.noteModalTitle}>{note.title || 'Untitled'}</h2>
-            </div>
-            {!trashActions && (
-              <div className={NoteModalStyles.noteModalHeaderActions}>
-                <button
-                  className={NoteModalStyles.noteModalEditBtn}
-                  onClick={editInWorking}
-                  aria-label="Edit in Working Notes"
-                  title="Edit in Working Notes"
-                >
-                  <SquarePen size={16} />
+            <h2 id={titleId} className={NoteModalStyles.noteModalTitle}>{note.title || 'Untitled'}</h2>
+            <div className={NoteModalStyles.noteModalHeaderActions}>
+              {!trashActions && (
+                <button className={NoteModalStyles.noteModalEditBtn} onClick={editInWorking} data-autofocus>
+                  <SquarePen size={14} /> Edit in Working Notes
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                className={NoteModalStyles.noteModalIconBtn}
+                onClick={() => setExpanded((e) => !e)}
+                aria-label={expanded ? 'Restore' : 'Expand to full screen'}
+                title={expanded ? 'Restore' : 'Expand to full screen'}
+              >
+                {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+              <button
+                className={NoteModalStyles.noteModalIconBtn}
+                onClick={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setMenuAt(menuAt ? null : { x: r.right - 180, y: r.bottom + 4 })
+                }}
+                aria-label="More options"
+                title="More options"
+                aria-haspopup="menu"
+                aria-expanded={!!menuAt}
+              >
+                <MoreVertical size={16} />
+              </button>
+              <button className={NoteModalStyles.noteModalIconBtn} onClick={onClose} title="Close" aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
           </div>
           <TagEditor
             tags={note.tags}
             onChange={(userTags) => onUpdateTags?.(note.id, userTags)}
             disabled
+            hideAutoTags
           />
           {!trashActions && !getNoteType(note) && <ComposerSuggestions
             note={note}
@@ -267,6 +263,7 @@ export function NoteModal({ note, isOpen, onClose, onUpdate, onUpdateTags, trash
           </time>
         </div>
       </div>
+      {menuAt && <ContextMenu x={menuAt.x} y={menuAt.y} items={menuItems} onClose={() => setMenuAt(null)} />}
     </div>
   )
 }

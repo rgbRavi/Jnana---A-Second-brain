@@ -5,7 +5,8 @@
 // filters, expandable entries, copy/export and live pause. Rendering is paged
 // (PAGE rows, "Show older" for more) so a full 2000-entry buffer stays responsive.
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { getVersion } from '@tauri-apps/api/app'
 import { appLogDir } from '@tauri-apps/api/path'
 import {
@@ -26,6 +27,7 @@ import { showConfirmDialog } from '../../lib/dialog'
 import { toast } from '../../lib/toast'
 import { saveTextFile } from '../../core/saveCsv'
 import { SettingSelect } from './SettingControls'
+import { SettingButton, SettingSection, settingInputClass } from './SettingLayout'
 import styles from './DeveloperLog.module.css'
 
 const PAGE = 200
@@ -39,10 +41,10 @@ const TIME_OPTIONS = [
 
 async function copy(text: string, what: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${what} copied`)
+    await writeText(text)
+    toast.success(`${what} copied.`)
   } catch {
-    toast.error(`Couldn't copy ${what.toLowerCase()}`)
+    toast.error(`Couldn't copy ${what.toLowerCase()}. Try again.`)
   }
 }
 
@@ -90,9 +92,9 @@ function Row({ entry, onCorrelate }: { entry: LogEntry; onCorrelate: (opId: stri
               {entry.error.stack ? `\n${entry.error.stack}` : ''}
             </pre>
           )}
-          <button type="button" className={styles.button} onClick={() => void copy(formatEntry(entry), 'Entry')}>
+          <SettingButton onClick={() => void copy(formatEntry(entry), 'Entry')}>
             Copy entry
-          </button>
+          </SettingButton>
         </div>
       )}
     </li>
@@ -119,7 +121,21 @@ export function DeveloperLog() {
     appLogDir().then(setLogDir).catch(() => setLogDir(''))
   }, [])
 
-  const entries = paused ?? live
+  // Recompute at most every 200 ms: a chatty log would otherwise re-filter and
+  // reverse up to 2,000 rows on every single entry.
+  const [snap, setSnap] = useState(live)
+  const timer = useRef<number | null>(null)
+  useEffect(() => {
+    if (timer.current !== null) return
+    timer.current = window.setTimeout(() => {
+      timer.current = null
+      setSnap(getLogEntries())
+    }, 200)
+  }, [live])
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
+  const [exporting, setExporting] = useState(false)
+
+  const entries = paused ?? snap
   const shown = useMemo(() => filterLogEntries(entries, filter).reverse(), [entries, filter])
   const categories = useMemo(() => distinct(entries, (e) => e.category), [entries])
   const plugins = useMemo(() => distinct(entries, (e) => e.pluginId), [entries])
@@ -142,9 +158,17 @@ export function DeveloperLog() {
   }
 
   const exportLog = async () => {
-    const text = formatExport(shown.slice().reverse(), await diagnostics())
-    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-    await saveTextFile(`jnana-log-${stamp}.log`, text, { title: 'Export log', filterName: 'Log', extensions: ['log', 'txt'] })
+    if (exporting) return
+    setExporting(true)
+    try {
+      const text = formatExport(shown.slice().reverse(), await diagnostics())
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      await saveTextFile(`jnana-log-${stamp}.log`, text, { title: 'Export log', filterName: 'Log', extensions: ['log', 'txt'] })
+    } catch {
+      toast.error("Couldn't export the log. Check the folder is writable.")
+    } finally {
+      setExporting(false)
+    }
   }
 
   const clear = async () => {
@@ -161,8 +185,7 @@ export function DeveloperLog() {
   }
 
   return (
-    <section className={styles.wrap} aria-label="Developer log">
-      <h3 className={styles.title}>Developer Log</h3>
+    <SettingSection title="Developer log">
       <p className={styles.hint}>
         Info, warnings and errors are always recorded and written to the log file. Developer detail adds debug
         (IPC failures, routes, plugin timings) or trace (every IPC call, event and plugin API call) to this view
@@ -207,7 +230,7 @@ export function DeveloperLog() {
 
       <div className={styles.controls}>
         <input
-          className={styles.search}
+          className={`${settingInputClass} ${styles.search}`}
           type="search"
           placeholder="Search message, data, error, operation id…"
           value={filter.query}
@@ -263,21 +286,21 @@ export function DeveloperLog() {
           {shown.length} of {entries.length}
           {paused && ' · paused'}
         </span>
-        <button type="button" className={styles.button} onClick={() => setPaused(paused ? null : live)}>
+        <SettingButton onClick={() => setPaused(paused ? null : live)}>
           {paused ? 'Resume' : 'Pause'}
-        </button>
-        <button type="button" className={styles.button} onClick={() => patch(DEFAULT_FILTER)}>
+        </SettingButton>
+        <SettingButton onClick={() => patch(DEFAULT_FILTER)}>
           Reset filters
-        </button>
-        <button type="button" className={styles.button} onClick={() => void diagnostics().then((d) => copy(d, 'Diagnostics'))}>
+        </SettingButton>
+        <SettingButton onClick={() => void diagnostics().then((d) => copy(d, 'Diagnostics'))}>
           Copy diagnostics
-        </button>
-        <button type="button" className={styles.button} onClick={() => void exportLog()} title="Exports the filtered entries, redacted">
+        </SettingButton>
+        <SettingButton busy={exporting} disabled={exporting} onClick={() => void exportLog()} title="Exports the filtered entries, redacted">
           Export…
-        </button>
-        <button type="button" className={`${styles.button} ${styles.danger}`} onClick={() => void clear()}>
+        </SettingButton>
+        <SettingButton variant="danger" onClick={() => void clear()}>
           Clear
-        </button>
+        </SettingButton>
       </div>
 
       {shown.length === 0 ? (
@@ -290,10 +313,10 @@ export function DeveloperLog() {
         </ul>
       )}
       {shown.length > limit && (
-        <button type="button" className={styles.button} onClick={() => setLimit((l) => l + PAGE)}>
+        <SettingButton onClick={() => setLimit((l) => l + PAGE)}>
           Show older ({shown.length - limit} more)
-        </button>
+        </SettingButton>
       )}
-    </section>
+    </SettingSection>
   )
 }

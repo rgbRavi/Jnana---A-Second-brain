@@ -15,8 +15,8 @@ import { buildNoteContext, DEFAULT_CONTEXT_TOKENS, maxNotesFor } from './noteCon
 
 /** Options shared by the grounded actions (Analyze / Ask / Quiz). */
 export interface GroundingOpts {
-  /** How many tokens of note text the model may read (Settings → Advanced AI
-   *  generation). Defaults to DEFAULT_CONTEXT_TOKENS. */
+  /** How many tokens of note text the model may read (Settings → How the
+   *  AI answers). Defaults to DEFAULT_CONTEXT_TOKENS. */
   contextTokens?: number
 }
 const MAX_HISTORY_TURNS = 6

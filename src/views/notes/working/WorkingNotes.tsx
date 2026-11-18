@@ -14,7 +14,10 @@ import {
   closeWorkingTab,
   splitWorkingGroup,
   getWorkingLayout,
+  openNoteInWorking,
+  setNotesSubView,
 } from './useWorkingLayout'
+import { formatChord } from '../../../lib/pluginHotkeys'
 import { useTabDrag } from './tabDrag'
 import { EditorGroup } from './EditorGroup'
 import { SplitContainer } from './SplitContainer'
@@ -66,9 +69,19 @@ function renderNode(
  * note is deleted so tabs pointing at gone notes disappear.
  */
 export function WorkingNotes({ onBack, backLabel }: { onBack?: () => void; backLabel?: string } = {}) {
-  const { notes, loading } = useNotesContext()
+  const { notes, loading, create } = useNotesContext()
   const activeVaultId = useActiveVaultId()
   const layout = useWorkingLayout()
+
+  // Same path as the tab strip's "+": create a plain note, open it on the desk.
+  const newNote = async () => {
+    try {
+      const created = await create('', '')
+      openNoteInWorking(created.id)
+    } catch {
+      /* NotesContext surfaces its own errors */
+    }
+  }
 
   // Reconcile once notes have loaded, on delete, and on vault switch — the desk
   // is per-vault, so its tabs are kept in sync with just the active vault's notes.
@@ -108,8 +121,17 @@ export function WorkingNotes({ onBack, backLabel }: { onBack?: () => void; backL
           <p className={Styles.emptyTitle}>No open notes</p>
           <p className={Styles.emptySub}>
             Open a note from the <strong>Notes</strong> gallery, search, or a wikilink to start editing
-            here. Tabs and splits are restored when you reopen the app.
+            here. Tabs and splits are restored when you reopen the app. {formatChord('mod+shift+e')}{' '}
+            switches between the gallery and this desk.
           </p>
+          <div className={Styles.emptyActions}>
+            <button type="button" className={Styles.emptyPrimary} onClick={() => void newNote()}>
+              New note
+            </button>
+            <button type="button" className={Styles.emptySecondary} onClick={() => setNotesSubView('gallery')}>
+              Browse notes
+            </button>
+          </div>
         </div>
       </div>
     )

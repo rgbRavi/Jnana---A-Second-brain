@@ -3,7 +3,7 @@
 
 // Full-screen first-run wizard. Mounted once in AppLayout next to the other
 // global overlays; the launch gate (core/onboarding/gate) decides whether boot
-// opens it, and Settings → Developer can open it on demand.
+// opens it, and Settings → General (Replay the tour) or Developer can open it on demand.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { COMFORTS, ROLES, selectSteps, type StepId } from '../../core/onboarding/steps'

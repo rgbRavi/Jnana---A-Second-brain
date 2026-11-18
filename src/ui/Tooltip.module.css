@@ -18,6 +18,8 @@
   line-height: 1.4;
   letter-spacing: 0.01em;
   white-space: normal;
+  /* Click-through: a tip over a neighbour must never eat its click. It stays
+     while the trigger is hovered/focused and Esc dismisses (WCAG 1.4.13). */
   pointer-events: none;
   animation: tooltipIn var(--dur-fast) var(--motion-ease);
 }

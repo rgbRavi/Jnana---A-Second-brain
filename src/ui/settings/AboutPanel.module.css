@@ -1,79 +1,86 @@
-.panel {
+/* Settings → About. Identity block on top (icon + name + what it is + links),
+   then the data promise, then the legal notice in one calm section. */
+
+.identity {
   display: flex;
-  flex-direction: column;
-  gap: 1.6rem;
-  max-width: 560px;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
 }
 
-.header {
+.icon {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-md);
+}
+
+.identityText {
   display: flex;
   flex-direction: column;
   gap: var(--space-2xs);
+  min-width: 0;
 }
 
 .appName {
-  font-size: 1.1rem;
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--text-1);
+}
+
+.meta {
   margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-2);
 }
 
-.version {
-  font-size: 0.78rem;
-  font-family: var(--font-mono);
-  color: var(--text-3);
+.tagline {
+  margin: var(--space-2xs) 0 0;
+  max-width: 60ch;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-1);
+  text-wrap: pretty;
 }
 
-.section {
+.links {
   display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.sectionTitle {
-  font-size: 0.72rem;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-3);
-  font-weight: 500;
-  margin: 0;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
 }
 
 .body {
-  font-size: 0.85rem;
+  margin: 0;
+  max-width: 70ch;
+  font-size: 0.875rem;
   line-height: 1.55;
   color: var(--text-2);
-  margin: 0;
+  text-wrap: pretty;
 }
 
 .link {
   color: var(--accent);
-  text-decoration: none;
-  cursor: pointer;
-  word-break: break-all;
-}
-
-.link:hover {
   text-decoration: underline;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.button {
-  padding: var(--space-sm) 0.9rem;
-  font-size: 0.82rem;
-  border-radius: var(--radius-sm, 6px);
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-1);
   cursor: pointer;
+  overflow-wrap: anywhere;
 }
 
-.button:hover {
-  background: var(--surface-hover-strong);
+.path {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+.credits {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-2);
 }

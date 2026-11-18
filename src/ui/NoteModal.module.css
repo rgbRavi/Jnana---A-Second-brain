@@ -3,37 +3,37 @@
   position: fixed;
   inset: 0;
   background: var(--scrim);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-overlay);
   animation: fadeIn var(--dur-slow) var(--motion-ease) forwards;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    backdrop-filter: blur(0px) saturate(100%);
+    backdrop-filter: blur(0px);
   }
   to {
     opacity: 1;
-    backdrop-filter: blur(12px) saturate(180%);
+    backdrop-filter: blur(4px);
   }
 }
 
 .noteModalContainer {
   background: linear-gradient(145deg, var(--surface-2) 0%, var(--surface) 100%);
   border: 1px solid var(--border);
-  border-radius: 1.5rem;
+  border-radius: var(--radius-xl);
   width: 90%;
   max-width: 850px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(var(--wash-rgb), 0.1);
+  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(var(--wash-rgb), 0.1);
   animation: slideUp var(--dur-slow) var(--motion-ease) forwards;
   overflow: hidden;
 }
@@ -62,51 +62,25 @@
   animation: none;
 }
 
-.noteModalTopControls {
-  position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
-  display: flex;
-  gap: var(--space-sm);
-  z-index: 1001;
-}
-
-.noteModalTopLeftControls {
-  position: absolute;
-  top: 1.25rem;
-  left: 1.25rem;
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-  z-index: 1001;
-}
-
-.noteModalClose, .noteModalExpand {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+.noteModalIconBtn {
+  background: transparent;
+  border: none;
   color: var(--text-2);
-  font-size: 1.15rem;
   cursor: pointer;
   padding: 0;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  transition: all var(--dur-base) var(--motion-ease);
-  backdrop-filter: blur(8px);
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast) var(--motion-ease), color var(--dur-fast) var(--motion-ease);
+  flex-shrink: 0;
 }
 
-.noteModalClose:hover, .noteModalExpand:hover {
-  background: var(--surface-hover-strong);
+.noteModalIconBtn:hover {
+  background: var(--surface-hover);
   color: var(--text-1);
-  transform: scale(1.05);
-  border-color: var(--border-hover);
-}
-
-.noteModalClose:active, .noteModalExpand:active {
-  transform: scale(0.95);
 }
 
 .noteModalContent {
@@ -114,23 +88,20 @@
   flex-direction: column;
   overflow: hidden;
   flex: 1;
-  padding: 4rem 2.5rem 2.5rem 2.5rem;
-}
-
-.noteModalTitleWrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
+  padding: 1.5rem 2.5rem 2.5rem 2.5rem;
 }
 
 .noteModalTitle {
-  font-size: 2rem;
-  font-weight: 700;
-  background: linear-gradient(90deg, var(--text-1) 0%, var(--text-2) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  flex: 1;
+  min-width: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  color: var(--text-1);
   margin: 0;
-  letter-spacing: -0.02em;
 }
 
 .noteModalBody {
@@ -154,7 +125,7 @@
 .noteModalBody video {
   max-width: 100%;
   border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-lg);
 }
 
 .noteModalBody video:fullscreen {
@@ -189,262 +160,46 @@
   border-top: 1px solid var(--border);
 }
 
-/* Modal Edit Mode Styles */
-.noteModalViewMode {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex: 1;
-  padding: var(--space-2xl);
-  padding-right: 3rem;
-}
-
 .noteModalHeader {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: var(--space-md);
   margin-bottom: 1.5rem;
 }
 
 .noteModalHeaderActions {
   display: flex;
-  gap: var(--space-sm);
+  gap: var(--space-2xs);
   align-items: center;
-}
-
-.noteModalEditBtn {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-2);
-  font-size: 1.2rem;
-  cursor: pointer;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  transition: all var(--dur-base) var(--motion-ease);
   flex-shrink: 0;
 }
 
+/* Primary action: labelled, accent-filled. */
+.noteModalEditBtn {
+  background: var(--accent);
+  border: none;
+  color: var(--on-accent);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  height: 32px;
+  padding: 0 var(--space-md);
+  margin-right: var(--space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--motion-ease);
+}
+
 .noteModalEditBtn:hover {
-  background: var(--surface-hover-strong);
-  color: var(--text-1);
-  border-color: var(--border-hover);
-  transform: translateY(-1px);
+  background: var(--accent-hover);
 }
 
 .noteModalEditBtn:active {
-  transform: translateY(0);
+  background: var(--accent-active);
 }
 
-.noteModalDropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 0.4rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(var(--wash-rgb), 0.05);
-  z-index: 1002;
-  min-width: 180px;
-  backdrop-filter: blur(8px);
-  animation: dropdownFadeIn var(--dur-base) var(--motion-ease);
-}
-
-.dropdownLeft {
-  right: auto;
-  left: 0;
-}
-
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.noteModalDropdownItem {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  color: var(--text-2);
-  padding: 0.6rem 0.8rem;
-  font-size: 0.85rem;
-  font-family: var(--font-body);
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: 0.5rem;
-  transition: all var(--dur-fast) var(--motion-ease);
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.noteModalDropdownItem:hover {
-  background: var(--surface-hover);
-  color: var(--text-1);
-}
-
-/* Destructive action — reads as such before it's clicked. */
-.noteModalDropdownDanger {
-  color: var(--danger);
-}
-
-.noteModalDropdownDanger:hover {
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
-}
-
-.noteModalEditMode {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-  padding: var(--space-2xl);
-  padding-right: 3rem;
-  gap: var(--space-lg);
-}
-
-.noteModalTitleInput {
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: var(--text-1);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md);
-  font-family: var(--font-body);
-  width: 100%;
-}
-
-.noteModalTitleInput:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.noteModalTextarea {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md);
-  color: var(--text-2);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  line-height: 1.6;
-  resize: none;
-  overflow-y: auto;
-}
-
-.noteModalTextarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-/* LiveEditor variant — grows to fill remaining modal height (flex:1 in the
-   noteModalEditMode column), with a floor so it never collapses completely.
-   CM6 owns its own internal scroller (.cm-scroller) so we don't cap the
-   height here; the modal container's max-height:90vh is the outer bound. */
-.noteModalTextareaEditor {
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  flex: 1;
-  min-height: 200px;
-}
-
-.noteModalTextareaEditor:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.noteModalTextareaEditor :global(.cm-editor) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.noteModalTextareaEditor :global(.cm-scroller) {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-md);
-  color: var(--text-2);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-.noteModalActions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-
-.noteModalToolbar {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.noteModalSaveRow {
-  display: flex;
-  gap: var(--space-md);
-}
-
-.noteModalBtn {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-1);
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 0.6rem 1.2rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: var(--font-body);
-  transition: all var(--dur-fast) var(--motion-ease);
-}
-
-.noteModalBtn:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
-}
-
-.noteModalBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.noteModalBtnCancel {
-  background: transparent;
-  color: var(--text-2);
-}
-
-.noteModalBtnCancel:hover:not(:disabled) {
-  background: transparent;
-  color: var(--text-1);
-}
-
-.noteModalBtnSave {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.noteModalBtnSave:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-}
 

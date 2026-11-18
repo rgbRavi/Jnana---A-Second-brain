@@ -4,7 +4,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Note } from '../types'
 import { useRag } from './useRag'
-import { useViewState } from './useViewState'
 import { rankHits, type SemanticResult } from '../core/ai/searchResults'
 import { log } from '../lib/logger'
 
@@ -13,16 +12,23 @@ const DEBOUNCE_MS = 400
 // be out of the caller's scope. rankHits collapses to one-per-note afterwards.
 const FETCH_K = 40
 
+export type SemanticStatus = 'idle' | 'searching' | 'done' | 'error'
+
 /**
- * Semantic search for the Search view's AI mode. Debounced (embedding a query
- * is a network round-trip), scoped to `notes` (the caller passes the already
- * vault/workspace-filtered set), and de-duplicated to one result per note.
+ * Semantic ("by meaning") search for the command palette. Debounced (embedding a
+ * query is a network round-trip) and de-duplicated to one result per note.
+ * `retrieve()` already scopes to the active vault (+ any workspace scope).
+ *
+ * Mount it only while it's in use (`useRag` also auto-indexes on `note:saved`),
+ * and only once AI is known to be on with a non-empty index — the caller checks.
  */
-export function useSemanticSearch(notes: Note[]) {
-  const { config, stats, search } = useRag()
-  const [query, setQuery] = useViewState('search:semantic:query', '')
+export function useSemanticSearch(notes: Note[], query: string) {
+  const { search } = useRag()
   const [results, setResults] = useState<SemanticResult[]>([])
-  const [status, setStatus] = useState<'idle' | 'searching' | 'done'>('idle')
+  const [status, setStatus] = useState<SemanticStatus>('idle')
+  // retry() re-runs the current query at once (no debounce).
+  const [nonce, setNonce] = useState(0)
+  const immediateRef = useRef(false)
 
   // Read notes through a ref so a note save (new array identity) doesn't restart
   // the debounce timer; the latest set is used when the query actually fires.
@@ -38,25 +44,32 @@ export function useSemanticSearch(notes: Note[]) {
     }
     setStatus('searching')
     let cancelled = false
+    const delay = immediateRef.current ? 0 : DEBOUNCE_MS
+    immediateRef.current = false
     const t = setTimeout(async () => {
       try {
         const hits = await search(q, FETCH_K)
         if (cancelled) return
         setResults(rankHits(hits, notesRef.current))
+        setStatus('done')
       } catch (err) {
-        if (!cancelled) setResults([])
+        if (!cancelled) {
+          setResults([])
+          setStatus('error')
+        }
         log.error('[useSemanticSearch] retrieval failed', err)
-      } finally {
-        if (!cancelled) setStatus('done')
       }
-    }, DEBOUNCE_MS)
+    }, delay)
     return () => {
       cancelled = true
       clearTimeout(t)
     }
-  }, [query, search])
+  }, [query, search, nonce])
 
-  const available = config.enabled && stats.chunkCount > 0
+  const retry = () => {
+    immediateRef.current = true
+    setNonce((n) => n + 1)
+  }
 
-  return { query, setQuery, results, status, available }
+  return { results, status, retry }
 }
