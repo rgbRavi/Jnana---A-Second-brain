@@ -9,6 +9,7 @@ import { Check, ChevronDown, ChevronRight, Plus, RotateCcw, X } from 'lucide-rea
 import { describeGroup, isValidRegex, type GraphGroup, type TitleOp } from './groupMatch'
 import { SettingSelect, SettingSlider, SettingToggle } from '../settings/SettingControls'
 import { SettingField, settingInputClass } from '../settings/SettingLayout'
+import type { SizeBy } from './nodeSize'
 import type { GraphForces } from '../../hooks/useGraphForces'
 import styles from './GraphSettingsPanel.module.css'
 
@@ -85,6 +86,12 @@ export interface GraphSettingsPanelProps {
   onTogglePin: (v: boolean) => void
   textFade: number
   setTextFade: (v: number) => void
+  showMissing: boolean
+  setShowMissing: (v: boolean) => void
+  missingCount: number
+  onShowMissingList: () => void
+  sizeBy: SizeBy
+  setSizeBy: (v: SizeBy) => void
   nodeSize: number
   setNodeSize: (v: number) => void
   linkThickness: number
@@ -155,6 +162,12 @@ function SliderRow({
     </SettingField>
   )
 }
+
+const SIZE_BY_OPTIONS = [
+  { value: 'same', label: 'Same for all' },
+  { value: 'links', label: 'Number of links' },
+  { value: 'edited', label: 'Last edited' },
+]
 
 const TAG_MODE_OPTIONS = [
   { value: 'any', label: 'any' },
@@ -427,6 +440,7 @@ function GroupRow({
 export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
   const dateId = useId()
   const depthId = useId()
+  const sizeById = useId()
   const { forces } = p
   const closeRef = useRef<HTMLButtonElement>(null)
   // Keyboard focus lands on the close button when the panel opens (the opener unmounts).
@@ -510,6 +524,15 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
         <SettingToggle label="Highlight unlinked and well-linked notes" hint="colour notes with no links or many links" checked={p.highlightStructure} onChange={p.setHighlightStructure} />
         <SettingToggle label="Pin dragged nodes" hint="keep dragged notes where you drop them" checked={p.pinOnDrag} onChange={p.onTogglePin} />
         <SliderRow label="Hide labels when zoomed out" hint="higher hides labels until you zoom in closer" value={p.textFade} onChange={p.setTextFade} min={0} max={2} step={0.05} format={(v) => `${v.toFixed(1)}×`} />
+        <SettingToggle label="Show missing notes" hint="faded dots for [[links]] to notes that don't exist yet" checked={p.showMissing} onChange={p.setShowMissing} />
+        {p.showMissing && p.missingCount > 0 && (
+          <button type="button" className={styles.missingCount} onClick={p.onShowMissingList}>
+            {p.missingCount} missing note{p.missingCount === 1 ? '' : 's'}
+          </button>
+        )}
+        <SettingField label="Node size by" htmlFor={sizeById} stacked>
+          <SettingSelect id={sizeById} value={p.sizeBy} onChange={(v) => p.setSizeBy(v as SizeBy)} options={SIZE_BY_OPTIONS} ariaLabel="Node size by" />
+        </SettingField>
         <SliderRow label="Node size" hint="scales the note dots" value={p.nodeSize} onChange={p.setNodeSize} min={0.5} max={3} step={0.1} format={(v) => `${v.toFixed(1)}×`} />
         <SliderRow label="Link thickness" hint="width of the lines between notes" value={p.linkThickness} onChange={p.setLinkThickness} min={0.5} max={6} step={0.5} format={(v) => `${v.toFixed(1)} px`} />
       </Section>

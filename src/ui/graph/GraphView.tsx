@@ -29,6 +29,7 @@ import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
 import { resolveColor } from '../../lib/themeColor'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
+import { sizeScale, type SizeBy } from './nodeSize'
 import styles from './GraphView.module.css'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -472,6 +473,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [directed, setDirected] = usePersistentViewState('graph.directed', false)
   const [highlightStructure, setHighlightStructure] = usePersistentViewState('graph.highlightStructure', false)
   const [pinOnDrag, setPinOnDrag] = usePersistentViewState('graph.pinOnDrag', true)
+  const [showMissing, setShowMissing] = usePersistentViewState('graph.showMissing', true)
+  const [sizeBy, setSizeBy] = usePersistentViewState<SizeBy>('graph.sizeBy', 'same')
   const [textFade, setTextFade] = usePersistentViewState('graph.textFade', DEFAULT_DISPLAY.textFade)
   const [nodeSize, setNodeSize] = usePersistentViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
   const [linkThickness, setLinkThickness] = usePersistentViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
@@ -498,6 +501,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const containerRef = useRef<HTMLDivElement>(null)
   // Whether the viewport has been restored for this mount (restore only once).
   const viewportRestored = useRef(false)
+  // Auto-fit runs once per mount, and only when no viewport was saved.
+  const autoFitDone = useRef(false)
   // Mirrors used inside the per-frame canvas callback (avoids stale closures).
   const connectingFromRef = useRef<string | null>(null)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -703,7 +708,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       if (normalizeTitle(n.title)) titleToId.set(vaultKey(n.vaultId, n.title), n.id)
     }
     const pseudoNodes = new Map<string, any>()
-    for (const n of visibleNodes) {
+    for (const n of showMissing ? visibleNodes : []) {
       // Typed notes (e.g. canvas) store JSON — scan only their link projection.
       // Placed note cards always resolve, so no titleOf is needed for pseudo-nodes.
       for (const title of extractWikilinkTitles(noteLinkText(n, () => undefined))) {
@@ -743,11 +748,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     scopeIds,
     nodeCacheStore,
     pseudoCacheStore,
+    showMissing,
   ])
 
   // Real notes on screen. forceData.nodes also carries pseudo-nodes (faded
   // placeholders for unresolved [[wikilinks]]), which aren't notes and would
   // push the count past the total.
+  const missingCount = useMemo(() => forceData.nodes.filter((n: any) => n.isPseudo).length, [forceData])
   const shownCount = useMemo(() => forceData.nodes.filter((n: any) => !n.isPseudo).length, [forceData])
 
   // id -> neighbour ids, for hover/selection dimming. Links are ids here (the
@@ -810,7 +817,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     const deg = degrees.get(node.id) ?? 0
     const isHub = highlightStructure && deg >= HUB_DEGREE
     const isOrphan = highlightStructure && deg === 0
-    return (isHub ? 8 : isOrphan ? 4 : 5) * nodeSize
+    return (isHub ? 8 : isOrphan ? 4 : 5) * nodeSize * sizeScale(sizeBy, deg, node.updatedAt ?? 0, Date.now())
   }
 
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
@@ -1212,8 +1219,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setRippleBackground(false)
     setNeighbourhoodOnly(false)
     setDepth(1)
+    setShowMissing(true)
+    setSizeBy('same')
     resetForces()
-  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly, setDepth])
+  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly, setDepth, setShowMissing, setSizeBy])
 
   const confirmResetAll = useCallback(async () => {
     const ok = await showConfirmDialog({
@@ -1731,6 +1740,12 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             /* graph not ready yet */
           }
         }}
+        onEngineStop={() => {
+          // First layout settle with no saved viewport: fit the whole graph once.
+          if (autoFitDone.current || viewportRestored.current || savedViewports.has(instanceKey)) return
+          autoFitDone.current = true
+          ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 400, 60)
+        }}
         linkColor={linkColorFor}
         linkWidth={(l: any) => (isPathLink(l) ? Math.max(linkThickness * 2.5, 3) : linkThickness)}
         linkDirectionalArrowLength={directed ? 4 : 0}
@@ -1776,6 +1791,12 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             onTogglePin={togglePin}
             textFade={textFade}
             setTextFade={setTextFade}
+            showMissing={showMissing}
+            setShowMissing={setShowMissing}
+            missingCount={missingCount}
+            onShowMissingList={() => setViewMode('list')}
+            sizeBy={sizeBy}
+            setSizeBy={setSizeBy}
             nodeSize={nodeSize}
             setNodeSize={setNodeSize}
             linkThickness={linkThickness}
