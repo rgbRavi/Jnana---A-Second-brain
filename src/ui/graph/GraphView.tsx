@@ -400,6 +400,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Keyboard cursor on the canvas (only meaningful while the region has focus).
   const [cursorId, setCursorId] = useState<string | null>(null)
   const [regionFocused, setRegionFocused] = useState(false)
+  // Keyboard cursor is shown after keyboard navigation, however focus arrived; mouse use hides it.
+  const [kbActive, setKbActive] = useState(false)
   const [kbAnnounce, setKbAnnounce] = useState('')
   // Steps revealed by the timeline (0..steps.length), or null when it is closed. Transient.
   const [timelineStep, setTimelineStep] = useState<number | null>(null)
@@ -1133,6 +1135,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const handleKeyNav = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return
     const dir = ({ ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' } as const)[e.key as 'ArrowUp']
+    if (dir || e.key === 'Home') setKbActive(true)
     if (dir) {
       e.preventDefault()
       if (!cursorId) return startCursor()
@@ -1161,7 +1164,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   useEffect(() => {
     const fg = fgRef.current
     if (fg) fg.zoom(fg.zoom())
-  }, [cursorId, regionFocused])
+  }, [cursorId, regionFocused, kbActive])
 
   // Resolve a path over real notes only (an unresolved [[title]] pseudo-node isn't a connection).
   const completePath = useCallback(
@@ -1526,7 +1529,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }
 
   return (
-    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget || !e.currentTarget.matches(':focus-visible')) return; setRegionFocused(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) setRegionFocused(false) }} onMouseMove={handleMouseMove} className={styles.root}>
+    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget) return; setRegionFocused(true); if (!e.currentTarget.matches(':focus-visible')) return; setKbActive(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) { setRegionFocused(false); setKbActive(false) } }} onPointerDown={() => setKbActive(false)} onMouseMove={handleMouseMove} className={styles.root}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {/* One empty state at a time: in list mode GraphListView owns it. */}
@@ -1922,22 +1925,40 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             ctx.stroke()
           }
 
-          if (regionFocused && node.id === cursorId) {
+          const kbHere = regionFocused && kbActive && node.id === cursorId
+          if (kbHere) {
+            // Soft accent glow, painted behind what's already drawn, then a crisp ring.
+            const glowR = radius * 4 + 12 / globalScale
+            ctx.save()
+            ctx.globalAlpha = 1
+            ctx.globalCompositeOperation = 'destination-over'
+            const g = ctx.createRadialGradient(node.x, node.y, radius, node.x, node.y, glowR)
+            g.addColorStop(0, resolveColor(FOCUS_COLOR, 0.55) ?? FOCUS_COLOR)
+            g.addColorStop(1, resolveColor(FOCUS_COLOR, 0) ?? 'transparent')
+            ctx.fillStyle = g
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, glowR, 0, 2 * Math.PI, false)
+            ctx.fill()
+            ctx.restore()
+            ctx.save()
+            ctx.globalAlpha = 1
             ctx.beginPath()
             ctx.arc(node.x, node.y, radius + 4 / globalScale, 0, 2 * Math.PI, false)
-            ctx.lineWidth = 2 / globalScale
+            ctx.lineWidth = 2.5 / globalScale
             ctx.strokeStyle = FOCUS_COLOR
             ctx.stroke()
+            ctx.restore()
           }
 
           // Labels fade out as you zoom past the text-fade threshold.
           const labelAlpha = Math.max(0, Math.min(1, (globalScale - textFade) * 2.5))
-          if (labelAlpha > 0.01) {
+          // The keyboard cursor's label always shows, so you can read where you are.
+          if (labelAlpha > 0.01 || kbHere) {
             ctx.save()
-            ctx.globalAlpha = labelAlpha * dim
+            ctx.globalAlpha = kbHere ? 1 : labelAlpha * dim
             ctx.textAlign = 'center'
             ctx.textBaseline = 'top'
-            ctx.fillStyle = isFocus ? LABEL_COLOR : LABEL_DIM_COLOR
+            ctx.fillStyle = isFocus || kbHere ? LABEL_COLOR : LABEL_DIM_COLOR
             drawLabel(ctx, text, node.x, node.y + radius + 3, globalScale, canvasBg)
             ctx.restore()
           }
