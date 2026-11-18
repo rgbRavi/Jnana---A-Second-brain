@@ -3,7 +3,7 @@
 
 // src/ui/graph/GraphView.tsx
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
-import { Link2, List, Network, Route, Scan, SlidersHorizontal, X } from 'lucide-react'
+import { Link2, List, Network, Route, Scan, Sparkles, SlidersHorizontal, Unlink, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
@@ -535,6 +535,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       setPath(null)
     } else if (focusNodeId) {
       setFocusNodeId(null)
+    } else if (spotlight) {
+      setGraphSpotlight(null)
     } else if (viewMode === 'list') {
       setViewMode('graph')
     }
@@ -1376,6 +1378,26 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         <button type="button" className={styles.toolbarBtn} onClick={fitView} title="Fit all notes in view" aria-label="Fit all notes in view">
           <Scan size={15} />
         </button>
+        <button
+          type="button"
+          className={styles.toolbarBtn}
+          onClick={() => setGraphSpotlight(spotlight === 'suggested' ? null : 'suggested')}
+          aria-pressed={spotlight === 'suggested'}
+          title="Suggest links I might have missed"
+          aria-label="Suggest links I might have missed"
+        >
+          <Sparkles size={15} />
+        </button>
+        <button
+          type="button"
+          className={styles.toolbarBtn}
+          onClick={() => setGraphSpotlight(spotlight === 'orphans' ? null : 'orphans')}
+          aria-pressed={spotlight === 'orphans'}
+          title="Highlight unlinked notes"
+          aria-label="Highlight unlinked notes"
+        >
+          <Unlink size={15} />
+        </button>
         <span id="graph-list-hint" className={styles.srOnly}>
           A list view of these notes is available with the List button next to the search box.
         </span>
@@ -1434,7 +1456,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                 : suggestionsLoading
                   ? 'Finding suggested links…'
                   : suggestedPairs.length === 0
-                    ? 'No suggested links found'
+                    ? `No suggested links found${suggestSource === 'ai' ? ' — AI suggestions need AI enabled in Settings' : ''}`
                     : `${suggestedPairs.length} suggested link${suggestedPairs.length === 1 ? '' : 's'} — click one to connect`}
             </span>
             <button type="button" className={styles.chipBtn} onClick={() => setGraphSpotlight(null)}>
