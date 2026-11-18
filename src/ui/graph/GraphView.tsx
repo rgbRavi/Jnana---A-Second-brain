@@ -421,6 +421,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [pickFrom, setPickFrom] = useState<string | null>(null)
   // "Find path to…": pathFrom = waiting for a target (click, or the list picker); path = the result.
   const [pathFrom, setPathFrom] = useState<string | null>(null)
+  // Measured height of the open timeline bar; lifts the bottom-left corner stack clear of it.
+  const [tlBarH, setTlBarH] = useState(0)
   const [path, setPath] = useState<string[] | null>(null)
 
   // Right-click context menu (per node).
@@ -542,16 +544,16 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // every frame whether or not the simulation is still settling, which is what
   // lets the halo below breathe off a clock.
 
-  // Esc peels back one layer at a time: a pending connection or menu, then the
-  // selection, then list view (back to the graph).
+  // Esc peels back one layer at a time: a pending connect/path pick or menu, then the
+  // timeline, the path result, the selection, the spotlight, and finally list view.
   useEscapeKey(() => {
-    if (timelineStep !== null) {
-      setTimelineStep(null)
-    } else if (connectingFrom || contextMenu || pickFrom || pathFrom) {
+    if (connectingFrom || contextMenu || pickFrom || pathFrom) {
       setConnectingFrom(null)
       setContextMenu(null)
       setPickFrom(null)
       setPathFrom(null)
+    } else if (timelineStep !== null) {
+      setTimelineStep(null)
     } else if (path) {
       setPath(null)
     } else if (focusNodeId) {
@@ -1529,7 +1531,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }
 
   return (
-    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget) return; setRegionFocused(true); if (!e.currentTarget.matches(':focus-visible')) return; setKbActive(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) { setRegionFocused(false); setKbActive(false) } }} onPointerDown={() => setKbActive(false)} onMouseMove={handleMouseMove} className={styles.root}>
+    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" tabIndex={0} onKeyDown={handleKeyNav} onFocus={(e) => { if (e.target !== e.currentTarget) return; setRegionFocused(true); if (!e.currentTarget.matches(':focus-visible')) return; setKbActive(true); if (!cursorId) startCursor() }} onBlur={(e) => { if (e.target === e.currentTarget) { setRegionFocused(false); setKbActive(false) } }} onPointerDown={() => setKbActive(false)} onMouseMove={handleMouseMove} className={styles.root} style={{ '--graph-timeline-h': timelineStep !== null && tlBarH ? `calc(${tlBarH}px + var(--space-sm))` : '0px' } as React.CSSProperties}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
       {/* One empty state at a time: in list mode GraphListView owns it. */}
@@ -1595,28 +1597,28 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
        </div>
 
         {connectingFrom && (
-          <div className={styles.connectBanner} role="status">
+          <div className={styles.statusChip} role="status">
             <Link2 size={14} className={styles.connectIcon} aria-hidden="true" />
-            <span>Click a target note to link it, or press Esc to cancel</span>
-            <button type="button" className={styles.chipBtn} onClick={() => setConnectingFrom(null)}>
+            <span className={styles.statusChipText}>Click a target note to link it, or press Esc to cancel</span>
+            <button type="button" className={styles.statusChipBtn} onClick={() => setConnectingFrom(null)}>
               Cancel
             </button>
           </div>
         )}
 
         {pathFrom && viewMode !== 'list' && (
-          <div className={styles.connectBanner} role="status">
+          <div className={styles.statusChip} role="status">
             <Route size={14} className={styles.connectIcon} aria-hidden="true" />
-            <span>Click the note to find a path to, or press Esc to cancel</span>
-            <button type="button" className={styles.chipBtn} onClick={() => setPathFrom(null)}>
+            <span className={styles.statusChipText}>Click the note to find a path to, or press Esc to cancel</span>
+            <button type="button" className={styles.statusChipBtn} onClick={() => setPathFrom(null)}>
               Cancel
             </button>
           </div>
         )}
 
         {path && path.length > 1 && (
-          <div className={styles.spotlightChip} role="status">
-            <Route size={14} aria-hidden="true" />
+          <div className={styles.statusChip} role="status">
+            <Route size={14} className={styles.connectIcon} aria-hidden="true" />
             <span className={styles.pathTrail}>
               {(path.length > 5 ? [path[0], path[1], null, path[path.length - 1]] : path).map((id, i) => (
                 <span key={id ?? 'gap'}>
@@ -1632,7 +1634,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
               ))}
               {` · ${path.length - 1} hop${path.length === 2 ? '' : 's'}`}
             </span>
-            <button type="button" className={styles.chipBtn} onClick={() => setPath(null)}>
+            <button type="button" className={styles.statusChipBtn} onClick={() => setPath(null)}>
               Clear
             </button>
           </div>
@@ -1640,8 +1642,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
         {/* Spotlight chip: what the dashboard asked us to highlight. */}
         {spotlight && !connectingFrom && (
-          <div className={styles.spotlightChip} role="status">
-            <span>
+          <div className={styles.statusChip} role="status">
+            <span className={styles.statusChipText}>
               {spotlight === 'orphans'
                 ? `${orphanCount} unlinked note${orphanCount === 1 ? '' : 's'} highlighted`
                 : suggestionsLoading
@@ -1650,15 +1652,24 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
                     ? `No suggested links found${suggestSource === 'ai' ? ' — AI suggestions need AI enabled in Settings' : ''}`
                     : `${suggestedPairs.length} suggested link${suggestedPairs.length === 1 ? '' : 's'} — click one to connect`}
             </span>
-            <button type="button" className={styles.chipBtn} onClick={() => setGraphSpotlight(null)}>
-              Dismiss
+            <button type="button" className={styles.statusChipBtn} onClick={() => setGraphSpotlight(null)}>
+              Clear
+            </button>
+          </div>
+        )}
+
+        {filterActive && (
+          <div className={styles.statusChip} role="status">
+            <span className={styles.statusChipText}>{`Filtered · ${shownCount} of ${scopedNodes.length} notes`}</span>
+            <button type="button" className={styles.statusChipBtn} onClick={clearFilters}>
+              Clear
             </button>
           </div>
         )}
       </div>
 
       {/* Bottom-left stack: group legend, then the right-click hint (graph mode only) */}
-      <div className={`${styles.corner} ${timelineStep !== null ? styles.aboveTimeline : ''}`}>
+      <div className={styles.corner}>
         {colorBy === 'clusters' ? (
           clusterInfo.legend.length > 0 && (
             <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Cluster colours">
@@ -1694,15 +1705,6 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         )}
         {viewMode !== 'list' && <div className={styles.hint}>Right-click a note for more</div>}
       </div>
-
-      {filterActive && (
-        <div className={`${styles.filterChip} ${timelineStep !== null ? styles.aboveTimeline : ''}`} role="status">
-          <span>{`Filtered · ${shownCount} of ${scopedNodes.length} notes`}</span>
-          <button type="button" onClick={clearFilters}>
-            Clear
-          </button>
-        </div>
-      )}
 
       {viewMode === 'list' && (
         <GraphListView
@@ -2017,6 +2019,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           total={shownCount}
           onChange={setTimelineStep}
           onClose={() => setTimelineStep(null)}
+          onHeight={setTlBarH}
         />
       )}
 

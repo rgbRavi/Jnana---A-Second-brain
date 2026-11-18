@@ -62,34 +62,35 @@
   }
 }
 
-/* Spotlight chip: says what the dashboard asked the graph to highlight. */
-.spotlightChip {
+/* One status chip for every pending/active state (connect, path, spotlight, filter). */
+.statusChip {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  max-width: 100%;
   padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
-  font-size: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   color: var(--text-1);
-  box-shadow: var(--shadow-lg);
+  font-size: 0.8rem;
 }
-
-/* Ghost text button used inside the top-centre chips. */
-.chipBtn {
+.statusChipText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusChipBtn {
   flex: none;
   background: transparent;
   color: var(--text-2);
   border: none;
-  border-radius: 999px;
-  padding: var(--space-2xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
   font-size: 0.75rem;
   font-family: var(--font-body);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--motion-ease);
 }
-.chipBtn:hover { background: var(--surface-hover); color: var(--text-1); }
+.statusChipBtn:hover { background: var(--surface-hover); color: var(--text-1); }
 
 /* Visually hidden, still read by screen readers. */
 .srOnly {
@@ -223,25 +224,13 @@
 }
 .jumpOptionActive { background: var(--surface-selected); }
 
-.connectBanner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
-  background: var(--surface);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-sm);
-  color: var(--text-1);
-  font-size: 0.8rem;
-  box-shadow: var(--shadow-md);
-}
 .connectIcon { flex: none; color: var(--success); }
 
 /* Bottom-left stack: group legend above the right-click hint, so they can't collide. */
 .corner {
   position: absolute;
   left: var(--space-lg);
-  bottom: var(--space-lg);
+  bottom: calc(var(--space-lg) + var(--graph-timeline-h, 0px));
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -354,36 +343,6 @@
 .swatchSm { width: 8px; height: 8px; }
 .swatchLg { width: 12px; height: 12px; }
 
-/* "Filtered · N of M notes" status chip, bottom-centre. */
-.filterChip {
-  position: absolute;
-  left: 50%;
-  bottom: var(--space-lg);
-  transform: translateX(-50%);
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-2xs) var(--space-md);
-  background: var(--surface);
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  color: var(--text-2);
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-.filterChip button {
-  padding: var(--space-3xs) var(--space-xs);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--text-1);
-  font: inherit;
-  cursor: pointer;
-}
-.filterChip button:hover { background: var(--surface-hover); }
-
 /* Dot on the settings button while any filter is on. */
 .filterDot {
   position: absolute;
@@ -418,7 +377,7 @@
 .connectPicker button:hover { background: var(--surface-hover); border-color: var(--border-control-hover); }
 
 /* "Find path" chip: the note trail; titles are buttons that select the note. */
-.pathTrail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pathTrail { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pathTitle {
   background: transparent;
   border: none;
@@ -428,6 +387,3 @@
   cursor: pointer;
 }
 .pathTitle:hover { text-decoration: underline; }
-
-/* Lift the bottom corner stack / filter chip clear of the timeline bar. */
-.aboveTimeline { bottom: calc(var(--space-lg) + 52px); }

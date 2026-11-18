@@ -9,6 +9,8 @@
   align-items: center;
   gap: var(--space-sm);
   width: min(560px, calc(100% - 2 * var(--space-lg)));
+  max-width: calc(100% - 2 * var(--space-lg));
+  box-sizing: border-box;
   padding: var(--space-2xs) var(--space-md);
   background: var(--surface);
   border: 1px solid var(--border-control);
@@ -18,8 +20,9 @@
   font-size: 0.8rem;
 }
 .slider { flex: 1; min-width: 80px; }
-.label { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .btn {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
