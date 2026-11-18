@@ -799,6 +799,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Auto clusters from real notes + real links only (never pseudo nodes), and
   // never the timeline: memoised on the graph data, not per frame.
   const clusterInfo = useMemo(() => {
+    // Only pay for detection while colouring by clusters.
+    if (colorBy !== 'clusters') return { colours: new Map<string, string>(), legend: [] as { id: number; color: string; label: string }[] }
     const real = (forceData.nodes as any[]).filter((n) => !n.isPseudo)
     const clusters = detectClusters(real.map((n) => n.id), adjacency)
     const colours = clusterColours(clusters, GROUP_PALETTE.map((c) => c.hex))
@@ -818,7 +820,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       .sort((a, b) => a[0] - b[0])
       .map(([c, v]) => ({ id: c, color: GROUP_PALETTE[c].hex, label: `${v.title} · ${v.count}` }))
     return { colours, legend }
-  }, [forceData, adjacency])
+  }, [forceData, adjacency, colorBy])
 
   // Hover wins over selection; selection dims only when not filtering to the neighbourhood.
   const emphasisId = hoverNodeId ?? (neighbourhoodOnly ? null : focusNodeId)
