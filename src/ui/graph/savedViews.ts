@@ -20,6 +20,7 @@ export interface GraphViewSnapshot {
   directed?: boolean
   highlightStructure?: boolean
   pinOnDrag?: boolean
+  colorBy?: 'groups' | 'clusters'
   textFade?: number
   nodeSize?: number
   linkThickness?: number

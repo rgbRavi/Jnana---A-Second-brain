@@ -15,7 +15,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { GraphListView } from './GraphListView'
 import { shortestPath } from './graphPath'
-import { GraphSettingsPanel, nextGroupColor, type DatePreset, type SectionKey } from './GraphSettingsPanel'
+import { GraphSettingsPanel, GROUP_PALETTE, nextGroupColor, type DatePreset, type SectionKey } from './GraphSettingsPanel'
 import { compileGroup, describeGroup, migrateGroups, newGroup, type GraphGroup } from './groupMatch'
 import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
 import { NoteItem } from '../editor/NoteItem'
@@ -35,6 +35,7 @@ import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { sizeScale, type SizeBy } from './nodeSize'
 import { GraphMoreMenu } from './GraphMoreMenu'
 import type { GraphViewSnapshot } from './savedViews'
+import { clusterColours, detectClusters } from './clusters'
 import styles from './GraphView.module.css'
 
 /** Escape user text before it's interpolated into the tooltip's raw HTML. */
@@ -482,6 +483,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [pinOnDrag, setPinOnDrag] = usePersistentViewState('graph.pinOnDrag', true)
   const [showMissing, setShowMissing] = usePersistentViewState('graph.showMissing', true)
   const [sizeBy, setSizeBy] = usePersistentViewState<SizeBy>('graph.sizeBy', 'same')
+  const [colorBy, setColorBy] = usePersistentViewState<'groups' | 'clusters'>('graph.colorBy', 'groups')
   const [textFade, setTextFade] = usePersistentViewState('graph.textFade', DEFAULT_DISPLAY.textFade)
   const [nodeSize, setNodeSize] = usePersistentViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
   const [linkThickness, setLinkThickness] = usePersistentViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
@@ -793,6 +795,30 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     }
     return m
   }, [forceData])
+
+  // Auto clusters from real notes + real links only (never pseudo nodes), and
+  // never the timeline: memoised on the graph data, not per frame.
+  const clusterInfo = useMemo(() => {
+    const real = (forceData.nodes as any[]).filter((n) => !n.isPseudo)
+    const clusters = detectClusters(real.map((n) => n.id), adjacency)
+    const colours = clusterColours(clusters, GROUP_PALETTE.map((c) => c.hex))
+    const best = new Map<number, { title: string; deg: number; count: number }>()
+    for (const n of real) {
+      const c = clusters.get(n.id)!
+      if (!colours.has(n.id)) continue
+      const deg = adjacency.get(n.id)?.size ?? 0
+      const cur = best.get(c)
+      if (!cur) best.set(c, { title: n.title?.trim() || 'Untitled', deg, count: 1 })
+      else {
+        cur.count++
+        if (deg > cur.deg) { cur.title = n.title?.trim() || 'Untitled'; cur.deg = deg }
+      }
+    }
+    const legend = [...best.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([c, v]) => ({ id: c, color: GROUP_PALETTE[c].hex, label: `${v.title} · ${v.count}` }))
+    return { colours, legend }
+  }, [forceData, adjacency])
 
   // Hover wins over selection; selection dims only when not filtering to the neighbourhood.
   const emphasisId = hoverNodeId ?? (neighbourhoodOnly ? null : focusNodeId)
@@ -1236,7 +1262,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     return {
       filterText, filterTags: [...filterTags], datePreset, orphansOnly, groups,
       neighbourhoodOnly, depth, directed, highlightStructure, pinOnDrag, showMissing, sizeBy,
-      textFade, nodeSize, linkThickness, forces: { ...forces }, camera,
+      colorBy, textFade, nodeSize, linkThickness, forces: { ...forces }, camera,
     }
   }
   const applySnapshot = (s: GraphViewSnapshot) => {
@@ -1252,6 +1278,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     if (s.pinOnDrag !== undefined) togglePin(s.pinOnDrag)
     if (typeof s.showMissing === 'boolean') setShowMissing(s.showMissing)
     if (s.sizeBy === 'same' || s.sizeBy === 'links' || s.sizeBy === 'edited') setSizeBy(s.sizeBy)
+    if (s.colorBy === 'groups' || s.colorBy === 'clusters') setColorBy(s.colorBy)
     if (s.textFade !== undefined) setTextFade(s.textFade)
     if (s.nodeSize !== undefined) setNodeSize(s.nodeSize)
     if (s.linkThickness !== undefined) setLinkThickness(s.linkThickness)
@@ -1287,8 +1314,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setDepth(1)
     setShowMissing(true)
     setSizeBy('same')
+    setColorBy('groups')
     resetForces()
-  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly, setDepth, setShowMissing, setSizeBy])
+  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly, setDepth, setShowMissing, setSizeBy, setColorBy])
 
   const confirmResetAll = useCallback(async () => {
     const ok = await showConfirmDialog({
@@ -1522,7 +1550,18 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
       {/* Bottom-left stack: group legend, then the right-click hint (graph mode only) */}
       <div className={`${styles.corner} ${timelineAt !== null ? styles.aboveTimeline : ''}`}>
-        {legendGroups.length > 0 && (
+        {colorBy === 'clusters' ? (
+          clusterInfo.legend.length > 0 && (
+            <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Cluster colours">
+              {clusterInfo.legend.map((g) => (
+                <li key={g.id} title={g.label}>
+                  <span className={styles.legendSwatch} style={{ background: g.color }} aria-hidden="true" />
+                  {g.label}
+                </li>
+              ))}
+            </ul>
+          )
+        ) : legendGroups.length > 0 && (
           <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Group colours">
             {legendGroups.map((g) => (
               <li key={g.id}>
@@ -1739,7 +1778,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ctx.globalAlpha = dim
 
           // Fill: group color → structural highlight → focus → connect-source override.
-          const gColor = groupColors.get(node.id) ?? null
+          const gColor = (colorBy === 'clusters' ? clusterInfo.colours : groupColors).get(node.id) ?? null
           let fill = gColor ?? DEFAULT_NODE_COLOR
           if (highlightStructure) {
             if (isOrphan) fill = ORPHAN_COLOR
@@ -1888,6 +1927,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             onShowMissingList={() => setViewMode('list')}
             sizeBy={sizeBy}
             setSizeBy={setSizeBy}
+            colorBy={colorBy}
+            setColorBy={setColorBy}
             nodeSize={nodeSize}
             setNodeSize={setNodeSize}
             linkThickness={linkThickness}

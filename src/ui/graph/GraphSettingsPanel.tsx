@@ -92,6 +92,8 @@ export interface GraphSettingsPanelProps {
   onShowMissingList: () => void
   sizeBy: SizeBy
   setSizeBy: (v: SizeBy) => void
+  colorBy: 'groups' | 'clusters'
+  setColorBy: (v: 'groups' | 'clusters') => void
   nodeSize: number
   setNodeSize: (v: number) => void
   linkThickness: number
@@ -167,6 +169,11 @@ const SIZE_BY_OPTIONS = [
   { value: 'same', label: 'Same for all' },
   { value: 'links', label: 'Number of links' },
   { value: 'edited', label: 'Last edited' },
+]
+
+const COLOR_BY_OPTIONS = [
+  { value: 'groups', label: 'Groups' },
+  { value: 'clusters', label: 'Clusters (auto)' },
 ]
 
 const TAG_MODE_OPTIONS = [
@@ -441,6 +448,7 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
   const dateId = useId()
   const depthId = useId()
   const sizeById = useId()
+  const colorById = useId()
   const { forces } = p
   const closeRef = useRef<HTMLButtonElement>(null)
   // Keyboard focus lands on the close button when the panel opens (the opener unmounts).
@@ -497,6 +505,7 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
       </Section>
 
       <Section title="Groups" open={p.openSections.groups} onToggle={() => p.onToggleSection('groups')}>
+        {p.colorBy === 'clusters' && <p className={styles.note}>Group colours are hidden while colouring by clusters.</p>}
         <p className={styles.note}>Colour notes by tags or title text. A note takes the colour of the first group it matches.</p>
         {p.groups.map((g, i) => (
           <GroupRow
@@ -516,6 +525,9 @@ export function GraphSettingsPanel(p: GraphSettingsPanelProps) {
       </Section>
 
       <Section title="Display" open={p.openSections.display} onToggle={() => p.onToggleSection('display')}>
+        <SettingField label="Colour notes by" htmlFor={colorById} hint="Clusters are found from your links" stacked>
+          <SettingSelect id={colorById} value={p.colorBy} onChange={(v) => p.setColorBy(v === 'clusters' ? 'clusters' : 'groups')} options={COLOR_BY_OPTIONS} ariaLabel="Colour notes by" />
+        </SettingField>
         <SettingToggle label="Neighbourhood only" hint="selecting a note hides all but its links" checked={p.neighbourhoodOnly} onChange={p.setNeighbourhoodOnly} />
         <SettingField label="Neighbourhood depth" htmlFor={depthId} stacked>
           <SettingSelect id={depthId} value={String(p.depth)} onChange={(v) => p.setDepth(Number(v))} options={DEPTH_OPTIONS} />
