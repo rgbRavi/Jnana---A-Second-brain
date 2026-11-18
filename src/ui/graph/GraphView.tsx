@@ -4,7 +4,7 @@
 // src/ui/graph/GraphView.tsx
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { exportGraphPng } from '../../core/graph/exportPng'
-import { ImageDown, Link2, List, Network, Route, Scan, Sparkles, SlidersHorizontal, Unlink, X } from 'lucide-react'
+import { Link2, List, Network, Route, Scan, SlidersHorizontal, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
@@ -31,7 +31,7 @@ import { eventBus } from '../../lib/eventBus'
 import { resolveColor } from '../../lib/themeColor'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { sizeScale, type SizeBy } from './nodeSize'
-import { ViewsMenu } from './ViewsMenu'
+import { GraphMoreMenu } from './GraphMoreMenu'
 import type { GraphViewSnapshot } from './savedViews'
 import styles from './GraphView.module.css'
 
@@ -1427,30 +1427,14 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         <button type="button" className={styles.toolbarBtn} onClick={fitView} title="Fit all notes in view" aria-label="Fit all notes in view">
           <Scan size={15} />
         </button>
-        <button
-          type="button"
+        <GraphMoreMenu
           className={styles.toolbarBtn}
-          onClick={() => setGraphSpotlight(spotlight === 'suggested' ? null : 'suggested')}
-          aria-pressed={spotlight === 'suggested'}
-          title="Suggest links I might have missed"
-          aria-label="Suggest links I might have missed"
-        >
-          <Sparkles size={15} />
-        </button>
-        <button
-          type="button"
-          className={styles.toolbarBtn}
-          onClick={() => setGraphSpotlight(spotlight === 'orphans' ? null : 'orphans')}
-          aria-pressed={spotlight === 'orphans'}
-          title="Highlight unlinked notes"
-          aria-label="Highlight unlinked notes"
-        >
-          <Unlink size={15} />
-        </button>
-        <button type="button" className={styles.toolbarBtn} onClick={() => void exportGraphPng(containerRef.current)} title="Export graph as image" aria-label="Export graph as image">
-          <ImageDown size={15} />
-        </button>
-        <ViewsMenu className={styles.toolbarBtn} capture={captureSnapshot} apply={applySnapshot} />
+          spotlight={spotlight}
+          onSpotlight={setGraphSpotlight}
+          onExport={() => void exportGraphPng(containerRef.current)}
+          capture={captureSnapshot}
+          apply={applySnapshot}
+        />
         <span id="graph-list-hint" className={styles.srOnly}>
           A list view of these notes is available with the List button next to the search box.
         </span>
