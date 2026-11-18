@@ -377,6 +377,7 @@ fn main() {
             remove_export_files,
             write_text_file,
             write_binary_file,
+            write_binary_file_raw,
             export_assets,
             get_storage_stats,
             create_backup,
