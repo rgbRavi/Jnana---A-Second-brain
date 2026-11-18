@@ -339,9 +339,18 @@
   box-shadow: var(--shadow-xl);
 }
 
-/* Legend dots for the structure highlight (orphan smaller, hub larger than a group swatch). */
-.swatchSm { width: 8px; height: 8px; }
-.swatchLg { width: 12px; height: 12px; }
+/* Ring swatches matching the canvas state cues (colour set inline). */
+.legendRing {
+  flex: none;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.legendRingDashed { border-style: dashed; }
+/* Path: ring plus the outer endpoint ring. */
+.legendRingDouble { box-shadow: 0 0 0 1px var(--bg), 0 0 0 2.5px currentColor; margin: 2px; }
 
 /* Dot on the settings button while any filter is on. */
 .filterDot {

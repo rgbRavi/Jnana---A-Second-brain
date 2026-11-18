@@ -32,6 +32,7 @@ import { toast } from '../../lib/toast'
 import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
 import { resolveColor } from '../../lib/themeColor'
+import { contrastRatio, mix } from '../../core/themes/apply'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
 import { sizeScale, type SizeBy } from './nodeSize'
 import { GraphMoreMenu } from './GraphMoreMenu'
@@ -66,6 +67,8 @@ function stripWikilink(content: string, title: string): string {
 // theme resolves) matches.
 let DEFAULT_NODE_COLOR = '#8b8794' // --text-2 (>=3:1 on --bg; --text-3 was ~2.5:1)
 let ORPHAN_COLOR = '#e3b341' // --warning
+// Canvas ring variant of --warning, darkened toward --text-1 until it holds 3:1 vs --bg.
+let ORPHAN_RING_COLOR = ORPHAN_COLOR
 let CONNECT_COLOR = '#3fb950' // --success
 // Faded outline for a pseudo-node (an unresolved `[[wikilink]]` target).
 let PSEUDO_COLOR = '#8b8794' // --text-2
@@ -79,7 +82,7 @@ let LABEL_DIM_COLOR = '#9896a4' // --text-2
 // is enough — same "no React re-render for the repaint" approach Theme Studio
 // uses for the rest of the app. Module-scoped (not per-instance) since several
 // GraphView instances (main + per-workspace) can be mounted at once.
-let HUB_COLOR = '#7c6af7'
+// Accent for selection / path rings and the keyboard cursor (never a node fill).
 let FOCUS_COLOR = '#7c6af7'
 // Translucent accent for link strokes. Canvas 2D can't resolve `var(--accent)`,
 // so we derive a concrete rgba() from the resolved accent (via the browser's own
@@ -98,7 +101,6 @@ function readGraphColors(): void {
   const g = (k: string) => cs.getPropertyValue(k).trim()
   const accent = g('--accent')
   if (accent) {
-    HUB_COLOR = accent
     FOCUS_COLOR = accent
     LINK_COLOR = resolveColor(accent, 0.4) ?? accent
     LINK_STRONG_COLOR = resolveColor(accent, 0.9) ?? accent
@@ -107,6 +109,12 @@ function readGraphColors(): void {
   graphFont = g('--font-body') || 'sans-serif'
   DEFAULT_NODE_COLOR = g('--text-2') || DEFAULT_NODE_COLOR
   ORPHAN_COLOR = g('--warning') || ORPHAN_COLOR
+  ORPHAN_RING_COLOR = ORPHAN_COLOR
+  const bg = g('--bg')
+  const fg = g('--text-1')
+  if (/^#[0-9a-f]{6}$/i.test(ORPHAN_COLOR) && /^#[0-9a-f]{6}$/i.test(bg) && /^#[0-9a-f]{6}$/i.test(fg)) {
+    for (let i = 1; i <= 10 && contrastRatio(ORPHAN_RING_COLOR, bg) < 3; i++) ORPHAN_RING_COLOR = mix(ORPHAN_COLOR, fg, i / 10)
+  }
   CONNECT_COLOR = g('--success') || CONNECT_COLOR
   SUGGEST_COLOR = resolveColor(CONNECT_COLOR, 0.55) ?? SUGGEST_COLOR
   PSEUDO_COLOR = g('--text-2') || PSEUDO_COLOR
@@ -1694,15 +1702,31 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         {highlightStructure && (
           <ul className={styles.legend} aria-label="Highlighted notes">
             <li>
-              <span className={`${styles.legendSwatch} ${styles.swatchSm}`} style={{ background: ORPHAN_COLOR }} aria-hidden="true" />
+              <span className={`${styles.legendRing} ${styles.legendRingDashed}`} style={{ color: ORPHAN_RING_COLOR }} aria-hidden="true" />
               Unlinked: no links
             </li>
             <li>
-              <span className={`${styles.legendSwatch} ${styles.swatchLg}`} style={{ background: HUB_COLOR }} aria-hidden="true" />
+              <span className={styles.legendRing} style={{ color: LABEL_COLOR }} aria-hidden="true" />
               {`Well-linked: ${HUB_DEGREE}+ links`}
             </li>
           </ul>
         )}
+        {(path && path.length > 1) || connectingFrom ? (
+          <ul className={styles.legend} aria-label="Active mode">
+            {path && path.length > 1 && (
+              <li>
+                <span className={`${styles.legendRing} ${styles.legendRingDouble}`} style={{ color: FOCUS_COLOR }} aria-hidden="true" />
+                Path
+              </li>
+            )}
+            {connectingFrom && (
+              <li>
+                <span className={`${styles.legendRing} ${styles.legendRingDashed}`} style={{ color: CONNECT_COLOR }} aria-hidden="true" />
+                Connecting from
+              </li>
+            )}
+          </ul>
+        ) : null}
         {viewMode !== 'list' && <div className={styles.hint}>Right-click a note for more</div>}
       </div>
 
@@ -1888,15 +1912,11 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ctx.save()
           ctx.globalAlpha = dim
 
-          // Fill: group color → structural highlight → focus → connect-source override.
+          // Fill = group/cluster colour (or default) only; every state below is a ring.
           const gColor = (colorBy === 'clusters' ? clusterInfo.colours : groupColors).get(node.id) ?? null
-          let fill = gColor ?? DEFAULT_NODE_COLOR
-          if (highlightStructure) {
-            if (isOrphan) fill = ORPHAN_COLOR
-            else if (isHub && !gColor) fill = HUB_COLOR
-          }
-          if (isFocus || (pathSet && pathSet.has(node.id))) fill = FOCUS_COLOR
-          if (isConnectSource) fill = CONNECT_COLOR
+          const fill = gColor ?? DEFAULT_NODE_COLOR
+          const onPath = !!pathSet && pathSet.has(node.id)
+          const isPathEnd = onPath && path != null && (node.id === path[0] || node.id === path[path.length - 1])
 
           // Orphan spotlight: a breathing gradient halo behind unlinked notes.
           // Independent of `highlightStructure` so the two never fight over fill.
@@ -1921,11 +1941,29 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ctx.fillStyle = fill
           ctx.fill()
 
-          if (hoverNodeId === node.id || isConnectSource || isHub || isOrphan) {
-            ctx.strokeStyle = isConnectSource ? CONNECT_COLOR : isOrphan ? ORPHAN_COLOR : LABEL_COLOR
-            ctx.lineWidth = (isConnectSource || isHub ? 2 : 1) / globalScale
+          if (hoverNodeId === node.id) {
+            ctx.strokeStyle = LABEL_COLOR
+            ctx.lineWidth = 1 / globalScale
             ctx.stroke()
           }
+
+          // State rings, outward in fixed order: selection → path → hub/orphan/connect → keyboard.
+          const ring = (off: number, w: number, color: string, dash?: boolean) => {
+            ctx.beginPath()
+            ctx.arc(node.x, node.y, radius + off / globalScale, 0, 2 * Math.PI, false)
+            ctx.lineWidth = w / globalScale
+            ctx.strokeStyle = color
+            ctx.setLineDash(dash ? [3 / globalScale, 2 / globalScale] : [])
+            ctx.stroke()
+            ctx.setLineDash([])
+          }
+          if (isFocus) ring(3, 2, FOCUS_COLOR)
+          if (onPath) ring(isFocus ? 6 : 3, 2, FOCUS_COLOR)
+          if (isPathEnd) ring(isFocus ? 9 : 6, 1.5, FOCUS_COLOR)
+          const stateOff = 3 + (isFocus ? 3 : 0) + (onPath ? 3 : 0) + (isPathEnd ? 3 : 0)
+          if (isHub) ring(stateOff, 2, LABEL_COLOR)
+          if (isOrphan) ring(stateOff, 1.5, ORPHAN_RING_COLOR, true)
+          if (isConnectSource) ring(stateOff + (isHub || isOrphan ? 3 : 0), 2, CONNECT_COLOR, true)
 
           const kbHere = regionFocused && kbActive && node.id === cursorId
           if (kbHere) {
@@ -1945,7 +1983,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             ctx.save()
             ctx.globalAlpha = 1
             ctx.beginPath()
-            ctx.arc(node.x, node.y, radius + 4 / globalScale, 0, 2 * Math.PI, false)
+            ctx.arc(node.x, node.y, radius + (stateOff + 6 + (isHub || isOrphan || isConnectSource ? 3 : 0)) / globalScale, 0, 2 * Math.PI, false)
             ctx.lineWidth = 2.5 / globalScale
             ctx.strokeStyle = FOCUS_COLOR
             ctx.stroke()
