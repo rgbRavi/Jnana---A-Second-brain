@@ -1952,6 +1952,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         // No tick cap: the layout eases out until alpha reaches alphaMin, instead of
         // freezing mid-motion. With motion on, alphaMin 0 keeps the engine (and the
         // float force) running while the layout forces still decay to rest.
+        // force-graph stops repainting once the layout settles; keep painting while
+        // something animates off the clock (timeline fades, the breathing orphan halo).
+        autoPauseRedraw={timelineStep === null && spotlight !== 'orphans'}
         cooldownTime={perpetualMotion ? Infinity : 15000}
         d3AlphaMin={perpetualMotion ? 0 : 0.001}
         onZoomEnd={() => {
