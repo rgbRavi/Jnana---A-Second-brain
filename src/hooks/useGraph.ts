@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getAllNotes, getAllLinks, createLink, removeLink } from '../core/notes'
 import { eventBus } from '../lib/eventBus'
+import { log } from '../lib/logger'
 import type { Note } from '../types'
 
 export interface GraphNode {
@@ -35,22 +36,33 @@ export function useGraph() {
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [edges, setEdges] = useState<GraphEdge[]>([])
   const [loading, setLoading] = useState(true)
+  // Set when the load fails, so the view can say so instead of pretending the
+  // vault is empty. Cleared by a successful load / `reload`.
+  const [error, setError] = useState<unknown>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const [notes, links] = await Promise.all([getAllNotes(), getAllLinks()])
+      setNodes(notes.map(noteToNode))
+      setEdges(links.map(([from, to]) => ({ source: from, target: to })))
+      setError(null)
+    } catch (err) {
+      log.error('Failed to load graph', err)
+      setError(err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   // Load everything on mount
   useEffect(() => {
-    async function load() {
-      try {
-        const [notes, links] = await Promise.all([getAllNotes(), getAllLinks()])
-        setNodes(notes.map(noteToNode))
-        setEdges(links.map(([from, to]) => ({ source: from, target: to })))
-      } catch (err) {
-        console.error('Failed to load graph:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
     void load()
-  }, [])
+  }, [load])
+
+  const reload = useCallback(() => {
+    setLoading(true)
+    void load()
+  }, [load])
 
   // When a note is saved, upsert it in the node list.
   // This keeps the graph in sync without a full reload.
@@ -123,7 +135,7 @@ export function useGraph() {
 
   const graphData: GraphData = { nodes, edges }
 
-  return { graphData, loading, refresh, addLink, dropLink }
+  return { graphData, loading, error, reload, refresh, addLink, dropLink }
 }
 
 // ─── Helpers ─────────────────────────────────────────────

@@ -1,0 +1,142 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (c) 2026 Jnana Project */
+
+.root {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--bg);
+  /* Clear the jump search and view toggle (top-left) and the settings panel. */
+  padding: 4.5rem var(--space-xl) var(--space-xl);
+  z-index: 2;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 640px;
+}
+
+.item {
+  border-bottom: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) 0;
+}
+
+.title,
+.subBtn,
+.chev,
+.create {
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: var(--space-xs) var(--space-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title:hover,
+.subBtn:hover,
+.chev:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.chev {
+  display: flex;
+  padding: var(--space-xs);
+  color: var(--text-2);
+}
+
+.chev:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.chevOpen {
+  transform: rotate(90deg);
+}
+
+.count {
+  font-size: 0.75rem;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.sub {
+  list-style: none;
+  margin: 0 0 var(--space-xs);
+  padding: 0 0 0 var(--space-xl);
+}
+
+.subBtn {
+  width: 100%;
+  text-align: left;
+  color: var(--text-2);
+  font-size: 0.85rem;
+  padding: var(--space-2xs) var(--space-sm);
+}
+
+.groupHead {
+  margin: var(--space-xl) 0 var(--space-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.missingTitle,
+.missingText {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  font-style: italic;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.85rem;
+}
+
+.create {
+  border: 1px solid var(--border-control);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: 0.8rem;
+}
+
+.create:hover {
+  border-color: var(--border-control-hover);
+  background: var(--surface-hover);
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  z-index: 2;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.empty .hint {
+  font-size: 0.8rem;
+  color: var(--text-3);
+  margin-top: var(--space-xs);
+}

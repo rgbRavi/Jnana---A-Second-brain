@@ -537,16 +537,15 @@ export function CanvasBoardCore({
     return () => window.removeEventListener('paste', onPaste)
   }, [addImageBytesAt, addLinkAt, addTextAt, centerWorld])
 
-  const zoomAround = (cx: number, cy: number, dir: 1 | -1) =>
+  const zoomAround = (cx: number, cy: number, factor: number) =>
     setView((v) => {
-      const factor = dir > 0 ? 1.1 : 1 / 1.1
       const scale = clamp(v.scale * factor, 0.2, 3)
       const k = scale / v.scale
       return { scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k }
     })
   const handleZoom = (dir: 1 | -1) => {
     const rect = boardRef.current?.getBoundingClientRect()
-    zoomAround((rect?.width ?? 0) / 2, (rect?.height ?? 0) / 2, dir)
+    zoomAround((rect?.width ?? 0) / 2, (rect?.height ?? 0) / 2, dir > 0 ? 1.1 : 1 / 1.1)
   }
   const handleFit = () => {
     const rect = boardRef.current?.getBoundingClientRect()
@@ -860,7 +859,10 @@ export function CanvasBoardCore({
     const handler = (e: WheelEvent) => {
       e.preventDefault()
       const rect = el.getBoundingClientRect()
-      zoomAround(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1 : -1)
+      // Proportional to the delta: a wheel notch (~100px) is ~10%, and a trackpad
+      // pinch (arrives as many small ctrl+wheel events) zooms smoothly.
+      const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY
+      zoomAround(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-delta * (e.ctrlKey ? 0.01 : 0.001)))
     }
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)

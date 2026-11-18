@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Jnana Project
 
 // src/hooks/useViewState.ts
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 
 /**
@@ -87,5 +87,32 @@ export function useViewState<T>(key: string, initial: T | (() => T)) {
     [key],
   )
 
+  return [state, setState] as const
+}
+
+const PERSIST_PREFIX = 'jnana.view.'
+
+/**
+ * `useViewState` that also survives an app restart: seeded from localStorage on
+ * first use this session, written back on every change. For user preferences and
+ * user-authored config (e.g. graph groups) — not for transient UI state.
+ */
+export function usePersistentViewState<T>(key: string, initial: T | (() => T)) {
+  const [state, setState] = useViewState<T>(key, () => {
+    try {
+      const raw = localStorage.getItem(PERSIST_PREFIX + key)
+      if (raw != null) return JSON.parse(raw) as T
+    } catch {
+      /* unreadable or unavailable storage — fall back to the default */
+    }
+    return typeof initial === 'function' ? (initial as () => T)() : initial
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(PERSIST_PREFIX + key, JSON.stringify(state))
+    } catch {
+      /* storage unavailable — keep the in-memory value */
+    }
+  }, [key, state])
   return [state, setState] as const
 }

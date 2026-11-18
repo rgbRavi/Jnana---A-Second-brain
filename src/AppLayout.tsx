@@ -109,6 +109,18 @@ function AppInner() {
     }, [])
     // Flush pending autosaves before the window closes (see core/closeGuard).
     useEffect(() => installCloseGuard(), [])
+    // zoomHotkeysEnabled (tauri.conf.json) is what lets trackpad pinch reach the
+    // page at all (wry ties WebView2's pinch setting to it). Pinch arrives as
+    // ctrl+wheel: surfaces that zoom (graph, canvas) consume it first; anything
+    // left over would page-zoom the whole UI, so swallow it here. Ctrl +/-/0
+    // still zoom the app (text resize).
+    useEffect(() => {
+        const onWheel = (e: WheelEvent) => {
+            if (e.ctrlKey && !e.defaultPrevented) e.preventDefault()
+        }
+        window.addEventListener('wheel', onWheel, { passive: false })
+        return () => window.removeEventListener('wheel', onWheel)
+    }, [])
     // Count this boot and decide whether the first-run wizard opens. markLaunch
     // is idempotent per process, so StrictMode's double-invoke can't double-count.
     useEffect(() => {

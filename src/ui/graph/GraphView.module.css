@@ -62,39 +62,352 @@
   }
 }
 
-/* Spotlight chip — says what the dashboard asked the graph to highlight, and
-   offers the way out. Sits where the connect banner does; the two never show
-   at once. */
+/* Spotlight chip: says what the dashboard asked the graph to highlight. */
 .spotlightChip {
-  position: absolute;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 0.4rem 0.5rem 0.4rem 0.9rem;
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
   font-size: 0.8rem;
   color: var(--text-1);
   box-shadow: var(--shadow-lg);
 }
 
-.spotlightChip button {
-  background: var(--accent);
-  color: var(--on-accent);
+/* Ghost text button used inside the top-centre chips. */
+.chipBtn {
+  flex: none;
+  background: transparent;
+  color: var(--text-2);
   border: none;
   border-radius: 999px;
-  padding: 0.25rem 0.7rem;
+  padding: var(--space-2xs) var(--space-md);
   font-size: 0.75rem;
   font-family: var(--font-body);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--motion-ease);
 }
+.chipBtn:hover { background: var(--surface-hover); color: var(--text-1); }
 
-.spotlightChip button:hover {
-  background: var(--accent-hover);
+/* Visually hidden, still read by screen readers. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
+
+/* Local z-scale: canvas overlays 2, toolbars/pills 3, settings + note panel 4.
+   Portaled menus, dialogs and toasts sit above all of these. */
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+.empty p { margin: 0; }
+
+.emptyBtn {
+  pointer-events: auto;
+  padding: var(--space-2xs) var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--motion-ease);
+}
+.emptyBtn:hover { background: var(--surface-hover); color: var(--text-1); }
+
+/* One toolbar: jump search, List toggle, Fit view — same height, stroke, fill. */
+.toolbar {
+  position: absolute;
+  top: var(--space-lg);
+  left: var(--space-lg);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  max-width: min(480px, calc(100% - 2 * var(--space-lg)));
+}
+.toolbarRow { display: flex; align-items: center; gap: var(--space-sm); }
+/* The jump results drop over the status chips stacked below the row. */
+.toolbarRow { position: relative; z-index: 1; }
+
+.toolbarInput,
+.toolbarBtn {
+  box-sizing: border-box;
+  height: 36px;
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-1);
+  font-family: var(--font-body);
+  transition: border-color var(--dur-fast) var(--motion-ease), background-color var(--dur-fast) var(--motion-ease);
+}
+
+.toolbarInput {
+  width: 100%;
+  padding: 0 var(--space-md);
+  font-size: 0.8125rem;
+}
+.toolbarInput::placeholder { color: var(--text-2); }
+
+.toolbarBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  padding: 0;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.toolbarInput:hover,
+.toolbarBtn:hover { border-color: var(--border-control-hover); }
+.toolbarBtn:hover { background: var(--surface-hover); color: var(--text-1); }
+.toolbarBtn[aria-pressed='true'] { background: var(--surface-selected); color: var(--text-1); }
+
+.jump {
+  position: relative;
+  width: 240px;
+  max-width: 40vw;
+}
+
+.jumpList {
+  position: absolute;
+  top: calc(100% + var(--space-2xs));
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+
+.jumpOption {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-1);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jumpOptionActive { background: var(--surface-selected); }
+
+.connectBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: 0.8rem;
+  box-shadow: var(--shadow-md);
+}
+.connectIcon { flex: none; color: var(--success); }
+
+/* Bottom-left stack: group legend above the right-click hint, so they can't collide. */
+.corner {
+  position: absolute;
+  left: var(--space-lg);
+  bottom: var(--space-lg);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-xs) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  max-width: 220px;
+  background: rgba(var(--surface-rgb), 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+/* Every group is listed (colours repeat past 6); long lists scroll instead of hiding. */
+.legendScroll {
+  max-height: 10.5rem;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legendSwatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+
+.openPanelBtn {
+  position: absolute;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--motion-ease);
+}
+.openPanelBtn:hover { background: var(--surface-hover); color: var(--text-1); border-color: var(--border-control-hover); }
+
+.noteHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2xs) var(--space-2xs) 0;
+  background: var(--bg);
+}
+.noteClose {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2xs);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.noteClose:hover { background: var(--surface-hover); color: var(--text-1); }
+
+.notePanel {
+  position: absolute;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  z-index: 4;
+  width: 400px;
+  max-width: calc(100% - 2 * var(--space-lg));
+  max-height: 90%;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Legend dots for the structure highlight (orphan smaller, hub larger than a group swatch). */
+.swatchSm { width: 8px; height: 8px; }
+.swatchLg { width: 12px; height: 12px; }
+
+/* "Filtered · N of M notes" status chip, bottom-centre. */
+.filterChip {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-lg);
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xs) var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-2);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.filterChip button {
+  padding: var(--space-3xs) var(--space-xs);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font: inherit;
+  cursor: pointer;
+}
+.filterChip button:hover { background: var(--surface-hover); }
+
+/* Dot on the settings button while any filter is on. */
+.filterDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* List-mode "link to…" picker, at the top of the list. */
+.connectPicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 640px;
+  margin-bottom: var(--space-md);
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+.connectPicker button {
+  padding: var(--space-2xs) var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font: inherit;
+  cursor: pointer;
+}
+.connectPicker button:hover { background: var(--surface-hover); border-color: var(--border-control-hover); }

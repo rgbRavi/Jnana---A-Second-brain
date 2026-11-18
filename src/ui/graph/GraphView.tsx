@@ -3,22 +3,27 @@
 
 // src/ui/graph/GraphView.tsx
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
-import { Link2, Plus, RotateCcw, SlidersHorizontal, Unlink, X } from 'lucide-react'
+import { Link2, List, Network, Scan, SlidersHorizontal, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
-import { ask } from '@tauri-apps/plugin-dialog'
 import { useGraph } from '../../hooks/useGraph'
-import { useViewState } from '../../hooks/useViewState'
+import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { ContextMenu, type MenuItem } from '../ContextMenu'
+import { GraphListView } from './GraphListView'
+import { GraphSettingsPanel, nextGroupColor, type DatePreset, type SectionKey } from './GraphSettingsPanel'
+import { compileGroup, describeGroup, migrateGroups, newGroup, type GraphGroup } from './groupMatch'
 import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
 import { NoteItem } from '../editor/NoteItem'
 import { isAutoTag } from '../../core/tags'
 import { extractWikilinkTitles, normalizeTitle, pseudoNodeId } from '../../core/markdown/wikilinks'
 import { noteLinkText } from '../../lib/noteTypes'
-import { showChoiceDialog } from '../../lib/dialog'
+import { showChoiceDialog, showConfirmDialog } from '../../lib/dialog'
 import { setGraphSpotlight, useGraphSpotlight } from '../../lib/graphSpotlight'
 import { useSuggestedPairs } from '../../lib/suggestedLinks'
 import { nearestPair, type SuggestedPair } from '../../core/graph/suggestedLinks'
 import { useDashboardPrefs } from '../../views/home/dashboard/useDashboardPrefs'
 import { toast } from '../../lib/toast'
+import { log } from '../../lib/logger'
 import { eventBus } from '../../lib/eventBus'
 import { resolveColor } from '../../lib/themeColor'
 import { DEFAULT_VAULT_ID, type Note } from '../../types'
@@ -45,17 +50,11 @@ function stripWikilink(content: string, title: string): string {
   return content.replace(re, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-// Stable palette used to seed new group colors and the filter tag chips.
-const TAG_PALETTE = [
-  '#7c6af7', '#3fb950', '#e3b341', '#3ba7f7', '#f778ba', '#a371f7',
-  '#56d4bc', '#ff8c42', '#d29922', '#6cb6ff', '#e5484d', '#8bd450',
-]
-
 // Structural / label colors — re-themed live off design tokens on the same
 // `theme:changed` beat as the accent bindings below (readGraphColors reads them
 // from :root). Seeded with the dark-theme values so the first paint (before any
 // theme resolves) matches.
-let DEFAULT_NODE_COLOR = '#55535f' // --text-3
+let DEFAULT_NODE_COLOR = '#8b8794' // --text-2 (>=3:1 on --bg; --text-3 was ~2.5:1)
 let ORPHAN_COLOR = '#e3b341' // --warning
 let CONNECT_COLOR = '#3fb950' // --success
 // Faded outline for a pseudo-node (an unresolved `[[wikilink]]` target).
@@ -78,6 +77,11 @@ let FOCUS_COLOR = '#7c6af7'
 let LINK_COLOR = 'rgba(124, 106, 247, 0.4)'
 // Dashed "you could link these" strokes for the suggested-links spotlight.
 let SUGGEST_COLOR = 'rgba(63, 185, 80, 0.55)' // --success, translucent
+// Links touching the hovered/selected node vs. everything else while dimming.
+let LINK_STRONG_COLOR = 'rgba(124, 106, 247, 0.9)'
+let LINK_FADED_COLOR = 'rgba(124, 106, 247, 0.07)'
+// Canvas can't resolve var(); the resolved --font-body stack goes here.
+let graphFont = 'sans-serif'
 
 function readGraphColors(): void {
   const cs = getComputedStyle(document.documentElement)
@@ -87,8 +91,11 @@ function readGraphColors(): void {
     HUB_COLOR = accent
     FOCUS_COLOR = accent
     LINK_COLOR = resolveColor(accent, 0.4) ?? accent
+    LINK_STRONG_COLOR = resolveColor(accent, 0.9) ?? accent
+    LINK_FADED_COLOR = resolveColor(accent, 0.07) ?? LINK_COLOR
   }
-  DEFAULT_NODE_COLOR = g('--text-3') || DEFAULT_NODE_COLOR
+  graphFont = g('--font-body') || 'sans-serif'
+  DEFAULT_NODE_COLOR = g('--text-2') || DEFAULT_NODE_COLOR
   ORPHAN_COLOR = g('--warning') || ORPHAN_COLOR
   CONNECT_COLOR = g('--success') || CONNECT_COLOR
   SUGGEST_COLOR = resolveColor(CONNECT_COLOR, 0.55) ?? SUGGEST_COLOR
@@ -166,11 +173,14 @@ const FORCE_PRESETS = {
  * doesn't change spacing. The built-in center force is left in place to keep the
  * graph on-screen; this adds the adjustable inward pull on top of it.
  */
+// Slider 0..1 maps to an effective pull of 0..0.25 per tick, so the default (0.4)
+// lands on d3's standard centering strength (0.1) and notes drift in gently.
+const CENTER_SCALE = 0.25
 function makeRadialForce(initial: number) {
   let nodes: any[] = []
   let strength = initial
   const force = (alpha: number) => {
-    const k = strength * alpha
+    const k = strength * CENTER_SCALE * alpha
     if (!k) return
     for (const n of nodes) {
       n.vx -= (n.x || 0) * k
@@ -188,19 +198,36 @@ function makeRadialForce(initial: number) {
   return force
 }
 
-// Gentle perpetual-motion force (Display → Keep nodes moving). Each tick it nudges
-// every node with a tiny random impulse. It's alpha-INDEPENDENT so the wiggle
-// persists after the layout settles; the existing charge/link/centre forces (run
-// with d3AlphaDecay=0, so they stay at full strength) net to ~zero at equilibrium
-// and gently restore each nudge, giving a bounded living-graph wiggle instead of a
-// random walk. Pinned nodes (fx/fy set) ignore velocity, so they stay put.
-const WIGGLE_STRENGTH = 0.45
-function makeWiggleForce(strength: number) {
+// Gentle perpetual-motion force (Advanced → Keep nodes moving). Each node bobs on
+// its own slow sine, with a random phase so they don't move in lockstep. The input
+// is a smooth periodic velocity, so displacement stays a bounded, smooth float
+// around the settled position (no random walk, no jitter). Pinned nodes (fx/fy)
+// ignore velocity, so they stay put. Off under prefers-reduced-motion.
+const FLOAT_STRENGTH = 0.04 // ~4 graph px of drift with the default velocity decay
+const FLOAT_PERIOD = 240 // ticks per cycle (~4 s at 60 fps)
+/** Label with a background-coloured halo so it stays legible over links and nodes. */
+function drawLabel(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, scale: number, bg: string) {
+  ctx.save()
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 3 / scale
+  ctx.strokeStyle = bg
+  ctx.strokeText(text, x, y)
+  ctx.restore()
+  ctx.fillText(text, x, y)
+}
+
+function makeFloatForce(strength: number) {
   let nodes: any[] = []
+  let t = 0
+  const w = (2 * Math.PI) / FLOAT_PERIOD
   const force = () => {
+    if (reducedMotion) return
+    t += 1
     for (const n of nodes) {
-      n.vx = (n.vx || 0) + (Math.random() - 0.5) * strength
-      n.vy = (n.vy || 0) + (Math.random() - 0.5) * strength
+      if (n.__floatPhase === undefined) n.__floatPhase = Math.random() * 2 * Math.PI
+      const p = n.__floatPhase
+      n.vx = (n.vx || 0) + Math.cos(t * w + p) * strength
+      n.vy = (n.vy || 0) + Math.sin(t * w * 0.8 + p * 1.7) * strength
     }
   }
   force.initialize = (n: any[]) => {
@@ -209,14 +236,6 @@ function makeWiggleForce(strength: number) {
   return force
 }
 
-type DatePreset = 'all' | 'week' | 'month' | 'year'
-type SectionKey = 'filters' | 'groups' | 'display' | 'forces'
-
-interface Group {
-  id: string
-  query: string
-  color: string
-}
 interface ContextMenuState {
   nodeId: string
   x: number
@@ -242,187 +261,26 @@ interface Props {
   instanceKey?: string
 }
 
-const presetBtnStyle: React.CSSProperties = {
-  flex: 1,
-  background: 'var(--surface-2)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-1)',
-  fontSize: '0.75rem',
-  padding: '0.4rem 0.5rem',
-  cursor: 'pointer',
-}
-
-const inputStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-1)',
-  padding: '0.45rem 0.6rem',
-  fontFamily: 'var(--font-body)',
-  fontSize: '0.82rem',
-  outline: 'none',
-}
-
-// ── Small reusable panel pieces ───────────────────────────
-
-/** A collapsible accordion section with a chevron header and optional right slot. */
-function Section({
-  title,
-  open,
-  onToggle,
-  right,
-  children,
-}: {
-  title: string
-  open: boolean
-  onToggle: () => void
-  right?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div style={{ borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button
-          onClick={onToggle}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flex: 1,
-            textAlign: 'left',
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-1)',
-            fontSize: '0.875rem',
-            fontWeight: 600,
-            padding: '0.7rem 0.1rem',
-            cursor: 'pointer',
-          }}
-        >
-          <span
-            aria-hidden
-            style={{ display: 'inline-block', transition: 'transform 0.15s', transform: open ? 'rotate(90deg)' : 'none', fontSize: '0.8rem', color: 'var(--text-2)' }}
-          >
-            ›
-          </span>
-          {title}
-        </button>
-        {right}
-      </div>
-      {open && <div style={{ padding: '0 0.1rem 0.9rem' }}>{children}</div>}
-    </div>
-  )
-}
-
-/** A label + iOS-style switch row. */
-function Toggle({
-  label,
-  checked,
-  onChange,
-  title,
-}: {
-  label: string
-  checked: boolean
-  onChange: (v: boolean) => void
-  title?: string
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0' }} title={title}>
-      <span style={{ fontSize: '0.84rem', color: 'var(--text-1)' }}>{label}</span>
-      <button
-        onClick={() => onChange(!checked)}
-        aria-pressed={checked}
-        aria-label={label}
-        style={{
-          width: '36px',
-          height: '20px',
-          borderRadius: '999px',
-          border: 'none',
-          cursor: 'pointer',
-          background: checked ? 'var(--accent)' : 'var(--border)',
-          position: 'relative',
-          transition: 'background 0.15s',
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            position: 'absolute',
-            top: '2px',
-            left: checked ? '18px' : '2px',
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            background: 'var(--on-accent)',
-            transition: 'left 0.15s',
-          }}
-        />
-      </button>
-    </div>
-  )
-}
-
-/** A labeled range slider with a live value and optional hint / hover tip. */
-function Slider({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step,
-  hint,
-  tip,
-}: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-  min: number
-  max: number
-  step: number
-  hint?: string
-  tip?: string
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '0.35rem 0' }} title={tip}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <label style={{ fontSize: '0.84rem', color: 'var(--text-1)' }}>{label}</label>
-        <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{value}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
-      />
-      {hint && <span style={{ fontSize: '0.68rem', color: 'var(--text-3)', lineHeight: 1.35 }}>{hint}</span>}
-    </div>
-  )
-}
-
-/** A color swatch + label row for the hub/orphan mini-legend. */
-function LegendRow({ color, size = 10, label }: { color: string; size?: number; label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', lineHeight: 1.6, fontSize: '0.75rem', color: 'var(--text-2)' }}>
-      <span style={{ width: `${size}px`, height: `${size}px`, borderRadius: '50%', background: color, flexShrink: 0 }} />
-      <span>{label}</span>
-    </div>
-  )
-}
-
 /** Compact search box that focuses a matching node (replaces the old big card). */
 function JumpToNote({
   nodes,
   onJump,
+  idPrefix = 'graph-jump',
+  placeholder = 'Jump to a note…',
+  label = 'Jump to a note',
+  autoFocus = false,
 }: {
   nodes: { id: string; title: string; content: string }[]
   onJump: (id: string) => void
+  /** Distinct per instance so two pickers never share listbox ids. */
+  idPrefix?: string
+  placeholder?: string
+  label?: string
+  autoFocus?: boolean
 }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
   const matches = useMemo(() => {
     const s = q.trim().toLowerCase()
     if (!s) return []
@@ -430,70 +288,82 @@ function JumpToNote({
       .filter((n) => (n.title || '').toLowerCase().includes(s) || (n.content || '').toLowerCase().includes(s))
       .slice(0, 8)
   }, [q, nodes])
+  const expanded = open && matches.length > 0
+  const optId = (i: number) => `${idPrefix}-opt-${i}`
+
+  const pick = (id: string) => {
+    onJump(id)
+    setQ('')
+    setOpen(false)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      if (expanded) {
+        e.preventDefault()
+        e.stopPropagation()
+        setOpen(false)
+      }
+      return
+    }
+    if (matches.length === 0) return
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      setOpen(true)
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      setActive((i) => (i + step + matches.length) % matches.length)
+    } else if (e.key === 'Enter' && expanded) {
+      e.preventDefault()
+      pick(matches[Math.min(active, matches.length - 1)].id)
+    }
+  }
 
   return (
-    <div style={{ width: '240px', position: 'relative' }}>
+    <div className={styles.jump}>
       <input
         type="search"
+        role="combobox"
+        aria-expanded={expanded}
+        aria-controls={`${idPrefix}-list`}
+        aria-autocomplete="list"
+        aria-activedescendant={expanded ? optId(Math.min(active, matches.length - 1)) : undefined}
         value={q}
         onChange={(e) => {
           setQ(e.target.value)
+          setActive(0)
           setOpen(true)
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Jump to a note…"
-        aria-label="Jump to a note"
-        style={{
-          ...inputStyle,
-          width: '100%',
-          background: 'var(--surface)',
-          boxShadow: 'var(--shadow-md)',
-        }}
+        onBlur={() => setOpen(false)}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        aria-label={label}
+        autoFocus={autoFocus}
+        className={styles.toolbarInput}
       />
-      {open && matches.length > 0 && (
+      {expanded && (
         <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            boxShadow: 'var(--shadow-lg)',
-            overflow: 'hidden',
-            maxHeight: '280px',
-            overflowY: 'auto',
-          }}
+          id={`${idPrefix}-list`}
+          role="listbox"
+          aria-label="Matching notes"
+          className={styles.jumpList}
         >
-          {matches.map((m) => (
-            <button
+          {matches.map((m, i) => (
+            <div
               key={m.id}
-              // onMouseDown fires before the input's onBlur closes the list.
-              onMouseDown={() => {
-                onJump(m.id)
-                setQ('')
-                setOpen(false)
+              id={optId(i)}
+              role="option"
+              aria-selected={i === active}
+              // preventDefault keeps focus in the input so blur can't close the list first.
+              onMouseDown={(e) => {
+                e.preventDefault()
+                pick(m.id)
               }}
-              style={{
-                display: 'block',
-                width: '100%',
-                textAlign: 'left',
-                background: 'transparent',
-                border: 'none',
-                borderBottom: '1px solid var(--border)',
-                color: 'var(--text-1)',
-                fontSize: '0.82rem',
-                padding: '0.5rem 0.6rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
+              onMouseEnter={() => setActive(i)}
+              className={`${styles.jumpOption} ${i === active ? styles.jumpOptionActive : ''}`}
             >
               {m.title || 'Untitled'}
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -502,7 +372,7 @@ function JumpToNote({
 }
 
 export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 'workspace', instanceKey = 'main' }: Props) {
-  const { graphData, loading } = useGraph()
+  const { graphData, loading, error, reload } = useGraph()
 
   // Per-instance session caches (layout + viewport), so a workspace's local graph
   // never shares positions/zoom with the main graph.
@@ -517,10 +387,14 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
+  // Off (default): selecting dims non-neighbours. On: the graph filters to the 1-hop neighbourhood.
+  const [neighbourhoodOnly, setNeighbourhoodOnly] = usePersistentViewState('graph.neighbourhoodOnly', false)
 
   // Connect-to-node: chosen from a node's right-click menu. While set, a
   // rubber-band line follows the cursor and the next node clicked is linked.
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
+  // List mode can't click a target node, so Connect opens a searchable picker instead.
+  const [pickFrom, setPickFrom] = useState<string | null>(null)
 
   // Right-click context menu (per node).
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -562,12 +436,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   // Settings panel — all of the controls below persist across view switches
   // (via useViewState) so the graph's configuration isn't lost when navigating.
-  const [showPanel, setShowPanel] = useViewState('graph.showPanel', true)
+  const [showPanel, setShowPanel] = useViewState('graph.showPanel', false)
+  const [viewMode, setViewMode] = useViewState<'graph' | 'list'>('graph.viewMode', 'graph')
   const [openSections, setOpenSections] = useViewState<Record<SectionKey, boolean>>('graph.openSections', {
-    filters: false,
+    filters: true,
     groups: false,
     display: false,
-    forces: false,
+    advanced: false,
   })
 
   // Filters.
@@ -577,18 +452,24 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [orphansOnly, setOrphansOnly] = useViewState('graph.orphansOnly', false)
 
   // Groups (color categories of notes).
-  const [groups, setGroups] = useViewState<Group[]>('graph.groups', [])
+  // Stored shape may be legacy ({query}) or junk — always read through migrateGroups.
+  const [rawGroups, setRawGroups] = usePersistentViewState<unknown>('graph.groups', [])
+  const groups = useMemo(() => migrateGroups(rawGroups), [rawGroups])
+  const setGroups = useCallback(
+    (fn: (prev: GraphGroup[]) => GraphGroup[]) => setRawGroups((prev: unknown) => fn(migrateGroups(prev))),
+    [setRawGroups],
+  )
 
   // Display.
-  const [directed, setDirected] = useViewState('graph.directed', false)
-  const [highlightStructure, setHighlightStructure] = useViewState('graph.highlightStructure', false)
-  const [pinOnDrag, setPinOnDrag] = useViewState('graph.pinOnDrag', true)
-  const [textFade, setTextFade] = useViewState('graph.textFade', DEFAULT_DISPLAY.textFade)
-  const [nodeSize, setNodeSize] = useViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
-  const [linkThickness, setLinkThickness] = useViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
+  const [directed, setDirected] = usePersistentViewState('graph.directed', false)
+  const [highlightStructure, setHighlightStructure] = usePersistentViewState('graph.highlightStructure', false)
+  const [pinOnDrag, setPinOnDrag] = usePersistentViewState('graph.pinOnDrag', true)
+  const [textFade, setTextFade] = usePersistentViewState('graph.textFade', DEFAULT_DISPLAY.textFade)
+  const [nodeSize, setNodeSize] = usePersistentViewState('graph.nodeSize', DEFAULT_DISPLAY.nodeSize)
+  const [linkThickness, setLinkThickness] = usePersistentViewState('graph.linkThickness', DEFAULT_DISPLAY.linkThickness)
   // Optional ambience: keep nodes gently drifting, and a rippling accent glow behind the graph.
-  const [perpetualMotion, setPerpetualMotion] = useViewState('graph.perpetualMotion', false)
-  const [rippleBackground, setRippleBackground] = useViewState('graph.rippleBackground', false)
+  const [perpetualMotion, setPerpetualMotion] = usePersistentViewState('graph.perpetualMotion', false)
+  const [rippleBackground, setRippleBackground] = usePersistentViewState('graph.rippleBackground', false)
   // The canvas backgroundColor is a prop (not painted in the continuous loop), so
   // unlike the node/link bindings it needs a re-render to re-theme. Track --bg.
   const [canvasBg, setCanvasBg] = useState(
@@ -604,14 +485,6 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   // Forces — persisted to localStorage so a user's tuning survives a restart.
   const forces = useGraphForces()
-  const centerForce = forces.center
-  const repelForce = forces.repel
-  const linkForce = forces.link
-  const linkDistance = forces.distance
-  const setCenterForce = (v: number) => setGraphForces({ center: v })
-  const setRepelForce = (v: number) => setGraphForces({ repel: v })
-  const setLinkForce = (v: number) => setGraphForces({ link: v })
-  const setLinkDistance = (v: number) => setGraphForces({ distance: v })
 
   const fgRef = useRef<ForceGraphMethods | undefined>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -637,17 +510,38 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // every frame whether or not the simulation is still settling, which is what
   // lets the halo below breathe off a clock.
 
-  // Esc cancels a pending connection and closes the context menu.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setConnectingFrom(null)
-        setContextMenu(null)
-      }
+  // Esc peels back one layer at a time: a pending connection or menu, then the
+  // selection, then list view (back to the graph).
+  useEscapeKey(() => {
+    if (connectingFrom || contextMenu || pickFrom) {
+      setConnectingFrom(null)
+      setContextMenu(null)
+      setPickFrom(null)
+    } else if (focusNodeId) {
+      setFocusNodeId(null)
+    } else if (viewMode === 'list') {
+      setViewMode('graph')
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  })
+
+  // Nothing is drawn in list mode, so stop the simulation/render loop burning CPU.
+  useEffect(() => {
+    const fg = fgRef.current
+    if (!fg) return
+    if (viewMode === 'list') fg.pauseAnimation()
+    else fg.resumeAnimation()
+  }, [viewMode, loading, error])
+
+  // Restore the saved viewport before the first paint, so returning to the graph
+  // doesn't snap the camera once the layout settles. Waits for the canvas to mount.
+  useEffect(() => {
+    const vp = savedViewports.get(instanceKey)
+    const fg = fgRef.current
+    if (viewportRestored.current || !vp || !fg) return
+    viewportRestored.current = true
+    fg.zoom(vp.k, 0)
+    fg.centerAt(vp.x, vp.y, 0)
+  }, [instanceKey, loading, error])
 
   // ── Derived data ────────────────────────────────────────
 
@@ -670,28 +564,25 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [spotlight, scopedNodes, degrees],
   )
 
-  // Every user tag present (auto-tags like has:* excluded), sorted, with a color
-  // — used to style the filter tag chips.
+  // Every user tag present (auto-tags like has:* excluded), sorted — the filter chips.
   // Scoped, not global: a chip for a tag that only exists in another vault (or
   // outside this workspace) filters the graph down to nothing.
-  const tagColors = useMemo(() => {
+  const allTags = useMemo(() => {
     const tags = new Set<string>()
     scopedNodes.forEach((n) =>
       (n.tags ?? []).forEach((t) => {
         if (!isAutoTag(t)) tags.add(t)
       }),
     )
-    const map = new Map<string, string>()
-    ;[...tags].sort().forEach((t, i) => map.set(t, TAG_PALETTE[i % TAG_PALETTE.length]))
-    return map
+    return [...tags].sort()
   }, [scopedNodes])
 
   // A tag selected before a vault/workspace switch may not exist here. Its chip
   // is gone with the scoping above, so honouring it would blank the graph with
   // no way to clear it — ignore it while out of scope, keep it for the trip back.
   const activeFilterTags = useMemo(
-    () => new Set([...filterTags].filter((t) => tagColors.has(t))),
-    [filterTags, tagColors],
+    () => new Set([...filterTags].filter((t) => allTags.includes(t))),
+    [filterTags, allTags],
   )
 
   const filterSince = useMemo(() => {
@@ -712,27 +603,24 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const filterActive =
     filterText.trim() !== '' || filterTags.size > 0 || datePreset !== 'all' || orphansOnly
 
-  // Color a node by the first group whose query it matches. `#tag` / `tag:` match
-  // by tag; anything else matches the note's title (filename).
-  const groupColorFor = useCallback(
-    (node: any): string | null => {
-      for (const g of groups) {
-        const q = g.query.trim().toLowerCase()
-        if (!q) continue
-        if (q.startsWith('#') || q.startsWith('tag:')) {
-          const tag = q.replace(/^tag:/, '').replace(/^#/, '').trim()
-          if (tag && (node.tags ?? []).some((t: string) => t.toLowerCase().includes(tag))) return g.color
-        } else if ((node.title || '').toLowerCase().includes(q)) {
-          return g.color
-        }
-      }
-      return null
-    },
-    [groups],
-  )
+  // Colour a node by the first group it matches (tag / title conditions — see
+  // groupMatch.ts). Precomputed so the per-frame paint is a Map lookup instead of
+  // a groups loop per node.
+  const groupColors = useMemo(() => {
+    const m = new Map<string, string>()
+    const matchers = groups.map((g) => ({ color: g.color, test: compileGroup(g) }))
+    if (!matchers.length) return m
+    for (const n of graphData.nodes) {
+      const hit = matchers.find((x) => x.test(n))
+      if (hit) m.set(n.id, hit.color)
+    }
+    return m
+  }, [graphData.nodes, groups])
 
   // Memoize so the force simulation only restarts when data actually changes,
   // not on every hover/focus state update.
+  // Only the opt-in "Neighbourhood only" mode changes graphData on select.
+  const neighbourhoodFocusId = neighbourhoodOnly ? focusNodeId : null
   const forceData = useMemo(() => {
     // Drop cached nodes that no longer exist (deleted notes).
     const allIds = new Set(graphData.nodes.map((n) => n.id))
@@ -758,12 +646,12 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
     // Focus mode shows a node's immediate neighbourhood and overrides filters.
     // Otherwise the filter set decides what's visible. Both stay within scope.
-    const visibleNodes = focusNodeId
+    const visibleNodes = neighbourhoodFocusId
       ? (() => {
-          const neighbors = new Set<string>([focusNodeId])
+          const neighbors = new Set<string>([neighbourhoodFocusId])
           graphData.edges.forEach((e) => {
-            if (e.source === focusNodeId) neighbors.add(e.target)
-            if (e.target === focusNodeId) neighbors.add(e.source)
+            if (e.source === neighbourhoodFocusId) neighbors.add(e.target)
+            if (e.target === neighbourhoodFocusId) neighbors.add(e.source)
           })
           return graphData.nodes.filter((n) => neighbors.has(n.id) && inScope(n.id))
         })()
@@ -832,7 +720,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   }, [
     graphData.nodes,
     graphData.edges,
-    focusNodeId,
+    neighbourhoodFocusId,
     filterText,
     activeFilterTags,
     filterSince,
@@ -848,6 +736,45 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // push the count past the total.
   const shownCount = useMemo(() => forceData.nodes.filter((n: any) => !n.isPseudo).length, [forceData])
 
+  // id -> neighbour ids, for hover/selection dimming. Links are ids here (the
+  // sim mutates them to objects later), but tolerate both.
+  const adjacency = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    const idOf = (x: any): string => (typeof x === 'object' && x ? x.id : x)
+    const add = (a: string, b: string) => {
+      let set = m.get(a)
+      if (!set) m.set(a, (set = new Set()))
+      set.add(b)
+    }
+    for (const l of forceData.links as any[]) {
+      const a = idOf(l.source)
+      const b = idOf(l.target)
+      add(a, b)
+      add(b, a)
+    }
+    return m
+  }, [forceData])
+
+  // Hover wins over selection; selection dims only when not filtering to the neighbourhood.
+  const emphasisId = hoverNodeId ?? (neighbourhoodOnly ? null : focusNodeId)
+  const dimAlpha = hoverNodeId ? 0.35 : 0.15
+  const dimFor = (id: string): number =>
+    !emphasisId || id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
+  const linkColorFor = (l: any): string => {
+    if (!emphasisId) return LINK_COLOR
+    const a = typeof l.source === 'object' ? l.source.id : l.source
+    const b = typeof l.target === 'object' ? l.target.id : l.target
+    return a === emphasisId || b === emphasisId ? LINK_STRONG_COLOR : LINK_FADED_COLOR
+  }
+  // One radius for both paint and hit-testing (hubs, orphans, Node size slider).
+  const nodeRadius = (node: any): number => {
+    if (node.isPseudo) return 5 * nodeSize
+    const deg = degrees.get(node.id) ?? 0
+    const isHub = highlightStructure && deg >= HUB_DEGREE
+    const isOrphan = highlightStructure && deg === 0
+    return (isHub ? 8 : isOrphan ? 4 : 5) * nodeSize
+  }
+
   // Apply the tunable forces to the d3 simulation, then reheat so changes take
   // effect. Re-runs when a slider moves or the visible data changes (force-graph
   // rebuilds its forces on data change, so we must re-assert ours).
@@ -857,26 +784,26 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
     // Repel: a more negative charge makes notes push each other further apart.
     const charge = fg.d3Force('charge')
-    if (charge && typeof charge.strength === 'function') charge.strength(-repelForce)
+    if (charge && typeof charge.strength === 'function') charge.strength(-forces.repel)
 
     // Link: strength = rubber-band tightness; distance = preferred length.
     const link = fg.d3Force('link')
     if (link) {
-      if (typeof link.strength === 'function') link.strength(linkForce)
-      if (typeof link.distance === 'function') link.distance(linkDistance)
+      if (typeof link.strength === 'function') link.strength(forces.link)
+      if (typeof link.distance === 'function') link.distance(forces.distance)
     }
 
     // Center: an inward pull toward the origin that compacts the graph. Installed
     // once (force-graph keeps it across data changes), then updated in place.
     const existing = fg.d3Force('centerPull') as any
     if (existing && typeof existing.strength === 'function') {
-      existing.strength(centerForce)
+      existing.strength(forces.center)
     } else {
-      fg.d3Force('centerPull', makeRadialForce(centerForce))
+      fg.d3Force('centerPull', makeRadialForce(forces.center))
     }
 
     fg.d3ReheatSimulation()
-  }, [centerForce, repelForce, linkForce, linkDistance, forceData])
+  }, [forces.center, forces.repel, forces.link, forces.distance, forceData])
 
   // Perpetual motion: register/remove the wiggle force and reheat so nodes either
   // start drifting forever (cooldown props are lifted to Infinity below) or settle
@@ -884,7 +811,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   useEffect(() => {
     const fg = fgRef.current
     if (!fg) return
-    fg.d3Force('wiggle', perpetualMotion ? (makeWiggleForce(WIGGLE_STRENGTH) as any) : null)
+    fg.d3Force('wiggle', perpetualMotion ? (makeFloatForce(FLOAT_STRENGTH) as any) : null)
     fg.d3ReheatSimulation()
   }, [perpetualMotion, forceData])
 
@@ -894,16 +821,22 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // edge durable (a raw link row would be wiped on the source's next save, when
   // links are recomputed from content).
   const connect = useCallback(
-    (sourceId: string, targetId: string) => {
+    async (sourceId: string, targetId: string) => {
       const source = graphData.nodes.find((n) => n.id === sourceId)
       const target = graphData.nodes.find((n) => n.id === targetId)
       const targetTitle = target?.title?.trim()
       if (source && targetTitle) {
         const wl = `[[${targetTitle}]]`
-        if (!source.content.includes(wl)) {
-          void onUpdate(source.id, source.title, `${source.content.trimEnd()}\n\n${wl}\n`).catch(
-            (err) => console.error('Failed to connect notes:', err),
-          )
+        if (source.content.includes(wl)) {
+          toast.info('Those notes are already linked.')
+          return
+        }
+        try {
+          await onUpdate(source.id, source.title, `${source.content.trimEnd()}\n\n${wl}\n`)
+          toast.success(`Linked "${source.title}" → "${targetTitle}"`)
+        } catch (err) {
+          log.error('Failed to connect notes', err)
+          toast.error('Could not link the notes.')
         }
       } else if (source && !targetTitle) {
         toast.info('Give the target note a title first — links connect by [[title]].')
@@ -915,10 +848,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Remove every link to and from a node by stripping the matching [[wikilinks]]
   // from the source content on each side (so sync can't re-add them).
   const disconnectAll = useCallback(
-    (nodeId: string) => {
+    async (nodeId: string) => {
       const node = graphData.nodes.find((n) => n.id === nodeId)
       if (!node) return
-      const tasks: Promise<unknown>[] = []
+      const edits: { n: typeof node; content: string }[] = []
 
       // Outgoing: strip [[target]] for each link this note owns.
       let newContent = node.content
@@ -928,9 +861,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           const t = graphData.nodes.find((n) => n.id === e.target)
           if (t?.title) newContent = stripWikilink(newContent, t.title)
         })
-      if (newContent !== node.content) {
-        tasks.push(onUpdate(node.id, node.title, newContent))
-      }
+      if (newContent !== node.content) edits.push({ n: node, content: newContent })
 
       // Incoming: strip [[this title]] from each note that links here.
       const thisTitle = node.title?.trim()
@@ -941,34 +872,58 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             const s = graphData.nodes.find((n) => n.id === e.source)
             if (!s) return
             const stripped = stripWikilink(s.content, thisTitle)
-            if (stripped !== s.content) tasks.push(onUpdate(s.id, s.title, stripped))
+            if (stripped !== s.content) edits.push({ n: s, content: stripped })
           })
       }
+      if (edits.length === 0) return
 
-      Promise.all(tasks).catch((err) => console.error('Failed to disconnect node:', err))
+      const ok = await showConfirmDialog({
+        title: 'Disconnect all links?',
+        message: `This edits ${edits.length} note${edits.length === 1 ? '' : 's'} to remove their [[links]] to/from "${node.title || 'Untitled'}".`,
+        confirmLabel: 'Disconnect',
+        danger: true,
+      })
+      if (!ok) return
+      try {
+        await Promise.all(edits.map((e) => onUpdate(e.n.id, e.n.title, e.content)))
+        toast.success(`Removed links from ${edits.length} note${edits.length === 1 ? '' : 's'}.`)
+      } catch (err) {
+        log.error('Failed to disconnect node', err)
+        toast.error('Could not remove all the links.')
+      }
     },
     [graphData.nodes, graphData.edges, onUpdate],
   )
 
   // Materialize a pseudo-node: create the note for its title (useNotes then
   // re-syncs the notes already referencing it, so their edges resolve at once).
+  // Cheap and reversible, so no confirm — the toast offers Undo.
   const createFromPseudo = useCallback(
     async (title: string) => {
       const name = title.trim()
       if (!name) return
-      const ok = await ask(`Create note “${name}”?`, { title: 'Create note', kind: 'info' })
-      if (!ok) return
       try {
-        // useNotes re-syncs the notes already linking to this title on save, so
-        // their edges to the new note appear without any work here.
         const created = await onCreate(name, '')
         setFocusNodeId(created.id)
+        toast.success(`Created "${name}"`, 6000, {
+          label: 'Undo',
+          onClick: () => {
+            void onRemove(created.id)
+              .then((ok) => {
+                if (ok) setFocusNodeId((f) => (f === created.id ? null : f))
+              })
+              .catch((err) => {
+                log.error('Failed to undo note creation', err)
+                toast.error('Could not undo.')
+              })
+          },
+        })
       } catch (err) {
-        console.error('Failed to create note from pseudo-node:', err)
+        log.error('Failed to create note from pseudo-node', err)
         toast.error('Could not create the note.')
       }
     },
-    [onCreate],
+    [onCreate, onRemove],
   )
 
   // Clicking a suggested line offers to make it real. Direction matters for
@@ -990,11 +945,38 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         cancelLabel: 'Not now',
       })
       if (!choice) return
-      if (choice === 'a-b' || choice === 'both') connect(pair.a, pair.b)
-      if (choice === 'b-a' || choice === 'both') connect(pair.b, pair.a)
+      if (choice === 'a-b' || choice === 'both') await connect(pair.a, pair.b)
+      if (choice === 'b-a' || choice === 'both') await connect(pair.b, pair.a)
     },
     [graphData.nodes, connect],
   )
+
+  // Select + glide to the node. Zoom in only when we're very zoomed out.
+  const selectNode = useCallback(
+    (id: string, x?: number, y?: number) => {
+      setFocusNodeId(id)
+      const fg = fgRef.current
+      const n = nodeCacheStore.get(id)
+      const nx = x ?? n?.x
+      const ny = y ?? n?.y
+      if (!fg || !Number.isFinite(nx) || !Number.isFinite(ny)) return
+      const ms = reducedMotion ? 0 : 700
+      fg.centerAt(nx, ny, ms)
+      if (fg.zoom() < 1.2) fg.zoom(2, ms)
+    },
+    [nodeCacheStore],
+  )
+
+  // Vault-empty "New note": a blank note, then open it in the editable panel.
+  const createBlank = useCallback(async () => {
+    try {
+      const created = await onCreate('', '')
+      selectNode(created.id)
+    } catch (err) {
+      log.error('Failed to create note from graph', err)
+      toast.error('Could not create the note.')
+    }
+  }, [onCreate, selectNode])
 
   const handleNodeClick = useCallback(
     (node: any) => {
@@ -1006,7 +988,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
       // Completing a connection started from the context menu.
       if (connectingFrom) {
-        if (node.id !== connectingFrom) connect(connectingFrom, node.id)
+        if (node.id !== connectingFrom) void connect(connectingFrom, node.id)
         setConnectingFrom(null)
         return
       }
@@ -1014,14 +996,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       if (focusNodeId === node.id) {
         setFocusNodeId(null)
       } else {
-        setFocusNodeId(node.id)
-        if (fgRef.current) {
-          fgRef.current.centerAt(node.x, node.y, 800)
-          fgRef.current.zoom(4, 800)
-        }
+        selectNode(node.id, node.x, node.y)
       }
     },
-    [connectingFrom, connect, focusNodeId, createFromPseudo],
+    [connectingFrom, connect, focusNodeId, createFromPseudo, selectNode],
   )
 
   const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
@@ -1122,10 +1100,10 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const addGroup = useCallback(() => {
     setGroups((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), query: '', color: TAG_PALETTE[prev.length % TAG_PALETTE.length] },
+      newGroup(nextGroupColor(prev.map((g) => g.color))),
     ])
   }, [])
-  const updateGroup = useCallback((id: string, patch: Partial<Group>) => {
+  const updateGroup = useCallback((id: string, patch: Partial<GraphGroup>) => {
     setGroups((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)))
   }, [])
   const removeGroup = useCallback((id: string) => {
@@ -1140,14 +1118,16 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setGraphForces(FORCE_PRESETS[name])
   }, [])
 
-  const animate = useCallback(() => {
+  const fitView = useCallback(() => {
+    ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 400, 60)
+  }, [])
+  const rerunLayout = useCallback(() => {
     fgRef.current?.d3ReheatSimulation?.()
-    ;(fgRef.current as any)?.zoomToFit?.(700, 50)
   }, [])
 
   const resetAllSettings = useCallback(() => {
     clearFilters()
-    setGroups([])
+    setGroups(() => [])
     setDirected(false)
     setHighlightStructure(false)
     togglePin(true)
@@ -1156,8 +1136,28 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     setLinkThickness(DEFAULT_DISPLAY.linkThickness)
     setPerpetualMotion(false)
     setRippleBackground(false)
+    setNeighbourhoodOnly(false)
     resetForces()
-  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground])
+  }, [clearFilters, togglePin, resetForces, setPerpetualMotion, setRippleBackground, setNeighbourhoodOnly])
+
+  const confirmResetAll = useCallback(async () => {
+    const ok = await showConfirmDialog({
+      title: 'Reset graph settings?',
+      message: 'Filters, groups, display and layout go back to their defaults.',
+      confirmLabel: 'Reset',
+      danger: true,
+    })
+    if (ok) resetAllSettings()
+  }, [resetAllSettings])
+
+  const openBtnRef = useRef<HTMLButtonElement>(null)
+  const focusPanelRef = useRef(false)
+  const closeSettings = useCallback(() => {
+    focusPanelRef.current = false
+    setShowPanel(false)
+    // The close button unmounts with the panel — hand focus to the opener once it exists.
+    requestAnimationFrame(() => openBtnRef.current?.focus())
+  }, [setShowPanel])
 
   const focusedNode = focusNodeId ? graphData.nodes.find((n) => n.id === focusNodeId) : null
 
@@ -1172,113 +1172,232 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       }
     : null
 
+  const realLinkCount = forceData.links.filter((l: any) => !l.source?.isPseudo && !l.target?.isPseudo).length
+  const legendGroups = groups.map((g) => ({ id: g.id, color: g.color, label: describeGroup(g) })).filter((g) => g.label)
   const menuNode = contextMenu ? graphData.nodes.find((n) => n.id === contextMenu.nodeId) : null
-  const iconBtnStyle: React.CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--text-2)',
-    cursor: 'pointer',
-    fontSize: '0.95rem',
-    lineHeight: 1,
-    padding: '4px 6px',
-    borderRadius: '6px',
+  const menuItems = (id: string): MenuItem[] => {
+    const items: MenuItem[] = [
+      {
+        label: 'Connect to a note',
+        onClick: () => {
+          setContextMenu(null)
+          if (viewMode === 'list') {
+            setPickFrom(id)
+            return
+          }
+          setFocusNodeId(null)
+          setConnectingFrom(id)
+        },
+      },
+    ]
+    if ((degrees.get(id) ?? 0) >= 1) {
+      items.push({
+        label: 'Disconnect all links',
+        onClick: () => {
+          setContextMenu(null)
+          void disconnectAll(id)
+        },
+      })
+    }
+    items.push({
+      label: 'Delete note',
+      danger: true,
+      separator: true,
+      onClick: () => {
+        setContextMenu(null)
+        void handleRemoveNote(id)
+      },
+    })
+    return items
   }
+  // A workspace graph's new note wouldn't land in its scope, so only offer it for the vault.
+  const canCreateHere = !scopeIds || scopeNoun === 'vault'
+  const pickSource = pickFrom ? graphData.nodes.find((n) => n.id === pickFrom) : null
 
   if (loading) {
     return <div className="note-empty">Loading graph…</div>
   }
 
+  if (error) {
+    return (
+      <div className={styles.root}>
+        <div className={`note-empty ${styles.empty}`} role="alert">
+          <p>Couldn't load the graph.</p>
+          <button type="button" className={styles.emptyBtn} onClick={reload}>
+            Try again
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div ref={containerRef} data-anchor="graph" onMouseMove={handleMouseMove} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div ref={containerRef} data-anchor="graph" role="group" aria-label={`Note graph: ${shownCount} notes, ${realLinkCount} links`} aria-describedby="graph-list-hint" onMouseMove={handleMouseMove} className={styles.root}>
       {/* Optional glowing backdrop — first child so it paints under the (transparent) graph canvas. */}
       {rippleBackground && <div className={styles.rippleBg} aria-hidden="true" />}
-      {scopedNodes.length === 0 && (
-        <div className="note-empty" style={{ position: 'absolute', width: '100%', zIndex: 10 }}>
-          {scopeIds
-            ? `No notes in this ${scopeNoun} yet. Add or create some, then link them with [[Title]]!`
-            : 'No notes to graph. Create some notes and link them using [[Title]]!'}
+      {/* One empty state at a time: in list mode GraphListView owns it. */}
+      {viewMode !== 'list' && (scopedNodes.length === 0 || (shownCount === 0 && filterActive)) && (
+        <div className={`note-empty ${styles.empty}`}>
+          {scopedNodes.length === 0 ? (
+            <>
+              <p>{`No notes in this ${scopeIds ? scopeNoun : 'vault'} yet`}</p>
+              {canCreateHere && (
+                <button type="button" className={styles.emptyBtn} onClick={() => void createBlank()}>
+                  New note
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p>No notes match these filters</p>
+              <button type="button" className={styles.emptyBtn} onClick={clearFilters}>
+                Clear filters
+              </button>
+            </>
+          )}
         </div>
       )}
 
-      {/* Compact jump-to-note search (top-left) */}
-      <div style={{ position: 'absolute', top: '20px', left: '20px', zIndex: 20 }}>
+      {/* Top-left: toolbar row, then the status chips stacked under it (never squeezed
+          between the side panels, whatever the window width). */}
+      <div className={styles.toolbar}>
+       <div className={styles.toolbarRow}>
         <JumpToNote
           nodes={scopedNodes}
           onJump={(id) => {
-            if (scopedNodes.some((n) => n.id === id)) setFocusNodeId(id)
+            if (scopedNodes.some((n) => n.id === id)) selectNode(id)
           }}
         />
+        <button
+          type="button"
+          onClick={() => setViewMode(viewMode === 'list' ? 'graph' : 'list')}
+          aria-pressed={viewMode === 'list'}
+          aria-label={viewMode === 'list' ? 'Show graph' : 'Show as list'}
+          title={viewMode === 'list' ? 'Show graph' : 'Show as list'}
+          className={styles.toolbarBtn}
+        >
+          {viewMode === 'list' ? <Network size={15} /> : <List size={15} />}
+        </button>
+        <button type="button" className={styles.toolbarBtn} onClick={fitView} title="Fit all notes in view" aria-label="Fit all notes in view">
+          <Scan size={15} />
+        </button>
+        <span id="graph-list-hint" className={styles.srOnly}>
+          A list view of these notes is available with the List button next to the search box.
+        </span>
+       </div>
+
+        {connectingFrom && (
+          <div className={styles.connectBanner} role="status">
+            <Link2 size={14} className={styles.connectIcon} aria-hidden="true" />
+            <span>Click a target note to link it, or press Esc to cancel</span>
+            <button type="button" className={styles.chipBtn} onClick={() => setConnectingFrom(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Spotlight chip: what the dashboard asked us to highlight. */}
+        {spotlight && !connectingFrom && (
+          <div className={styles.spotlightChip} role="status">
+            <span>
+              {spotlight === 'orphans'
+                ? `${orphanCount} unlinked note${orphanCount === 1 ? '' : 's'} highlighted`
+                : suggestionsLoading
+                  ? 'Finding suggested links…'
+                  : suggestedPairs.length === 0
+                    ? 'No suggested links found'
+                    : `${suggestedPairs.length} suggested link${suggestedPairs.length === 1 ? '' : 's'} — click one to connect`}
+            </span>
+            <button type="button" className={styles.chipBtn} onClick={() => setGraphSpotlight(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Connecting hint banner (top-center) */}
-      {connectingFrom && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 20,
-            background: CONNECT_COLOR,
-            color: 'var(--on-accent)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0.45rem 0.9rem',
-            fontSize: '0.8rem',
-            boxShadow: 'var(--shadow-md)',
-          }}
-        >
-          Click a target note to link it — or press Esc to cancel
-        </div>
-      )}
+      {/* Bottom-left stack: group legend, then the right-click hint (graph mode only) */}
+      <div className={styles.corner}>
+        {legendGroups.length > 0 && (
+          <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Group colours">
+            {legendGroups.map((g) => (
+              <li key={g.id}>
+                <span className={styles.legendSwatch} style={{ background: g.color }} aria-hidden="true" />
+                {g.label}
+              </li>
+            ))}
+          </ul>
+        )}
+        {highlightStructure && (
+          <ul className={styles.legend} aria-label="Highlighted notes">
+            <li>
+              <span className={`${styles.legendSwatch} ${styles.swatchSm}`} style={{ background: ORPHAN_COLOR }} aria-hidden="true" />
+              Unlinked: no links
+            </li>
+            <li>
+              <span className={`${styles.legendSwatch} ${styles.swatchLg}`} style={{ background: HUB_COLOR }} aria-hidden="true" />
+              {`Well-linked: ${HUB_DEGREE}+ links`}
+            </li>
+          </ul>
+        )}
+        {viewMode !== 'list' && <div className={styles.hint}>Right-click a note for more</div>}
+      </div>
 
-      {/* Spotlight chip (top-center): what the dashboard asked us to highlight. */}
-      {spotlight && !connectingFrom && (
-        <div className={styles.spotlightChip}>
-          <span>
-            {spotlight === 'orphans'
-              ? `${orphanCount} orphan${orphanCount === 1 ? '' : 's'} highlighted`
-              : suggestionsLoading
-                ? 'Finding suggested links…'
-                : suggestedPairs.length === 0
-                  ? 'No suggested links found'
-                  : `${suggestedPairs.length} suggested link${suggestedPairs.length === 1 ? '' : 's'} — click one to connect`}
-          </span>
-          <button type="button" onClick={() => setGraphSpotlight(null)} title="Dismiss">
-            Dismiss
+      {filterActive && (
+        <div className={styles.filterChip} role="status">
+          <span>{`Filtered · ${shownCount} of ${scopedNodes.length} notes`}</span>
+          <button type="button" onClick={clearFilters}>
+            Clear
           </button>
         </div>
       )}
 
-      {/* Right-click hint (bottom-left) */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '16px',
-          left: '20px',
-          zIndex: 20,
-          fontSize: '0.72rem',
-          color: 'var(--text-3)',
-          pointerEvents: 'none',
-        }}
-      >
-        Right-click a note for connect / disconnect / delete
-      </div>
+      {viewMode === 'list' && (
+        <GraphListView
+          nodes={forceData.nodes as any}
+          links={forceData.links as any}
+          onOpen={(id) => selectNode(id)}
+          onCreate={(t) => void createFromPseudo(t)}
+          onMenu={(id, x, y) => {
+            setConnectingFrom(null)
+            setContextMenu({ nodeId: id, x, y })
+          }}
+          vaultEmpty={scopedNodes.length === 0}
+          noun={scopeIds ? scopeNoun : 'vault'}
+          onClearFilters={clearFilters}
+          onNewNote={canCreateHere ? () => void createBlank() : undefined}
+          header={
+            pickFrom && pickSource ? (
+              <div className={styles.connectPicker}>
+                <span>{`Link “${pickSource.title || 'Untitled'}” to:`}</span>
+                <JumpToNote
+                  nodes={scopedNodes.filter((n) => n.id !== pickFrom)}
+                  idPrefix="graph-connect"
+                  placeholder="Search for a note…"
+                  label="Note to link to"
+                  autoFocus
+                  onJump={(id) => {
+                    setPickFrom(null)
+                    void connect(pickFrom, id)
+                  }}
+                />
+                <button type="button" onClick={() => setPickFrom(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : null
+          }
+        />
+      )}
 
       <ForceGraph2D
         ref={fgRef}
         graphData={forceData}
         nodeLabel={(n: any) => {
-          if (n.isPseudo) {
-            const title = escapeHtml(n.title ?? '')
-            return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px dashed var(--border);color:var(--text-2);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${title}</strong><br/><span style="color:var(--text-3)">Click to create this note</span></div>`
-          }
-          const preview =
-            n.content.substring(0, 100).replace(/\n/g, ' ') + (n.content.length > 100 ? '…' : '')
-          // nodeLabel is rendered as raw HTML — escape note-derived text to
-          // prevent markup in a title/content from injecting into the tooltip.
+          // Raw HTML: escape the title, and never show note body (screen-share safe).
           const title = escapeHtml(n.title ?? '')
-          const safePreview = escapeHtml(preview)
-          return `<div style="background:var(--surface);padding:8px;border-radius:6px;border:1px solid var(--border);color:var(--text-1);max-width:300px;font-family:var(--font-body);font-size:13px;"><strong>${title}</strong><br/><span style="color:var(--text-2)">${safePreview}</span></div>`
+          const deg = degrees.get(n.id) ?? 0
+          const sub = n.isPseudo ? 'Click to create this note' : `${deg} link${deg === 1 ? '' : 's'}`
+          return `<div style="background:var(--surface);padding:6px 10px;border-radius:6px;border:1px ${n.isPseudo ? 'dashed' : 'solid'} var(--border-control);color:var(--text-1);max-width:260px;font-family:var(--font-body);font-size:0.8rem;"><strong>${title}</strong><br/><span style="color:var(--text-3)">${sub}</span></div>`
         }}
         onNodeHover={(node: any) => setHoverNodeId(node ? node.id : null)}
         onNodeClick={handleNodeClick}
@@ -1356,31 +1475,33 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         }}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
           const label = node.title || 'Untitled'
+          const text = label.length > 32 ? `${label.slice(0, 31)}…` : label
           const fontSize = 12 / globalScale
-          ctx.font = `${fontSize}px var(--font-body), Sans-Serif`
+          ctx.font = `${fontSize}px ${graphFont}`
 
           // Pseudo-node (unresolved wikilink): a faded, dashed-outline dot with
           // a muted label, standing in for a note that doesn't exist yet.
           if (node.isPseudo) {
-            const radius = 5 * nodeSize
+            const radius = nodeRadius(node)
+            const dim = dimFor(node.id)
             ctx.save()
-            ctx.globalAlpha = hoverNodeId === node.id ? 0.7 : 0.4
+            ctx.globalAlpha = (hoverNodeId === node.id ? 1 : 0.9) * dim
             ctx.beginPath()
             ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false)
             ctx.fillStyle = PSEUDO_FILL
             ctx.fill()
             ctx.setLineDash([3 / globalScale, 2 / globalScale])
-            ctx.lineWidth = 1 / globalScale
+            ctx.lineWidth = 1.5 / globalScale
             ctx.strokeStyle = PSEUDO_COLOR
             ctx.stroke()
             ctx.setLineDash([])
             const labelAlpha = Math.max(0, Math.min(1, (globalScale - textFade) * 2.5))
             if (labelAlpha > 0.01) {
-              ctx.globalAlpha = labelAlpha * (hoverNodeId === node.id ? 0.9 : 0.55)
+              ctx.globalAlpha = labelAlpha * (hoverNodeId === node.id ? 1 : 0.85) * dim
               ctx.textAlign = 'center'
               ctx.textBaseline = 'top'
               ctx.fillStyle = PSEUDO_COLOR
-              ctx.fillText(label, node.x, node.y + radius + 3)
+              drawLabel(ctx, text, node.x, node.y + radius + 3, globalScale, canvasBg)
             }
             ctx.restore()
             return
@@ -1392,11 +1513,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           const isConnectSource = node.id === connectingFrom
           const isFocus = node.id === focusNodeId
 
-          const baseRadius = isHub ? 8 : isOrphan ? 4 : 5
-          const radius = baseRadius * nodeSize
+          const radius = nodeRadius(node)
+          const dim = dimFor(node.id)
+          ctx.save()
+          ctx.globalAlpha = dim
 
           // Fill: group color → structural highlight → focus → connect-source override.
-          const gColor = groupColorFor(node)
+          const gColor = groupColors.get(node.id) ?? null
           let fill = gColor ?? DEFAULT_NODE_COLOR
           if (highlightStructure) {
             if (isOrphan) fill = ORPHAN_COLOR
@@ -1438,17 +1561,27 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           const labelAlpha = Math.max(0, Math.min(1, (globalScale - textFade) * 2.5))
           if (labelAlpha > 0.01) {
             ctx.save()
-            ctx.globalAlpha = labelAlpha
+            ctx.globalAlpha = labelAlpha * dim
             ctx.textAlign = 'center'
             ctx.textBaseline = 'top'
             ctx.fillStyle = isFocus ? LABEL_COLOR : LABEL_DIM_COLOR
-            ctx.fillText(label, node.x, node.y + radius + 3)
+            drawLabel(ctx, text, node.x, node.y + radius + 3, globalScale, canvasBg)
             ctx.restore()
           }
+          ctx.restore()
         }}
-        cooldownTicks={perpetualMotion ? Infinity : 100}
+        nodePointerAreaPaint={(node: any, color, ctx, globalScale) => {
+          ctx.fillStyle = color
+          ctx.beginPath()
+          // At least ~6 screen px, so small dots stay clickable when zoomed out.
+          ctx.arc(node.x, node.y, Math.max(nodeRadius(node), 6 / globalScale), 0, 2 * Math.PI, false)
+          ctx.fill()
+        }}
+        // No tick cap: the layout eases out until alpha reaches alphaMin, instead of
+        // freezing mid-motion. With motion on, alphaMin 0 keeps the engine (and the
+        // float force) running while the layout forces still decay to rest.
         cooldownTime={perpetualMotion ? Infinity : 15000}
-        d3AlphaDecay={perpetualMotion ? 0 : 0.0228}
+        d3AlphaMin={perpetualMotion ? 0 : 0.001}
         onZoomEnd={() => {
           // Remember where the user is looking (zoom + graph-space center) so we
           // can restore it after a view switch. Stored in graph coords so it's
@@ -1463,17 +1596,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             /* graph not ready yet */
           }
         }}
-        onEngineStop={() => {
-          // Once the layout settles on (re)mount, jump back to the saved viewport.
-          const vp = savedViewports.get(instanceKey)
-          if (viewportRestored.current || !vp) return
-          viewportRestored.current = true
-          const fg = fgRef.current
-          if (!fg) return
-          fg.zoom(vp.k, 0)
-          fg.centerAt(vp.x, vp.y, 0)
-        }}
-        linkColor={() => LINK_COLOR}
+        linkColor={linkColorFor}
         linkWidth={linkThickness}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
@@ -1483,480 +1606,80 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       {/* Settings panel (top-right). Hidden while the note panel is open. */}
       {!focusedNoteForPanel &&
         (showPanel ? (
-          <div
-            style={{
-              position: 'absolute',
-              top: '20px',
-              right: '20px',
-              width: '290px',
-              maxHeight: 'calc(100% - 40px)',
-              overflowY: 'auto',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-lg)',
-              zIndex: 20,
-              padding: '0.2rem 0.9rem',
-            }}
-          >
-            {/* Filters */}
-            <Section
-              title="Filters"
-              open={openSections.filters}
-              onToggle={() => toggleSection('filters')}
-              right={
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                  <button onClick={resetAllSettings} title="Reset all graph settings" aria-label="Reset all graph settings" style={iconBtnStyle}>
-                    <RotateCcw size={15} />
-                  </button>
-                  <button onClick={() => setShowPanel(false)} title="Close settings" aria-label="Close settings" style={iconBtnStyle}>
-                    <X size={15} />
-                  </button>
-                </div>
-              }
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <input
-                  type="search"
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  placeholder="Filter by text in title, body or tags…"
-                  style={{ ...inputStyle, width: '100%' }}
-                />
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-2)' }}>
-                  Updated
-                  <select
-                    value={datePreset}
-                    onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-                    style={{ ...inputStyle, flex: 1, padding: '0.4rem 0.5rem' }}
-                  >
-                    <option value="all">any time</option>
-                    <option value="week">in the past week</option>
-                    <option value="month">in the past month</option>
-                    <option value="year">in the past year</option>
-                  </select>
-                </label>
-                <Toggle label="Orphans only" checked={orphansOnly} onChange={setOrphansOnly} title="Show only notes with no links" />
-
-                {tagColors.size > 0 && (
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: '0.4rem' }}>Tags</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                      {[...tagColors.keys()].map((tag) => {
-                        const on = filterTags.has(tag)
-                        return (
-                          <button
-                            key={tag}
-                            onClick={() => toggleFilterTag(tag)}
-                            style={{
-                              background: on ? (tagColors.get(tag) as string) : 'transparent',
-                              // Literal on purpose: the fill is a categorical
-                              // data colour, which doesn't re-theme, so --on-accent
-                              // (derived from --accent) would be the wrong contrast
-                              // partner — dark text on a saturated chip in a light theme.
-                              color: on ? '#fff' : 'var(--text-2)',
-                              border: '1px solid ' + (on ? (tagColors.get(tag) as string) : 'var(--border)'),
-                              borderRadius: '999px',
-                              padding: '0.25rem 0.6rem',
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            #{tag}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-3)' }}>
-                  <span>
-                    Showing {shownCount} of {scopedNodes.length}
-                  </span>
-                  {filterActive && (
-                    <button onClick={clearFilters} style={{ ...presetBtnStyle, flex: 'unset', padding: '0.3rem 0.6rem' }}>
-                      Clear filters
-                    </button>
-                  )}
-                </div>
-              </div>
-            </Section>
-
-            {/* Groups */}
-            <Section title="Groups" open={openSections.groups} onToggle={() => toggleSection('groups')}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', lineHeight: 1.4 }}>
-                  Color notes by category. Use <strong>#tag</strong> for tags, or plain text to match note titles.
-                </span>
-                {groups.map((g) => (
-                  <div key={g.id} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <input
-                      type="color"
-                      value={g.color}
-                      onChange={(e) => updateGroup(g.id, { color: e.target.value })}
-                      title="Group color"
-                      style={{ width: '30px', height: '30px', padding: 0, border: '1px solid var(--border)', borderRadius: '6px', background: 'none', cursor: 'pointer', flexShrink: 0 }}
-                    />
-                    <input
-                      value={g.query}
-                      onChange={(e) => updateGroup(g.id, { query: e.target.value })}
-                      placeholder="#tag or title text"
-                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-                    />
-                    <button onClick={() => removeGroup(g.id)} title="Remove group" aria-label="Remove group" style={iconBtnStyle}>
-                      <X size={15} />
-                    </button>
-                  </div>
-                ))}
-                <button onClick={addGroup} style={{ ...presetBtnStyle, flex: 'unset', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                  <Plus size={14} /> Add group
-                </button>
-              </div>
-            </Section>
-
-            {/* Display */}
-            <Section title="Display" open={openSections.display} onToggle={() => toggleSection('display')}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <Toggle label="Arrows" checked={directed} onChange={setDirected} title="Show link direction with arrowheads" />
-                <Toggle
-                  label="Highlight hubs & orphans"
-                  checked={highlightStructure}
-                  onChange={setHighlightStructure}
-                  title="Color orphan notes (no links) and hubs (many links)"
-                />
-                {highlightStructure && (
-                  <div style={{ padding: '0.1rem 0 0.4rem 0.2rem' }}>
-                    <LegendRow color={ORPHAN_COLOR} size={8} label="Orphan — no links" />
-                    <LegendRow color={HUB_COLOR} size={12} label={`Hub — ${HUB_DEGREE}+ links`} />
-                  </div>
-                )}
-                <Toggle label="Pin dragged nodes" checked={pinOnDrag} onChange={togglePin} title="Keep dragged nodes where you drop them" />
-                <Toggle
-                  label="Keep nodes moving"
-                  checked={perpetualMotion}
-                  onChange={setPerpetualMotion}
-                  title="Nodes gently drift forever instead of settling to a stop"
-                />
-                <Toggle
-                  label="Glowing background"
-                  checked={rippleBackground}
-                  onChange={setRippleBackground}
-                  title="A soft accent-coloured gradient that slowly ripples behind the graph"
-                />
-                <Slider
-                  label="Text fade threshold"
-                  value={textFade}
-                  onChange={setTextFade}
-                  min={0}
-                  max={2}
-                  step={0.05}
-                  hint="Higher = labels appear only when zoomed in closer."
-                  tip="Text fade threshold — how zoomed-in you must be before note labels appear. Higher hides labels until you zoom in; lower keeps them visible."
-                />
-                <Slider
-                  label="Node size"
-                  value={nodeSize}
-                  onChange={setNodeSize}
-                  min={0.5}
-                  max={3}
-                  step={0.1}
-                  hint="Scales how large the note dots are drawn."
-                  tip="Node size — scales the radius of every note dot."
-                />
-                <Slider
-                  label="Link thickness"
-                  value={linkThickness}
-                  onChange={setLinkThickness}
-                  min={0.5}
-                  max={6}
-                  step={0.5}
-                  hint="How thick the lines between linked notes are."
-                  tip="Link thickness — the width of the lines drawn between linked notes."
-                />
-                <button onClick={animate} style={{ ...presetBtnStyle, flex: 'unset', background: 'var(--accent)', color: 'var(--on-accent)', border: 'none', padding: '0.55rem', marginTop: '0.5rem', fontWeight: 600 }}>
-                  Animate
-                </button>
-              </div>
-            </Section>
-
-            {/* Forces */}
-            <Section
-              title="Forces"
-              open={openSections.forces}
-              onToggle={() => toggleSection('forces')}
-              right={
-                openSections.forces ? (
-                  <button onClick={resetForces} title="Reset forces to defaults" style={{ ...presetBtnStyle, flex: 'unset', padding: '0.2rem 0.45rem', fontSize: '0.7rem' }}>
-                    Reset
-                  </button>
-                ) : undefined
-              }
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', lineHeight: 1.4, marginBottom: '0.2rem' }}>
-                  Forces that act on each node. Hover a slider for details.
-                </span>
-                <Slider
-                  label="Center force"
-                  value={centerForce}
-                  onChange={setCenterForce}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  hint="Higher = compact & circular; lower = clusters spread apart."
-                  tip="Center force — pulls all notes toward the center of the graph. Higher makes the graph more compact and circular; lower lets clusters spread farther apart."
-                />
-                <Slider
-                  label="Repel force"
-                  value={repelForce}
-                  onChange={setRepelForce}
-                  min={0}
-                  max={500}
-                  step={10}
-                  hint="Higher = more spacing between notes; lower = they bunch up."
-                  tip="Repel force — how strongly each note pushes the others away. Higher gives more spacing so individual nodes are easier to see; lower lets notes bunch together."
-                />
-                <Slider
-                  label="Link force"
-                  value={linkForce}
-                  onChange={setLinkForce}
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  hint="Rubber-band tightness. Higher = linked notes stay tightly grouped."
-                  tip="Link force — the pull along each link, like a rubber band. Higher keeps connected notes tightly grouped; lower makes the band looser so clusters can stretch out."
-                />
-                <Slider
-                  label="Link distance"
-                  value={linkDistance}
-                  onChange={setLinkDistance}
-                  min={10}
-                  max={300}
-                  step={5}
-                  hint="Preferred link length. Higher = linked notes sit farther apart."
-                  tip="Link distance — the preferred length of the lines between linked notes. Higher places linked notes farther apart; lower keeps them closer together."
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '0.3rem' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-3)' }}>Presets</span>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => applyPreset('clusters')} title="Low center, high repel — separates clusters so they're easy to see." style={presetBtnStyle}>
-                      See clusters
-                    </button>
-                    <button onClick={() => applyPreset('compact')} title="High center, low repel — pulls everything into a tight ball." style={presetBtnStyle}>
-                      Compact
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Section>
-          </div>
+          <GraphSettingsPanel
+            openSections={openSections}
+            onToggleSection={toggleSection}
+            onResetAll={confirmResetAll}
+            onClose={closeSettings}
+            focusOnMount={focusPanelRef.current}
+            filterText={filterText}
+            setFilterText={setFilterText}
+            datePreset={datePreset}
+            setDatePreset={setDatePreset}
+            orphansOnly={orphansOnly}
+            setOrphansOnly={setOrphansOnly}
+            tags={allTags}
+            filterTags={filterTags}
+            onToggleTag={toggleFilterTag}
+            filterActive={filterActive}
+            onClearFilters={clearFilters}
+            shownCount={shownCount}
+            totalCount={scopedNodes.length}
+            groups={groups}
+            onAddGroup={addGroup}
+            onUpdateGroup={updateGroup}
+            onRemoveGroup={removeGroup}
+            neighbourhoodOnly={neighbourhoodOnly}
+            setNeighbourhoodOnly={setNeighbourhoodOnly}
+            directed={directed}
+            setDirected={setDirected}
+            highlightStructure={highlightStructure}
+            setHighlightStructure={setHighlightStructure}
+            pinOnDrag={pinOnDrag}
+            onTogglePin={togglePin}
+            textFade={textFade}
+            setTextFade={setTextFade}
+            nodeSize={nodeSize}
+            setNodeSize={setNodeSize}
+            linkThickness={linkThickness}
+            setLinkThickness={setLinkThickness}
+            perpetualMotion={perpetualMotion}
+            setPerpetualMotion={setPerpetualMotion}
+            rippleBackground={rippleBackground}
+            setRippleBackground={setRippleBackground}
+            forces={forces}
+            onForcesChange={setGraphForces}
+            onResetForces={resetForces}
+            onApplyPreset={applyPreset}
+            onRerunLayout={rerunLayout}
+          />
         ) : (
-          <button
-            onClick={() => setShowPanel(true)}
-            title="Graph settings"
-            aria-label="Graph settings"
-            style={{
-              position: 'absolute',
-              top: '20px',
-              right: '20px',
-              zIndex: 20,
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-1)',
-              fontSize: '1.125rem',
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-md)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <button ref={openBtnRef} type="button" className={styles.openPanelBtn} onClick={() => { focusPanelRef.current = true; setShowPanel(true) }} title={filterActive ? 'Graph settings (filters active)' : 'Graph settings'} aria-label={filterActive ? 'Graph settings (filters active)' : 'Graph settings'}>
             <SlidersHorizontal size={16} />
+            {filterActive && <span className={styles.filterDot} aria-hidden="true" />}
           </button>
         ))}
 
-      {/* Right-click context menu */}
+      {/* Right-click context menu (shared menu: portaled, clamped, full keyboard model) */}
       {contextMenu && menuNode && (
-        <>
-          <div
-            onClick={() => setContextMenu(null)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              setContextMenu(null)
-            }}
-            style={{ position: 'fixed', inset: 0, zIndex: 30 }}
-          />
-          <div
-            style={{
-              position: 'fixed',
-              top: `${contextMenu.y}px`,
-              left: `${contextMenu.x}px`,
-              zIndex: 31,
-              width: '210px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-lg)',
-              padding: '6px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-            }}
-          >
-            <div
-              style={{
-                padding: '6px 8px 8px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                color: 'var(--text-1)',
-                borderBottom: '1px solid var(--border)',
-                marginBottom: '4px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {menuNode.title || 'Untitled'}
-            </div>
-
-            <ContextMenuItem
-              onClick={() => {
-                setFocusNodeId(null)
-                setConnectingFrom(contextMenu.nodeId)
-                setContextMenu(null)
-              }}
-            >
-              <Link2 size={14} /> Connect to a note
-            </ContextMenuItem>
-
-            {(degrees.get(contextMenu.nodeId) ?? 0) >= 1 && (
-              <ContextMenuItem
-                onClick={() => {
-                  disconnectAll(contextMenu.nodeId)
-                  setContextMenu(null)
-                }}
-              >
-                <Unlink size={14} /> Disconnect all links
-              </ContextMenuItem>
-            )}
-
-            <ContextMenuItem
-              danger
-              onClick={() => {
-                const id = contextMenu.nodeId
-                setContextMenu(null)
-                void handleRemoveNote(id)
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path
-                  d="M1 3.5h12M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M5.5 6.5v4M8.5 6.5v4M2.5 3.5l.75 7.25a.5.5 0 0 0 .5.45h6.5a.5.5 0 0 0 .5-.45L11.5 3.5"
-                  stroke="currentColor"
-                  strokeWidth="1.25"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Delete note
-            </ContextMenuItem>
-          </div>
-        </>
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={menuItems(contextMenu.nodeId)}
+        />
       )}
 
       {focusedNoteForPanel && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            width: '400px',
-            maxHeight: '90%',
-            overflowY: 'auto',
-            background: 'var(--bg)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-xl)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          {/* Panel header — back button lives here, separate from NoteItem */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 14px 0',
-            }}
-          >
-            <button
-              onClick={() => setFocusNodeId(null)}
-              title="Back to full graph"
-              aria-label="Back to full graph"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-2)',
-                fontSize: '0.8rem',
-                padding: '4px 6px',
-                borderRadius: '6px',
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M8.5 2.5L3.5 7l5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Back
+        <div className={styles.notePanel}>
+          <div className={styles.noteHead}>
+            <button type="button" className={styles.noteClose} onClick={() => setFocusNodeId(null)} title="Close note" aria-label="Close note">
+              <X size={15} />
             </button>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-2)', opacity: 0.6 }}>
-              Click graph to dismiss
-            </span>
           </div>
           <NoteItem note={focusedNoteForPanel} onUpdate={handleUpdateNote} onRemove={handleRemoveNote} />
         </div>
       )}
     </div>
-  )
-}
-
-/** A single row in the node right-click menu. */
-function ContextMenuItem({
-  onClick,
-  danger = false,
-  children,
-}: {
-  onClick: () => void
-  danger?: boolean
-  children: React.ReactNode
-}) {
-  const [hover, setHover] = useState(false)
-  const color = danger ? 'var(--danger)' : 'var(--text-1)'
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        width: '100%',
-        textAlign: 'left',
-        background: hover ? (danger ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'var(--surface-2)') : 'transparent',
-        border: 'none',
-        borderRadius: 'var(--radius-sm)',
-        color,
-        fontSize: '0.82rem',
-        padding: '0.5rem 0.6rem',
-        cursor: 'pointer',
-      }}
-    >
-      {children}
-    </button>
   )
 }
