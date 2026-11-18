@@ -1156,9 +1156,11 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       startCursor()
     }
   }
-  // The canvas only repaints on demand; nudge it when the cursor ring changes.
+  // The canvas only repaints on demand (autoPauseRedraw) and force-graph has no
+  // refresh(); re-setting the current zoom is a no-op that flags one repaint.
   useEffect(() => {
-    ;(fgRef.current as any)?.refresh?.()
+    const fg = fgRef.current
+    if (fg) fg.zoom(fg.zoom())
   }, [cursorId, regionFocused])
 
   // Resolve a path over real notes only (an unresolved [[title]] pseudo-node isn't a connection).
