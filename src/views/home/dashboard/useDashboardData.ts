@@ -14,6 +14,7 @@ import { listProjects, listProjectKnowledge } from '../../../core/aiWorkspace'
 import { getIndexStats, getIndexTimes, hasEmbeddableText, staleNotes } from '../../../core/ai'
 import { getLastOpened } from '../../../hooks/useSaveLastOpened'
 import { useActiveVaultId } from '../../../hooks/useVaults'
+import { logEvent } from '../../../lib/logger'
 import { eventBus } from '../../../lib/eventBus'
 import { useSuggestedPairs } from '../../../lib/suggestedLinks'
 import { useDashboardPrefs } from './useDashboardPrefs'
@@ -94,7 +95,9 @@ export interface DashboardData {
   activity: ActivityDay[]
   streak: number
   graph: { nodes: SnapshotNode[]; links: { source: string; target: string }[] }
-  refresh: () => void
+  /** Plain names of the loads that failed and fell back to empty ([] when all loaded). */
+  failedParts: string[]
+  refresh: () => Promise<void>
 }
 
 function startOfDay(ts: number): number {
@@ -126,21 +129,30 @@ export function useDashboardData(): DashboardData {
   const [imports, setImports] = useState<RecentMedia[]>([])
   const [favIds, setFavIds] = useState<string[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [failedParts, setFailedParts] = useState<string[]>([])
 
   const notesRef = useRef(notes)
   notesRef.current = notes
 
   const refresh = useCallback(async () => {
     try {
+      const failed: string[] = []
+      const soft = <T,>(part: string, fallback: T) => () => {
+        failed.push(part)
+        return fallback
+      }
       const [allLinks, projs, stats, times, prog, media, favs] = await Promise.all([
         getAllLinks(),
         listProjects(),
-        getIndexStats(activeVaultId).catch(() => ({ chunkCount: 0, indexedNoteCount: 0 })),
-        getIndexTimes().catch(() => []),
-        listNoteProgress().catch(() => []),
-        recentMedia(12, activeVaultId).catch(() => []),
-        getFavouriteNoteIds().catch(() => []),
+        getIndexStats(activeVaultId).catch(soft('AI index status', { chunkCount: 0, indexedNoteCount: 0 })),
+        getIndexTimes().catch(soft('AI index status', [])),
+        listNoteProgress().catch(soft('reading progress', [])),
+        recentMedia(12, activeVaultId).catch(soft('recent imports', [])),
+        getFavouriteNoteIds().catch(soft('favourites', [])),
       ])
+      const parts = [...new Set(failed)]
+      setFailedParts(parts)
+      if (parts.length) logEvent('warn', 'dashboard', 'Some dashboard data failed to load', { data: { parts } })
       setRawLinks(allLinks)
       setProjects(projs)
       setIndexedCount(stats.indexedNoteCount)
@@ -162,7 +174,8 @@ export function useDashboardData(): DashboardData {
       )
       setProjectCounts(counts)
     } catch (e) {
-      console.error('[dashboard] data refresh failed:', e)
+      setFailedParts(['links and projects'])
+      logEvent('warn', 'dashboard', 'Dashboard data refresh failed', { error: e })
     } finally {
       setLoaded(true)
     }
@@ -196,7 +209,7 @@ export function useDashboardData(): DashboardData {
   const suggested = useSuggestedPairs(notes, links, suggestSource)
 
   // ── Derived metrics (memoized over notes + fetched state) ──
-  const data = useMemo<Omit<DashboardData, 'refresh' | 'suggestedConnections'>>(() => {
+  const data = useMemo<Omit<DashboardData, 'refresh' | 'suggestedConnections' | 'failedParts'>>(() => {
     // Projects are per-vault too (v15) — scope them alongside notes.
     const projects = allProjects.filter((p) => (p.vaultId ?? DEFAULT_VAULT_ID) === activeVaultId)
 
@@ -342,5 +355,5 @@ export function useDashboardData(): DashboardData {
     }
   }, [notes, links, allProjects, activeVaultId, projectCounts, indexedCount, stale, progress, imports, favIds, jobs, notesLoading, loaded])
 
-  return { ...data, suggestedConnections: suggested.pairs.length, refresh: () => void refresh() }
+  return { ...data, failedParts, suggestedConnections: suggested.pairs.length, refresh }
 }

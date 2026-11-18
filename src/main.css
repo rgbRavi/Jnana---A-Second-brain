@@ -32,6 +32,7 @@
   --font-mono:    'DM Mono', monospace;
   --font-reading: 'Newsreader', Georgia, serif;
   --radius-sm:    6px;
+  --radius-xs:    calc(var(--radius-sm) * 2 / 3); /* derived: DESIGN.md xs (4px); follows sharper presets */
   --radius-md:    10px;
   --radius-lg:    14px;
   --radius-xl:    16px; /* hero/section cards — the tier above --radius-lg */

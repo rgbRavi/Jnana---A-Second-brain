@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (c) 2026 Jnana Project
 
-// The widget registry — the single place that maps a SectionId to its title,
-// icon and component. Adding a future widget = add a SectionId (types.ts) + an
+// The widget registry — the single place that maps a SectionId to its title
+// and component. Adding a future widget = add a SectionId (types.ts) + an
 // entry here; the page layout never changes.
 import type { ComponentType } from 'react'
 import type { SectionId } from './types'
@@ -22,19 +22,18 @@ import {
 
 export interface SectionDef {
   title: string
-  icon: string
   Component: ComponentType<SectionProps>
 }
 
 export const SECTIONS: Record<SectionId, SectionDef> = {
-  quickActions: { title: 'Quick Actions', icon: '⚡', Component: QuickActionsSection },
-  dailySummary: { title: 'Daily Summary', icon: '📊', Component: DailySummarySection },
-  continueLearning: { title: 'Continue Learning', icon: '📚', Component: ContinueLearningSection },
-  favourites: { title: 'Favourites', icon: '⭐', Component: FavouritesSection },
-  insights: { title: 'Knowledge Insights', icon: '💡', Component: InsightsSection },
-  graphSnapshot: { title: 'Knowledge Graph', icon: '🕸️', Component: GraphSnapshotSection },
-  projects: { title: 'Projects', icon: '📂', Component: ProjectsSection },
-  recentImports: { title: 'Recent Imports', icon: '📥', Component: RecentImportsSection },
-  backgroundTasks: { title: 'Background Tasks', icon: '⏳', Component: BackgroundTasksSection },
-  activityHeatmap: { title: 'Knowledge Activity', icon: '🔥', Component: ActivityHeatmapSection },
+  quickActions: { title: 'Quick actions', Component: QuickActionsSection },
+  dailySummary: { title: 'Today', Component: DailySummarySection },
+  continueLearning: { title: 'Also in progress', Component: ContinueLearningSection },
+  favourites: { title: 'Favourites', Component: FavouritesSection },
+  insights: { title: 'Tidy up', Component: InsightsSection },
+  graphSnapshot: { title: 'Knowledge Graph', Component: GraphSnapshotSection },
+  projects: { title: 'Projects', Component: ProjectsSection },
+  recentImports: { title: 'Recent imports', Component: RecentImportsSection },
+  backgroundTasks: { title: 'Background tasks', Component: BackgroundTasksSection },
+  activityHeatmap: { title: 'Activity', Component: ActivityHeatmapSection },
 }

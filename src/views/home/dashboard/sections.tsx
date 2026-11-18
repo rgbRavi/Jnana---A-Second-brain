@@ -2,15 +2,16 @@
 // Copyright (c) 2026 Jnana Project
 
 import { useRef } from 'react'
-import { Bot, FileUp, Mic, Search, SquarePen, Star } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { Bot, File, FileText, FileUp, Film, Image, Link2, Mic, Music, Paperclip, Search, SearchX, SquarePen, Star, Tag, Unlink } from 'lucide-react'
 import styles from './Dashboard.module.css'
 import { preview, relativeTime } from './format'
 import { useWheelHorizontal } from './useWheelHorizontal'
 import type { Note } from '../../../types'
 import type { DashboardData } from './useDashboardData'
-import { StatCard } from './components/StatCard'
 import { QuickActionButton } from './components/QuickActionButton'
-import { openCommandPalette } from '../../../ui/CommandPalette'
+import { toast } from '../../../lib/toast'
+import { openCommandPalette, PALETTE_SHORTCUT } from '../../../ui/CommandPalette'
 import { InsightCard } from './components/InsightCard'
 import { ProjectCard } from './components/ProjectCard'
 import { TaskCard } from './components/TaskCard'
@@ -40,15 +41,47 @@ export interface SectionProps {
   actions: DashboardActions
 }
 
-// ── Hero (always-on) ────────────────────────────────────
-export function HeroSection({ data }: { data: DashboardData }) {
-  const t = data.totals
+// ── Hero (always-on): resume row ────────────────────────
+export function HeroSection({ data, actions }: SectionProps) {
+  if (data.loading) return <Skeleton height={72} radius={10} />
+  const item = data.continueLearning[0]
+  // No reading history yet: fall back to the most recently touched note.
+  const latest = item ? undefined : data.notes.reduce<Note | undefined>((a, n) => (!a || n.updatedAt > a.updatedAt ? n : a), undefined)
+  const note = item?.note ?? latest
+  if (!note)
+    return (
+      <div className={styles.resume}>
+        <p className={`${styles.resumeBody} ${styles.resumeEmpty}`}>No notes yet. Start one from the composer below.</p>
+        <button type="button" className={styles.resumeBtn} onClick={actions.newNote}>
+          New note
+        </button>
+      </div>
+    )
+  const pct = item ? Math.round(item.progress * 100) : 0
   return (
-    <div className={styles.statGrid}>
-      <StatCard icon="📝" label="Notes" value={t.notes} accent="var(--accent)" />
-      <StatCard icon="🔗" label="Connections" value={t.connections} accent="#3ba7f7" />
-      <StatCard icon="📂" label="Projects" value={t.projects} accent="#3fb950" />
-      <StatCard icon="🧠" label="Indexed" value={`${t.indexedPct}%`} sub={`${t.indexedNotes} of ${t.embeddable} notes`} accent="#e3b341" />
+    <div className={styles.resume}>
+      <div className={styles.resumeBody}>
+        <span className={styles.resumeKicker}>{item ? 'Pick up where you left off' : 'Latest note'}</span>
+        <span className={styles.resumeTitle}>{note.title || 'Untitled'}</span>
+        {item ? (
+          <>
+            <span className={styles.resumeMeta}>
+              {relativeTime(item.lastOpenedAt)} · {item.readingTimeMin} min read
+            </span>
+            <span className={styles.resumeProgress}>
+              <span className={styles.progressBar}>
+                <span className={styles.progressFill} style={{ transform: `scaleX(${pct / 100})` }} />
+              </span>
+              {pct}% read
+            </span>
+          </>
+        ) : (
+          <span className={styles.resumeMeta}>{relativeTime(note.updatedAt)}</span>
+        )}
+      </div>
+      <button type="button" className={styles.resumeBtn} onClick={() => actions.openNote(note)}>
+        {item ? 'Resume' : 'Open'}
+      </button>
     </div>
   )
 }
@@ -57,43 +90,22 @@ export function HeroSection({ data }: { data: DashboardData }) {
 export function QuickActionsSection({ actions }: SectionProps) {
   return (
     <div className={styles.quickGrid}>
-      <QuickActionButton icon={<SquarePen size={22} />} label="New Note" onClick={actions.newNote} />
-      <QuickActionButton icon={<Mic size={22} />} label="Record Audio" onClick={actions.recordAudio} />
-      <QuickActionButton icon={<FileUp size={22} />} label="Import File" onClick={actions.importFile} />
-      <QuickActionButton icon={<Search size={22} />} label="Search" onClick={openCommandPalette} />
-      <QuickActionButton icon={<Bot size={22} />} label="AI Chat" onClick={() => actions.goto('/ai')} />
+      <QuickActionButton icon={<SquarePen size={22} />} label="New note" onClick={actions.newNote} />
+      <QuickActionButton icon={<Mic size={22} />} label="Record audio" onClick={actions.recordAudio} />
+      <QuickActionButton icon={<FileUp size={22} />} label="Import file" onClick={actions.importFile} />
+      <QuickActionButton icon={<Search size={22} />} label="Search" title={`Search (${PALETTE_SHORTCUT})`} onClick={openCommandPalette} />
+      <QuickActionButton icon={<Bot size={22} />} label="AI chat" onClick={() => actions.goto('/ai')} />
     </div>
   )
 }
 
 // ── Daily Summary ───────────────────────────────────────
 export function DailySummarySection({ data }: SectionProps) {
-  const today = data.activity[data.activity.length - 1]
-  const createdToday = today?.created ?? 0
-  const tidy = data.orphanCount === 0 && data.untaggedCount === 0
-  return (
-    <p className={styles.summary}>
-      You have <b>{data.totals.notes}</b> notes connected by <b>{data.totals.connections}</b> links.
-      {createdToday > 0 && (
-        <>
-          {' '}You created <b>{createdToday}</b> today.
-        </>
-      )}
-      {data.streak > 1 && (
-        <>
-          {' '}You're on a <b>{data.streak}-day</b> streak. 🔥
-        </>
-      )}{' '}
-      {tidy ? (
-        <>Your vault is tidy. ✨</>
-      ) : (
-        <>
-          <b>{data.orphanCount}</b> orphan{data.orphanCount === 1 ? '' : 's'} and <b>{data.untaggedCount}</b> untagged
-          note{data.untaggedCount === 1 ? '' : 's'} could use attention.
-        </>
-      )}
-    </p>
-  )
+  const createdToday = data.activity[data.activity.length - 1]?.created ?? 0
+  const parts: string[] = []
+  if (createdToday > 0) parts.push(`You've created ${createdToday} note${createdToday === 1 ? '' : 's'} today.`)
+  if (data.streak > 1) parts.push(`You've written on ${data.streak} days in a row.`)
+  return <p className={styles.summary}>{parts.length ? parts.join(' ') : "You haven't written anything today yet."}</p>
 }
 
 // ── Continue Learning ───────────────────────────────────
@@ -101,11 +113,13 @@ export function ContinueLearningSection({ data, actions }: SectionProps) {
   const rowRef = useRef<HTMLDivElement>(null)
   useWheelHorizontal(rowRef)
   if (data.loading) return <SkeletonRows rows={2} />
-  if (data.continueLearning.length === 0)
-    return <p className={styles.empty}>Open a note to start a learning session — it'll show up here.</p>
+  // The hero already shows the most recent one; this card is the rest.
+  const rest = data.continueLearning.slice(1)
+  if (rest.length === 0)
+    return <p className={styles.empty}>Nothing else in progress. Notes you start reading show up here.</p>
   return (
     <div className={styles.scrollRow} ref={rowRef}>
-      {data.continueLearning.map((item) => {
+      {rest.map((item) => {
         const pct = Math.round(item.progress * 100)
         return (
           <button key={item.note.id} type="button" className={styles.learnCard} onClick={() => actions.openNote(item.note)}>
@@ -129,7 +143,7 @@ export function ContinueLearningSection({ data, actions }: SectionProps) {
 export function FavouritesSection({ data, actions }: SectionProps) {
   if (data.loading) return <SkeletonRows rows={2} />
   if (data.favourites.length === 0)
-    return <p className={styles.empty}>Star a note (☆ in the editor) to pin it here.</p>
+    return <p className={styles.empty}>Star a note in the editor to pin it here.</p>
   return (
     <div className={styles.favGrid}>
       {data.favourites.map((n) => (
@@ -147,14 +161,20 @@ export function FavouritesSection({ data, actions }: SectionProps) {
   )
 }
 
-// ── Knowledge Insights ──────────────────────────────────
+// ── Tidy up ─────────────────────────────────────────────
 export function InsightsSection({ data, actions }: SectionProps) {
+  const rows: { count: number; label: string; icon: ReactNode; onClick: () => void }[] = [
+    { count: data.orphanCount, label: 'Notes with no links', icon: <Unlink size={15} />, onClick: actions.showOrphans },
+    { count: data.staleCount, label: 'Not searchable by AI yet', icon: <SearchX size={15} />, onClick: actions.indexStale },
+    { count: data.suggestedConnections, label: 'Possible connections', icon: <Link2 size={15} />, onClick: actions.showSuggestedLinks },
+    { count: data.untaggedCount, label: 'Notes without tags', icon: <Tag size={15} />, onClick: actions.showUntagged },
+  ].filter((r) => r.count > 0)
+  if (rows.length === 0) return <p className={styles.empty}>Nothing to tidy up.</p>
   return (
-    <div className={styles.insightGrid}>
-      <InsightCard count={data.orphanCount} label="Orphan notes" tone="warn" icon="🌱" onClick={actions.showOrphans} />
-      <InsightCard count={data.staleCount} label="Need indexing" tone="accent" icon="🧠" onClick={actions.indexStale} />
-      <InsightCard count={data.suggestedConnections} label="Suggested links" tone="good" icon="🔗" onClick={actions.showSuggestedLinks} />
-      <InsightCard count={data.untaggedCount} label="Untagged notes" tone="neutral" icon="🏷" onClick={actions.showUntagged} />
+    <div className={styles.insightList}>
+      {rows.map((r) => (
+        <InsightCard key={r.label} {...r} />
+      ))}
     </div>
   )
 }
@@ -194,17 +214,16 @@ export function ProjectsSection({ data, actions }: SectionProps) {
 }
 
 // ── Recent Imports ──────────────────────────────────────
-const TYPE_ICON: Record<string, string> = {
-  image: '🖼️',
-  video: '🎬',
-  audio: '🎵',
-  pdf: '📕',
-  document: '📄',
+const TYPE_ICON: Record<string, ReactNode> = {
+  image: <Image size={16} />,
+  video: <Film size={16} />,
+  audio: <Music size={16} />,
+  pdf: <FileText size={16} />,
+  document: <File size={16} />,
 }
 export function RecentImportsSection({ data, actions }: SectionProps) {
   if (data.loading) return <SkeletonRows rows={3} />
-  if (data.recentImports.length === 0) return <p className={styles.empty}>No imported files yet.</p>
-  const byId = new Map(data.notes.map((n) => [n.id, n]))
+  if (data.recentImports.length === 0) return <p className={styles.empty}>No imports yet. Add a PDF, image or recording from the composer and it shows up here.</p>
   return (
     <div className={styles.importList}>
       {data.recentImports.map((m) => (
@@ -213,12 +232,13 @@ export function RecentImportsSection({ data, actions }: SectionProps) {
           type="button"
           className={styles.importItem}
           onClick={() => {
-            const n = byId.get(m.noteId)
+            const n = data.notes.find((x) => x.id === m.noteId)
             if (n) actions.openNote(n)
+            else toast.info("That note isn't in this vault anymore.")
           }}
         >
           <span className={styles.importIcon} aria-hidden="true">
-            {TYPE_ICON[m.mediaType] ?? '📎'}
+            {TYPE_ICON[m.mediaType] ?? <Paperclip size={16} />}
           </span>
           <span className={styles.importMeta}>
             <span className={styles.importTitle}>{m.noteTitle || 'Untitled'}</span>

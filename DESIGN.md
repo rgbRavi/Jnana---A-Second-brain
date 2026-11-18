@@ -30,61 +30,61 @@ colors:
   data-orange: "#ff8c42"
 typography:
   headline:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.5rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: 1.35
     letterSpacing: "normal"
   body:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.9375rem"
     fontWeight: 400
     lineHeight: 1.6
     letterSpacing: "normal"
   caption:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   label:
-    fontFamily: "JetBrains Mono, monospace"
+    fontFamily: "DM Mono, monospace"
     fontSize: "0.7rem"
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: "0.1em"
   small:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 400
     lineHeight: 1.4
     letterSpacing: "normal"
   compact:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "normal"
   heading-sm:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.25rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "-0.01em"
   heading:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.015em"
   display:
-    fontFamily: "Inter, sans-serif"
+    fontFamily: "DM Sans, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 600
     lineHeight: 1.15
