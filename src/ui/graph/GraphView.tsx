@@ -9,6 +9,8 @@ import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
 import { nodesWithinHops } from './neighbourhood'
+import { timeRange, visibleIds } from './timeline'
+import { TimelineBar } from './TimelineBar'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { GraphListView } from './GraphListView'
@@ -393,6 +395,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
 
   const [hoverNodeId, setHoverNodeId] = useState<string | null>(null)
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null)
+  // Timeline scrub position (ms), or null when the timeline is closed. Transient.
+  const [timelineAt, setTimelineAt] = useState<number | null>(null)
   // Off (default): selecting dims non-neighbours. On: the graph filters to the 1-hop neighbourhood.
   const [neighbourhoodOnly, setNeighbourhoodOnly] = usePersistentViewState('graph.neighbourhoodOnly', false)
   // How many links out selection emphasis / "Neighbourhood only" reach (hover stays 1).
@@ -529,7 +533,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Esc peels back one layer at a time: a pending connection or menu, then the
   // selection, then list view (back to the graph).
   useEscapeKey(() => {
-    if (connectingFrom || contextMenu || pickFrom || pathFrom) {
+    if (timelineAt !== null) {
+      setTimelineAt(null)
+    } else if (connectingFrom || contextMenu || pickFrom || pathFrom) {
       setConnectingFrom(null)
       setContextMenu(null)
       setPickFrom(null)
@@ -762,6 +768,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const missingCount = useMemo(() => forceData.nodes.filter((n: any) => n.isPseudo).length, [forceData])
   const shownCount = useMemo(() => forceData.nodes.filter((n: any) => !n.isPseudo).length, [forceData])
 
+  // Timeline: read-only over forceData, so scrubbing never rebuilds the simulation.
+  const tlRange = useMemo(() => timeRange(forceData.nodes as any[]), [forceData])
+  const tlVisible = useMemo(
+    () => (timelineAt === null ? null : visibleIds(forceData.nodes as any[], forceData.links as any[], timelineAt)),
+    [forceData, timelineAt],
+  )
+
   // id -> neighbour ids, for hover/selection dimming. Links are ids here (the
   // sim mutates them to objects later), but tolerate both.
   const adjacency = useMemo(() => {
@@ -801,7 +814,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const idOfEnd = (x: any): string => (typeof x === 'object' && x ? x.id : x)
   const isPathLink = (l: any) => !!pathSet && pathEdges.has(`${idOfEnd(l.source)}|${idOfEnd(l.target)}`)
   const dimFor = (id: string): number =>
-    pathSet
+    tlVisible && !tlVisible.has(id)
+      ? 0
+      : pathSet
       ? pathSet.has(id) ? 1 : 0.15
       : !emphasisId
         ? 1
@@ -1432,6 +1447,8 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           spotlight={spotlight}
           onSpotlight={setGraphSpotlight}
           onExport={() => void exportGraphPng(containerRef.current)}
+          timelineOpen={timelineAt !== null}
+          onTimeline={() => setTimelineAt((t) => (t !== null ? null : tlRange ? tlRange.max : null))}
           capture={captureSnapshot}
           apply={applySnapshot}
         />
@@ -1504,7 +1521,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       </div>
 
       {/* Bottom-left stack: group legend, then the right-click hint (graph mode only) */}
-      <div className={styles.corner}>
+      <div className={`${styles.corner} ${timelineAt !== null ? styles.aboveTimeline : ''}`}>
         {legendGroups.length > 0 && (
           <ul className={`${styles.legend} ${styles.legendScroll}`} aria-label="Group colours">
             {legendGroups.map((g) => (
@@ -1531,7 +1548,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
       </div>
 
       {filterActive && (
-        <div className={styles.filterChip} role="status">
+        <div className={`${styles.filterChip} ${timelineAt !== null ? styles.aboveTimeline : ''}`} role="status">
           <span>{`Filtered · ${shownCount} of ${scopedNodes.length} notes`}</span>
           <button type="button" onClick={clearFilters}>
             Clear
@@ -1774,6 +1791,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ctx.restore()
         }}
         nodePointerAreaPaint={(node: any, color, ctx, globalScale) => {
+          if (tlVisible && !tlVisible.has(node.id)) return
           ctx.fillStyle = color
           ctx.beginPath()
           // At least ~6 screen px, so small dots stay clickable when zoomed out.
@@ -1806,11 +1824,25 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 400, 60)
         }}
         linkColor={linkColorFor}
+        linkVisibility={(l: any) => !tlVisible || (tlVisible.has(idOfEnd(l.source)) && tlVisible.has(idOfEnd(l.target)))}
         linkWidth={(l: any) => (isPathLink(l) ? Math.max(linkThickness * 2.5, 3) : linkThickness)}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
         backgroundColor={rippleBackground ? 'rgba(0,0,0,0)' : canvasBg}
       />
+
+      {timelineAt !== null && tlRange && (
+        <TimelineBar
+          min={tlRange.min}
+          max={tlRange.max}
+          value={Math.min(tlRange.max, Math.max(tlRange.min, timelineAt))}
+          shown={tlVisible ? [...tlVisible].filter((id) => !(forceData.nodes as any[]).find((n) => n.id === id)?.isPseudo).length : shownCount}
+          total={shownCount}
+          reducedMotion={reducedMotion}
+          onChange={setTimelineAt}
+          onClose={() => setTimelineAt(null)}
+        />
+      )}
 
       {/* Settings panel (top-right). Hidden while the note panel is open. */}
       {!focusedNoteForPanel &&

@@ -1,0 +1,33 @@
+/* Bottom-centre timeline bar. */
+.bar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-lg);
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: min(560px, calc(100% - 2 * var(--space-lg)));
+  padding: var(--space-2xs) var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+.slider { flex: 1; min-width: 80px; }
+.label { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.btn:hover { background: var(--surface-hover); color: var(--text-1); }

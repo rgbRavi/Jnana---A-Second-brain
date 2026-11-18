@@ -15,12 +15,14 @@ interface Props {
   spotlight: SpotlightKind | null
   onSpotlight: (kind: SpotlightKind | null) => void
   onExport: () => void
+  timelineOpen: boolean
+  onTimeline: () => void
   capture: () => GraphViewSnapshot
   apply: (s: GraphViewSnapshot) => void
 }
 
 /** The toolbar's "⋯" menu: the less-used graph actions, kept out of the way. */
-export function GraphMoreMenu({ className, spotlight, onSpotlight, onExport, capture, apply }: Props) {
+export function GraphMoreMenu({ className, spotlight, onSpotlight, onExport, timelineOpen, onTimeline, capture, apply }: Props) {
   const views = useSavedViews()
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
 
@@ -81,6 +83,7 @@ export function GraphMoreMenu({ className, spotlight, onSpotlight, onExport, cap
       label: spotlight === 'orphans' ? 'Stop highlighting unlinked notes' : 'Highlight unlinked notes',
       onClick: () => onSpotlight(spotlight === 'orphans' ? null : 'orphans'),
     },
+    { label: timelineOpen ? 'Hide timeline' : 'Show timeline', onClick: onTimeline },
     { label: 'Saved views', separator: true, children: viewItems },
     { label: 'Export graph as image…', onClick: onExport },
   ]

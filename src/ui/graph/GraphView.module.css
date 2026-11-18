@@ -423,3 +423,6 @@
   cursor: pointer;
 }
 .pathTitle:hover { text-decoration: underline; }
+
+/* Lift the bottom corner stack / filter chip clear of the timeline bar. */
+.aboveTimeline { bottom: calc(var(--space-lg) + 52px); }
