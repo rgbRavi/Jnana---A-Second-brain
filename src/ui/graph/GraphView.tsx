@@ -3,13 +3,14 @@
 
 // src/ui/graph/GraphView.tsx
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
-import { Link2, List, Network, Scan, SlidersHorizontal, X } from 'lucide-react'
+import { Link2, List, Network, Route, Scan, SlidersHorizontal, X } from 'lucide-react'
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d'
 import { useGraph } from '../../hooks/useGraph'
 import { usePersistentViewState, useViewState } from '../../hooks/useViewState'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { ContextMenu, type MenuItem } from '../ContextMenu'
 import { GraphListView } from './GraphListView'
+import { shortestPath } from './graphPath'
 import { GraphSettingsPanel, nextGroupColor, type DatePreset, type SectionKey } from './GraphSettingsPanel'
 import { compileGroup, describeGroup, migrateGroups, newGroup, type GraphGroup } from './groupMatch'
 import { useGraphForces, setGraphForces, DEFAULT_GRAPH_FORCES } from '../../hooks/useGraphForces'
@@ -395,6 +396,9 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null)
   // List mode can't click a target node, so Connect opens a searchable picker instead.
   const [pickFrom, setPickFrom] = useState<string | null>(null)
+  // "Find path to…": pathFrom = waiting for a target (click, or the list picker); path = the result.
+  const [pathFrom, setPathFrom] = useState<string | null>(null)
+  const [path, setPath] = useState<string[] | null>(null)
 
   // Right-click context menu (per node).
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -513,10 +517,13 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Esc peels back one layer at a time: a pending connection or menu, then the
   // selection, then list view (back to the graph).
   useEscapeKey(() => {
-    if (connectingFrom || contextMenu || pickFrom) {
+    if (connectingFrom || contextMenu || pickFrom || pathFrom) {
       setConnectingFrom(null)
       setContextMenu(null)
       setPickFrom(null)
+      setPathFrom(null)
+    } else if (path) {
+      setPath(null)
     } else if (focusNodeId) {
       setFocusNodeId(null)
     } else if (viewMode === 'list') {
@@ -758,9 +765,21 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
   // Hover wins over selection; selection dims only when not filtering to the neighbourhood.
   const emphasisId = hoverNodeId ?? (neighbourhoodOnly ? null : focusNodeId)
   const dimAlpha = hoverNodeId ? 0.35 : 0.15
+  // A found path outranks hover/selection: its notes + hops stay lit, the rest dims.
+  const pathSet = useMemo(() => (path ? new Set(path) : null), [path])
+  const pathEdges = useMemo(() => {
+    const e = new Set<string>()
+    path?.forEach((id, i) => {
+      if (i > 0) e.add(`${path[i - 1]}|${id}`).add(`${id}|${path[i - 1]}`)
+    })
+    return e
+  }, [path])
+  const idOfEnd = (x: any): string => (typeof x === 'object' && x ? x.id : x)
+  const isPathLink = (l: any) => !!pathSet && pathEdges.has(`${idOfEnd(l.source)}|${idOfEnd(l.target)}`)
   const dimFor = (id: string): number =>
-    !emphasisId || id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
+    pathSet ? (pathSet.has(id) ? 1 : 0.15) : !emphasisId || id === emphasisId || adjacency.get(emphasisId)?.has(id) ? 1 : dimAlpha
   const linkColorFor = (l: any): string => {
+    if (pathSet) return isPathLink(l) ? FOCUS_COLOR : LINK_FADED_COLOR
     if (!emphasisId) return LINK_COLOR
     const a = typeof l.source === 'object' ? l.source.id : l.source
     const b = typeof l.target === 'object' ? l.target.id : l.target
@@ -967,6 +986,36 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
     [nodeCacheStore],
   )
 
+  // Resolve a path over real notes only (an unresolved [[title]] pseudo-node isn't a connection).
+  const completePath = useCallback(
+    (from: string, to: string) => {
+      setPathFrom(null)
+      const isReal = (id: string) => !forceData.nodes.some((n: any) => n.id === id && n.isPseudo)
+      const noteAdj = new Map<string, Set<string>>()
+      adjacency.forEach((set, id) => {
+        if (isReal(id)) noteAdj.set(id, new Set([...set].filter(isReal)))
+      })
+      const found = shortestPath(noteAdj, from, to)
+      if (!found) {
+        setPath(null)
+        toast.info("These notes aren't connected yet.")
+        return
+      }
+      setPath(found)
+    },
+    [adjacency, forceData],
+  )
+
+  // Frame the path (instant under reduced motion); drop it if filters hide one of its notes.
+  useEffect(() => {
+    if (!path) return
+    if (!path.every((id) => forceData.nodes.some((n: any) => n.id === id))) {
+      setPath(null)
+      return
+    }
+    ;(fgRef.current as any)?.zoomToFit?.(reducedMotion ? 0 : 600, 80, (n: any) => path.includes(n.id))
+  }, [path, forceData])
+
   // Vault-empty "New note": a blank note, then open it in the editable panel.
   const createBlank = useCallback(async () => {
     try {
@@ -993,13 +1042,19 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
         return
       }
 
+      if (pathFrom) {
+        if (node.id !== pathFrom) completePath(pathFrom, node.id)
+        else setPathFrom(null)
+        return
+      }
+
       if (focusNodeId === node.id) {
         setFocusNodeId(null)
       } else {
         selectNode(node.id, node.x, node.y)
       }
     },
-    [connectingFrom, connect, focusNodeId, createFromPseudo, selectNode],
+    [connectingFrom, connect, focusNodeId, createFromPseudo, selectNode, pathFrom, completePath],
   )
 
   const handleNodeRightClick = useCallback((node: any, event: MouseEvent) => {
@@ -1186,7 +1241,18 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             return
           }
           setFocusNodeId(null)
+          setPathFrom(null)
           setConnectingFrom(id)
+        },
+      },
+      {
+        label: 'Find path to…',
+        onClick: () => {
+          setContextMenu(null)
+          setConnectingFrom(null)
+          setPickFrom(null)
+          setPath(null)
+          setPathFrom(id)
         },
       },
     ]
@@ -1296,6 +1362,40 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           </div>
         )}
 
+        {pathFrom && viewMode !== 'list' && (
+          <div className={styles.connectBanner} role="status">
+            <Route size={14} className={styles.connectIcon} aria-hidden="true" />
+            <span>Click the note to find a path to, or press Esc to cancel</span>
+            <button type="button" className={styles.chipBtn} onClick={() => setPathFrom(null)}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {path && path.length > 1 && (
+          <div className={styles.spotlightChip} role="status">
+            <Route size={14} aria-hidden="true" />
+            <span className={styles.pathTrail}>
+              {(path.length > 5 ? [path[0], path[1], null, path[path.length - 1]] : path).map((id, i) => (
+                <span key={id ?? 'gap'}>
+                  {i > 0 && ' → '}
+                  {id === null ? (
+                    '…'
+                  ) : (
+                    <button type="button" className={styles.pathTitle} onClick={() => selectNode(id)}>
+                      {graphData.nodes.find((n) => n.id === id)?.title?.trim() || 'Untitled'}
+                    </button>
+                  )}
+                </span>
+              ))}
+              {` · ${path.length - 1} hop${path.length === 2 ? '' : 's'}`}
+            </span>
+            <button type="button" className={styles.chipBtn} onClick={() => setPath(null)}>
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* Spotlight chip: what the dashboard asked us to highlight. */}
         {spotlight && !connectingFrom && (
           <div className={styles.spotlightChip} role="status">
@@ -1366,7 +1466,22 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           onClearFilters={clearFilters}
           onNewNote={canCreateHere ? () => void createBlank() : undefined}
           header={
-            pickFrom && pickSource ? (
+            pathFrom ? (
+              <div className={styles.connectPicker}>
+                <span>{`Path from “${graphData.nodes.find((n) => n.id === pathFrom)?.title || 'Untitled'}” to:`}</span>
+                <JumpToNote
+                  nodes={scopedNodes.filter((n) => n.id !== pathFrom)}
+                  idPrefix="graph-path"
+                  placeholder="Search for a note…"
+                  label="Note to find a path to"
+                  autoFocus
+                  onJump={(id) => completePath(pathFrom, id)}
+                />
+                <button type="button" onClick={() => setPathFrom(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : pickFrom && pickSource ? (
               <div className={styles.connectPicker}>
                 <span>{`Link “${pickSource.title || 'Untitled'}” to:`}</span>
                 <JumpToNote
@@ -1525,7 +1640,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
             if (isOrphan) fill = ORPHAN_COLOR
             else if (isHub && !gColor) fill = HUB_COLOR
           }
-          if (isFocus) fill = FOCUS_COLOR
+          if (isFocus || (pathSet && pathSet.has(node.id))) fill = FOCUS_COLOR
           if (isConnectSource) fill = CONNECT_COLOR
 
           // Orphan spotlight: a breathing gradient halo behind unlinked notes.
@@ -1597,7 +1712,7 @@ export function GraphView({ onUpdate, onRemove, onCreate, scopeIds, scopeNoun = 
           }
         }}
         linkColor={linkColorFor}
-        linkWidth={linkThickness}
+        linkWidth={(l: any) => (isPathLink(l) ? Math.max(linkThickness * 2.5, 3) : linkThickness)}
         linkDirectionalArrowLength={directed ? 4 : 0}
         linkDirectionalArrowRelPos={1}
         backgroundColor={rippleBackground ? 'rgba(0,0,0,0)' : canvasBg}

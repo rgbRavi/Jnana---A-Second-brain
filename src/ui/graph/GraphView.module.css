@@ -411,3 +411,15 @@
   cursor: pointer;
 }
 .connectPicker button:hover { background: var(--surface-hover); border-color: var(--border-control-hover); }
+
+/* "Find path" chip: the note trail; titles are buttons that select the note. */
+.pathTrail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pathTitle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.pathTitle:hover { text-decoration: underline; }
